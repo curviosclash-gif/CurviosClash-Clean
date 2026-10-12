@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { test, expect } from './helpers.desktop.js';
 import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 
-test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isoliert', async ({ page }, testInfo) => {
+test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isoliert', async ({ page, electronApp }, testInfo) => {
     test.setTimeout(180000);
     const popupPromise = page.waitForEvent('popup');
     await page.evaluate((url) => window.open(url, '_blank'), EDITOR_VIEW_PATHS.MAP_EDITOR);
@@ -27,7 +27,48 @@ test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isol
         expect(initial.firstPerson).toBe(false);
         expect(initial.trail).toBeNull();
         expect(initial.radius).toBeGreaterThan(0);
+        // Record every lock request, so the click below is proven to ask for the lock on the
+        // game canvas itself.
+        await editorPage.evaluate(() => {
+            const canvas = document.getElementById('editor-build-runtime');
+            const request = canvas.requestPointerLock;
+            window.__buildLockRequests = [];
+            canvas.requestPointerLock = function recordLockRequest(...args) {
+                window.__buildLockRequests.push(this.id);
+                return request.apply(this, args);
+            };
+        });
+        // document.hasFocus() is no signal here: Playwright emulates page focus.
+        const focusable = await electronApp.evaluate(({ BrowserWindow }, url) => (
+            BrowserWindow.getAllWindows().find((entry) => entry.webContents.getURL() === url)?.isFocusable() ?? null
+        ), editorPage.url());
+        expect(focusable).not.toBeNull();
         await editorPage.locator('#editor-build-runtime').click();
+        expect(await editorPage.evaluate(() => window.__buildLockRequests)).toEqual(['editor-build-runtime']);
+        if (!focusable) {
+            // Test windows are created focusable:false (electron/test-render-window.cjs) so a test
+            // never takes the user's focus, and Chromium grants a pointer lock only to a focused
+            // window; CDP focus emulation does not change that. Here the browser's grant is
+            // simulated; everything the build mode does with the lock stays real. A focusable window
+            // (PW_SHOW_WINDOW=1) must get the real lock instead. Unlike a real lock, the simulation
+            // lets the Escape keydown reach the page; Chromium swallows it to release the lock.
+            testInfo.annotations.push({ type: 'pointer-lock simulated', description: 'unfocusable render window' });
+            await editorPage.evaluate(() => {
+                const canvas = document.getElementById('editor-build-runtime');
+                const exitRealLock = document.exitPointerLock.bind(document);
+                let locked = canvas;
+                const announce = () => document.dispatchEvent(new Event('pointerlockchange'));
+                Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => locked });
+                document.exitPointerLock = () => { exitRealLock(); locked = null; announce(); };
+                canvas.requestPointerLock = function grantLock() {
+                    window.__buildLockRequests.push(this.id);
+                    locked = this;
+                    announce();
+                    return Promise.resolve();
+                };
+                announce();
+            });
+        }
         await editorPage.waitForFunction(() => document.pointerLockElement === document.getElementById('editor-build-runtime'));
         const movementStart = await editorPage.evaluate(() => window.CURVIOS_EDITOR.ui.buildFlight.pose.position.toArray());
         await editorPage.keyboard.down('KeyW');
@@ -42,8 +83,8 @@ test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isol
                 f.paused = true;
                 const distance = f.pose.position.distanceTo({ x: start[0], y: start[1], z: start[2] });
                 const geometries = f.runtime.renderer.renderer.info.memory.geometries;
-                const trails = [];
-                f.runtime.renderer.matchRoot.traverse((object) => { if (/trail/i.test(object.name)) trails.push(object.name); });
+                // The build flight is a camera pose without a player, so it cannot leave a trail.
+                const withoutPlayer = f.runtime.session === null;
                 window.dispatchEvent(new Event('blur'));
                 const held = f.codes.size;
                 const stopped = f.pose.position.clone();
@@ -52,13 +93,13 @@ test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isol
                 const afterGeometries = f.runtime.renderer.renderer.info.memory.geometries;
                 f.pose.position.fromArray(start);
                 f.paused = false;
-                return { distance, trails, geometries, afterGeometries, held, stopped: stayedStill };
+                return { distance, withoutPlayer, geometries, afterGeometries, held, stopped: stayedStill };
             }, movementStart);
         } finally {
             await editorPage.keyboard.up('KeyW');
         }
         expect(flight.distance).toBeGreaterThan(1000);
-        expect(flight.trails).toEqual([]);
+        expect(flight.withoutPlayer).toBe(true);
         expect(flight.afterGeometries).toBe(flight.geometries);
         expect(flight.held).toBe(0);
         expect(flight.stopped).toBe(true);
