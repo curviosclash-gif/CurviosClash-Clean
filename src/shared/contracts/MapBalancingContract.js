@@ -7,6 +7,7 @@
 
 import { SETTINGS_LIMITS } from './SettingsRuntimeContract.js';
 import { ARCADE_RUN_SETTINGS_RANGES } from './ArcadeRunSettingsContract.js';
+import { stableCanonicalSerialize } from '../utils/CanonicalJson.js';
 
 export const MAP_BALANCING_CONTRACT_VERSION = 1;
 
@@ -415,6 +416,24 @@ export function describeMapBalancing(catalog, { modePath, mapKey } = {}) {
             inherited: (entry.key in layerValues ? resolved.inherited[entry.key] : resolved.values[entry.key]) ?? null,
         })),
     };
+}
+
+/**
+ * Short stable id of the values a match runs with. Prepared for B5: the lobby compares it so
+ * two game versions never play one map with different values, and leaderboards key on it.
+ * @param {{ version?: number, modePath?: string, mapKey?: string, values?: MapBalancingValues } | null} resolved
+ * @returns {string}
+ */
+export function fingerprintMapBalancing(resolved) {
+    const values = orderValues(isPlainObject(resolved?.values) ? resolved.values : {});
+    const source = `${resolved?.version ?? MAP_BALANCING_CONTRACT_VERSION}|${resolved?.modePath || ''}|${resolved?.mapKey || ''}|${stableCanonicalSerialize(values)}`;
+    // FNV-1a, 32 bit: enough to tell versions apart, not a security hash.
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < source.length; index += 1) {
+        hash ^= source.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return `mb${MAP_BALANCING_CONTRACT_VERSION}-${hash.toString(16).padStart(8, '0')}`;
 }
 
 /**

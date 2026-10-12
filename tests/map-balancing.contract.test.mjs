@@ -11,6 +11,7 @@ import {
     MAP_BALANCING_ORIGINS,
     createMapBalancingCatalog,
     describeMapBalancing,
+    fingerprintMapBalancing,
     normalizeMapBalancingLayer,
     normalizeMapBalancingMapDocument,
     normalizeMapBalancingModesDocument,
@@ -144,6 +145,18 @@ test('B0: the tool rows show value, origin, the map value and what a reset bring
     const portals = description.fields.find((row) => row.key === 'portalsEnabled');
     assert.deepEqual([portals.type, portals.min, portals.value], ['boolean', null, true]);
     assert.equal(describeMapBalancing(null).fields.every((row) => row.value === null), true);
+});
+
+test('B5 prep: the fingerprint changes with any value and ignores key order', () => {
+    const catalog = createMapBalancingCatalog({ modesDocument: readJson(MODES_FILE) });
+    const base = resolveMapBalancing(catalog, { modePath: 'fight', mapKey: 'maze' });
+    const fingerprint = fingerprintMapBalancing(base);
+    assert.match(fingerprint, /^mb1-[0-9a-f]{8}$/);
+    const reordered = { ...base, values: Object.fromEntries(Object.entries(base.values).reverse()) };
+    assert.equal(fingerprintMapBalancing(reordered), fingerprint);
+    assert.notEqual(fingerprintMapBalancing({ ...base, values: { ...base.values, speed: 20.5 } }), fingerprint);
+    assert.notEqual(fingerprintMapBalancing({ ...base, mapKey: 'standard' }), fingerprint);
+    assert.match(fingerprintMapBalancing(null), /^mb1-/);
 });
 
 test('B0: bot range keeps min below max', () => {
