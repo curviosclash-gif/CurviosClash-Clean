@@ -12,6 +12,7 @@ import { getCustomMapConversionScale } from '../src/entities/CustomMapLoader.js'
 import { parseMapJSON, toArenaMapDefinition } from '../src/entities/MapSchema.js';
 import { resolveMapLighting } from '../src/shared/contracts/MapLightingContract.js';
 import { EditorMapManager } from '../editor/js/EditorMapManager.js';
+import { bindEditorBackdropControls } from '../editor/js/ui/EditorBackdropControls.js';
 import {
     BACKDROP_ID_PREFIX,
     PRESET_EDITOR_UNITS_PER_MAP_UNIT,
@@ -182,6 +183,36 @@ test('aircraft and turrets placed on a map without scaled anchors are handed out
 
     const scaled = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset: { ...preset, scaleAuthoredAnchors: true }, mapScale: MAP_SCALE });
     near(scaled.aircraft[0].x, 10, 'aircraft x stays in map units for a map that scales anchors');
+});
+
+test('a reopened map still copies placements with its backdrop map\'s anchor rule', async () => {
+    const preset = MAP_PRESET_CATALOG.toybox_titan;
+    assert.equal(preset.scaleAuthoredAnchors, true);
+    const { document } = convertPresetToEditorDocument('toybox_titan', preset, { mapScale: MAP_SCALE });
+    const first = createEditor();
+    const savedJson = first.mapManager.generateJSONExport(first.load(document));
+
+    // Reopened in a fresh editor: nothing but the saved file says which game map it was built on.
+    const reopened = createEditor();
+    const arenaSize = reopened.load(JSON.parse(savedJson));
+    const previousDocument = globalThis.document;
+    globalThis.document = { createElement: () => ({}) };
+    try {
+        const editor = {
+            core: reopened.mapManager.core,
+            dom: { jsonOutput: { value: '' } },
+            mapManager: reopened.mapManager,
+            getArenaSizeForExport: () => arenaSize,
+            notify: () => {},
+        };
+        bindEditorBackdropControls(editor);
+        const copied = JSON.parse(await editor.copyPlacementsInPresetFormat());
+        assert.equal(copied.scaleAuthoredAnchors, true);
+        near(copied.playerSpawn.x, preset.playerSpawn.x, 'spawn x in the preset\'s map units');
+        near(copied.playerSpawn.z, preset.playerSpawn.z, 'spawn z in the preset\'s map units');
+    } finally {
+        globalThis.document = previousDocument;
+    }
 });
 
 /** Lighting of the map the match builds from an editor export. */

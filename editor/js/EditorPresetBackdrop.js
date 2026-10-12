@@ -74,7 +74,7 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
     }
     if ((!Array.isArray(preset?.glbModels) || preset.glbModels.length === 0)
         && Array.isArray(preset?.obstacles) && preset.obstacles.length > 0) {
-        return { document: fromArenaMapDefinition(preset, { mapScale }).document };
+        return { document: { ...fromArenaMapDefinition(preset, { mapScale }).document, editorBackdrop: key } };
     }
     const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
     const anchorUnits = preset?.scaleAuthoredAnchors === true ? units : units / Math.max(0.001, finiteOr(mapScale, 3));
@@ -98,6 +98,7 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
     const lighting = adaptLightingToScaledAnchors(preset.lighting, preset, mapScale);
     return {
         document: {
+            editorBackdrop: key,
             arenaSize: { width, height, depth },
             glbModels,
             ...(lighting ? { lighting } : {}),

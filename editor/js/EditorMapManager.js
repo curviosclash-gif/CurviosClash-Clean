@@ -522,15 +522,21 @@ export class EditorMapManager {
         for (const key of ['waterZone', 'playableVolumes']) {
             if (this.mapDocumentMeta[key] !== undefined) document[key] = this.mapDocumentMeta[key];
         }
+        // Editor-only: the built-in map this one was built on, so a reopened map copies its
+        // placements with that map's anchor rule. The match does not read it.
+        if (this.mapDocumentMeta.editorBackdrop) document.editorBackdrop = this.mapDocumentMeta.editorBackdrop;
         return JSON.stringify(document, null, 2);
     }
 
     importFromJSON(jsonString, options = {}) {
         const source = parseMapJSON(jsonString).map;
+        const raw = JSON.parse(jsonString);
         importFromJSON(this, jsonString, options);
-        Object.assign(this.mapDocumentMeta, readEditorMapPresentationMetadata(JSON.parse(jsonString)));
+        Object.assign(this.mapDocumentMeta, readEditorMapPresentationMetadata(raw));
         for (const key of ['waterZone', 'playableVolumes']) {
             if (source[key] !== undefined) this.mapDocumentMeta[key] = source[key];
         }
+        const backdrop = typeof raw?.editorBackdrop === 'string' ? raw.editorBackdrop.trim() : '';
+        if (backdrop) this.mapDocumentMeta.editorBackdrop = backdrop;
     }
 }
