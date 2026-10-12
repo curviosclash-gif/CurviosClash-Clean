@@ -30,6 +30,7 @@ export const MENU_VISIBILITY_KEYS = Object.freeze([
 export const MENU_VISIBILITY_REASONS = Object.freeze({
     THREE_PLAYERS_NO_TEAMS: 'three_players_no_teams',
     FOUR_PLAYERS_PLANAR_ONLY: 'four_players_planar_only',
+    SPLITSCREEN_FOUR_ONLY: 'splitscreen_four_only',
     SPLITSCREEN_TWO_OR_THREE_ONLY: 'splitscreen_two_or_three_only',
     SINGLE_PLAYER_ONLY: 'single_player_only',
     HOST_ONLY: 'host_only',
@@ -78,12 +79,15 @@ const sharedScreenSlotsRule = (c) =>
     c.sessionType === 'splitscreen' && c.playerCount >= 2 && c.playerCount <= 3
         ? null
         : HIDE(R.SPLITSCREEN_TWO_OR_THREE_ONLY);
-const fourPlayerRule = (c) => (c.playerCount === 4 ? HIDE(R.FOUR_PLAYERS_PLANAR_ONLY) : null);
+// Four players exist only on the shared screen as planar flight; network lobbies of four play normally.
+const isSharedScreenOfFour = (c) => c.sessionType === 'splitscreen' && c.playerCount === 4;
+const fourPlayerRule = (c) => (isSharedScreenOfFour(c) ? HIDE(R.FOUR_PLAYERS_PLANAR_ONLY) : null);
+const planarEntryRule = (c) => (isSharedScreenOfFour(c) ? null : HIDE(R.SPLITSCREEN_FOUR_ONLY));
 const devRule = (c) => (c.devEnvironment ? null : HIDE(R.DEV_ONLY));
 
 // A rule returns null (visible and enabled) or { visible, reason }.
 const RULES = Object.freeze({
-    planarEntry: () => null,
+    planarEntry: planarEntryRule,
     arcadeJourney: fourPlayerRule,
     freePlay: fourPlayerRule,
     variantTeam: teamVariantRule,

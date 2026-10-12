@@ -96,7 +96,20 @@ test('four players only keep the planar entry', () => {
     expectHidden(four, 'arcadeJourney', MENU_VISIBILITY_REASONS.FOUR_PLAYERS_PLANAR_ONLY);
     expectHidden(four, 'freePlay', MENU_VISIBILITY_REASONS.FOUR_PLAYERS_PLANAR_ONLY);
     const three = resolve({ sessionType: 'splitscreen', playerCount: 3 });
-    for (const key of ['planarEntry', 'arcadeJourney', 'freePlay']) expectEnabled(three, key);
+    for (const key of ['arcadeJourney', 'freePlay']) expectEnabled(three, key);
+});
+
+test('the planar-only rule belongs to the shared screen, not to network lobbies', () => {
+    const lobbyOfFour = resolve({ sessionType: 'multiplayer', playerCount: 4, lobbyRole: 'host' });
+    expectEnabled(lobbyOfFour, 'arcadeJourney');
+    expectEnabled(lobbyOfFour, 'freePlay');
+    for (const raw of [
+        { sessionType: 'single' },
+        { sessionType: 'splitscreen', playerCount: 3 },
+        { sessionType: 'multiplayer', playerCount: 4, lobbyRole: 'host' },
+    ]) {
+        expectHidden(resolve(raw), 'planarEntry', MENU_VISIBILITY_REASONS.SPLITSCREEN_FOUR_ONLY);
+    }
 });
 
 test('device assignment and profile slots need two or three shared-screen players', () => {
