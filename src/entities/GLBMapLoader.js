@@ -49,16 +49,19 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
         const source = glbModels[index];
         const url = normalizeAllowedGLBUrl(typeof source === 'string' ? source : source?.url);
         if (!url) continue;
+        const role = normalizeGLBModelRole(source?.role);
+        // An optional prop may load on one machine and not on another, so it must never collide.
+        const optionalProp = role === 'optionalProp';
         normalized.push({
             id: normalizeUrl(source?.id) || `model-${index + 1}`,
             url,
-            role: normalizeGLBModelRole(source?.role),
+            role,
             position: normalizeVector3(source?.position),
             rotation: normalizeVector3(source?.rotation),
             scale: normalizePositiveNumber(source?.scale, 1),
             targetSize: normalizePositiveNumber(source?.targetSize, 0),
             maxRenderDistance: normalizePositiveNumber(source?.maxRenderDistance, 0),
-            collision: source?.collision !== false,
+            collision: !optionalProp && source?.collision !== false,
             animationClock: normalizeMapAnimationClock(source?.animationClock, mapClock),
             // A break scene: loaded and placed with the map, but neither drawn nor solid until
             // the event that starts it arrives.
@@ -80,7 +83,7 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
             // This is the opposite of `collision: false`, and neither of them is
             // `hiddenUntilTriggered`: a break scene is hidden *and* intangible until its event
             // arrives, while this one collides from the first frame of the round.
-            collisionOnly: source?.collisionOnly === true,
+            collisionOnly: !optionalProp && source?.collisionOnly === true,
         });
     }
     return normalized;
