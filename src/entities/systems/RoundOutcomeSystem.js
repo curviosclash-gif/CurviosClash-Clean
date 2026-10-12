@@ -36,12 +36,14 @@ export class RoundOutcomeSystem {
         this._overtime = false;
         this._requestedOutcome = null;
         this._objectiveHold = false;
+        this._roundEndHold = false;
     }
 
     reset() {
         this._overtime = false;
         this._requestedOutcome = null;
         this._objectiveHold = false;
+        this._roundEndHold = false;
     }
 
     /**
@@ -50,6 +52,15 @@ export class RoundOutcomeSystem {
      */
     setObjectiveHold(active) {
         this._objectiveHold = active === true;
+    }
+
+    /**
+     * Diagnostics (GameDebugApi) keep a decided round running to measure the bots past the first
+     * deaths. Only an explicit call sets it; a new round starts without it. A round end requested
+     * meanwhile (requestRoundEnd) is kept and ends the round as soon as the hold is released.
+     */
+    setRoundEndHold(active) {
+        this._roundEndHold = active === true;
     }
 
     requestRoundEnd({ winner = null, allowNoWinner = false, reason = 'OBJECTIVE', parcours = null } = {}) {
@@ -90,7 +101,7 @@ export class RoundOutcomeSystem {
     resolve() {
         // A network replica never decides a round on its own copy of the fight: the host's
         // outcome arrives in the network snapshot (applyRoundOutcomeNetworkState) and ends it there.
-        if (!this.isOutcomeAuthority()) {
+        if (!this.isOutcomeAuthority() || this._roundEndHold) {
             return { shouldEnd: false, winner: null, reason: '', parcours: null };
         }
         if (this._requestedOutcome) return this._requestedOutcome;

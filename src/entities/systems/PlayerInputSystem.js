@@ -106,6 +106,9 @@ export class PlayerInputSystem {
         this._flightSafety = new BotFlightSafety();
     }
 
+    /** Shared bot flight-safety filter; read by diagnostics (GameDebugApi), never replaced. */
+    get flightSafety() { return this._flightSafety; }
+
     beginFrame() {
         this._managedFrameActive = true;
         this._advanceObservationFrame();
