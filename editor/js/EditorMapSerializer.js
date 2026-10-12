@@ -72,6 +72,9 @@ function readManagerMapMetadata(manager) {
     if (Array.isArray(source.flagObjectives)) {
         metadata.flagObjectives = cloneSerializable(source.flagObjectives) || [];
     }
+    if (source.lighting && typeof source.lighting === 'object') {
+        metadata.lighting = cloneSerializable(source.lighting);
+    }
 
     return metadata;
 }
@@ -134,6 +137,10 @@ function extractMapMetadata(data) {
     // Flag anchors are carried through until the editor gets a dedicated placement surface.
     if (Array.isArray(data.flagObjectives) && data.flagObjectives.length > 0) {
         metadata.flagObjectives = cloneSerializable(data.flagObjectives) || [];
+    }
+    // The map's own lighting; the schema already reduced it to the stored form.
+    if (data.lighting && typeof data.lighting === 'object') {
+        metadata.lighting = cloneSerializable(data.lighting);
     }
     if (data.parcours && typeof data.parcours === 'object') {
         const parcoursMetadata = cloneSerializable(data.parcours) || {};

@@ -382,6 +382,9 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             ...(waterZone ? { waterZone } : null),
             ...(flagObjectives.length > 0 ? { flagObjectives } : null),
             ...(playableVolumes.length > 0 ? { playableVolumes } : null),
+            // Fog distances are world units and its height terms anchor units, which this map
+            // scales (scaleAuthoredAnchors), so the stored form passes through unchanged.
+            ...(normalized.lighting ? { lighting: normalized.lighting } : null),
         },
         warnings,
         mapDocument: normalized,
