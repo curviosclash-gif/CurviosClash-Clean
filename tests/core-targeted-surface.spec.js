@@ -3338,7 +3338,9 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             const available = new Set(Array.from(document.getElementById('map-select')?.options || [], (option) => option.value));
             return keys.find((key) => available.has(key)) || '';
         }, candidates);
-        const boxMapKey = await pickAvailable(['empty', 'foam_forest', 'crossfire', 'checkerboard']);
+        // Plain box maps without GLB models; foam_forest is an authored GLB world and `empty` is a
+        // development map behind the Showcase filter, so it only remains the last resort.
+        const boxMapKey = await pickAvailable(['crossfire', 'checkerboard', 'empty']);
         expect(boxMapKey).not.toBe('');
         await page.selectOption('#map-select', boxMapKey);
         await expect(mount).toHaveAttribute('data-preview-glb', 'none');
