@@ -152,7 +152,11 @@ export const SOURCE_EXCEPTIONS = {
     // Arcade gameplay clocks are already dt/gameplayTimeMs based. These remaining
     // sources create epoch IDs, persisted results, profile/reward timestamps, or defaults.
     'src/core/arcade/WeaponRaceRuntime.js': [
-        exception('    constructor({ now = () => Date.now(), raceNow = null, getRecordStore = () => null } = {}) {', 'Date.now', 1, 'epoch clock for profile awards; race uses simulation clock'),
+        sourceException('    return Number(globalThis.performance?.now?.()) || Date.now();', {
+            'performance.now': 1,
+            'Date.now': 1,
+        }, 'monotonic reward persistence retry window; race uses simulation clock'),
+        exception('    constructor({ now = () => Date.now(), retryNow = monotonicNowMs, getRecordStore = () => null } = {}) {', 'Date.now', 1, 'epoch clock for profile awards; race uses simulation clock'),
     ],
     'src/core/arcade/ArenaWavesRuntime.js': [
         exception('    constructor({ now = () => Date.now(), getRecordStore = () => null, getPlayerRewardTarget = (_playerIndex) => null, requestMapTransition = null } = {}) {', 'Date.now', 1, 'epoch clock for persisted wave rewards'),
@@ -164,11 +168,14 @@ export const SOURCE_EXCEPTIONS = {
         exception('        this.now = typeof options.now === \'function\' ? options.now : () => Date.now();', 'Date.now', 1, 'injected epoch clock default'),
         exception('    _nextRunId(nowMs = Date.now()) {', 'Date.now', 1, 'epoch run identifier default'),
         exception('    _prepareIntermission(nowMs = Date.now()) {', 'Date.now', 1, 'epoch intermission metadata default'),
-        exception('        const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));', 'Date.now', 1, 'epoch run/intermission metadata fallback', 6),
+        exception('        const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));', 'Date.now', 1, 'epoch run/intermission metadata fallback', 5),
         exception('    _recordSectorHistoryEntry(payload, nowMs = Date.now()) {', 'Date.now', 1, 'persisted sector history epoch default'),
         exception('            endedAtIso: new Date(Math.max(0, toSafeNumber(nowMs, Date.now()))).toISOString(),', 'Date.now', 1, 'persisted sector history epoch fallback'),
         exception('    _recordDailyResult(nowMs = Date.now()) { return recordArcadeDailyResult(this, nowMs); }', 'Date.now', 1, 'persisted reward epoch default'),
         exception('    _finalizeRun(nowMs = Date.now()) { return finalizeArcadeRun(this, nowMs); }', 'Date.now', 1, 'persisted run epoch default'),
+    ],
+    'src/core/arcade/ArcadeRunParcoursSectorOps.js': [
+        exception('    const nowMs = Math.max(0, toSafeNumber(runtime.now(), Date.now()));', 'Date.now', 1, 'epoch sector completion metadata fallback'),
     ],
     'src/core/arcade/ArcadeRunRankingOps.js': [
         exception('        runtime.rankContext = createArcadeRankContext({ runId: `${Date.now()}-${config.arcade.seed || 0}`, runType,', 'Date.now', 1, 'ranking context identifier timestamp'),
