@@ -56,7 +56,8 @@ export class RoundOutcomeSystem {
 
     /**
      * Diagnostics (GameDebugApi) keep a decided round running to measure the bots past the first
-     * deaths. Only an explicit call sets it; a new round starts without it.
+     * deaths. Only an explicit call sets it; a new round starts without it. A round end requested
+     * meanwhile (requestRoundEnd) is kept and ends the round as soon as the hold is released.
      */
     setRoundEndHold(active) {
         this._roundEndHold = active === true;

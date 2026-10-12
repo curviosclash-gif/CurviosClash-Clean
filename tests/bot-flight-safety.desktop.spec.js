@@ -43,15 +43,10 @@ test('shared flight safety runs on real desktop maps in 2D, 3D and combat', asyn
             const manager = game.entityManager;
             const debug = game.debugApi;
             const bots = manager.bots.map(({ player }) => player);
+            const safety = debug.getBotFlightSafety();
+            if (!safety) throw new Error(`no bot flight-safety filter in ${scenario.mode} ${scenario.mapKey}`);
             const originalOnPlayerDied = manager.onPlayerDied;
             const deaths = [];
-            debug.setRoundEndHold(true);
-            manager.onPlayerDied = function (victim, cause) {
-                if (victim?.isBot) deaths.push({ cause, at: debug.getSimulationClockMs() / 1000,
-                    position: victim.position.toArray() });
-                return originalOnPlayerDied?.call(this, victim, cause);
-            };
-            const safety = debug.getBotFlightSafety();
             const originalSafetyApply = safety.apply;
             let flightSafetyMs = 0;
             safety.apply = function (...args) {
@@ -61,6 +56,12 @@ test('shared flight safety runs on real desktop maps in 2D, 3D and combat', asyn
                 } finally {
                     flightSafetyMs += performance.now() - startedAt;
                 }
+            };
+            if (!debug.setRoundEndHold(true)) throw new Error('round-end hold unavailable');
+            manager.onPlayerDied = function (victim, cause) {
+                if (victim?.isBot) deaths.push({ cause, at: debug.getSimulationClockMs() / 1000,
+                    position: victim.position.toArray() });
+                return originalOnPlayerDied?.call(this, victim, cause);
             };
             if (scenario.solo) manager.humanPlayers[0].alive = false;
             const initialSimulationMs = debug.getSimulationClockMs();

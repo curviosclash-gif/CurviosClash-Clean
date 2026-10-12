@@ -27,6 +27,15 @@ test('the round-end hold keeps a decided round running until it is released', ()
     assert.equal(outcome.resolve().shouldEnd, true);
 });
 
+test('a round end requested under the hold ends the round once the hold is released', () => {
+    const outcome = createDecidedRound();
+    outcome.setRoundEndHold(true);
+    assert.equal(outcome.requestRoundEnd({ winner: { index: 1 }, reason: 'OBJECTIVE' }), true);
+    assert.equal(outcome.resolve().shouldEnd, false);
+    outcome.setRoundEndHold(false);
+    assert.equal(outcome.resolve().reason, 'OBJECTIVE');
+});
+
 test('a new round starts without the hold', () => {
     const outcome = createDecidedRound();
     outcome.setRoundEndHold(true);
