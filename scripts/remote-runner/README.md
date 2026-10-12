@@ -54,6 +54,20 @@ Das Konto `curviosclash-gif` braucht dafür Adminrechte am Repository.
 
 ## Teil B: auf dem Testrechner (etwa 20 Minuten)
 
+**Prüfen ohne etwas zu ändern:** `check-remote-machine.ps1` meldet je Punkt OK, WARNUNG
+oder FEHLER (Konto, Sitzung, Git, Node, Speicher, Grafiktreiber, GitHub, Runner-Status).
+Mit `-ReportPath <datei.json>` schreibt es das Ergebnis zusätzlich als JSON.
+
+**Repo schon geklont?** Dann liegen beide Skripte schon unter `scripts\remote-runner\` und
+Schritt 5 entfällt. Der Runner nutzt den Klon nicht; er holt sich je Auftrag einen eigenen
+Stand. Gehört der Klon einem anderen Windows-Konto, kann `ccrunner` ihn nicht lesen; dann die
+beiden Skripte in einen Ordner kopieren, den `ccrunner` lesen darf.
+
+**Ein Agent auf dem Testrechner** (Claude Code, Codex …) kann die Prüfung und einen lokalen
+Smoke-Test selbst ausführen und berichten. Aufträge und Berichte liegen auf dem Branch
+`remote-test-branch` unter `remote-test/`; dort steht das Protokoll. Den Runner-Token gibt
+immer der Mensch selbst ein, nie der Agent.
+
 1. **Neues Windows-Konto anlegen:** Einstellungen → Konten → Andere Benutzer → Konto
    hinzufügen → „Ich kenne die Anmeldeinformationen nicht“ → „Benutzer ohne
    Microsoft-Konto hinzufügen“. Name z. B. `ccrunner`, Kontotyp **Standardbenutzer**.
