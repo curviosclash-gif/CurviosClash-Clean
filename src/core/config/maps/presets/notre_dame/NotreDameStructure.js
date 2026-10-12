@@ -354,9 +354,11 @@ const NOTRE_DAME_OBSTACLES = [
 // Portals shortcut the long way round: up the facade, across the roof, and back down the nave.
 const NOTRE_DAME_PORTALS = [
     { a: [-94, GROUND + 37, 0], b: [-83, GROUND + 92, 0], color: 0x77aaff },
-    { a: [CROSSING_CENTRE, ROOF_RIDGE + 12, -52], b: [CROSSING_CENTRE, GROUND + 30, 0], color: 0xffaa33 },
+    // The roof shortcut lands inside the choir, beside the CP10 -> CP11_CHOIR line rather than on
+    // it, and clear of the choir wall box at z 9.9 that the fallback collision keeps.
+    { a: [CROSSING_CENTRE, ROOF_RIDGE + 12, -52], b: [44.6, GROUND + 26, 7], color: 0xffaa33 },
     { a: [79, GROUND + 52, 0], b: [-40, NAVE_VAULT + 8, 0], color: 0xaa66ff },
-    { a: [128, GROUND + 12, 0], b: [-150, GROUND + 16, 0], color: 0x44ffbb },
+    { a: [136, GROUND + 16, 0], b: [-159, GROUND + 16, -4], color: 0x44ffbb },
 ];
 
 const NOTRE_DAME_GATES = [
