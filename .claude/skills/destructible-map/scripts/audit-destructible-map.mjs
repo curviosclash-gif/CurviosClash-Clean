@@ -129,7 +129,7 @@ if (!map) {
     if (MAP_PRESETS[mapKey]) ok('registry', 'the map reaches the runtime through BASE_MAP_KEYS (MapPresetsBase.js)');
     else fail('registry', 'the map is missing from BASE_MAP_KEYS in src/core/config/maps/MapPresetsBase.js - the picker never offers it');
     const collection = resolveMapPickerCollection(mapKey);
-    if (collection.id === 'other') warn('registry', 'no picker collection lists the map (src/ui/menu/MenuMapCollectionCatalog.js); it lands under "Weitere Karten"');
+    if (collection.id === 'other') warn('registry', 'no picker collection lists the map (add it to src/shared/maps/MapPickerMeta.js); it lands under "Weitere Karten"');
     else ok('registry', `picker collection "${collection.label}"`);
 
     const dispatcher = readFileSync(path.resolve(root, 'scripts/generate_map_assets.py'), 'utf8');

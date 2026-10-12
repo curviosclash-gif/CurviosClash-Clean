@@ -3,6 +3,7 @@ import { sanitizeSecretRoomList } from './MapSchemaSecretRoomOps.js';
 import { sanitizeWaterZone } from './MapSchemaWaterZoneOps.js';
 import { sanitizeFlagObjectiveList } from './MapSchemaFlagObjectiveOps.js';
 import { asLimitedArray } from './MapSchemaSanitizeOps.js';
+import { normalizeAuthoredMapLighting } from '../../shared/contracts/MapLightingContract.js';
 
 /** @typedef {{ shape: 'cylinder', center: number[], radius: number, minY: number, maxY: number }
  * | { bounds: { min: number[], max: number[] } }} SanitizedPlayableVolume */
@@ -57,5 +58,7 @@ export function sanitizeMapExtendedContent(rawMap, warnings) {
     if (flagObjectives.length > 0) result.flagObjectives = flagObjectives;
     const playableVolumes = sanitizePlayableVolumes(rawMap.playableVolumes);
     if (playableVolumes.length > 0) result.playableVolumes = playableVolumes;
+    const lighting = normalizeAuthoredMapLighting(rawMap.lighting);
+    if (lighting) result.lighting = lighting;
     return result;
 }

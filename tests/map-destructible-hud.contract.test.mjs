@@ -47,7 +47,10 @@ const DESTRUCTIBLE_PRESETS = Object.freeze({
     storm_lighthouse_siege: STORM_LIGHTHOUSE_DESTRUCTIBLES,
 });
 
-const INACTIVE = { active: false, sealed: false, hudNoun: '', focusSegment: null, breakingSecondsRemaining: 0 };
+const INACTIVE = {
+    active: false, sealed: false, hudNoun: '', focusSegment: null, breakingSecondsRemaining: 0,
+    destroyedSegments: 0, totalSegments: 0,
+};
 
 // ---------------------------------------------------------------------------
 // Wording
@@ -94,6 +97,49 @@ test('the status line reports a break first and the segment under fire afterward
         formatMapDestructibleStatus({ active: true, focusSegment: { ratio: 'viel' } }),
         'STRUKTUR · SEGMENT 0 %',
     );
+});
+
+test('the status line adds how much of the whole structure is down (E5)', () => {
+    const focus = { id: 'leg_a', label: 'Bein A', ratio: 0.4 };
+    assert.equal(
+        formatMapDestructibleStatus({ active: true, hudNoun: 'Turm', destroyedSegments: 2, totalSegments: 10, focusSegment: focus }),
+        'STRUKTUR · BEIN A 40 % · TURM 2/10 SEGMENTE',
+    );
+    assert.equal(
+        formatMapDestructibleStatus({ active: true, destroyedSegments: 0, totalSegments: 6, focusSegment: focus }),
+        'STRUKTUR · BEIN A 40 % · BAUWERK 0/6 SEGMENTE',
+    );
+    // A structure of one segment has no progress to report; neither has a state without totals.
+    assert.equal(
+        formatMapDestructibleStatus({ active: true, destroyedSegments: 0, totalSegments: 1, focusSegment: focus }),
+        'STRUKTUR · BEIN A 40 %',
+    );
+    assert.equal(formatMapDestructibleStatus({ active: true, focusSegment: focus }), 'STRUKTUR · BEIN A 40 %');
+    // Announcements keep their wording.
+    assert.equal(
+        formatMapDestructibleStatus({ active: true, breakingSecondsRemaining: 2, destroyedSegments: 3, totalSegments: 10, hudNoun: 'Turm' }),
+        'TURM BRICHT',
+    );
+});
+
+test('the HUD state counts destroyed segments and the projection carries the totals', () => {
+    const definition = normalizeMapDestructibles(DESTRUCTIBLES);
+    const state = createMapDestructibleState(definition);
+    applyMapDestructibleDamage(state, definition, 'shaft', 20, { atSeconds: 4 });
+    const hud = resolveMapDestructibleHudState(state, definition, 4);
+    assert.equal(hud.totalSegments, 2);
+    assert.equal(hud.destroyedSegments, 0);
+    applyMapDestructibleDamage(state, definition, 'shaft', 30, { atSeconds: 5 });
+    const after = resolveMapDestructibleHudState(state, definition, 5);
+    assert.equal(after.destroyedSegments, 1);
+    const projected = createMatchRuntimePlayerProjection({ playerIndex: 0, mapDestructible: after }).mapDestructible;
+    assert.equal(projected.totalSegments, 2);
+    assert.equal(projected.destroyedSegments, 1);
+    const wild = createMatchRuntimePlayerProjection({
+        playerIndex: 0,
+        mapDestructible: { active: true, totalSegments: 3, destroyedSegments: 99 },
+    }).mapDestructible;
+    assert.deepEqual([wild.destroyedSegments, wild.totalSegments], [3, 3]);
 });
 
 test('a break without a named segment speaks of the map\'s own structure, not of a tower', () => {
@@ -173,7 +219,7 @@ test('the player projection normalizes the tower state and drops it when nothing
     assert.equal(projected.focusSegment.ratio, 1);
     // The per-segment list stays out of the per-frame projection; the HUD only needs the focus.
     assert.deepEqual(Object.keys(projected).sort(), [
-        'active', 'breakingSecondsRemaining', 'focusSegment', 'hudNoun', 'sealed',
+        'active', 'breakingSecondsRemaining', 'destroyedSegments', 'focusSegment', 'hudNoun', 'sealed', 'totalSegments',
     ]);
 
     const negative = createMatchRuntimePlayerProjection({
@@ -210,7 +256,7 @@ test('the runtime projection carries the tower condition to every player HUD', (
     assert.equal(damaged.length, 2);
     assert.deepEqual(damaged[0], damaged[1], 'every player sees the same tower');
     assert.deepEqual(damaged[0].focusSegment, { id: 'shaft', label: 'Schaft', ratio: 0.6 });
-    assert.equal(formatMapDestructibleStatus(damaged[0]), 'STRUKTUR · SCHAFT 60 %');
+    assert.equal(formatMapDestructibleStatus(damaged[0]), 'STRUKTUR · SCHAFT 60 % · BAUWERK 0/2 SEGMENTE');
 
     entityManager.arena.glbAnimationElapsedSeconds = 6;
     destructibles.applyMeshHit('legs_lower_iron', 100, { hitPoint: [20, 4, 20] });
@@ -362,7 +408,7 @@ test('a segment that went down with another piece leaves the HUD', () => {
 
     applyMapDestructibleDamage(state, definition, 'summit', 30, { atSeconds: 2 });
     assert.deepEqual(hudAt(2).focusSegment, { id: 'summit', label: 'Spitze', ratio: 0.4 });
-    assert.equal(formatMapDestructibleStatus(hudAt(2)), 'STRUKTUR · SPITZE 40 %');
+    assert.equal(formatMapDestructibleStatus(hudAt(2)), 'STRUKTUR · SPITZE 40 % · BAUWERK 0/2 SEGMENTE');
 
     applyMapDestructibleDamage(state, definition, 'shaft', 50, { atSeconds: 6, hitDirection: { x: 1, z: 0 } });
     assert.equal(state.segments[1].collapsed, true);
@@ -387,6 +433,6 @@ test('host and replica derive the same HUD line from the same state', () => {
         }).mapDestructible,
     );
 
-    assert.equal(line(4), 'STRUKTUR · SCHAFT 60 %');
-    assert.equal(line(400), 'STRUKTUR · SCHAFT 60 %', 'partial damage is not announced, it just stands');
+    assert.equal(line(4), 'STRUKTUR · SCHAFT 60 % · BAUWERK 0/2 SEGMENTE');
+    assert.equal(line(400), 'STRUKTUR · SCHAFT 60 % · BAUWERK 0/2 SEGMENTE', 'partial damage is not announced, it just stands');
 });

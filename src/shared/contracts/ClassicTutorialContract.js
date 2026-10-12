@@ -2,11 +2,11 @@ export const CLASSIC_TUTORIAL_CONTRACT_VERSION = 'classic-tutorial.v1';
 export const CLASSIC_TUTORIAL_ROUTE_ID = 'classic_tutorial_v1';
 
 export const CLASSIC_TUTORIAL_HINTS = Object.freeze([
-    'Fliege durch den Start-Ring.',
-    'Lenke ruhig nach links und rechts und folge den Ringen.',
+    'Fliege durch den Start-Ring. Die Ringe triffst du der Reihe nach.',
+    'Lenke ruhig nach links und rechts und folge immer dem nächsten Ring.',
     'Nutze Beschleunigen und Bremsen, um die Kurve sauber zu treffen.',
     'Aktiviere den Boost und halte die Flugrichtung stabil.',
-    'Weiche den Hindernissen aus und achte auf deinen Trail.',
+    'Weiche den Hindernissen aus. Nach einem Absturz zählt wieder der letzte Ring.',
     'Sammle das Power-up ein und fliege zum Ziel.',
 ]);
 

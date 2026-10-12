@@ -1,3 +1,5 @@
+import { isAnchorInSealedRing } from './PowerupDensityOps.js';
+
 // Fixed authored item anchors: a map with itemRespawnSeconds refills each anchor on its own
 // timer after pickup, and itemRespawnOnDeath refills every free anchor when a human dies.
 
@@ -44,7 +46,7 @@ export function spawnDueAuthoredAnchors(manager, clock, strategy) {
     for (let index = 0; index < anchors.length; index += 1) {
         const anchor = anchors[index];
         const key = buildAnchorKey(anchor, index);
-        if (manager._occupiedAnchorKeys.has(key)) continue;
+        if (manager._occupiedAnchorKeys.has(key) || isAnchorInSealedRing(manager.arena, anchor)) continue;
         const respawnAt = clock.respawnAtByKey.get(key);
         if (respawnAt !== undefined && clock.elapsedSeconds + 1e-6 < respawnAt) continue;
         clock.respawnAtByKey.delete(key);
@@ -64,6 +66,7 @@ export function refillAuthoredAnchors(manager, clock, strategy) {
     for (let index = 0; index < anchors.length; index += 1) {
         const anchor = anchors[index];
         const key = buildAnchorKey(anchor, index);
-        if (!manager._occupiedAnchorKeys.has(key)) manager._spawnFixedAuthoredAnchor(anchor, key, strategy);
+        if (manager._occupiedAnchorKeys.has(key) || isAnchorInSealedRing(manager.arena, anchor)) continue;
+        manager._spawnFixedAuthoredAnchor(anchor, key, strategy);
     }
 }

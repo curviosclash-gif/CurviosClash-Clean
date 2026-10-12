@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { normalizeMapAnimationClock } from '../shared/contracts/MapAnimationClockContract.js';
 import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
-import { normalizeAllowedGLBUrl, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
+import { normalizeAllowedGLBUrl, normalizeGLBModelRole, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { computeCollectionPlacement } from './GLBCollectionPlacement.js';
 
@@ -49,15 +49,19 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
         const source = glbModels[index];
         const url = normalizeAllowedGLBUrl(typeof source === 'string' ? source : source?.url);
         if (!url) continue;
+        const role = normalizeGLBModelRole(source?.role);
+        // An optional prop may load on one machine and not on another, so it must never collide.
+        const optionalProp = role === 'optionalProp';
         normalized.push({
             id: normalizeUrl(source?.id) || `model-${index + 1}`,
             url,
+            role,
             position: normalizeVector3(source?.position),
             rotation: normalizeVector3(source?.rotation),
             scale: normalizePositiveNumber(source?.scale, 1),
             targetSize: normalizePositiveNumber(source?.targetSize, 0),
             maxRenderDistance: normalizePositiveNumber(source?.maxRenderDistance, 0),
-            collision: source?.collision !== false,
+            collision: !optionalProp && source?.collision !== false,
             animationClock: normalizeMapAnimationClock(source?.animationClock, mapClock),
             // A break scene: loaded and placed with the map, but neither drawn nor solid until
             // the event that starts it arrives.
@@ -79,19 +83,18 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
             // This is the opposite of `collision: false`, and neither of them is
             // `hiddenUntilTriggered`: a break scene is hidden *and* intangible until its event
             // arrives, while this one collides from the first frame of the round.
-            collisionOnly: source?.collisionOnly === true,
+            collisionOnly: !optionalProp && source?.collisionOnly === true,
         });
     }
     return normalized;
 }
 
 /**
- * @param {{usedGlbModel?: boolean, loadWarnings?: unknown[], map?: {glbAuthoredObstaclesCollisionOnly?: boolean}}} [options]
+ * @param {{usedGlbModel?: boolean, requiredWorldComplete?: boolean, map?: {glbAuthoredObstaclesCollisionOnly?: boolean}}} [options]
  */
-export function shouldDiscardAuthoredObstacleVisuals({ usedGlbModel, loadWarnings, map } = {}) {
+export function shouldDiscardAuthoredObstacleVisuals({ usedGlbModel, requiredWorldComplete, map } = {}) {
     return usedGlbModel === true
-        && Array.isArray(loadWarnings)
-        && loadWarnings.length === 0
+        && requiredWorldComplete === true
         && map?.glbAuthoredObstaclesCollisionOnly === true;
 }
 
@@ -436,6 +439,7 @@ export async function loadGLBMap(glbModel, options = {}) {
         animatedNodes,
         colliders,
         bounds,
+        requiredWorldComplete: true,
     };
 }
 
@@ -530,10 +534,12 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
 
     await Promise.all(Array.from({ length: concurrency }, () => loadNext()));
 
-    // A gameplay collection owns one collision layout. Mixing surviving meshes with
-    // its full fallback would block real openings; return the whole map to fallback.
-    // Editors can still preview partial collections by leaving requireComplete unset.
-    if (options.requireComplete === true && warnings.some(Boolean)) {
+    // Required architecture is one gameplay layout: a missing required part must use the
+    // complete map fallback. Explicit decorative props may fail independently.
+    const requiredModelFailed = models.some((model, index) => (
+        !loadedModels[index] && model.role !== 'optionalProp'
+    ));
+    if (options.requireComplete === true && requiredModelFailed) {
         for (const loaded of loadedModels) {
             if (!loaded) continue;
             for (const mixer of loaded.result.animationMixers) {
@@ -595,5 +601,10 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
         warnings: resolvedWarnings,
         loadedCount,
         failedCount: models.length - loadedCount,
+        requiredWorldComplete: loadedCount > 0
+            && models.some((model) => model.role !== 'optionalProp')
+            && !requiredModelFailed
+            && (!models.some((model) => model.role === 'primaryWorld')
+                || models.some((model, index) => model.role === 'primaryWorld' && loadedModels[index])),
     };
 }

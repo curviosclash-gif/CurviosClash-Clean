@@ -349,6 +349,7 @@ export class UINavigationLifecycleController {
             panelRegistry: manager.menuPanelRegistry,
             stateMachine: manager.menuStateMachine,
             accessContext: manager._accessContext,
+            getControls: () => this._getSettings()?.controls,
             onLevel4CloseRequested: () => this._requestLevel4Close(),
             onPanelChanged: (panelId, _panelConfig, _transition, transitionMetadata) => {
                 const previousPanelId = this._getActiveSubmenu() || null;

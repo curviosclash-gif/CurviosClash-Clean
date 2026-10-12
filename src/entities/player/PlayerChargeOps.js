@@ -13,6 +13,7 @@ import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntime
 // Deliberate import cycle with PlayerEffectOps: it reads the clock factor from here, this
 // file puts out the afterburn over there. Both sides only call each other at runtime.
 import { extinguishBurning } from './PlayerEffectOps.js';
+import { resetPlayerCombatState } from './PlayerCombatResetOps.js';
 
 const MIN_CAPACITY = 0.001;
 const MIN_CLOCK_SCALE = 0.05;
@@ -247,6 +248,8 @@ export function resetPlayerCharges(player, playerConfig = null) {
     player.boostPortalParams = null;
     player.slingshotTimer = 0;
     player.slingshotParams = null;
+    // The weapon fields derived from activeEffects go back to empty together with the reserves.
+    resetPlayerCombatState(player);
 }
 
 /**

@@ -30,7 +30,11 @@ const ROUND_START_GATE_TIMEOUT_MS = 12_000;
 const ARENA_LOADED_BASE_TIMEOUT_MS = 10_000;
 const ARENA_LOADED_TIMEOUT_PER_REMOTE_PLAYER_MS = 5_000;
 const ARENA_LOADED_NOTIFY_RETRY_MS = 500;
-const ARENA_LOADED_NOTIFY_WINDOW_MS = 5_000;
+
+function resolveHostArenaLoadedTimeoutMs(playerCount) {
+    return ARENA_LOADED_BASE_TIMEOUT_MS
+        + Math.max(0, playerCount - 1) * ARENA_LOADED_TIMEOUT_PER_REMOTE_PLAYER_MS;
+}
 // The host keeps broadcasting on its result boards: the snapshot carries the round
 // result until the next round starts, so one lost snapshot no longer costs a client
 // its board, and the host round serial in it is the client's round start signal.
@@ -171,11 +175,8 @@ export function stopRuntimeStateBroadcast(facade) {
  * Host-only.  Listens for the 'fullStateSyncNeeded' event that the session adapter
  * emits when a peer reconnects after a disconnect.  Responds by immediately sending
  * the current game state snapshot to the reconnected peer so it can catch up without
- * waiting for the next scheduled broadcast tick.
- *
- * The reconciliation decision (which transport, which peer) is entirely made by the
- * session adapter; this handler only reads the game state and delegates the actual
- * send back through the adapter's sendStateToPeer() port.
+ * waiting for the next scheduled broadcast tick. The adapter resolves transport and
+ * target; this handler only reads game state and sends it through sendStateToPeer().
  */
 export function setupRuntimeHostFullStateSyncHandler(facade) {
     if (!facade?.session?.isHost) return;
@@ -252,11 +253,21 @@ export function setupRuntimeClientStateReceiver(facade) {
 }
 
 function clearRuntimeClientArenaLoadedNotifier(facade) {
-    if (facade?._arenaLoadedNotifyInterval) {
+    const cancelWait = facade?._cancelRuntimePlayersLoadedWait;
+    if (typeof cancelWait === 'function') {
+        cancelWait();
+    }
+    if (
+        facade?._arenaLoadedNotifyInterval !== null
+        && facade?._arenaLoadedNotifyInterval !== undefined
+    ) {
         clearInterval(facade._arenaLoadedNotifyInterval);
         facade._arenaLoadedNotifyInterval = null;
     }
-    if (facade?._arenaLoadedNotifyTimeout) {
+    if (
+        facade?._arenaLoadedNotifyTimeout !== null
+        && facade?._arenaLoadedNotifyTimeout !== undefined
+    ) {
         clearTimeout(facade._arenaLoadedNotifyTimeout);
         facade._arenaLoadedNotifyTimeout = null;
     }
@@ -322,38 +333,58 @@ export async function waitForRuntimePlayersLoaded(facade) {
         facade._arenaLoadedPeers.add(localPlayerId);
     }
 
-    // ── Client path ────────────────────────────────────────────────────────────
-    // Client sends PLAYER_ARENA_LOADED while starting locally. The host remains
-    // authoritative through ROUND_START_GATE and state snapshots, but the client
-    // does not stay blocked in the menu/loading state if the first readiness
-    // packet is lost while WebRTC channels settle.
+    // Client reports readiness first, then waits for the host's authoritative gate.
     if (!facade.session.isHost) {
         clearRuntimeClientArenaLoadedNotifier(facade);
-        if (facade._onRoundStartGateHandler && facade.session) {
-            facade.session.off('roundStartGate', facade._onRoundStartGateHandler);
-            facade._onRoundStartGateHandler = null;
-        }
-
-        const stopAnnouncing = () => {
-            clearRuntimeClientArenaLoadedNotifier(facade);
-            if (facade._onRoundStartGateHandler && facade.session) {
-                facade.session.off('roundStartGate', facade._onRoundStartGateHandler);
-                facade._onRoundStartGateHandler = null;
-            }
-        };
-        const notifyArenaLoaded = () => {
-            facade.session?.notifyArenaLoaded?.(localPlayerId);
-        };
-
-        facade._onRoundStartGateHandler = stopAnnouncing;
-        facade.session.on('roundStartGate', facade._onRoundStartGateHandler);
-        notifyArenaLoaded();
-        facade._arenaLoadedNotifyInterval = setInterval(notifyArenaLoaded, ARENA_LOADED_NOTIFY_RETRY_MS);
-        facade._arenaLoadedNotifyTimeout = setTimeout(stopAnnouncing, Math.max(
-            ARENA_LOADED_NOTIFY_WINDOW_MS,
-            ROUND_START_GATE_TIMEOUT_MS
-        ));
-        return;
+        const clientSession = facade.session;
+        return new Promise((resolve, reject) => {
+            let completed = false;
+            let wait = null;
+            const cleanup = () => {
+                if (facade._arenaLoadedNotifyInterval != null) clearInterval(facade._arenaLoadedNotifyInterval);
+                if (facade._arenaLoadedNotifyTimeout != null) clearTimeout(facade._arenaLoadedNotifyTimeout);
+                facade._arenaLoadedNotifyInterval = facade._arenaLoadedNotifyTimeout = null;
+                clientSession.off('roundStartGate', onRoundStartGate);
+                if (facade._onRoundStartGateHandler === onRoundStartGate) facade._onRoundStartGateHandler = null;
+                if (facade._arenaLoadedClientWait === wait) facade._arenaLoadedClientWait = null;
+                if (facade._cancelRuntimePlayersLoadedWait === cancelWait) facade._cancelRuntimePlayersLoadedWait = null;
+            };
+            const finish = (result, error = null) => {
+                if (completed) return;
+                completed = true;
+                cleanup();
+                if (error) reject(error);
+                else resolve(result);
+            };
+            const cancelWait = () => finish(false);
+            const onRoundStartGate = (payload) => {
+                if (facade.session !== clientSession || facade._arenaLoadedClientWait !== wait) return finish(false);
+                const expectedPeerIds = payload?.expectedPeerIds;
+                if (
+                    !Array.isArray(expectedPeerIds)
+                    || !expectedPeerIds.includes(localPlayerId)
+                    || !Number.isFinite(payload?.timestamp)
+                    || payload.timestamp <= 0
+                ) return;
+                finish(true);
+            };
+            const notifyArenaLoaded = () => {
+                if (facade.session !== clientSession || facade._arenaLoadedClientWait !== wait) return finish(false);
+                try { clientSession.notifyArenaLoaded?.(localPlayerId); }
+                catch (error) { finish(false, error); }
+            };
+            facade._arenaLoadedClientWait = wait = { cancel: cancelWait, session: clientSession };
+            facade._cancelRuntimePlayersLoadedWait = cancelWait;
+            facade._onRoundStartGateHandler = onRoundStartGate;
+            clientSession.on('roundStartGate', onRoundStartGate);
+            facade._arenaLoadedNotifyInterval = setInterval(notifyArenaLoaded, ARENA_LOADED_NOTIFY_RETRY_MS);
+            facade._arenaLoadedNotifyTimeout = setTimeout(
+                () => finish(false, new Error('Timed out waiting for host ROUND_START_GATE')),
+                // The host may wait this long for the slowest peer; the extra window covers its own load lag.
+                resolveHostArenaLoadedTimeoutMs(players.length) + ROUND_START_GATE_TIMEOUT_MS
+            );
+            notifyArenaLoaded();
+        });
     }
 
     const hostSession = facade.session;
@@ -466,10 +497,7 @@ export async function waitForRuntimePlayersLoaded(facade) {
             return;
         }
 
-        const expectedRemotePeers = Math.max(0, expectedPeerIds.size - 1);
-        const dynamicTimeoutMs = ARENA_LOADED_BASE_TIMEOUT_MS
-            + expectedRemotePeers * ARENA_LOADED_TIMEOUT_PER_REMOTE_PLAYER_MS;
-        timeoutId = setTimeout(() => finish(), dynamicTimeoutMs);
+        timeoutId = setTimeout(() => finish(), resolveHostArenaLoadedTimeoutMs(expectedPeerIds.size));
     });
 }
 

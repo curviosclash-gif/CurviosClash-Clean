@@ -80,6 +80,8 @@ test('LAN join uses player profile identity while access actor remains separate'
         lobbyName: '',
         name: 'Gunda',
         signalingUrl: 'localhost:9090',
+        // The guest announces its own ship; without a pick it is the default ship.
+        vehicleId: 'ship5',
     }]);
     assert.equal(game.ui.multiplayerStatus.textContent, 'Beitritt fehlgeschlagen: Host-Adresse ungueltig. Bitte Host:Port verwenden, z. B. localhost:9090.');
     assert.equal(hostAddressInput.attributes.get('aria-invalid'), 'true');

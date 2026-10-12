@@ -1,105 +1,23 @@
-const COLLECTION_DEFINITIONS = [
-    {
-        id: 'arena',
-        label: 'Arenen',
-        mapKeys: [
-            'standard', 'empty', 'maze', 'complex', 'pyramid', 'vertical_maze',
-            'trench', 'notre_dame_arena', 'notre_dame_fire_arena', 'eiffel_tower_arena',
-            'eiffel_tower_siege', 'reactor_site', 'burg_falkenwacht_arena',
-            'hydra_temple', 'toybox_titan', 'bloom_core',
-        ],
-    },
-    {
-        id: 'themed',
-        label: 'Themenwelten',
-        mapKeys: [
-            'foam_forest',
-            'crossfire',
-            'checkerboard',
-            'the_pit',
-            'core_fusion',
-            'pillar_hall',
-            'spiral_tower',
-            'portal_madness',
-            'the_loop',
-        ],
-    },
-    {
-        id: 'adventure',
-        label: 'Abenteuer',
-        mapKeys: [
-            'rift_bazaar',
-            'neon_abyss',
-            'crystal_ruins',
-            'vulkan_odyssey',
-            'frozen_helix',
-            'neon_circuit',
-            'sky_islands',
-            'abyssal_descent',
-            'magma_maze',
-            'chrono_forge_nexus',
-            'eclipse_foundry',
-            'kinetic_tide',
-            'verdant_aperture',
-            'dandelion_sky',
-            'sunflower_meadow',
-            'aetherion_orrery',
-            'giant_forest',
-            'notre_dame',
-            'notre_dame_fire',
-            'eiffel_tower',
-            'orbital_shipyard',
-            'burg_falkenwacht',
-            'clockwork_canyon',
-            'storm_bridge_siege',
-            'storm_lighthouse_siege',
-            'storm_dam_siege',
-            'skyline_siege', 'cherry_grove',
-        ],
-    },
-    {
-        id: 'parcours',
-        label: 'Parcours',
-        mapKeys: [
-            'tutorial_classic',
-            'parcours_assault',
-            'parcours_rift',
-            'parcours_rift_sprint',
-            'parcours_rift_precision',
-            'micro_maw',
-            'mirror_docks',
-            'glass_serpent',
-            'storm_switchyard',
-            'wind_cathedral',
-            'chrono_spillway',
-            'aether_relay',
-            'neon_carnival',
-            'sky_ladder_abyss',
-            'sky_ladder_foundry',
-            'sky_ladder_storm',
-            'sky_ladder_star',
-        ],
-    },
-    {
-        id: 'expert',
-        label: 'Expertenkarten',
-        mapKeys: ['expert_gauntlet', 'mega_maze', 'mega_maze_xl', 'die_festung'],
-    },
-    {
-        id: 'showcase',
-        label: 'Showcase & Tests',
-        mapKeys: ['glb_hangar', 'upgrade_showcase', 'item_showcase', 'showcase_nexus', 'glb_gallery'],
-    },
-    {
-        id: 'custom',
-        label: 'Eigene Karten',
-        mapKeys: ['custom'],
-    },
-];
+import { MAP_PICKER_COLLECTION_DEFS, MAP_PICKER_FALLBACK_COLLECTION } from '../../shared/contracts/MapPickerMetaContract.js';
+import { MAP_PICKER_META } from '../../shared/maps/MapPickerMeta.js';
+
+// Collections and their order come from the shared map metadata table; the picker order of a map
+// is its position among the table entries of the same collection. The parcours collection is a
+// campaign: it runs from easy to hard (teaching 1-2, craft 3, mastery 4-5), and maps of equal
+// difficulty keep their table order.
+const SORTED_BY_DIFFICULTY = new Set(['parcours']);
+
+const COLLECTION_DEFINITIONS = MAP_PICKER_COLLECTION_DEFS.map((collection) => {
+    const mapKeys = Object.keys(MAP_PICKER_META).filter((mapKey) => MAP_PICKER_META[mapKey].collection === collection.id);
+    if (SORTED_BY_DIFFICULTY.has(collection.id)) {
+        mapKeys.sort((left, right) => MAP_PICKER_META[left].difficulty - MAP_PICKER_META[right].difficulty);
+    }
+    return { id: collection.id, label: collection.label, mapKeys };
+});
 
 const FALLBACK_COLLECTION = Object.freeze({
-    id: 'other',
-    label: 'Weitere Karten',
+    id: MAP_PICKER_FALLBACK_COLLECTION.id,
+    label: MAP_PICKER_FALLBACK_COLLECTION.label,
     order: COLLECTION_DEFINITIONS.length,
     pickerOrder: Number.MAX_SAFE_INTEGER,
 });

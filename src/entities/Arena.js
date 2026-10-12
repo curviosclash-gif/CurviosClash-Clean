@@ -20,10 +20,12 @@ import { DandelionSeedController } from './arena/DandelionSeedController.js';
 import { SunflowerKernelController } from './arena/SunflowerKernelController.js';
 import { MapDestructibleGlowController } from './arena/MapDestructibleGlowController.js';
 import { CherryLeafController } from './arena/CherryLeafController.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 export class Arena {
     constructor(renderer) {
         this.renderer = renderer;
+        this._runtimeRng = createRuntimeRng({});
         this.obstacles = [];
         this.portals = [];
         this.specialGates = [];
@@ -236,12 +238,12 @@ export class Arena {
         this._clearLoadedGlbScene();
 
         let usedGlbModel = false;
-        const finalizeBuild = () => {
+        const finalizeBuild = (requiredWorldComplete = false) => {
             // 'dynamic' only adds colliders for the moving GLB parts, so the authored box
             // obstacles stay responsible for the static set dressing. Exact scene collision can
             // still request a small supplemental set for things no GLB surface represents.
             const useFallbackObstacles = !usedGlbModel
-                || buildContext.glbColliderMode === 'fallbackOnly'
+                || !requiredWorldComplete || buildContext.glbColliderMode === 'fallbackOnly'
                 || buildContext.glbColliderMode === 'dynamic';
             const obstacleDefs = useFallbackObstacles
                 ? buildContext.obstacleDefs
@@ -253,7 +255,7 @@ export class Arena {
                 });
                 const collisionOnlyObstacleVisuals = shouldDiscardAuthoredObstacleVisuals({
                     usedGlbModel,
-                    loadWarnings: this._glbLoadWarnings,
+                    requiredWorldComplete,
                     map: buildContext.map,
                 });
                 if (collisionOnlyObstacleVisuals) {
@@ -313,7 +315,7 @@ export class Arena {
             const cherryLeaves = new CherryLeafController(glbResult.scene); this._cherryLeaves = cherryLeaves.count > 0 ? cherryLeaves : null;
             seeds.onRelease = (position, at) => this._shootableReleaseListener?.(position, at, 'dandelionSeeds');
             sunflowerKernels.onRelease = (position, at) => this._shootableReleaseListener?.(position, at, 'sunflowerKernels');
-            return finalizeBuild();
+            return finalizeBuild(glbResult.requiredWorldComplete === true);
         }).catch((error) => {
             this._glbLoadError = error?.message || 'Unknown GLB loading error';
             this._glbLoadWarnings = [`GLB fallback active: ${this._glbLoadError}`];
@@ -443,11 +445,9 @@ export class Arena {
         this._mapDestructibleState = state || null;
         const map = this.currentMapDefinition;
         const id = map?.fireFxActivationSegmentId;
-        if (id) {
-            const segment = state?.segments?.find((entry) => entry.id === id);
-            this._builder.fireFxController.setIntensity(segment?.burnStartedAtSeconds >= 0 ? 1 : 0);
-        }
+        if (id) this._builder.fireFxController.setIntensity(state?.segments?.find((entry) => entry.id === id)?.burnStartedAtSeconds >= 0 ? 1 : 0);
         this._mapDestructibleGlow?.update?.(this._glbScene, map?.mapDestructibleGlow, state);
+        this._builder?.mapLightRig?.applyDestructibleState?.(state);
     }
 
     resetMapDestructibleScenes() {
@@ -467,16 +467,14 @@ export class Arena {
         return this.checkCollisionFast(position, radius);
     }
 
-    getRandomPosition(margin = 5, random = Math.random) {
+    getRandomPosition(margin = 5, random = this._runtimeRng.next) {
         const b = this.bounds;
         for (let attempts = 0; attempts < 50; attempts++) {
             const x = b.minX + margin + random() * (b.maxX - b.minX - 2 * margin);
             const y = 3 + random() * (b.maxY - 6);
             const z = b.minZ + margin + random() * (b.maxZ - b.minZ - 2 * margin);
             const pos = new THREE.Vector3(x, y, z);
-            if (!this.checkCollision(pos, 3)) {
-                return pos;
-            }
+            if (!this.checkCollision(pos, 3)) return pos;
         }
         const x = b.minX + margin + random() * (b.maxX - b.minX - 2 * margin);
         const y = 3 + random() * (b.maxY - 6);
@@ -484,7 +482,7 @@ export class Arena {
         return new THREE.Vector3(x, y, z);
     }
 
-    getRandomPositionOnLevel(level, margin = 5, random = Math.random) {
+    getRandomPositionOnLevel(level, margin = 5, random = this._runtimeRng.next) {
         const b = this.bounds;
         const y = Number.isFinite(level) ? level : (b.minY + b.maxY) * 0.5;
         for (let attempts = 0; attempts < 50; attempts++) {
