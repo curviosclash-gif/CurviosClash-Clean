@@ -2,6 +2,7 @@ import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigCont
 import { resolveParcoursSpawnDirection } from '../systems/ParcoursRespawnOps.js';
 import { resolveWeaponRaceGridSpawn } from '../arcade/WeaponRaceSpawnOps.js';
 import { applyArcadeSpawnHitbox } from '../player/ArcadePartHitboxOps.js';
+import { resetPlayerFightTracking } from '../player/PlayerCombatResetOps.js';
 
 export class EntitySpawnOps {
     constructor(entityManager) {
@@ -96,12 +97,9 @@ export class EntitySpawnOps {
         const owner = this.entityManager;
         if (!owner || !player || !pos) return;
         player.spawn(pos, dir);
-        player.fightLastAttackerIndex = -1;
-        player.fightLastThreatSourceIndex = -1;
-        player.fightLastThreatAtSeconds = -Infinity;
-        player.fightTargetPlayerIndex = -1;
-        player.fightTargetLockRemaining = 0;
-        player.fightSpawnedAtSeconds = Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001;
+        resetPlayerFightTracking(player, (Number(owner._simulationClockMs) || 0) * 0.001);
+        // Same per player reset as the respawn (RespawnSystem -> combat.resetRespawnCombatState).
+        owner._overheatGunSystem?.resetPlayer?.(player.index);
         if (player.isBot && player.scenarioRole) {
             player.scenarioAnchor = { x: pos.x, y: pos.y, z: pos.z };
         }
@@ -117,7 +115,6 @@ export class EntitySpawnOps {
         }
         // Part hitbox only in normal Arcade runs (not Daily, not weapon race), humans and bots.
         applyArcadeSpawnHitbox(player, strategy?.isNormalArcadeRun?.() === true);
-        player.shootCooldown = 0;
         owner._parcoursProgressSystem?.onPlayerSpawn?.(player, { reason: 'spawn_all' });
         owner._exclusionZoneSystem?.resetPlayer?.(player);
         if (owner.recorder) {

@@ -1,5 +1,11 @@
 import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
 
+function readRoundSerial(value) {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+        ? value
+        : null;
+}
+
 /**
  * The host's round result on the wire, for every mode (Classic, Parcours, HUNT).
  *
@@ -32,10 +38,10 @@ export function createRoundSerialNetworkState(entityManager) {
  */
 export function applyRoundSerialNetworkState(entityManager, serial) {
     if (!entityManager) return;
-    const round = Number(serial);
-    if (!Number.isInteger(round) || round < 0) return;
-    const known = Number(entityManager._hostRoundSerial);
-    if (Number.isInteger(known) && known >= round) return;
+    const round = readRoundSerial(serial);
+    if (round === null) return;
+    const known = readRoundSerial(entityManager._hostRoundSerial);
+    if (known !== null && known >= round) return;
     entityManager._hostRoundSerial = round;
 }
 
@@ -46,10 +52,10 @@ export function applyRoundSerialNetworkState(entityManager, serial) {
  * down on its own).
  */
 export function hasHostStartedNextRound(entityManager) {
-    const hostRound = Number(entityManager?._hostRoundSerial);
-    if (!Number.isInteger(hostRound)) return null;
-    const shownRound = Number(entityManager?._appliedHostRoundOutcome);
-    return hostRound > (Number.isInteger(shownRound) ? shownRound : 0);
+    const hostRound = readRoundSerial(entityManager?._hostRoundSerial);
+    if (hostRound === null) return null;
+    const shownRound = readRoundSerial(entityManager?._appliedHostRoundOutcome);
+    return hostRound > (shownRound ?? 0);
 }
 
 /**
@@ -59,9 +65,11 @@ export function hasHostStartedNextRound(entityManager) {
  */
 export function applyRoundOutcomeNetworkState(entityManager, state) {
     if (!entityManager || !state || typeof state !== 'object') return false;
-    const round = Number(state.round);
-    if (!Number.isInteger(round) || round < 0) return false;
-    if (entityManager._appliedHostRoundOutcome === round) return false;
+    const round = readRoundSerial(state.round);
+    if (round === null) return false;
+    const appliedRound = readRoundSerial(entityManager._appliedHostRoundOutcome);
+    const hostRound = readRoundSerial(entityManager._hostRoundSerial);
+    if ((appliedRound !== null && round <= appliedRound) || (hostRound !== null && round !== hostRound)) return false;
     entityManager._appliedHostRoundOutcome = round;
     entityManager._roundEnded = true;
     const winner = entityManager.players?.find((player) => player?.index === state.winnerIndex) || null;

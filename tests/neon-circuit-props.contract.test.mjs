@@ -17,7 +17,9 @@ test('neon circuit places the pylons in the infield and on the verges, clear of 
     const map = MAP_PRESET_CATALOG.neon_circuit;
     assert.equal(map.glbModels[0].url, 'assets/maps/neon_circuit/glb/01_world.glb', 'the world loads first');
     assert.deepEqual(map.glbModels.slice(1), [...NEON_SIGNAL_PYLONS]);
+    assert.equal(map.glbModels[0].role, 'primaryWorld');
     assert.equal(NEON_SIGNAL_PYLONS.length, 12);
+    assert.ok(NEON_SIGNAL_PYLONS.every((entry) => entry.role === 'optionalProp' && entry.collision === false));
     assertPropsClearOfRoute(map, NEON_SIGNAL_PYLONS, { floorY: 0, obstacles: map.obstacles });
 });
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createEditorMesh, alignTunnelSegment as alignTunnelSegmentMesh } from './EditorMeshFactory.js';
 import { EditorObjectRegistry } from './EditorObjectRegistry.js';
+import { EDITOR_OUTLINE_LAYER } from './EditorLayers.js';
 import { generateJSONExport, importFromJSON } from './EditorMapSerializer.js';
 import { readEditorMapPresentationMetadata } from './EditorMapPresentationMetadata.js';
 import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.js';
@@ -277,6 +278,8 @@ export class EditorMapManager {
             ...(outline.userData || {}),
             isSelectionOutline: true
         };
+        // Own layer, so the game view can hide them: on a whole world model they draw a wire mesh.
+        outline.layers.set(EDITOR_OUTLINE_LAYER);
         return outline;
     }
 

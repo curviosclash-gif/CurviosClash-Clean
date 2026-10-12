@@ -14,7 +14,9 @@ test('magma maze places the outcrops on the lava, clear of walls and every route
     const map = MAP_PRESET_CATALOG.magma_maze;
     assert.equal(map.glbModels[0].url, 'assets/maps/magma_maze/glb/01_world.glb', 'the world loads first');
     assert.deepEqual(map.glbModels.slice(1), [...MAGMA_BASALT_OUTCROPS]);
+    assert.equal(map.glbModels[0].role, 'primaryWorld');
     assert.equal(MAGMA_BASALT_OUTCROPS.length, 12);
+    assert.ok(MAGMA_BASALT_OUTCROPS.every((entry) => entry.role === 'optionalProp' && entry.collision === false));
     const lava = map.obstacles.find((obstacle) => obstacle.kind === 'foam' && obstacle.size[0] > 100);
     assertPropsClearOfRoute(map, MAGMA_BASALT_OUTCROPS, {
         floorY: lava.pos[1] + lava.size[1] / 2,

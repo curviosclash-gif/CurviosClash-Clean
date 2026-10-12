@@ -17,6 +17,7 @@ import {
     listRuntimeMapPresetKeys,
     resolveRuntimeMapPresetLabel,
 } from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { getMapPickerMeta } from '../../shared/maps/MapPickerMeta.js';
 import { toSafeInt, toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 
 function createModifierScoreBonusMap() {
@@ -122,8 +123,10 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
 
     const nextSectorIsParcours = encounterEntry?.parcoursEnabled === true;
     const candidateMaps = mapCatalogKeys.filter((mapKey) => {
-        // "custom" is only a slot for a saved editor map; hidden maps belong to their own scenarios.
+        // "custom" is only a slot for a saved editor map; hidden maps belong to their own scenarios;
+        // development maps (empty box, model galleries, showcases) are not part of a run.
         if (mapKey === baseMapKey || mapKey === 'custom') return false;
+        if (getMapPickerMeta(mapKey).tier === 'dev') return false;
         const definition = getRuntimeMapDefinition(mapKey, runtimeMapCatalog);
         if (definition?.hiddenFromMapPicker === true) return false;
         const mapIsParcours = definition?.parcours?.enabled === true;

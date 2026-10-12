@@ -3,7 +3,9 @@
 // ============================================
 
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
+import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld, CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
+import { BATTLEFIELD_SUNSET_LIGHTING, PYRAMID_SUN_LIGHTING, CLEAR_DAY_LIGHTING, FLOODLIT_PIT_LIGHTING, FOREST_DAY_LIGHTING, GOLDEN_HOUR_LIGHTING, HALL_TORCHLIGHT_LIGHTING, PORTAL_PSYCHEDELIC_LIGHTING, REACTOR_GLOW_LIGHTING, TWILIGHT_BEACON_LIGHTING } from './presets/map_lighting_profiles.js';
 
 // Storm and ambience share one shelter list; the volumes are the interiors built by
 // scripts/generate_pyramid_map_assets.py (tests/pyramid-blender-assets.contract.test.mjs).
@@ -76,7 +78,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     empty: {
         name: 'Leer',
-        size: [50, 25, 50],
+        size: [80, 30, 80],
         obstacles: [],
         portals: []
     },
@@ -95,16 +97,17 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...CLASSIC_WORLD_APPEARANCE.maze,
         name: 'Labyrinth',
         size: [80, 25, 80],
+        ...startPoints('maze'),
         obstacles: [
-            { pos: [-20, 5, -20], size: [20, 10, 2] },
-            { pos: [20, 5, -20], size: [20, 10, 2] },
-            { pos: [0, 5, 0], size: [30, 10, 2] },
-            { pos: [-20, 5, 20], size: [20, 10, 2] },
-            { pos: [20, 5, 20], size: [20, 10, 2] },
-            { pos: [-20, 5, 0], size: [2, 10, 20] },
-            { pos: [20, 5, 0], size: [2, 10, 20] },
-            { pos: [0, 5, -20], size: [2, 10, 15] },
-            { pos: [0, 5, 20], size: [2, 10, 15] },
+            { pos: [-20, 12.45, -20], size: [20, 24.9, 2] },
+            { pos: [20, 12.45, -20], size: [20, 24.9, 2] },
+            { pos: [0, 12.45, 0], size: [30, 24.9, 2] },
+            { pos: [-20, 12.45, 20], size: [20, 24.9, 2] },
+            { pos: [20, 12.45, 20], size: [20, 24.9, 2] },
+            { pos: [-20, 12.45, 0], size: [2, 24.9, 20] },
+            { pos: [20, 12.45, 0], size: [2, 24.9, 20] },
+            { pos: [0, 12.45, -20], size: [2, 24.9, 15] },
+            { pos: [0, 12.45, 20], size: [2, 24.9, 15] },
         ],
         portals: [
             { a: [-30, 10, -30], b: [30, 10, 30], color: 0xff66ff },
@@ -115,16 +118,17 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...CLASSIC_WORLD_APPEARANCE.complex,
         name: 'Komplex',
         size: [90, 30, 90],
+        ...startPoints('complex'),
         obstacles: [
             { pos: [0, 5, 0], size: [6, 12, 6] },
-            { pos: [-25, 5, -25], size: [10, 8, 2] },
-            { pos: [25, 5, -25], size: [2, 8, 10] },
-            { pos: [-25, 5, 25], size: [2, 8, 10] },
-            { pos: [25, 5, 25], size: [10, 8, 2] },
-            { pos: [-15, 5, 0], size: [2, 15, 15] },
-            { pos: [15, 5, 0], size: [2, 15, 15] },
-            { pos: [0, 5, -15], size: [15, 15, 2] },
-            { pos: [0, 5, 15], size: [15, 15, 2] },
+            { pos: [-25, 15.45, -25], size: [10, 28.9, 2] },
+            { pos: [25, 15.45, -25], size: [2, 28.9, 10] },
+            { pos: [-25, 15.45, 25], size: [2, 28.9, 10] },
+            { pos: [25, 15.45, 25], size: [10, 28.9, 2] },
+            { pos: [-15, 13.7, 0], size: [2, 32.4, 15] },
+            { pos: [15, 13.7, 0], size: [2, 32.4, 15] },
+            { pos: [0, 13.7, -15], size: [15, 32.4, 2] },
+            { pos: [0, 13.7, 15], size: [15, 32.4, 2] },
             { pos: [-30, 3, 0], size: [5, 6, 5] },
             { pos: [30, 3, 0], size: [5, 6, 5] },
         ],
@@ -149,27 +153,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ],
         glbColliderMode: 'scene',
         glbAuthoredObstaclesCollisionOnly: true,
-        lighting: {
-            key: { direction: [42, 70, 28], color: 0xffd08a, intensity: 1.95 },
-            fill: { direction: [-34, 32, -30], color: 0x8fc7e8, intensity: 0.58 },
-            rim: { direction: [0, 40, 48], color: 0xffb85c, intensity: 0.38 },
-            hemisphere: { skyColor: 0xf0d49d, groundColor: 0x765234 },
-            skyDome: { zenithColor: 0x356d99, horizonColor: 0xd6ad73, nadirColor: 0x6b432a },
-            fog: {
-                color: 0xd3a56b,
-                near: 360,
-                far: 560,
-                height: 3,
-                heightFalloff: 0.04,
-                turbulence: 0.05,
-                skyBlend: 1,
-                colorHigh: 0xc7a476,
-                colorLow: 0x8c6844,
-                clipClosureStart: 0.8,
-            },
-            starsVisible: false,
-            exposureOffset: 0,
-        },
+        lighting: PYRAMID_SUN_LIGHTING,
         obstacles: [
             { pos: [0, -1, 0], size: [260, 2, 260], kind: 'foam', compileWithGlb: true },
             { pos: [0, 18, -60], size: [100, 36, 100] },
@@ -191,6 +175,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { x: 92, y: 24, z: -88 }, { x: -92, y: 24, z: -88 },
             { x: 42, y: 18, z: 105 }, { x: -42, y: 18, z: 105 },
             { x: 0, y: 52, z: -60 },
+            // Open sky east and west of the king pyramid: the ninth and tenth start of a full round.
+            { x: 104, y: 20, z: -42 }, { x: -104, y: 20, z: -42 },
         ],
         // Half outdoors, half in a shelter (pavilion, both halls, king gallery).
         items: [
@@ -212,6 +198,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...CLASSIC_WORLD_APPEARANCE.vertical_maze,
         name: 'Vertikales Labyrinth',
         size: [100, 45, 100],
+        ...startPoints('vertical_maze'),
         obstacles: [
             { pos: [30, 15, 30], size: [8, 30, 8] },
             { pos: [-30, 15, -30], size: [8, 30, 8] },
@@ -231,7 +218,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     trench: {
         ...CLASSIC_WORLD_APPEARANCE.trench,
         name: 'Der Graben',
-        size: [60, 40, 160],
+        size: [54, 40, 160],
+        ...startPoints('trench'),
         obstacles: [
             { pos: [-25, 20, 0], size: [4, 40, 160] },
             { pos: [25, 20, 0], size: [4, 40, 160] },
@@ -244,7 +232,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     foam_forest: {
         ...authoredWorld('foam_forest'),
         name: 'Schaumwald',
+        lighting: FOREST_DAY_LIGHTING,
         size: [100, 30, 100],
+        ...startPoints('foam_forest'),
         obstacles: [
             { pos: [15, 15, 15], size: [3, 30, 3], kind: 'foam' },
             { pos: [-15, 15, 15], size: [3, 30, 3], kind: 'foam' },
@@ -260,7 +250,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     crossfire: {
         name: 'Kreuzfeuer',
+        lighting: BATTLEFIELD_SUNSET_LIGHTING,
         size: [120, 40, 120],
+        ...startPoints('crossfire'),
         obstacles: [
             { pos: [0, 20, 0], size: [120, 20, 4] },
             { pos: [0, 20, 0], size: [4, 20, 120] },
@@ -272,7 +264,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     checkerboard: {
         name: 'Schachbrett',
+        lighting: CLEAR_DAY_LIGHTING,
         size: [100, 40, 100],
+        ...startPoints('checkerboard'),
         obstacles: [
             { pos: [-25, 10, -25], size: [15, 20, 15] },
             { pos: [25, 10, 25], size: [15, 20, 15] },
@@ -283,7 +277,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     the_pit: {
         name: 'Die Arena',
+        lighting: FLOODLIT_PIT_LIGHTING,
         size: [120, 30, 120],
+        ...startPoints('the_pit'),
         obstacles: [
             { pos: [0, 4, 0], size: [40, 8, 40], kind: 'foam' }
         ],
@@ -294,7 +290,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     core_fusion: {
         name: 'Kern-Fusion',
+        lighting: REACTOR_GLOW_LIGHTING,
         size: [100, 40, 100],
+        ...startPoints('core_fusion'),
         obstacles: [
             { pos: [0, 20, 0], size: [50, 20, 50], kind: 'foam' }
         ],
@@ -305,7 +303,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     pillar_hall: {
         name: 'Säulen-Halle',
+        lighting: HALL_TORCHLIGHT_LIGHTING,
         size: [100, 30, 100],
+        ...startPoints('pillar_hall'),
         obstacles: [
             { pos: [-30, 15, -30], size: [4, 30, 4] }, { pos: [-30, 15, 0], size: [4, 30, 4] }, { pos: [-30, 15, 30], size: [4, 30, 4] },
             { pos: [0, 15, -30], size: [4, 30, 4] }, { pos: [0, 15, 0], size: [4, 30, 4] }, { pos: [0, 15, 30], size: [4, 30, 4] },
@@ -316,7 +316,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     spiral_tower: {
         ...authoredWorld('spiral_tower'),
         name: 'Spiralen-Turm',
+        lighting: TWILIGHT_BEACON_LIGHTING,
         size: [80, 70, 80],
+        ...startPoints('spiral_tower'),
         obstacles: [
             { pos: [0, 10, 20], size: [20, 4, 10] },
             { pos: [20, 25, 0], size: [10, 4, 20] },
@@ -329,7 +331,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     portal_madness: {
         name: 'Portal-Wahnsinn',
+        lighting: PORTAL_PSYCHEDELIC_LIGHTING,
         size: [100, 40, 100],
+        ...startPoints('portal_madness'),
         obstacles: [
             { pos: [0, 20, 0], size: [10, 10, 10] }
         ],
@@ -345,7 +349,9 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     the_loop: {
         ...authoredWorld('the_loop'),
         name: 'Die Schleife',
+        lighting: GOLDEN_HOUR_LIGHTING,
         size: [120, 30, 120],
+        ...startPoints('the_loop'),
         obstacles: [
             { pos: [0, 15, 0], size: [60, 30, 60] },
             { pos: [0, 25, 55], size: [120, 10, 4] },
@@ -481,10 +487,10 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { x: 0, y: 12, z: 56 },
         ],
         items: [
-            { id: 'showcase_speed_lane', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 12, z: -12, weight: 2 },
+            { id: 'showcase_speed_lane', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 30, z: -12, weight: 2 },
             { id: 'showcase_rocket_cross', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 20, y: 26, z: 18, weight: 1 },
             { id: 'showcase_shield_upper', type: 'item_shield', pickupType: 'SHIELD', x: -20, y: 40, z: 22, weight: 1.5 },
-            { id: 'showcase_random_lane', type: 'item_coin', x: 40, y: 12, z: -28, weight: 0.8 },
+            { id: 'showcase_random_lane', x: 40, y: 12, z: -28, weight: 0.8 },
         ],
         aircraft: [
             { id: 'showcase_air_1', jetId: 'ship3', x: -28, y: 34, z: -46, scale: 1.2, rotateY: 0.6 },

@@ -1,5 +1,8 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { ECLIPSE_FOUNDRY_MAP } from '../src/core/config/maps/presets/eclipse_foundry.js';
+
+const EXPECTED_GLB_MODEL_IDS = ECLIPSE_FOUNDRY_MAP.eclipse_foundry.glbModels.map((model) => model.id);
 
 test('Eclipse Foundry loads and advances all thirteen GLB animation loops on desktop', async ({ page }) => {
     test.setTimeout(120_000);
@@ -48,6 +51,7 @@ test('Eclipse Foundry loads and advances all thirteen GLB animation loops on des
             warningCount: arena._glbLoadWarnings.length,
             colliderMode: arena.currentMapDefinition?.glbColliderMode,
             glbSceneChildren: arena._glbScene?.children?.length || 0,
+            glbModelIds: arena._glbScene?.children?.map((slot) => slot.userData?.glbModelId) || [],
         };
     });
 
@@ -56,6 +60,8 @@ test('Eclipse Foundry loads and advances all thirteen GLB animation loops on des
         trackCount: 13,
         warningCount: 0,
         colliderMode: 'dynamic',
-        glbSceneChildren: 26,
+        glbSceneChildren: 27,
+        glbModelIds: EXPECTED_GLB_MODEL_IDS,
     });
+    expect(EXPECTED_GLB_MODEL_IDS).toContain('eclipse-foundry-world');
 });

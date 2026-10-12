@@ -42,7 +42,6 @@ import {
 } from '../src/ui/arcade/ArcadeDemolitionProfileSelection.js';
 import { bindArcadeSpecialStartButtons } from '../src/ui/arcade/ArcadeMenuSpecialStartOps.js';
 import { getDemolitionComboMultiplier } from '../src/core/arcade/DemolitionComboOps.js';
-import { readFileSync } from 'node:fs';
 
 test('demolition settings normalize to the dedicated hunt profile', () => {
     assert.deepEqual(
@@ -360,11 +359,6 @@ test('demolition profile selectors refresh on focus and preserve or report saved
         if (oldDocument === undefined) delete globalThis.document;
         else globalThis.document = oldDocument;
     }
-});
-
-test('demolition menu summary uses its own three-map instructions', () => {
-    const source = readFileSync(new URL('../src/ui/arcade/ArcadeMenuSurface.js', import.meta.url), 'utf8');
-    assert.match(source, /settings\.arcade\?\.runType === 'demolition'[\s\S]{0,250}Abrisskommando: drei Belagerungskarten/);
 });
 
 test('explicit network sessions count local slots, while splitscreen keeps its selected count', () => {

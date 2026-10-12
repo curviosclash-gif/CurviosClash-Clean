@@ -100,7 +100,7 @@ export class RocketTrailSystem {
         this._attached = false;
     }
 
-    createTrailHandle(owner = null) {
+    createTrailHandle(owner = null, options = null) {
         this._attach();
         const id = `rocket-trail:${this.nextTrailId++}`;
         const handle = {
@@ -112,6 +112,9 @@ export class RocketTrailSystem {
             nextSequence: 0,
             maxSegments: 0,
             cosmeticStyleId: 'standard',
+            // Visual-only smoke is drawn but never enters the trail index, the same way
+            // Trail._addSegment skips its visual-only segments: nothing can hit or be blocked by it.
+            visualOnly: options?.visualOnly === true,
             destroySegmentByEntry: (entry) => this.destroySegmentByEntry(entry),
         };
         if (!this.handlesByOwner.has(handle.ownerPlayerIndex)) {
@@ -130,7 +133,10 @@ export class RocketTrailSystem {
 
     initializeProjectile(projectile) {
         if (!projectile?.huntRocket) return;
-        projectile.rocketTrailHandle = this.createTrailHandle(projectile.owner);
+        // Exclusion-zone salvos punish with the rockets themselves; their smoke stays harmless.
+        projectile.rocketTrailHandle = this.createTrailHandle(projectile.owner, {
+            visualOnly: projectile.environmentProjectile === true,
+        });
         projectile.rocketTrailHandle.cosmeticStyleId = projectile.cosmeticStyleId || 'standard';
         this.resetProjectileSample(projectile);
     }
@@ -205,7 +211,7 @@ export class RocketTrailSystem {
         this.mesh.setColorAt(slot, this._color);
         this.glowMesh.setColorAt(slot, this._color);
 
-        const trailSpatialIndex = this.getTrailSpatialIndex();
+        const trailSpatialIndex = trailHandle.visualOnly ? null : this.getTrailSpatialIndex();
         const ref = trailSpatialIndex?.registerTrailSegment?.(
             trailHandle.ownerPlayerIndex,
             segmentId,

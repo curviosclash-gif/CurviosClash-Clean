@@ -23,11 +23,11 @@ function towerAnchor(key) {
 export const SKYLINE_SIEGE_DESTRUCTIBLES = Object.freeze({
     gameModes: Object.freeze(['HUNT']), hudNoun: 'Hochhaus',
     segments: Object.freeze([
-        Object.freeze({ id: 'spire', label: 'Spire Tower', kind: 'masonry', piece: 'spire_tower', hp: 420,
+        Object.freeze({ id: 'spire', label: 'Spitzturm', kind: 'masonry', piece: 'spire_tower', hp: 420,
             meshPrefixes: Object.freeze(['skyline_spire']), anchor: towerAnchor('spire') }),
-        Object.freeze({ id: 'crown', label: 'Crown Tower', kind: 'masonry', piece: 'crown_tower', hp: 480,
+        Object.freeze({ id: 'crown', label: 'Kronenturm', kind: 'masonry', piece: 'crown_tower', hp: 480,
             meshPrefixes: Object.freeze(['skyline_crown']), anchor: towerAnchor('crown') }),
-        Object.freeze({ id: 'arcology', label: 'Arcology', kind: 'masonry', piece: 'arcology_tower', hp: 520,
+        Object.freeze({ id: 'arcology', label: 'Arkologie', kind: 'masonry', piece: 'arcology_tower', hp: 520,
             meshPrefixes: Object.freeze(['skyline_arcology']), anchor: towerAnchor('arcology') }),
     ]),
     pieces: Object.freeze(['spire_tower', 'crown_tower', 'arcology_tower']),
@@ -63,7 +63,7 @@ const SKYLINE_STATIC_BACKDROP = Object.freeze({
 
 export const SKYLINE_SIEGE_MAPS = Object.freeze({
     skyline_siege: Object.freeze({
-        name: 'Skyline Siege', size: Object.freeze([180, 100, 180]), scaleAuthoredAnchors: true,
+        name: 'Skyline Belagerung', size: Object.freeze([180, 100, 180]), scaleAuthoredAnchors: true,
         exclusionZone: Object.freeze({ openFaces: Object.freeze(['minX', 'maxX', 'minZ', 'maxZ', 'maxY']) }),
         obstacles: Object.freeze([Object.freeze({ pos: [0, 2, 0], size: [180, 4, 180], kind: 'foam', compileWithGlb: true })]),
         portals: Object.freeze([]), glbModels: Object.freeze([SKYLINE_STATIC_BACKDROP, ...SKYLINE_SIEGE_MODELS]),

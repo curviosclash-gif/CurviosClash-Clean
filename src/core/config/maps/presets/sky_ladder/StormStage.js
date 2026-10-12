@@ -120,7 +120,7 @@ export const SKY_LADDER_STORM_MAP = {
         { id: 'sc_shield_crown', type: 'item_shield', pickupType: 'SHIELD', x: 130, y: 88, z: 0, weight: 1.0 },
     ],
     missions: [
-        { type: 'TIME_TRIAL', params: { target: 78 }, weight: 1.4 },
+        { type: 'TIME_TRIAL', params: { target: 45 }, weight: 1.4 },
         { type: 'CLOSE_CALL', params: { target: 3 }, weight: 0.8 },
     ],
     parcours: {

@@ -27,15 +27,30 @@ export const BLOOM_CORE_MAP = Object.freeze({
         expansion: Object.freeze({ stages: STAGES }),
         obstacles: PILLARS,
         portals: Object.freeze([]),
+        // Spawns and item anchors are written in world units (no scaleAuthoredAnchors); the stage
+        // sizes and obstacles above are map units, x3. The stages reach +-102, +-174, +-246 and
+        // +-300 world units, so everything below is placed against those four squares.
         playerSpawn: Object.freeze({ x: 0, y: 22, z: 0 }),
+        // Every start lies inside the first stage, 80 units from the player and 113 from each other.
         botSpawns: Object.freeze([
-            { x: -24, y: 18, z: 0 }, { x: 24, y: 18, z: 0 },
-            { x: 0, y: 20, z: -24 }, { x: 0, y: 20, z: 24 },
+            { x: -80, y: 18, z: 0 }, { x: 80, y: 18, z: 0 },
+            { x: 0, y: 20, z: -80 }, { x: 0, y: 20, z: 80 },
         ]),
+        // Four anchors per stage ring, so a ring that has just opened holds new items: the pickup
+        // manager only offers the anchors inside the bounds that are open right now.
         items: Object.freeze([
-            { pos: [-12, 14, 0] }, { pos: [12, 14, 0] },
-            { pos: [0, 14, -12] }, { pos: [0, 14, 12] },
-            { pos: [-47, 16, -47] }, { pos: [47, 16, 47] },
+            // Kern (bounds 102): between the player and the inner pillars at +-54.
+            { pos: [-34, 16, -34] }, { pos: [34, 16, -34] },
+            { pos: [-34, 16, 34] }, { pos: [34, 16, 34] },
+            // Blütenring (bounds 174): corners behind the mid pillars at +-159.
+            { pos: [-138, 20, -138] }, { pos: [138, 20, -138] },
+            { pos: [-138, 20, 138] }, { pos: [138, 20, 138] },
+            // Kronenring (bounds 246): the four axes, clear of the outer pillars at +-219.
+            { pos: [-210, 26, 0] }, { pos: [210, 26, 0] },
+            { pos: [0, 26, -210] }, { pos: [0, 26, 210] },
+            // Freies Feld (bounds 300): the far corners.
+            { pos: [-272, 32, -272] }, { pos: [272, 32, -272] },
+            { pos: [-272, 32, 272] }, { pos: [272, 32, 272] },
         ]),
         lighting: normalizeMapLighting({
             key: { direction: [30, 55, -20], color: 0xffd9a8, intensity: 1.2 },

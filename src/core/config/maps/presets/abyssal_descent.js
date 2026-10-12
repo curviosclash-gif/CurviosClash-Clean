@@ -1,14 +1,18 @@
 // ============================================================
 // Abyssal Descent – Vertikaler Abstieg durch Hindernisringe
-// Schmaler Schacht, Ringe durchfliegen, 12s Zeitlimit je Abschnitt (kein Gesamtlimit)
+// Schmaler Schacht, Ringe durchfliegen, 12s Zeitlimit je Abschnitt (kein Gesamtlimit).
+// Die Ringe wechseln die Schachtseiten (Ost, Nord, Ssued, West) und kehren fuer die
+// senkrechten Loecher (Ring 1, 5, 8) und die Doppelroehre in die Mitte zurueck.
 // ============================================================
 
 import { authoredWorld } from './world_appearance.js';
+import { DEEP_SEA_LIGHTING } from './map_lighting_profiles.js';
 
 export const ABYSSAL_DESCENT_MAP = {
     abyssal_descent: {
         ...authoredWorld('abyssal_descent'),
         name: 'Abyssal Descent',
+        lighting: DEEP_SEA_LIGHTING,
         size: [80, 200, 80],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
@@ -134,10 +138,10 @@ export const ABYSSAL_DESCENT_MAP = {
             { x: 0, y: 190, z: 8 },
         ],
         items: [
-            { id: 'ad_speed_1', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 160, z: 0, weight: 1.4 },
-            { id: 'ad_shield_2', type: 'item_shield', pickupType: 'SHIELD', x: 0, y: 120, z: 0, weight: 1.2 },
-            { id: 'ad_ghost_3', type: 'item_coin', pickupType: 'GHOST', x: 0, y: 80, z: 0, weight: 1.0 },
-            { id: 'ad_speed_4', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 40, z: 0, weight: 1.5 },
+            { id: 'ad_speed_1', type: 'item_battery', pickupType: 'SPEED_UP', x: 26, y: 160, z: 0, weight: 1.4 },
+            { id: 'ad_shield_2', type: 'item_shield', pickupType: 'SHIELD', x: 0, y: 128, z: -26, weight: 1.2 },
+            { id: 'ad_ghost_3', type: 'item_coin', pickupType: 'GHOST', x: 0, y: 80, z: 26, weight: 1.0 },
+            { id: 'ad_speed_4', type: 'item_battery', pickupType: 'SPEED_UP', x: -26, y: 56, z: 0, weight: 1.5 },
         ],
         aircraft: [
             { id: 'ad_air_1', jetId: 'ship1', x: 0, y: 100, z: 0, scale: 0.6, rotateY: 0 },
@@ -160,13 +164,13 @@ export const ABYSSAL_DESCENT_MAP = {
             checkpoints: [
                 { id: 'CP01', type: 'entry',     pos: [0, 189, 0],      radius: 7.0, forward: [0, -1, 0] },
                 { id: 'CP02', type: 'tunnel',    pos: [0, 170, 0],      radius: 5.5, forward: [0, -1, 0] },
-                { id: 'CP03', type: 'gate',      pos: [0, 155, 0],      radius: 5.5, forward: [0, -1, 0] },
-                { id: 'CP04', type: 'gate',      pos: [0, 135, 0],      radius: 5.5, forward: [0, -1, 0] },
+                { id: 'CP03', type: 'gate',      pos: [26, 156, 0],     radius: 5.5, forward: [0, -1, 0] },
+                { id: 'CP04', type: 'gate',      pos: [0, 134, -26],    radius: 5.5, forward: [0, -1, 0] },
                 { id: 'CP05', type: 'split',     pos: [-10, 115, 0],    radius: 5.0, forward: [0, -1, 0] },
                 { id: 'CP05_R', type: 'split',   aliasOf: 'CP05', pos: [10, 115, 0], radius: 5.0, forward: [0, -1, 0] },
                 { id: 'CP06', type: 'precision', pos: [0, 95, 0],       radius: 4.0, forward: [0, -1, 0] },
-                { id: 'CP07', type: 'gate',      pos: [0, 75, 0],       radius: 5.0, forward: [0, -1, 0] },
-                { id: 'CP08', type: 'tunnel',    pos: [0, 50, 0],       radius: 5.0, forward: [0, -1, 0] },
+                { id: 'CP07', type: 'gate',      pos: [0, 76, 26],      radius: 5.0, forward: [0, -1, 0] },
+                { id: 'CP08', type: 'gate',      pos: [-26, 52, 0],     radius: 5.0, forward: [0, -1, 0] },
                 { id: 'CP09', type: 'precision', pos: [0, 35, 0],       radius: 3.5, forward: [0, -1, 0] },
                 { id: 'CP10', type: 'finish_pre', pos: [0, 18, 0],      radius: 5.5, forward: [0, -1, 0] },
             ],

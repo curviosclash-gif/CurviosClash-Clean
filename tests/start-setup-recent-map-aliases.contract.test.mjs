@@ -34,6 +34,16 @@ test('the rewrite keeps every other stored entry and is stable on reload', () =>
     assert.deepEqual(ensureHangarSelectionWritebackState(settings).recentMaps, first, 'a second load changes nothing');
 });
 
+test('Die Festung is the Expert Gauntlet under its old key: same arena, still loadable, rewritten in the recents', () => {
+    const { hiddenFromMapPicker: festungHidden, ...festung } = MAP_PRESET_CATALOG.die_festung;
+    const { hiddenFromMapPicker: gauntletHidden, ...gauntlet } = MAP_PRESET_CATALOG.expert_gauntlet;
+    assert.equal(festungHidden, true, 'the old key stays out of the picker');
+    assert.equal(gauntletHidden, false, 'the Expert Gauntlet is the one the picker shows');
+    assert.deepEqual(festung, gauntlet, 'one arena, no second copy to keep in step');
+    const { recentMaps } = ensureHangarSelectionWritebackState(createStoredSettings({ recentMaps: ['die_festung', 'expert_gauntlet'] }));
+    assert.deepEqual(recentMaps, ['expert_gauntlet']);
+});
+
 test('every hidden map that only duplicates a visible map by name is rewritten', () => {
     const visibleByName = new Map(Object.entries(MAP_PRESET_CATALOG)
         .filter(([, preset]) => preset?.hiddenFromMapPicker !== true)

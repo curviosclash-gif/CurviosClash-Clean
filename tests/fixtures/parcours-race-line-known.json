@@ -1,0 +1,200 @@
+{
+  "count": 39,
+  "entries": [
+    {
+      "map": "tutorial_classic",
+      "leg": "TUTORIAL_SPEED->TUTORIAL_BOOST",
+      "at": [-16, 17, 7]
+    },
+    {
+      "map": "tutorial_classic",
+      "leg": "TUTORIAL_BOOST->TUTORIAL_AVOID",
+      "at": [24, 19, -7]
+    },
+    {
+      "map": "parcours_rift",
+      "leg": "CP02->CP03",
+      "at": [-34, 23, -12]
+    },
+    {
+      "map": "parcours_rift",
+      "leg": "CP03->CP04",
+      "at": [-19, 26, -14]
+    },
+    {
+      "map": "parcours_rift",
+      "leg": "CP04->CP04A_TUNNEL",
+      "at": [4, 30, -49]
+    },
+    {
+      "map": "parcours_rift",
+      "leg": "CP04A_TUNNEL->CP05",
+      "at": [21, 36, 9]
+    },
+    {
+      "map": "parcours_rift",
+      "leg": "CP04B_BOOST->CP05",
+      "at": [20, 35, 9]
+    },
+    {
+      "map": "parcours_rift",
+      "leg": "CP05->CP06",
+      "at": [31, 40, 43]
+    },
+    {
+      "map": "parcours_rift",
+      "leg": "CP05->CP06_R",
+      "at": [31, 40, 42]
+    },
+    {
+      "map": "parcours_rift",
+      "leg": "CP07->CP08",
+      "at": [84, 31, 0]
+    },
+    {
+      "map": "parcours_rift_sprint",
+      "leg": "CP03->CP04",
+      "at": [34, 36, -6]
+    },
+    {
+      "map": "parcours_rift_sprint",
+      "leg": "CP04->CP05",
+      "at": [84, 31, -3]
+    },
+    {
+      "map": "parcours_rift_precision",
+      "leg": "CP02->CP03",
+      "at": [-34, 23, -12]
+    },
+    {
+      "map": "parcours_rift_precision",
+      "leg": "CP03->CP04",
+      "at": [-19, 26, -14]
+    },
+    {
+      "map": "parcours_rift_precision",
+      "leg": "CP04->CP04A_TUNNEL",
+      "at": [4, 30, -49]
+    },
+    {
+      "map": "parcours_rift_precision",
+      "leg": "CP04A_TUNNEL->CP05",
+      "at": [21, 36, 9]
+    },
+    {
+      "map": "parcours_rift_precision",
+      "leg": "CP04B_BOOST->CP05",
+      "at": [20, 35, 9]
+    },
+    {
+      "map": "parcours_rift_precision",
+      "leg": "CP05->CP06",
+      "at": [31, 40, 43]
+    },
+    {
+      "map": "parcours_rift_precision",
+      "leg": "CP05->CP06_R",
+      "at": [31, 40, 42]
+    },
+    {
+      "map": "parcours_rift_precision",
+      "leg": "CP07->CP08",
+      "at": [84, 31, 0]
+    },
+    {
+      "map": "micro_maw",
+      "leg": "CP02->CP03",
+      "at": [-17, 15, -9]
+    },
+    {
+      "map": "micro_maw",
+      "leg": "CP03->CP04",
+      "at": [-7, 15, 1]
+    },
+    {
+      "map": "micro_maw",
+      "leg": "CP05->CP06",
+      "at": [38, 18, -9]
+    },
+    {
+      "map": "micro_maw",
+      "leg": "CP06->CP07",
+      "at": [43, 18, -23]
+    },
+    {
+      "map": "mirror_docks",
+      "leg": "CP06->CP07",
+      "at": [65, 28, -4]
+    },
+    {
+      "map": "mirror_docks",
+      "leg": "CP06_R->CP07",
+      "at": [65, 28, 4]
+    },
+    {
+      "map": "mirror_docks",
+      "leg": "CP07->CP08",
+      "at": [73, 28, -4]
+    },
+    {
+      "map": "glass_serpent",
+      "leg": "CP06->CP07_BALCONY",
+      "at": [47, 37, -13]
+    },
+    {
+      "map": "glass_serpent",
+      "leg": "CP07_BALCONY->CP08",
+      "at": [94, 40, -3]
+    },
+    {
+      "map": "storm_switchyard",
+      "leg": "CP03->CP04",
+      "at": [-37, 19, -23]
+    },
+    {
+      "map": "wind_cathedral",
+      "leg": "CP02->CP03",
+      "at": [-29, 26, -8]
+    },
+    {
+      "map": "wind_cathedral",
+      "leg": "CP04->CP05",
+      "at": [12, 50, -31]
+    },
+    {
+      "map": "wind_cathedral",
+      "leg": "CP04->CP05_R",
+      "at": [12, 50, -25]
+    },
+    {
+      "map": "wind_cathedral",
+      "leg": "CP08->CP09",
+      "at": [-29, 81, 6]
+    },
+    {
+      "map": "wind_cathedral",
+      "leg": "CP09->CP10",
+      "at": [-36, 74, -2]
+    },
+    {
+      "map": "chrono_spillway",
+      "leg": "CP07->CP08_OVERFLOW",
+      "at": [53, 38, -24]
+    },
+    {
+      "map": "chrono_spillway",
+      "leg": "CP09->CP10",
+      "at": [116, 25, 6]
+    },
+    {
+      "map": "chrono_spillway",
+      "leg": "CP10->CP11",
+      "at": [126, 22, 28]
+    },
+    {
+      "map": "chrono_spillway",
+      "leg": "CP11->CP12",
+      "at": [123, 17, 55]
+    }
+  ]
+}

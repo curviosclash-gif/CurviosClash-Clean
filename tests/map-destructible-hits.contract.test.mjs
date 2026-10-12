@@ -568,6 +568,8 @@ test('a map without destructibles keeps the hunt state and every weapon path qui
         hudNoun: '',
         focusSegment: null,
         breakingSecondsRemaining: 0,
+        destroyedSegments: 0,
+        totalSegments: 0,
         segments: [],
     });
     assert.equal(system.applyNetworkState(null), system.getState());

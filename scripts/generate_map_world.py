@@ -33,6 +33,13 @@ STYLES = {
         'signal': (0.06, 0.63, 0.85), 'foam': (0.10, 0.52, 0.50),
         'tile': 20, 'roughness': 0.71,
     },
+    # Soot-black gunmetal under a copper corona, furnace-orange foam and cold blue signals.
+    'eclipse_foundry': {
+        'floor': (0.07, 0.06, 0.10), 'body': (0.26, 0.24, 0.32),
+        'panel': (0.10, 0.09, 0.18), 'trim': (0.78, 0.38, 0.12),
+        'signal': (0.30, 0.55, 1.0), 'foam': (0.62, 0.22, 0.08),
+        'tile': 16, 'roughness': 0.66,
+    },
     'maze': {
         'floor': (0.14, 0.18, 0.21), 'body': (0.55, 0.60, 0.61),
         'panel': (0.11, 0.20, 0.24), 'trim': (0.88, 0.58, 0.23),
