@@ -1263,3 +1263,141 @@ textarea:focus-visible {
         grid-template-columns: 1fr;
     }
 }
+
+/* Karten-Balancing */
+.map-balancing__bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.map-balancing__search {
+    flex: 1 1 200px;
+    height: 28px;
+}
+
+.map-balancing__body {
+    display: grid;
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.map-balancing__maps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 62vh;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.map-balancing__map {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0 6px;
+    padding: 6px 8px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.map-balancing__map small {
+    grid-column: 1;
+    color: var(--muted);
+}
+
+.map-balancing__map.is-active {
+    background: var(--accent-soft);
+}
+
+.map-balancing__dot {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
+    color: var(--dirty);
+}
+
+.map-balancing__dot.is-unsaved {
+    color: var(--accent);
+}
+
+.map-balancing__title {
+    margin: 0 0 4px;
+    font-size: 15px;
+}
+
+.map-balancing__hint,
+.map-balancing__range,
+.map-balancing__inherited {
+    color: var(--muted);
+}
+
+.map-balancing__table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.map-balancing__table th,
+.map-balancing__table td {
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+}
+
+.map-balancing__group th {
+    padding-top: 10px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.map-balancing__table tr.is-map td {
+    background: var(--dirty-soft);
+}
+
+.map-balancing__number {
+    width: 96px;
+}
+
+.map-balancing__origin {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 11px;
+}
+
+.map-balancing__origin.origin-map {
+    border-color: var(--dirty);
+    color: var(--text);
+    background: var(--dirty-soft);
+}
+
+.map-balancing__actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.map-balancing__dirty {
+    color: var(--dirty);
+    font-weight: 600;
+}
+
+.map-balancing__errors {
+    color: var(--danger);
+    background: var(--danger-soft);
+    border-radius: 6px;
+    padding: 6px 6px 6px 24px;
+}

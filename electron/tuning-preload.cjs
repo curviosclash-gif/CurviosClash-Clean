@@ -20,6 +20,8 @@ function createTuningApi() {
             invoke('tuning:export-preset-json', { presetData, fileName })
         ),
         importPresetJson: () => invoke('tuning:import-preset-json'),
+        // Map balancing: describe, set-value, reset-value, discard, save, set-authoritative.
+        balancing: (op, payload = {}) => invoke('tuning:balancing', { ...payload, op }),
         onUpdate: (callback) => {
             if (typeof callback !== 'function') {
                 return () => {};

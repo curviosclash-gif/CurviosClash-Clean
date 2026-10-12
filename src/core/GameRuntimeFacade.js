@@ -17,6 +17,8 @@ import { SETTINGS_CHANGE_KEYS } from '../shared/settings/SettingsChangeKeys.js';
 import { CONFIG_BASE } from './Config.js';
 import { applyRuntimeConfigCompatibility } from './RuntimeConfig.js';
 import { createEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
+import { applyMapBalancingToRuntimeConfig } from './balancing/MapBalancingRuntime.js';
+import { applyRuntimeConfigLive } from './runtime/RuntimeConfigLiveApply.js';
 import {
     applyRuntimeSettingsState,
     getSessionRuntimeHandle,
@@ -205,31 +207,14 @@ export class GameRuntimeFacade {
         const activeDifficulty = String(profile.botDifficulty
             || currentRuntimeConfig?.bot?.activeDifficulty
             || 'NORMAL').trim().toUpperCase() || 'NORMAL';
-        const nextRuntimeConfig = {
+        // Each sector map brings its own balancing values once the map switch is on.
+        const nextRuntimeConfig = applyMapBalancingToRuntimeConfig({
             ...currentRuntimeConfig,
             session: { ...currentRuntimeConfig.session, mapKey, numBots },
             bot: { ...currentRuntimeConfig.bot, activeDifficulty, arcadeAggressiveness: Math.max(0, Math.min(1, Number(profile.aggressiveness) || 0)), arcadeBotRoles: Array.isArray(profile.botRoles) ? profile.botRoles : [] },
             arcade: { ...currentRuntimeConfig.arcade, activeCompanionCount: Math.max(0, Math.trunc(Number(profile.companionCount) || 0)), parcoursRacer: profile.parcoursRacer === true, ...(typeof profile.combatProfile === 'string' ? { combatProfile: profile.combatProfile, scenarioId: profile.scenarioId || null, scenarioMapUnits: Array.isArray(profile.mapUnits) ? profile.mapUnits : [], scenarioMapUnitsMode: profile.mapUnitsMode === 'replace' ? 'replace' : 'overlay', waterZoneTriggerSec: profile.waterZoneTriggerSec || 0 } : {}) },
-        };
-        const nextCompatibilityConfig = applyRuntimeConfigCompatibility(nextRuntimeConfig, CONFIG_BASE);
-        applyRuntimeSettingsState(this.getRuntimeBundle(), {
-            runtimeConfig: nextRuntimeConfig,
-            config: nextCompatibilityConfig,
-            session: {
-                mapKey,
-                numBots,
-                numHumans: currentRuntimeConfig?.session?.numHumans,
-                winsNeeded: currentRuntimeConfig?.session?.winsNeeded,
-                activeGameMode: currentRuntimeConfig?.session?.activeGameMode,
-            },
         });
-        const entityManager = runtimeState.entityManager;
-        entityManager?.applyLiveRuntimeConfig?.(
-            createEntityRuntimeConfig(nextRuntimeConfig, nextCompatibilityConfig),
-            nextRuntimeConfig
-        );
-        entityManager?.setBotDifficulty?.(activeDifficulty);
-        return nextRuntimeConfig;
+        return applyRuntimeConfigLive(this.getRuntimeBundle(), runtimeState, nextRuntimeConfig);
     }
 
     startArcadeRunIfEnabled() { return this._arcadeSupport.startRunIfEnabled(); }

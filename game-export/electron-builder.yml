@@ -10,6 +10,7 @@ files:
   - window-security-options.cjs
   - test-render-window.cjs
   - session-data-runtime.cjs
+  - map-balancing-store.cjs
   - hangar-window.cjs
   - hangar-preload.cjs
   - settings-studio/**/*

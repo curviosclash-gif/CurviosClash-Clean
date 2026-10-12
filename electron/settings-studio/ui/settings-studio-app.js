@@ -30,6 +30,12 @@ import {
     PLATFORM_PRODUCT_SURFACE_IDS,
 } from '../../../src/shared/contracts/PlatformCapabilityData.js';
 import { PLATFORM_CAPABILITY_IDS } from '../../../src/shared/contracts/PlatformCapabilityContract.js';
+import { createStudioBalancingSection } from './settings-studio-balancing.js';
+
+const mapBalancingSection = createStudioBalancingSection({
+    api: window.settingsStudioApi,
+    onDirtyChange: () => publishDirtyState(),
+});
 
 const state = {
     language: 'de',
@@ -109,7 +115,7 @@ function setStatus(msg) {
 }
 
 function publishDirtyState() {
-    window.settingsStudioApi?.setDirtyState?.(isDraftDirty());
+    window.settingsStudioApi?.setDirtyState?.(isDraftDirty() || mapBalancingSection.isDirty());
 }
 
 function deepClone(v) {
@@ -342,6 +348,7 @@ function renderFormContent() {
         configShare: 'sectionHintConfigShare',
         limits: 'sectionHintLimits',
         browserDemoPolicy: 'sectionHintBrowserDemoPolicy',
+        mapBalancing: 'sectionHintMapBalancing',
     };
     const hintKey = hintKeyBySection[state.activeSection] || '';
     if (refs.sectionHint) {
@@ -352,6 +359,17 @@ function renderFormContent() {
             refs.sectionHint.hidden = true;
             refs.sectionHint.textContent = '';
         }
+    }
+
+    const balancingActive = state.activeSection === 'mapBalancing';
+    refs.resetSectionBtn.hidden = balancingActive;
+    refs.validateBtn.disabled = balancingActive;
+    refs.saveBtn.disabled = balancingActive;
+    if (balancingActive) {
+        // The section saves per map into data/balancing; the toolbar save is for menu defaults.
+        void mapBalancingSection.mount(refs.formContent);
+        updateChangeBadge();
+        return;
     }
 
     const translator = createTranslator(state.language);
@@ -1396,6 +1414,7 @@ async function onRestoreBackup(backupFileName) {
 
 function bindEvents() {
     const handleFormMutation = (event) => {
+        if (event.target.closest?.('.map-balancing')) return;
         if (event.type === 'input' && event.target.dataset?.menuSettingPath
             && event.target.matches?.('input[type="number"]')) return;
         if (event.target.dataset?.menuTextId || event.target.dataset?.menuSettingPath

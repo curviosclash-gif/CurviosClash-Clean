@@ -1,13 +1,30 @@
 import { createTuningRuntimeBridge } from './TuningRuntimeBridge.js';
 import { getTuningParameterRegistry } from './TuningParameterRegistry.js';
 import { resolveElectronRuntimeSnapshot } from '../../platform/electron/ElectronPlatformBridge.js';
+import { createMapBalancingLiveApi } from '../../core/balancing/MapBalancingLive.js';
 
 const ACTIONS = Object.freeze({
     getAll: 'tuning:get-all',
     setValue: 'tuning:set-value',
     resetAll: 'tuning:reset-all',
     getRegistry: 'tuning:get-registry',
+    balancing: 'tuning:balancing',
 });
+
+// Map balancing operations of the F7 console; saving happens in the main process.
+function executeBalancingAction(payload) {
+    const api = createMapBalancingLiveApi();
+    const options = { mapKey: typeof payload.mapKey === 'string' ? payload.mapKey : '' };
+    switch (String(payload.op || '')) {
+        case 'describe': return api.describe({ ...options, modePath: payload.modePath });
+        case 'set-value': return api.setValue(payload.key, payload.value, options);
+        case 'reset-value': return api.resetValue(payload.key, options);
+        case 'discard': return api.discard(options);
+        case 'mark-saved': return api.markSaved(options.mapKey, payload.layer);
+        case 'set-authoritative': return api.setAuthoritative(payload.enabled);
+        default: return { ok: false, reason: 'unknown_balancing_op', value: null };
+    }
+}
 
 function createError(reason, detail = '') {
     return { reason, message: String(detail || reason) };
@@ -17,6 +34,11 @@ function executeAction(bridge, action, payload = null) {
     const requestPayload = payload && typeof payload === 'object' ? payload : {};
     if (action === ACTIONS.getRegistry) return { ok: true, reason: 'ok', value: getTuningParameterRegistry() };
     if (action === ACTIONS.getAll) return { ok: true, reason: 'ok', value: bridge.getAllValues() };
+    if (action === ACTIONS.balancing) {
+        const result = executeBalancingAction(requestPayload);
+        const value = result.value ? { ...result.value, liveApplied: result.liveApplied === true } : null;
+        return { ok: result.ok === true, reason: String(result.reason || 'ok'), value, detail: String(result.detail || '') };
+    }
     if (action === ACTIONS.setValue) {
         const result = bridge.setValue(String(requestPayload.path || ''), requestPayload.value);
         return { ok: result.ok === true, reason: String(result.reason || 'ok'), value: result };
@@ -47,7 +69,7 @@ export function installDesktopTuningRuntimeBridge(runtimeGlobal = globalThis) {
                 requestId,
                 ok,
                 reason: String(result.reason || (ok ? 'ok' : 'runtime_error')),
-                detail: '',
+                detail: String(result.detail || ''),
                 error: ok ? null : createError(String(result.reason || 'runtime_error')),
                 value: Object.prototype.hasOwnProperty.call(result, 'value') ? result.value : null,
             });

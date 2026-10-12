@@ -24,6 +24,8 @@ const DICTIONARY = Object.freeze({
         sectionLevel3Reset: 'Level-3-Zurücksetzen',
         sectionLimits: 'Grenzen (min/max/step)',
         sectionBrowserDemoPolicy: 'Browser-Demo-Grenzen',
+        sectionMapBalancing: 'Karten-Balancing',
+        sectionHintMapBalancing: 'Spielwerte je Karte. Jede Karte erbt die Modus-Grundwerte und speichert nur Abweichungen nach data/balancing/maps/. Nur in der Entwicklungsumgebung.',
         sectionBackups: 'Backups & Restore',
         sectionGameMenu: 'Spielmenü',
         sectionHintGameMenu: 'Struktur, Beschriftungen und registrierte Menüwerte mit sicherer Vorschau.',
@@ -216,6 +218,8 @@ const DICTIONARY = Object.freeze({
         sectionLevel3Reset: 'Level 3 Reset Values',
         sectionLimits: 'Limits (min/max/step)',
         sectionBrowserDemoPolicy: 'Browser Demo Limits',
+        sectionMapBalancing: 'Map balancing',
+        sectionHintMapBalancing: 'Gameplay values per map. Each map inherits its mode defaults and stores only differences in data/balancing/maps/. Development checkout only.',
         sectionBackups: 'Backups & Restore',
         sectionGameMenu: 'Game Menu',
         sectionHintGameMenu: 'Structure, labels, and registered menu values with a safe preview.',
@@ -410,6 +414,7 @@ export const SECTIONS = Object.freeze([
     { key: 'level3Reset', labelKey: 'sectionLevel3Reset' },
     { key: 'limits', labelKey: 'sectionLimits' },
     { key: 'browserDemoPolicy', labelKey: 'sectionBrowserDemoPolicy' },
+    { key: 'mapBalancing', labelKey: 'sectionMapBalancing', noDirty: true },
     { key: 'backups', labelKey: 'sectionBackups', noDirty: true },
 ]);
 

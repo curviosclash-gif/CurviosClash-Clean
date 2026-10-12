@@ -26,6 +26,7 @@
       "session-data-runtime.cjs",
       "tuning-window.cjs",
       "tuning-ipc.cjs",
+      "map-balancing-store.cjs",
       "tuning-preload.cjs",
       "hangar-window.cjs",
       "hangar-preload.cjs",

@@ -20,6 +20,8 @@ const settingsStudioApi = Object.freeze({
     setMenuTextOverride: (textId, value) => invoke('settings-studio:menu-text-overrides:set', textId, value),
     clearMenuTextOverride: (textId) => invoke('settings-studio:menu-text-overrides:clear', textId),
     resetMenuTextOverrides: () => invoke('settings-studio:menu-text-overrides:reset'),
+    // Karten-Balancing: list-maps, describe, validate, save.
+    mapBalancing: (op, payload = {}) => invoke('settings-studio:map-balancing', { ...payload, op }),
     setDirtyState: (isDirty) => ipcRenderer.send('settings-studio:set-dirty-state', isDirty === true),
 });
 
