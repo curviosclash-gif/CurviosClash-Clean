@@ -6,7 +6,10 @@ import {
     waitForShellOrRuntimeReady,
 } from './playwright-readiness.js';
 import { consumeFreshBootMark, isForceGotoEnv, shouldSkipInitialGoto } from './fresh-boot-mark.mjs';
+import { menuScreenPanelId, menuScreenSelector } from './support/menu-screens.js';
 import { performance } from 'node:perf_hooks';
+
+export { menuScreenSelector };
 
 function toPositiveInt(rawValue, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
     const numeric = Number.parseInt(String(rawValue || ''), 10);
@@ -562,6 +565,21 @@ export async function openDebugSubmenu(page) {
     await openExpertSubmenu(page);
     await page.click('#btn-open-debug');
     await page.waitForSelector('#submenu-debug:not(.hidden)', { timeout: 4000 });
+}
+
+const MENU_SCREEN_OPENERS = Object.freeze({
+    modeChoice: (page) => openCustomSubmenu(page),
+    freeplay: (page, options) => openGameSubmenu(page, options),
+    lobby: (page, options) => openMultiplayerSubmenu(page, options),
+    settings: (page, options) => openLevel4Drawer(page, options),
+    expert: (page) => openExpertSubmenu(page),
+    debug: (page) => openDebugSubmenu(page),
+});
+
+// Opens a menu screen by name; the panel id lives only in tests/support/menu-screens.js.
+export async function openMenuScreen(page, screen, options = {}) {
+    menuScreenPanelId(screen);
+    return MENU_SCREEN_OPENERS[screen](page, options);
 }
 
 const BENIGN_ERROR_PATTERNS = [
