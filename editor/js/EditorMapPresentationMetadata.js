@@ -9,6 +9,8 @@ export function readEditorMapPresentationMetadata(source) {
     if (source?.lighting && typeof source.lighting === 'object') result.lighting = normalizeMapLighting(source.lighting);
     const fogLayer = normalizeMapFogLayer(source?.fogLayer);
     if (fogLayer) result.fogLayer = fogLayer;
+    const cameraFar = Number(source?.cameraFar);
+    if (Number.isFinite(cameraFar) && cameraFar > 0) result.cameraFar = cameraFar;
     if (source?.glbAnimationClock) result.glbAnimationClock = normalizeMapAnimationClock(source.glbAnimationClock);
     return result;
 }

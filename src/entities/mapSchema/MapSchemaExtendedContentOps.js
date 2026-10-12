@@ -4,6 +4,7 @@ import { sanitizeWaterZone } from './MapSchemaWaterZoneOps.js';
 import { sanitizeFlagObjectiveList } from './MapSchemaFlagObjectiveOps.js';
 import { asLimitedArray } from './MapSchemaSanitizeOps.js';
 import { normalizeAuthoredMapLighting } from '../../shared/contracts/MapLightingContract.js';
+import { normalizeMapFogLayer } from '../../shared/contracts/MapFogLayerContract.js';
 
 /** @typedef {{ shape: 'cylinder', center: number[], radius: number, minY: number, maxY: number }
  * | { bounds: { min: number[], max: number[] } }} SanitizedPlayableVolume */
@@ -60,5 +61,10 @@ export function sanitizeMapExtendedContent(rawMap, warnings) {
     if (playableVolumes.length > 0) result.playableVolumes = playableVolumes;
     const lighting = normalizeAuthoredMapLighting(rawMap.lighting);
     if (lighting) result.lighting = lighting;
+    // World units: the renderer uses it as the camera's far plane, never below the fog's reach.
+    const cameraFar = Number(rawMap.cameraFar);
+    if (Number.isFinite(cameraFar) && cameraFar > 0) result.cameraFar = cameraFar;
+    const fogLayer = normalizeMapFogLayer(rawMap.fogLayer);
+    if (fogLayer) result.fogLayer = fogLayer;
     return result;
 }
