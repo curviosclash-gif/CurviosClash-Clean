@@ -22,6 +22,7 @@ test('Arcade health pickups reset Close Call after the player recovers', () => {
         isBot: false,
         hp: 15,
         maxHp: 100,
+        spawnProtectionTimer: 3,
         entityManager,
         entityRuntimeConfig: {
             ...DEFAULT_ENTITY_RUNTIME_CONFIG,

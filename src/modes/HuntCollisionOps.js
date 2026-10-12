@@ -1,3 +1,5 @@
+import { finalizeHitDeath } from '../entities/combat/CombatPipeline.js';
+
 // ============================================
 // HuntCollisionOps.js - grading and recovery for hunt-mode contact damage
 // ============================================
@@ -68,35 +70,44 @@ export function resolveWallCollisionDamage(player, normal, activeConfig, tickDam
 
 // A head-on crash in Hunt and Arcade: both vehicles take the hit and both get the cooldown, so
 // the mirrored check on the other player later in the same frame does not double-apply it.
-// dealDamage is the mode's own damage rule. Returns true when `player` died.
-export function applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, { damage, cooldown, dealDamage }) {
+// Both hits use the shared combat boundary; death finalization waits until both have landed.
+export function applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, { damage, cooldown }) {
     player.crashDamageCooldown = cooldown;
     otherPlayer.crashDamageCooldown = cooldown;
 
-    const damageResult = dealDamage(player, damage);
-    entityManager._emitHuntDamageEvent({
-        target: player,
+    const damageResult = entityManager._applyModeDamage(player, damage, 'PLAYER_CRASH', {
         sourcePlayer: otherPlayer,
-        cause: 'PLAYER_CRASH',
         hitNormal: crashNormal || null,
-        damageResult,
         impactPoint: player.position,
+        killOnDeath: false,
     });
-    const otherDamageResult = dealDamage(otherPlayer, damage);
-    entityManager._emitHuntDamageEvent({
-        target: otherPlayer,
+    const otherDamageResult = entityManager._applyModeDamage(otherPlayer, damage, 'PLAYER_CRASH', {
         sourcePlayer: player,
-        cause: 'PLAYER_CRASH',
         hitNormal: crashNormal || null,
-        damageResult: otherDamageResult,
         impactPoint: otherPlayer.position,
+        killOnDeath: false,
     });
 
-    if (otherDamageResult.isDead) {
-        entityManager._killPlayer(otherPlayer, 'PLAYER_CRASH', { killer: player });
+    // _applyModeDamage answers null for a target the pipeline rejects outright (e.g. already dead).
+    if (otherDamageResult?.isDead) {
+        finalizeHitDeath(entityManager, {
+            target: otherPlayer,
+            amount: damage,
+            cause: 'PLAYER_CRASH',
+            sourcePlayer: player,
+            hitNormal: crashNormal || null,
+            impactPoint: otherPlayer.position,
+        }, otherDamageResult);
     }
-    if (damageResult.isDead) {
-        entityManager._killPlayer(player, 'PLAYER_CRASH', { killer: otherPlayer });
+    if (damageResult?.isDead) {
+        finalizeHitDeath(entityManager, {
+            target: player,
+            amount: damage,
+            cause: 'PLAYER_CRASH',
+            sourcePlayer: otherPlayer,
+            hitNormal: crashNormal || null,
+            impactPoint: player.position,
+        }, damageResult);
         return true;
     }
     return false;

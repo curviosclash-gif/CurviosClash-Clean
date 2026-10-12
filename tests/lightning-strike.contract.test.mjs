@@ -10,6 +10,7 @@ import {
 } from '../src/hunt/LightningStrikeSystem.js';
 import { getPickupDefinition, isPickupTypeAllowedForMode } from '../src/entities/PickupRegistry.js';
 import { HuntCombatSystem } from '../src/entities/systems/HuntCombatSystem.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 
 const HUNT_MODE_CONFIG = {
     ...CONFIG_BASE,
@@ -27,9 +28,11 @@ function createPlayer(index, y, hp = 100, teamId = null) {
         alive: true,
         isBot: index > 0,
         hp,
+        maxHp: 100,
         shieldHP: 0,
         spawnProtectionTimer: 0,
         position: new THREE.Vector3(index * 10, y, 0),
+        entityRuntimeConfig: HUNT_MODE_CONFIG,
         taken: [],
         takeDamage(amount) {
             this.taken.push(amount);
@@ -45,6 +48,8 @@ function createWorld(players, config = HUNT_MODE_CONFIG) {
     const manager = {
         players,
         entityRuntimeConfig: config,
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: config }),
+        _simulationClockMs: 5000,
         _emitHuntDamageEvent: (event) => damageEvents.push(event),
         _killPlayer: (player, cause, options) => { player.alive = false; kills.push({ player, cause, options }); },
     };
@@ -97,7 +102,7 @@ test('the targets are chosen when the strike lands, two seconds after the cast',
 
     high.position.y = 5; // dives in the warning window (E27)
     system.update(0.6);
-    assert.deepEqual(low.taken, [35], 'the diver escaped, the new highest was hit');
+    assert.equal(low.hp, 65, 'the diver escaped, the new highest was hit');
     assert.equal(high.taken.length, 0);
     assert.equal(system.getWarningState(), null);
     assert.equal(damageEvents[0].sourcePlayer, caster);
@@ -114,8 +119,8 @@ test('lightning skips higher teammates and chooses a hittable enemy', () => {
     system.activate(caster);
     system.update(2);
 
-    assert.equal(ally.taken.length, 0, 'friendly fire is disabled for lightning');
-    assert.equal(enemy.taken.length, 1, 'teammates do not consume the target share');
+    assert.equal(ally.hp, 100, 'friendly fire is disabled for lightning');
+    assert.equal(enemy.hp, 65, 'teammates do not consume the target share');
     assert.deepEqual(system.lastStrike.targetIndices, [enemy.index]);
 });
 

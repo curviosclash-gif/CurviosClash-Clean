@@ -7,6 +7,7 @@ import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeCon
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { isHuntHealthActive } from './HealthSystem.js';
 import { canDamage, TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
+import { applyHit } from '../entities/combat/CombatPipeline.js';
 
 export const FLAMETHROWER_CAUSE = 'FLAMETHROWER';
 
@@ -184,20 +185,19 @@ export class FlamethrowerSystem {
             if (!isInsideFlameCone(origin, aim, target.position, radius, range, tanHalfAngle, this._offset)) continue;
             if (!this._hasLineOfSight(origin, target.position)) continue;
 
-            const damageResult = target.takeDamage(damage);
-            this.entityManager?._emitHuntDamageEvent?.({
+            const damageResult = applyHit(this.entityManager, {
                 target,
+                amount: damage,
                 sourcePlayer: player,
                 cause: FLAMETHROWER_CAUSE,
-                damageResult,
+                weaponKind: TEAM_WEAPON_KINDS.ITEM_PROJECTILE,
+                projectileType: FLAMETHROWER_CAUSE,
                 impactPoint: target.position,
+                deathCause: 'PROJECTILE',
+                nowSeconds: Math.max(0, Number(this.entityManager?._simulationClockMs) || 0) * 0.001,
             });
+            if (!damageResult || damageResult.blocked) continue;
             if (damageResult?.isDead) {
-                this.entityManager?._killPlayer?.(target, 'PROJECTILE', {
-                    killer: player,
-                    impactPoint: target.position,
-                    projectileType: FLAMETHROWER_CAUSE,
-                });
                 continue;
             }
             igniteBurning(target, player);

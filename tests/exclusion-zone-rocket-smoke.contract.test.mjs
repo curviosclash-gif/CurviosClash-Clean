@@ -3,6 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { CONFIG_BASE } from '../src/core/Config.js';
+import { EntityManager } from '../src/entities/EntityManager.js';
 import { PlayerCollisionPhase } from '../src/entities/systems/lifecycle/PlayerCollisionPhase.js';
 import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
 import { TrailSpatialIndex } from '../src/entities/systems/TrailSpatialIndex.js';
@@ -38,10 +39,6 @@ function createShip(index, position) {
         position,
         quaternion: new THREE.Quaternion(),
         trail: { forceGap() {} },
-        takeDamage(amount) {
-            this.hp = Math.max(0, this.hp - amount);
-            return { applied: amount, absorbedByShield: 0, remainingHp: this.hp, isDead: this.hp <= 0 };
-        },
         getAimDirection(out) { return out.set(0, 0, 1); },
         getDirection(out) { return out.set(0, 0, 1); },
         refreshObbCollisionQuery() { return true; },
@@ -68,8 +65,12 @@ function createWorld(players) {
         applyEnvironmentDamage(player) { environmentHits.push(player.index); },
     });
     const kills = [];
-    const entityManager = {
+    const damageEvents = [];
+    const entityManager = Object.assign(Object.create(EntityManager.prototype), {
         players,
+        gameModeStrategy: strategy,
+        entityRuntimeConfig,
+        _simulationClockMs: 0,
         audio: null,
         particles: null,
         _tmpVec: new THREE.Vector3(),
@@ -77,7 +78,7 @@ function createWorld(players) {
         _tmpDir: new THREE.Vector3(),
         arena: { getCollisionInfo() { return null; }, checkCollision() { return false; } },
         checkGlobalCollision: (...args) => spatialIndex.checkGlobalCollision(...args),
-        _emitHuntDamageEvent() {},
+        _emitHuntDamageEvent(event) { damageEvents.push(event); },
         _killPlayer(player, cause) {
             player.alive = false;
             kills.push({ index: player.index, cause });
@@ -85,10 +86,10 @@ function createWorld(players) {
         _bounceBot() {},
         _bouncePlayerOnFoam() {},
         _pushPlayerOutOfCollision() { return false; },
-    };
+    });
     entityManager.constructor = { deriveSelfTrailSkipRecentSegments: () => 0 };
     const collisionPhase = new PlayerCollisionPhase(entityManager);
-    return { strategy, spatialIndex, projectiles, collisionPhase, kills, environmentHits };
+    return { strategy, spatialIndex, projectiles, collisionPhase, kills, environmentHits, damageEvents };
 }
 
 /** Launches a rocket along +X from the origin and lets it lay one stretch of smoke. */
@@ -175,6 +176,7 @@ test('the smoke of a ship-fired rocket still hurts a ship crossing it', () => {
         died || crosser.hp < 100,
         `a ship rocket trail keeps colliding, crosser ended with hp ${crosser.hp}`,
     );
+    assert.equal(world.damageEvents.length, 1, 'the collision pipeline emits one damage event');
     world.projectiles.dispose();
 });
 
@@ -191,5 +193,6 @@ test('a ship trail still hurts another ship crossing it', () => {
     const died = crossSmoke(world, crosser, { position: new THREE.Vector3(8, 0, 0) });
 
     assert.ok(died || crosser.hp < 100, `a ship trail keeps colliding, crosser ended with hp ${crosser.hp}`);
+    assert.equal(world.damageEvents.length, 1, 'the collision pipeline emits one damage event');
     world.projectiles.dispose();
 });

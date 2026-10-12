@@ -18,6 +18,8 @@ import { getPreferredFightEnemy } from '../src/hunt/FightTargetSelector.js';
 import { resolveItemProjectileTarget } from '../src/entities/systems/projectile/ItemProjectileTargetingOps.js';
 import { serializePlayer } from '../src/core/GameStateSnapshot.js';
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { StateReconciler } from '../src/network/StateReconciler.js';
 import { resolveHuntLineTarget } from '../src/hunt/HuntTargetingOps.js';
 
@@ -122,6 +124,21 @@ test('network player snapshots carry the normalized team id', () => {
     assert.equal(serializePlayer(player(5, 'invalid')).teamId, null);
 });
 
+function bindProjectileCombatPort(system, players) {
+    const events = [];
+    const world = {
+        players,
+        gameModeStrategy: new HuntModeStrategy(),
+        _emitHuntDamageEvent(event) { events.push(event); },
+        _killPlayer(target) { target.alive = false; target.hp = 0; },
+    };
+    system.runtimeContext = {
+        callbacks: { getSimulationNowMs: () => 1250 },
+        combat: { applyPlayerHit: (hit) => applyHit(world, hit) },
+    };
+    return { events, world };
+}
+
 test('rockets pass through teammates and still damage enemies', () => {
     const attacker = { index: 0, teamId: TEAM_IDS.ALPHA };
     const ally = {
@@ -130,12 +147,10 @@ test('rockets pass through teammates and still damage enemies', () => {
         hitboxRadius: 1,
         takeDamage() { throw new Error('teammate must not be damaged'); },
     };
-    let enemyDamage = 0;
     const enemy = {
         ...player(2, TEAM_IDS.BRAVO),
         position: new THREE.Vector3(0, 0, 0),
         hitboxRadius: 1,
-        takeDamage(amount) { enemyDamage += amount; return { isDead: false }; },
     };
     const projectile = {
         owner: attacker,
@@ -150,10 +165,15 @@ test('rockets pass through teammates and still damage enemies', () => {
         onProjectilePowerup() {},
         onProjectileDamage() {},
     });
+    const runtime = bindProjectileCombatPort(resolver.system, [attacker, ally, enemy]);
 
     assert.equal(resolver.resolveProjectileOutcome(projectile, [ally], null, {}), false);
     assert.equal(resolver.resolveProjectileOutcome(projectile, [ally, enemy], null, {}), true);
-    assert.ok(enemyDamage > 0);
+    assert.ok(enemy.hp < 100, 'the real combat pipeline applies enemy damage');
+    assert.equal(runtime.events.length, 1, 'the hit publishes one damage event');
+    assert.equal(runtime.events[0].sourcePlayer, attacker);
+    assert.equal(runtime.events[0].cause, 'ROCKET_GUIDED');
+    assert.equal(runtime.events[0].projectileType, 'ROCKET_GUIDED');
 });
 
 test('rockets pass through allied team-owned tanks before projectile consumption', () => {

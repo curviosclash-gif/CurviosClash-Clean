@@ -13,6 +13,7 @@ import { StaticTurretSystem } from '../src/entities/systems/StaticTurretSystem.j
 import { MGHitResolver } from '../src/hunt/mg/MGHitResolver.js';
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 
 test('MG turret pickup is a Hunt-only deployable inventory item', () => {
     const definition = getPickupDefinition('ITEM_TURRET');
@@ -61,11 +62,20 @@ test('using the MG turret pickup deploys and consumes it without adding a timed 
 });
 
 test('deployed MG turret prioritizes a nearer enemy trail, then attacks the enemy and expires', () => {
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    entityRuntimeConfig.HUNT = {
+        ...entityRuntimeConfig.HUNT,
+        ENABLED: true,
+        ACTIVE_MODE: 'HUNT',
+        DEFAULT_MODE: 'HUNT',
+    };
     const ownerPlayer = { index: 0, alive: true, position: new THREE.Vector3(0, 0, 0) };
     const enemy = {
         index: 1,
         alive: true,
         hp: 100,
+        maxHp: 100,
+        entityRuntimeConfig,
         position: new THREE.Vector3(18, 0, 0),
         takeDamage(amount) {
             this.hp -= amount;
@@ -89,8 +99,8 @@ test('deployed MG turret prioritizes a nearer enemy trail, then attacks the enem
     const damageEvents = [];
     const manager = {
         renderer: null,
-        gameModeStrategy: { modeType: 'HUNT' },
-        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE),
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig }),
+        entityRuntimeConfig,
         arena: { checkCollisionFast: () => false },
         players: [ownerPlayer, enemy],
         humanPlayers: [ownerPlayer],

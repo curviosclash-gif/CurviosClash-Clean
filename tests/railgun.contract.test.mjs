@@ -8,6 +8,7 @@ import { applyPlayerPowerup } from '../src/entities/player/PlayerEffectOps.js';
 import { getPickupDefinition, isPickupTypeAllowedForMode } from '../src/entities/PickupRegistry.js';
 import { TargetableRegistry } from '../src/entities/systems/TargetableRegistry.js';
 import { PlayerActionPhase } from '../src/entities/systems/lifecycle/PlayerActionPhase.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 
 const HUNT_MODE_CONFIG = {
     ...CONFIG_BASE,
@@ -21,6 +22,7 @@ function createPlayer(index, position, teamId = null) {
         alive: true,
         isBot: index > 0,
         hp: 100,
+        maxHp: 100,
         shieldHP: 0,
         spawnProtectionTimer: 0,
         position: new THREE.Vector3(...position),
@@ -49,6 +51,8 @@ function createWorld({ targets = [], wallAt = null, shooterTeamId = null } = {})
         players: [shooter, ...targets],
         isFightOutcomeAuthority: true,
         entityRuntimeConfig: HUNT_MODE_CONFIG,
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_MODE_CONFIG }),
+        _simulationClockMs: 5000,
         _targetableRegistry: registry,
         _emitHuntDamageEvent: (event) => events.push(event),
         _killPlayer: (player, cause, options) => { player.alive = false; kills.push({ player, options }); },
@@ -92,7 +96,7 @@ test('holding charges, the release fires through up to three targets in beam ord
     assert.equal(system.fire(shooter, 0.5, true), true, 'the key belongs to the railgun');
     assert.equal(targets[0].taken.length, 0, 'nothing while charging');
     assert.equal(system.fire(shooter, 0.016, false), true);
-    assert.deepEqual(targets.map((t) => t.taken), [[36.67], [36.67], [36.67], []], 'half a second is a third of the way to 70');
+    assert.deepEqual(targets.map((t) => Math.round((100 - t.hp) * 100) / 100), [36.67, 36.67, 36.67, 0], 'half a second is a third of the way to 70');
     assert.equal(events.every((event) => event.cause === 'RAILGUN' && event.sourcePlayer === shooter), true);
     assert.equal(shooter.railShots, 4);
     assert.equal(shooter.railCharge, 0);
@@ -106,8 +110,8 @@ test('the railgun skips a teammate in the beam and still damages the enemy behin
 
     charge(system, shooter, 0.5);
 
-    assert.deepEqual(ally.taken, [], 'friendly fire is disabled for the railgun');
-    assert.equal(enemy.taken.length, 1, 'an enemy behind the teammate remains hittable');
+    assert.equal(ally.hp, 100, 'friendly fire is disabled for the railgun');
+    assert.ok(enemy.hp < 100, 'an enemy behind the teammate remains hittable');
 });
 
 test('walls stop the beam, trails do not, and tanks in the line are hit too', () => {
@@ -118,9 +122,9 @@ test('walls stop the beam, trails do not, and tanks in the line are hit too', ()
     tank.takeDamage = (amount, options) => { tank.taken.push({ amount, cause: options.cause }); };
     tanks.push(tank);
     charge(system, shooter, 1.5);
-    assert.deepEqual(near.taken, [70]);
+    assert.equal(near.hp, 30);
     assert.deepEqual(tank.taken, [{ amount: 70, cause: 'RAILGUN' }]);
-    assert.deepEqual(behindWall.taken, [], 'the wall at 60 stopped the beam');
+    assert.equal(behindWall.hp, 100, 'the wall at 60 stopped the beam');
     assert.deepEqual(system.lastBeam.to, [0, 10, -60]);
 });
 
@@ -136,8 +140,8 @@ test('a kill is credited, protected and off-line players are missed, five shots 
     system.fire(shooter, 0.016, false);
     assert.equal(kills.length, 1);
     assert.equal(kills[0].options.killer, shooter);
-    assert.deepEqual(aside.taken, []);
-    assert.deepEqual(shielded.taken, []);
+    assert.equal(aside.hp, 100);
+    assert.equal(shielded.hp, 100);
     for (let i = 0; i < 4; i += 1) charge(system, shooter, 0.2);
     assert.equal(shooter.hasRailgun, false, 'the fifth shot ends the effect');
     assert.equal(system.fire(shooter, 0.1, true), false, 'the key goes back to the machine gun');
@@ -149,7 +153,7 @@ test('a replica swallows the key and never shoots', () => {
     manager.isFightOutcomeAuthority = false;
     assert.equal(system.fire(shooter, 0.5, true), true);
     assert.equal(system.fire(shooter, 0.016, false), false);
-    assert.deepEqual(target.taken, []);
+    assert.equal(target.hp, 100);
     assert.equal(shooter.railShots, 5);
 });
 

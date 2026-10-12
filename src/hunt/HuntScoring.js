@@ -69,7 +69,15 @@ export class HuntScoring {
 
         const applied = Math.max(0, Number(damageResult?.applied) || 0);
         const absorbedByShield = Math.max(0, Number(damageResult?.absorbedByShield) || 0);
-        const hpApplied = Math.max(0, Number(damageResult?.hpApplied) || (applied - absorbedByShield));
+        const explicitHpApplied = damageResult?.hpApplied;
+        const rawHpApplied = Number(explicitHpApplied);
+        const hasFiniteHpApplied = (
+            typeof explicitHpApplied === 'number'
+            || (typeof explicitHpApplied === 'string' && explicitHpApplied.trim() !== '')
+        ) && Number.isFinite(rawHpApplied);
+        const hpApplied = hasFiniteHpApplied
+            ? Math.max(0, rawHpApplied)
+            : Math.max(0, applied - absorbedByShield);
         if (hpApplied <= 0 && absorbedByShield <= 0) return;
 
         const sourceStats = this._ensureStats(sourceIndex);

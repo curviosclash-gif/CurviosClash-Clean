@@ -40,15 +40,24 @@ for (const options of NORMAL_RUNS) {
     test(`${options.runType}${options.combatProfile ? ' (Kampfprofil)' : ''}: heilt 2 % Höchstleben pro Sekunde ab 3 s nach dem letzten Treffer`, () => {
         const strategy = new ArcadeModeStrategy({ ...options, nowMs: () => WALL_CLOCK_MS });
         const em = makeEntityManager(10);
+        em.gameModeStrategy = strategy;
         const player = makePlayer(em, { lastDamageTimestamp: 8 });
+        let healingCalls = 0;
+        const applyHealing = strategy.applyHealing.bind(strategy);
+        strategy.applyHealing = (...args) => {
+            healingCalls += 1;
+            return applyHealing(...args);
+        };
         strategy.updateHealthRegen(player, 1, em);
         assert.equal(player.hp, 50, 'nach 2 s wartet die Heilung noch');
         em._simulationClockMs = 11_000;
         strategy.updateHealthRegen(player, 1, em);
         close(player.hp, 53, '150 * 2 % in einer Sekunde, nur einmal (kein Hunt-Regen dazu)');
+        assert.equal(healingCalls, 1, 'the eligible positive base regen delegates once');
         player.hp = 149.5;
         strategy.updateHealthRegen(player, 1, em);
         assert.equal(player.hp, 150, 'nie über das Höchstleben');
+        assert.equal(healingCalls, 2, 'the final capped fraction also delegates once');
     });
 }
 
@@ -67,6 +76,7 @@ test('Sudden Death sperrt die Grund-Regeneration', () => {
     const strategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
     strategy.enterSuddenDeath();
     const em = makeEntityManager(30);
+    em.gameModeStrategy = strategy;
     const player = makePlayer(em);
     strategy.updateHealthRegen(player, 1, em);
     assert.equal(player.hp, 50);
@@ -75,6 +85,7 @@ test('Sudden Death sperrt die Grund-Regeneration', () => {
 test('Tote und volle Spieler heilen nicht; heat_stress zieht weiter ab statt zu heilen', () => {
     const strategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
     const em = makeEntityManager(30);
+    em.gameModeStrategy = strategy;
     const dead = makePlayer(em, { hp: 0 });
     strategy.updateHealthRegen(dead, 1, em);
     assert.equal(dead.hp, 0);
@@ -95,10 +106,48 @@ test('Treffer im Gauntlet stempeln die Simulationsuhr, nicht die Wanduhr', () =>
     close(player.hp, 43, 'nach 4 s Simulationszeit heilt der Spieler wieder');
 });
 
+test('Arcade keeps Sudden-Death scaling and healing policy around shared health math', () => {
+    const strategy = new ArcadeModeStrategy({ runType: 'gauntlet', nowMs: () => WALL_CLOCK_MS });
+    strategy._sdActive = true;
+    strategy._sdDamageMultiplier = 2;
+    const em = makeEntityManager(15);
+    em.gameModeStrategy = strategy;
+    const player = makePlayer(em, {
+        hp: 50, maxHp: 100, shieldHP: 5, maxShieldHp: 5, hasShield: true, shieldHitFeedback: 0,
+    });
+
+    const scaled = strategy.applyDamage(player, 10);
+    assert.equal(scaled.applied, 20);
+    assert.equal(scaled.absorbedByShield, 5);
+    assert.equal(scaled.remainingHp, 35);
+    assert.equal(player.shieldHP, 0);
+    assert.equal(player.shieldHitFeedback, 1);
+    assert.equal(player.lastDamageTimestamp, 15);
+    assert.deepEqual(strategy.applyHealing(player, 20), { healed: 0, hp: 35 }, 'Sudden Death still denies healing');
+
+    strategy._sdActive = false;
+    const normal = makePlayer(em, {
+        hp: 95, maxHp: 100, shieldHP: 10, maxShieldHp: 10, hasShield: true,
+    });
+    const ignoredShield = strategy.applyDamage(normal, 6, { ignoreShield: true, nowSeconds: 16 });
+    assert.equal(ignoredShield.applied, 6);
+    assert.equal(ignoredShield.absorbedByShield, 0);
+    assert.equal(normal.hp, 89);
+    assert.equal(normal.shieldHP, 10);
+    assert.equal(normal.lastDamageTimestamp, 16);
+    assert.deepEqual(strategy.applyHealing(normal, 20), { healed: 11, hp: 100 });
+    assert.deepEqual(strategy.applyHealing(normal, null), { healed: 0, hp: 100 });
+
+    const timestamp = normal.lastDamageTimestamp;
+    assert.equal(strategy.applyDamage(normal, null).applied, 0);
+    assert.equal(normal.lastDamageTimestamp, timestamp, 'null damage is not a positive hit');
+});
+
 test('Ein Treffer, den der Schild ganz abfängt, hält die Grund-Regeneration an (Gauntlet wie Kampfprofil)', () => {
     for (const options of [{ runType: 'gauntlet' }, { runType: 'endless_parcours', combatProfile: 'hunt' }]) {
         const strategy = new ArcadeModeStrategy({ ...options, nowMs: () => WALL_CLOCK_MS });
         const em = makeEntityManager(10);
+        em.gameModeStrategy = strategy;
         const player = makePlayer(em, { shieldHP: 40, maxShieldHp: 40, hasShield: true });
         const result = strategy.applyDamage(player, 22);
         assert.equal(result.absorbedByShield, 22, options.runType);
@@ -125,6 +174,7 @@ test('Gauntlet ohne Kampfprofil: echter EntityManager-Weg heilt über Player.upd
     const strategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
     const em = Object.create(EntityManager.prototype);
     em._simulationClockMs = 60_000;
+    em.gameModeStrategy = strategy;
     const player = makePlayer(em, { lastDamageTimestamp: 50 });
     strategy.updateHealthRegen(player, 0.5, player.entityManager);
     close(player.hp, 51.5, '150 * 2 % * 0,5 s');
@@ -138,11 +188,13 @@ test('Daily und Waffenrennen bleiben ohne Grund-Regeneration bzw. beim alten Hun
     assert.equal(dailyPlayer.hp, 50, 'Daily-Gauntlet heilt nicht');
 
     const race = new ArcadeModeStrategy({ runType: 'weapon_race' });
+    em.gameModeStrategy = race;
     const racePlayer = makePlayer(em);
     race.updateHealthRegen(racePlayer, 1, em);
     close(racePlayer.hp, 52.5, 'Waffenrennen behält den Hunt-Regen (2,5 HP/s)');
 
     const dailyEndless = new ArcadeModeStrategy({ runType: 'endless_parcours', isDailyChallenge: true, combatProfile: 'hunt' });
+    em.gameModeStrategy = dailyEndless;
     const huntPlayer = makePlayer(em, { maxHp: 100 });
     dailyEndless.updateHealthRegen(huntPlayer, 1, em);
     close(huntPlayer.hp, 52.5, 'Daily mit Kampfprofil behält den Hunt-Regen (2,5 HP/s) exakt wie bisher');
@@ -153,6 +205,7 @@ test('Befund: Hunt liest den EntityManager als Konfiguration und heilt mit den R
     const em = Object.create(EntityManager.prototype);
     em.runtimeConfig = null;
     em._simulationClockMs = 10_000;
+    em.gameModeStrategy = hunt;
     const player = { hp: 50, maxHp: 100, lastDamageTimestamp: 6.5 };
     hunt.updateHealthRegen(player, 1, em);
     close(player.hp, 52.5, 'Player.update übergibt den EntityManager statt der Konfiguration: 2,5 HP/s statt HUNT 2,0');

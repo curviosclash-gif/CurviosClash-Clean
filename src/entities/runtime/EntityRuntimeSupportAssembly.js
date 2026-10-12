@@ -5,6 +5,7 @@ import { SpawnPlacementSystem } from '../systems/SpawnPlacementSystem.js';
 import { CollisionResponseSystem } from '../systems/CollisionResponseSystem.js';
 import { EntityRuntimeContext } from './EntityRuntimeContext.js';
 import { EntityEventBus } from './EntityEventBus.js';
+import { applyHit } from '../combat/CombatPipeline.js';
 import { resolveWorldAudioOptions } from '../audio/WorldAudioOptions.js';
 import { HuntScoring } from '../../hunt/HuntScoring.js';
 import { isRocketTierType, resolveRocketTierDamage } from '../../hunt/RocketPickupSystem.js';
@@ -16,18 +17,25 @@ import {
 
 export function applyEnvironmentProjectileDamage(owner, target, projectile) {
     if (!target?.alive) return null;
-    if (target.hasShield === true || Number(target.shieldHP) > 0) {
-        target.hasShield = false;
-        target.shieldHP = 0;
-        owner.audio?.play?.('SHIELD_HIT', { intensity: 0.75, depleted: true });
-        owner.particles?.spawnHit?.(target.position, target.color);
-        return { applied: 0, absorbedByShield: 1, remainingHp: target.hp, isDead: false };
-    }
     const damage = resolveRocketTierDamage(projectile?.type, owner);
-    return owner._applyModeDamage(target, damage, 'EXCLUSION_ZONE', {
+    const result = applyHit(owner, {
+        target,
+        amount: damage,
+        cause: 'EXCLUSION_ZONE',
         impactPoint: projectile?.position || target.position,
         nowSeconds: Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
     });
+    if (result?.absorbedByShield === 1 && result.hpApplied === 0) {
+        owner.audio?.play?.('SHIELD_HIT', { intensity: 0.75, depleted: true });
+        owner.particles?.spawnHit?.(target.position, target.color);
+        return {
+            applied: 0,
+            absorbedByShield: 1,
+            remainingHp: result.remainingHp,
+            isDead: false,
+        };
+    }
+    return result;
 }
 
 /**
@@ -140,7 +148,7 @@ export function createEntityRuntimeSupport(owner) {
             if (owner.particles) owner.particles.spawnExplosion(target.position, 0xff0000, { blast: 'ITEM_BURST' });
             if (owner.audio) owner.audio.play('POWERUP');
         },
-        onProjectileDamage: (target, projectileOwner, type, damageResult, projectile) => {
+        onProjectileDamage: (_target, projectileOwner, type) => {
             owner.recorder?.logEvent?.('ITEM_HIT', projectileOwner?.index ?? -1, encodeGameplayActionResultForLog(
                 buildGameplayActionResult({
                     ok: true,
@@ -149,21 +157,6 @@ export function createEntityRuntimeSupport(owner) {
                     type,
                 })
             ));
-            owner._emitHuntDamageEvent({
-                target,
-                sourcePlayer: projectileOwner || null,
-                cause: type || 'PROJECTILE',
-                damageResult,
-                projectileType: type || null,
-                impactPoint: projectile?.position || target?.position || null,
-            });
-            if (damageResult?.isDead) {
-                owner._killPlayer(target, 'PROJECTILE', {
-                    killer: projectileOwner?.staticTurret ? null : projectileOwner || null,
-                    impactPoint: projectile?.position || target?.position || null,
-                    projectileType: type || projectile?.type || null,
-                });
-            }
         },
         applyEnvironmentDamage: (target, projectile) => applyEnvironmentProjectileDamage(owner, target, projectile),
         onRocketIntercepted: (event) => handleRocketIntercept(owner, event),
@@ -244,6 +237,12 @@ export function createEntityRuntimeSupport(owner) {
             getStrategy: () => owner.gameModeStrategy || null,
             getSimulationNowMs: () => Math.max(0, Number(owner._simulationClockMs) || 0),
             combat: {
+                applyPlayerHit: (hit) => applyHit(owner, {
+                    ...hit,
+                    nowSeconds: Number.isFinite(hit?.nowSeconds)
+                        ? hit.nowSeconds
+                        : Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
+                }),
                 shootItemProjectile: (player, preferredIndex = -1, rocketOnly = false) => projectileSystem.shootItemProjectile(player, preferredIndex, rocketOnly),
                 shootHuntGun: (player) => owner._overheatGunSystem.tryFire(player),
                 deployRocketTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player, 'rocket') || null,
@@ -283,6 +282,7 @@ export function createEntityRuntimeSupport(owner) {
             emitHuntFeed: (message) => eventBus?.emitHuntFeed(message),
         },
     });
+    projectileSystem.setRuntimeContext(runtimeContext);
 
     return {
         projectileSystem,

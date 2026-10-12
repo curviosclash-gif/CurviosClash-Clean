@@ -2,13 +2,19 @@
 // HuntModeStrategy.js - Hunt mode (HP system, MG, rockets, respawn)
 // ============================================
 
-import { isRocketTierType, pickWeightedRocketTierType, resolveRocketTierDamage } from '../hunt/RocketPickupSystem.js';
+import { isRocketTierType, pickWeightedRocketTierType } from '../hunt/RocketPickupSystem.js';
 import { isPickupTypeAllowedForMode, normalizePickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
+import { applyHeal } from '../entities/combat/CombatPipeline.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import { applyPlayerCrashDamage, recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
-import { resolveHealthClockSeconds } from '../hunt/HealthSystem.js';
+import { TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
+import {
+    applyCappedHealing,
+    applyShieldAndHpDamage,
+    resolveHealthClockSeconds,
+} from '../hunt/HealthSystem.js';
 
 function toSafeNumber(value, fallback) {
     const parsed = Number(value);
@@ -87,6 +93,7 @@ export class HuntModeStrategy extends GameModeContract {
     constructor(options = {}) {
         super();
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options?.entityRuntimeConfig || null);
+        this._regenHealWorld = { strategy: this };
         // The match hands in its seeded runtimeRng; a standalone strategy lets the contract decide
         // its fallback, so this file never rolls its own dice.
         const runtimeRng = options?.runtimeRng && typeof options.runtimeRng.next === 'function'
@@ -101,44 +108,6 @@ export class HuntModeStrategy extends GameModeContract {
     // --- Lifecycle (V84 / 84.3.2) ---
     bootstrap(_context) { /* no mode-specific init required */ }
     cleanup(_context) { /* no mode-specific teardown required */ }
-
-    computeRoundResult(players, context) {
-        const alivePlayers = (players || []).filter((p) => p && p.alive);
-        // Hunt: last alive wins; if multiple alive, pick by highest HP.
-        let winner = null;
-        if (alivePlayers.length === 1) {
-            winner = alivePlayers[0].playerIndex ?? null;
-        } else if (alivePlayers.length > 1) {
-            let maxHp = -Infinity;
-            for (const p of alivePlayers) {
-                const hp = toSafeNumber(p.hp, 0);
-                if (hp > maxHp) { maxHp = hp; winner = p.playerIndex ?? null; }
-            }
-        }
-        const scores = {};
-        for (const p of (players || [])) {
-            if (p && p.playerIndex != null) {
-                scores[p.playerIndex] = { kills: p.kills ?? 0, hp: toSafeNumber(p.hp, 0) };
-            }
-        }
-        return { modeType: this.modeType, winner, scores, roundIndex: context?.roundIndex ?? 0 };
-    }
-
-    computeMatchResult(players, roundResults, context) {
-        void players; void context;
-        const wins = {};
-        for (const r of (roundResults || [])) {
-            if (r?.winner != null) {
-                wins[r.winner] = (wins[r.winner] || 0) + 1;
-            }
-        }
-        let winnerIndex = null;
-        let maxWins = 0;
-        for (const [idx, count] of Object.entries(wins)) {
-            if (count > maxWins) { maxWins = count; winnerIndex = Number(idx); }
-        }
-        return { modeType: this.modeType, winnerIndex, roundResults: roundResults || [] };
-    }
 
     // --- Health & Damage ---
     resetPlayerHealth(player, config) {
@@ -178,32 +147,21 @@ export class HuntModeStrategy extends GameModeContract {
             return { applied: 0, absorbedByShield: 0, remainingHp: Math.max(0, toSafeNumber(player.hp, 0)), isDead: toSafeNumber(player.hp, 0) <= 0 };
         }
 
-        let remainingDamage = requestedDamage;
-        let absorbedByShield = 0;
-        const ignoreShield = !!options?.ignoreShield;
-        if (!ignoreShield && player.shieldHP > 0) {
-            absorbedByShield = Math.min(player.shieldHP, remainingDamage);
-            player.shieldHP = Math.max(0, player.shieldHP - absorbedByShield);
-            remainingDamage -= absorbedByShield;
-            if (absorbedByShield > 0) {
-                const shieldMax = Math.max(1, player.maxShieldHp || toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40));
-                const feedbackValue = Math.min(1, Math.max(0.2, absorbedByShield / shieldMax));
-                player.shieldHitFeedback = Math.max(player.shieldHitFeedback || 0, feedbackValue);
-            }
-            if (player.shieldHP <= 0) {
-                player.hasShield = false;
-            }
-        }
-
-        const damageContact = absorbedByShield > 0 || remainingDamage > 0;
-        if (remainingDamage > 0) {
-            player.hp = Math.max(0, toSafeNumber(player.hp, player.maxHp) - remainingDamage);
-        }
-        if (damageContact) {
+        const damageResult = applyShieldAndHpDamage(player, requestedDamage, {
+            ignoreShield: !!options?.ignoreShield,
+            shieldMaxHp: player.maxShieldHp || toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40),
+            hpFallback: player.maxHp,
+        });
+        if (damageResult.damageContact) {
             player.lastDamageTimestamp = toSafeNumber(options?.nowSeconds, resolveHealthClockSeconds(player));
         }
 
-        return { applied: requestedDamage, absorbedByShield, remainingHp: player.hp, isDead: player.hp <= 0 };
+        return {
+            applied: requestedDamage,
+            absorbedByShield: damageResult.absorbedByShield,
+            remainingHp: damageResult.remainingHp,
+            isDead: damageResult.isDead,
+        };
     }
 
     applyHealing(player, amount, config) {
@@ -212,9 +170,7 @@ export class HuntModeStrategy extends GameModeContract {
         const healing = Math.max(0, toSafeNumber(amount, 0));
         if (healing <= 0) return { healed: 0, hp: toSafeNumber(player.hp, 0) };
         const maxHp = Math.max(1, toSafeNumber(player.maxHp, toSafeNumber(activeConfig?.HUNT?.PLAYER_MAX_HP, 100)));
-        const before = Math.max(0, toSafeNumber(player.hp, maxHp));
-        player.hp = Math.min(maxHp, before + healing);
-        return { healed: player.hp - before, hp: player.hp };
+        return applyCappedHealing(player, healing, maxHp);
     }
 
     resolveCollisionDamage(cause, config) {
@@ -267,7 +223,12 @@ export class HuntModeStrategy extends GameModeContract {
         if ((now - lastDamageTimestamp) < regenDelay) return;
         const regenPerSecond = Math.max(0, toSafeNumber(activeConfig?.HUNT?.PLAYER_REGEN_PER_SECOND, 2.5));
         if (regenPerSecond <= 0) return;
-        player.hp = Math.min(maxHp, player.hp + regenPerSecond * Math.max(0, dt));
+        const healAmount = Math.min(maxHp - player.hp, regenPerSecond * Math.max(0, dt));
+        if (healAmount <= 0) return;
+        const world = config?.gameModeStrategy || config?.strategy
+            ? config
+            : this._regenHealWorld;
+        applyHeal(world, { target: player, amount: healAmount });
     }
 
     // --- Collision Response ---
@@ -287,18 +248,12 @@ export class HuntModeStrategy extends GameModeContract {
             resolveConfig(null, this.entityRuntimeConfig),
             this.resolveCollisionDamage('WALL')
         );
-        const damageResult = player.takeDamage(wallDamage);
         player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
-        entityManager._emitHuntDamageEvent({
-            target: player,
-            sourcePlayer: null,
-            cause: 'WALL',
-            hitNormal: arenaCollision.normal || null,
-            damageResult,
+        const damageResult = entityManager._applyModeDamage(player, wallDamage, 'WALL', {
+            hitNormal: arenaCollision?.normal || null,
             impactPoint: player.position,
         });
         if (damageResult.isDead) {
-            entityManager._killPlayer(player, 'WALL');
             return true;
         }
         recoverPlayerFromCollision(player, arenaCollision, 'WALL', entityManager);
@@ -309,7 +264,6 @@ export class HuntModeStrategy extends GameModeContract {
         return applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, {
             damage: this.resolveCollisionDamage('PLAYER_CRASH'),
             cooldown: this.resolveCollisionCooldown('PLAYER_CRASH'),
-            dealDamage: (target, amount) => target.takeDamage(amount),
         });
     }
 
@@ -318,16 +272,12 @@ export class HuntModeStrategy extends GameModeContract {
         const damage = sourcePlayer && sourcePlayer !== player
             ? Math.max(collisionDamage, toSafeNumber(player.hp, 0) + toSafeNumber(player.shieldHP, 0))
             : collisionDamage;
-        const damageResult = player.takeDamage(damage);
-        entityManager._emitHuntDamageEvent({
-            target: player,
+        const damageResult = entityManager._applyModeDamage(player, damage, trailCause, {
             sourcePlayer,
-            cause: trailCause,
-            damageResult,
+            weaponKind: TEAM_WEAPON_KINDS.TRAIL,
             impactPoint: player.position,
         });
         if (damageResult.isDead) {
-            entityManager._killPlayer(player, trailCause, { killer: sourcePlayer || null });
             return true;
         }
         recoverPlayerFromCollision(player, collision, 'TRAIL', entityManager);
@@ -361,32 +311,6 @@ export class HuntModeStrategy extends GameModeContract {
             homingRange: Math.max(10, Number(rocketConfig.HOMING_RANGE || 140)),
             homingReacquireInterval: Math.max(0.04, Number(rocketConfig.HOMING_REACQUIRE_INTERVAL || 0.08)),
         };
-    }
-
-    resolveProjectileHitOnPlayer(target, projectile, players, system) {
-        const damage = resolveRocketTierDamage(projectile.type, this.entityRuntimeConfig);
-        const damageResult = target.takeDamage(damage);
-        system?.onProjectilePowerup?.(target, projectile);
-        system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
-        this._applyRocketExplosion(projectile, players, target, system);
-    }
-
-    _applyRocketExplosion(projectile, players, directHitTarget, system) {
-        const rocketConfig = resolveConfig(null, this.entityRuntimeConfig)?.HUNT?.ROCKET || {};
-        const explosionRadius = Math.max(1, Number(rocketConfig.EXPLOSION_RADIUS || 25));
-        const explosionDamageFalloff = Math.max(0, Math.min(1, Number(rocketConfig.EXPLOSION_DAMAGE_FALLOFF || 0.5)));
-        const baseDamage = resolveRocketTierDamage(projectile.type, this.entityRuntimeConfig);
-        const damageAtCenter = baseDamage * (1 + explosionDamageFalloff);
-
-        for (const target of players || []) {
-            if (!target.alive || target === projectile.owner || target === directHitTarget) continue;
-            const distanceToTarget = target.position.distanceTo(projectile.position);
-            if (distanceToTarget > explosionRadius) continue;
-            const damageFalloff = 1 - (distanceToTarget / explosionRadius) * explosionDamageFalloff;
-            const explosionDamage = Math.max(1, Math.floor(damageAtCenter * damageFalloff));
-            const damageResult = target.takeDamage(explosionDamage);
-            system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
-        }
     }
 
     // --- Spawning ---

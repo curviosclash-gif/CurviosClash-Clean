@@ -35,8 +35,8 @@ import {
 import { getArcadeRunVehicleBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { OverheatGunSystem } from '../src/hunt/OverheatGunSystem.js';
 import { updateBoostState } from '../src/entities/player/PlayerChargeOps.js';
-import { MGHitResolver } from '../src/hunt/mg/MGHitResolver.js';
 
 const MAX = Number.MAX_SAFE_INTEGER;
 
@@ -287,13 +287,50 @@ test('MG-Werte wachsen nur mit gesetzten Arcade-Multiplikatoren', () => {
 });
 
 test('Nasen-Reichweite verlängert nur die Flugweite: auf der Zusatzstrecke trifft das MG mit Mindestschaden', () => {
-    const resolver = new MGHitResolver({ players: [] });
     const mg = applyArcadeBuildToMachineGunConfig({ DAMAGE: 10, RANGE: 100, MIN_FALLOFF: 0.5 }, { arcadeRangeMultiplier: 1.1 });
-    const hits = [];
-    const target = { alive: true, position: { x: 0, y: 0, z: 0 }, takeDamage: (amount) => { hits.push(amount); return { isDead: false }; } };
-    resolver.applyHit({}, target, 50, mg);
-    resolver.applyHit({}, target, 105, mg);
-    assert.deepEqual(hits, [7.5, 5], 'halbe MG-Reichweite 75 %, dahinter Mindestschaden 50 %');
+    const events = [];
+    const strategy = new HuntModeStrategy();
+    const target = {
+        index: 1, teamId: 'BRAVO', alive: true, hp: 100, maxHp: 100,
+        shieldHP: 4, maxShieldHp: 40, hasShield: true, shieldHitFeedback: 0,
+        lastDamageTimestamp: -1, spawnProtectionTimer: 0, position: { x: 0, y: 0, z: 0 },
+    };
+    const attacker = { index: 0, teamId: 'ALPHA', entityManager: null };
+    const entityManager = {
+        players: [attacker, target],
+        gameModeStrategy: strategy,
+        _simulationClockMs: 1234,
+        _emitHuntDamageEvent(event) { events.push(event); },
+        _killPlayer(player) { player.alive = false; player.hp = 0; },
+    };
+    attacker.entityManager = entityManager;
+    const overheatGun = new OverheatGunSystem(entityManager);
+    const resolver = overheatGun._hitResolver;
+
+    assert.equal(typeof overheatGun.runtimeContext.combat.applyPlayerHit, 'function', 'the production legacy runtime binds its shared combat port');
+    const shieldHit = resolver.applyHit(attacker, target, 50, mg);
+    const minimumHit = resolver.applyHit(attacker, target, 105, mg);
+
+    assert.equal(shieldHit.applied, 7.5);
+    assert.equal(shieldHit.absorbedByShield, 4);
+    assert.equal(shieldHit.hpApplied, 3.5);
+    assert.equal(minimumHit.applied, 5);
+    assert.equal(minimumHit.hpApplied, 5, 'the added nose range keeps the 50% minimum falloff');
+    assert.equal(target.hp, 91.5);
+    assert.equal(target.shieldHP, 0);
+    assert.equal(target.lastDamageTimestamp, 1.234, 'MG timestamps use the manager simulation clock');
+    assert.equal(events.length, 2);
+    assert.ok(events.every((event) => event.sourcePlayer === attacker && event.cause === 'MG_BULLET'));
+
+    const protectedTarget = {
+        index: 2, teamId: 'BRAVO', alive: true, hp: 100, maxHp: 100,
+        shieldHP: 0, maxShieldHp: 40, hasShield: false, lastDamageTimestamp: -1,
+        spawnProtectionTimer: 2, position: { x: 0, y: 0, z: 0 },
+    };
+    const protectedResult = resolver.applyHit(attacker, protectedTarget, 50, mg);
+    assert.equal(protectedResult.blocked, 'SPAWN_PROTECTION');
+    assert.equal(protectedTarget.hp, 100);
+    assert.equal(events.length, 2, 'spawn protection blocks the real MG event path');
 });
 
 // --- Runtime: Werte kommen im Run an ---

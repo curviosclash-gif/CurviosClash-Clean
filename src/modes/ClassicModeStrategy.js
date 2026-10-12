@@ -6,6 +6,7 @@ import { GameModeContract } from './GameModeContract.js';
 import { isPickupTypeAllowedForMode, pickWeightedPickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
+import { applyHit, finalizeHitDeath } from '../entities/combat/CombatPipeline.js';
 
 export class ClassicModeStrategy extends GameModeContract {
     constructor(options = {}) {
@@ -32,36 +33,6 @@ export class ClassicModeStrategy extends GameModeContract {
     // --- Lifecycle (V84 / 84.3.2) ---
     bootstrap(_context) { /* no mode-specific init required */ }
     cleanup(_context) { /* no mode-specific teardown required */ }
-
-    computeRoundResult(players, context) {
-        const alivePlayers = (players || []).filter((p) => p && p.alive);
-        const winner = alivePlayers.length === 1 ? (alivePlayers[0].playerIndex ?? null) : null;
-        return {
-            modeType: this.modeType,
-            winner,
-            scores: {},
-            roundIndex: context?.roundIndex ?? 0,
-        };
-    }
-
-    computeMatchResult(players, roundResults, context) {
-        void players; void context;
-        const wins = {};
-        for (const r of (roundResults || [])) {
-            if (r?.winner != null) {
-                wins[r.winner] = (wins[r.winner] || 0) + 1;
-            }
-        }
-        let winnerIndex = null;
-        let maxWins = 0;
-        for (const [idx, count] of Object.entries(wins)) {
-            if (count > maxWins) {
-                maxWins = count;
-                winnerIndex = Number(idx);
-            }
-        }
-        return { modeType: this.modeType, winnerIndex, roundResults: roundResults || [] };
-    }
 
     // --- Health & Damage ---
     resetPlayerHealth(player) {
@@ -131,12 +102,17 @@ export class ClassicModeStrategy extends GameModeContract {
         }
         if (entityManager.audio && !player.isBot) entityManager.audio.play('HIT');
         if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
-        entityManager._killPlayer(player, 'WALL');
-        return true;
+        const result = applyHit(entityManager, {
+            target: player,
+            amount: 1,
+            cause: 'WALL',
+            impactPoint: player.position,
+            hitNormal: arenaCollision?.normal || null,
+        });
+        return result?.isDead === true;
     }
 
     handlePlayerCrash(player, otherPlayer, crashNormal, entityManager) {
-        void crashNormal;
         // Classic has no health pool: a wall is lethal, so a head-on crash is too. The
         // shield absorbs it for whoever still carries one.
         const shieldedSelf = player.hasShield === true;
@@ -151,17 +127,33 @@ export class ClassicModeStrategy extends GameModeContract {
         }
         if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
 
-        if (shieldedOther) {
-            otherPlayer.hasShield = false;
-        } else {
-            entityManager._killPlayer(otherPlayer, 'PLAYER_CRASH', { killer: player });
+        const damageOptions = (target, sourcePlayer, deferDeath = true) => ({
+            target,
+            amount: 1,
+            cause: 'PLAYER_CRASH',
+            sourcePlayer,
+            impactPoint: target.position,
+            hitNormal: crashNormal || null,
+            killOnDeath: !deferDeath,
+        });
+        const damageOther = shieldedOther
+            ? null
+            : applyHit(entityManager, damageOptions(otherPlayer, player));
+        const damageSelf = shieldedSelf
+            ? null
+            : applyHit(entityManager, damageOptions(player, otherPlayer));
+
+        if (shieldedOther) otherPlayer.hasShield = false;
+        if (shieldedSelf) player.hasShield = false;
+
+        // Both crash hits land before either death callback can affect the other vehicle.
+        if (damageOther?.isDead) {
+            finalizeHitDeath(entityManager, damageOptions(otherPlayer, player, false), damageOther);
         }
-        if (shieldedSelf) {
-            player.hasShield = false;
-            return false;
+        if (damageSelf?.isDead) {
+            finalizeHitDeath(entityManager, damageOptions(player, otherPlayer, false), damageSelf);
         }
-        entityManager._killPlayer(player, 'PLAYER_CRASH', { killer: otherPlayer });
-        return true;
+        return damageSelf?.isDead === true;
     }
 
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) {
@@ -175,8 +167,17 @@ export class ClassicModeStrategy extends GameModeContract {
         }
         if (entityManager.audio && !player.isBot) entityManager.audio.play('HIT');
         if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
-        entityManager._killPlayer(player, trailCause);
-        return true;
+        const isSelfTrail = trailCause === 'TRAIL_SELF';
+        const result = applyHit(entityManager, {
+            target: player,
+            amount: 1,
+            cause: trailCause,
+            sourcePlayer: isSelfTrail ? player : null,
+            selfDamagePolicy: isSelfTrail ? 'ALLOW_WITHOUT_KILL_CREDIT' : null,
+            impactPoint: collision?.position || player.position,
+            hitNormal: collision?.normal || null,
+        });
+        return result?.isDead === true;
     }
 
     // --- Actions ---
@@ -185,15 +186,6 @@ export class ClassicModeStrategy extends GameModeContract {
 
     // --- Projectiles ---
     resolveRocketProjectileParams() { return null; }
-
-    resolveProjectileHitOnPlayer(target, projectile, players, system) {
-        if (target.hasShield) {
-            target.hasShield = false;
-        } else {
-            target.applyPowerup(projectile.type, { sourcePlayerIndex: projectile.owner?.index });
-            system?.onProjectilePowerup?.(target, projectile);
-        }
-    }
 
     // --- Spawning ---
     isRespawnEnabled() { return false; }

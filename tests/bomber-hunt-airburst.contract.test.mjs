@@ -10,6 +10,10 @@ import * as THREE from 'three';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
 import { shouldDropHuntingBomb } from '../src/entities/systems/map-units/BomberHuntOps.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
 const BOUNDS = { minX: -200, maxX: 200, minY: 0, maxY: 80, minZ: -200, maxZ: 200 };
 
@@ -19,19 +23,16 @@ function createPlayer(index, teamId, x, y, z) {
         damageTaken: 0,
         position: new THREE.Vector3(x, y, z),
         velocity: new THREE.Vector3(),
-        takeDamage(amount) {
-            this.hp -= amount;
-            this.damageTaken += amount;
-            return { hpApplied: amount, remainingHp: this.hp, isDead: false };
-        },
     };
 }
 
 function createWorld(players) {
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
     const manager = {
         huntEnabled: true,
         isFightOutcomeAuthority: true,
-        gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
+        entityRuntimeConfig,
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig }),
         arena: {
             bounds: BOUNDS,
             currentMapDefinition: { mapUnits: [] },
@@ -40,13 +41,26 @@ function createWorld(players) {
         },
         players, humanPlayers: players.slice(0, 1),
         particles: { spawnExplosion() {}, spawnHit() {} },
-        _emitHuntDamageEvent() {}, _killPlayer() {}, _notifyPlayerFeedback() {},
+        _emitHuntDamageEvent(event) {
+            const target = event?.target;
+            if (target) {
+                target.damageTaken += (Number(event.damageResult?.hpApplied) || 0)
+                    + (Number(event.damageResult?.absorbedByShield) || 0);
+            }
+        },
+        _killPlayer(target) { target.alive = false; target.hp = 0; },
+        _notifyPlayerFeedback() {},
     };
     manager._projectileSystem = new ProjectileSystem({
+        entityRuntimeConfig,
         getArena: () => manager.arena,
         getPlayers: () => manager.players,
+        getStrategy: () => manager.gameModeStrategy,
         onProjectileHit: () => {},
-        onProjectileDamage: () => {},
+    });
+    manager._projectileSystem.setRuntimeContext({
+        callbacks: { getSimulationNowMs: () => 0 },
+        combat: { applyPlayerHit: (hit) => applyHit(manager, hit) },
     });
     const system = new MapUnitSystem(manager);
     manager._mapUnitSystem = system;

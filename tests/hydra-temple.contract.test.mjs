@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { normalizeMapUnit } from '../src/shared/contracts/MapUnitContract.js';
 import { sanitizeMapUnitList, toRuntimeMapUnits } from '../src/entities/mapSchema/MapSchemaMapUnitOps.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { HYDRA_FIREBALL, ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import {
     createHydraVisual,
     getHydraMouthPosition,
@@ -22,7 +24,7 @@ const hydraGltf = await geometryOnlyGlbLoader.loadAsync('assets/models/hydra_v3/
 
 function player(index, x, z, protectedPlayer = false) {
     return {
-        index, alive: true, hp: 100, hitboxRadius: 0.5,
+        index, alive: true, hp: 100, maxHp: 100, shieldHP: 0, maxShieldHp: 40, hasShield: false, hitboxRadius: 0.5,
         spawnProtectionTimer: protectedPlayer ? 1 : 0,
         position: new THREE.Vector3(x, 2, z),
         takeDamage(amount) {
@@ -279,6 +281,18 @@ test('a Hydra fireball is straight, can hit another player, and dies on world co
         getArena: () => arena, getPlayers: () => [target, bystander],
         onProjectileDamage: (victim, owner, type) => hits.push([victim.index, type]),
     });
+    const players = [target, bystander];
+    const damageEvents = [];
+    const world = {
+        players,
+        gameModeStrategy: new HuntModeStrategy(),
+        _emitHuntDamageEvent(event) { damageEvents.push(event); },
+        _killPlayer(victim) { victim.alive = false; victim.hp = 0; },
+    };
+    system.setRuntimeContext({
+        callbacks: { getSimulationNowMs: () => 2500 },
+        combat: { applyPlayerHit: (hit) => applyHit(world, hit) },
+    });
     const origin = new THREE.Vector3(0, 2, 0);
     const direction = new THREE.Vector3(1, 0, 0);
     const shot = system.spawnHydraFireball({ index: -1 }, origin, direction);
@@ -290,14 +304,18 @@ test('a Hydra fireball is straight, can hit another player, and dies on world co
     assert.deepEqual(hits, [[2, HYDRA_FIREBALL]]);
     assert.equal(target.hp, 100);
     assert.equal(bystander.hp, 76);
+    assert.equal(damageEvents.length, 1, 'the Hydra hit emits one pipeline damage event');
+    assert.equal(damageEvents[0].projectileType, HYDRA_FIREBALL);
     assert.equal(system.projectiles.length, 0);
     bystander.position.x = 100;
     target.position.x = 8;
     target.hasShield = true;
+    target.shieldHP = 40;
     system.spawnHydraFireball({ index: -1 }, origin, direction);
     system.update(0.4);
     assert.equal(target.hp, 100);
-    assert.equal(target.hasShield, false);
+    assert.equal(target.shieldHP, 16, 'the projectile uses the existing shield damage rule');
+    assert.equal(target.hasShield, true);
     target.spawnProtectionTimer = 1;
     system.spawnHydraFireball({ index: -1 }, origin, direction);
     system.update(0.4);
