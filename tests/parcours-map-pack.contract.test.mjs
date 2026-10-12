@@ -4,9 +4,11 @@ import test from 'node:test';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
 import { PARCOURS_PACK_V130_MAPS } from '../src/core/config/maps/presets/parcours_pack_v130.js';
-import { ARCADE_SECTOR_CATALOG } from '../src/entities/directors/ArcadeEncounterCatalog.js';
+import { ARCADE_SECTOR_CATALOG, buildArcadeSectorPlan } from '../src/entities/directors/ArcadeEncounterCatalog.js';
+import { resolveMapDifficultyStage } from '../src/shared/contracts/MapPickerMetaContract.js';
+import { MAP_PICKER_META } from '../src/shared/maps/MapPickerMeta.js';
 import { buildRouteFromParcours } from '../src/entities/systems/ParcoursProgressUtils.js';
-import { SECTOR_MAP_POOLS } from '../src/state/arcade/ArcadeMapProgression.js';
+import { SECTOR_MAP_POOLS, resolveMapSequence } from '../src/state/arcade/ArcadeMapProgression.js';
 
 const V130_MAP_KEYS = Object.freeze([
     'micro_maw',
@@ -140,7 +142,7 @@ test('V130 authored positions keep spawn, checkpoint radius and segment distance
     }
 });
 
-test('V130 arcade pools expose short maps before long routes without changing demo policy', () => {
+test('V130 arcade pools list the same parcours maps and keep every V130 map reachable', () => {
     const progressionPool = SECTOR_MAP_POOLS.sector_parcours || [];
     const encounterPool = ARCADE_SECTOR_CATALOG.find((entry) => entry.id === 'sector_parcours')?.mapPool || [];
     assert.deepEqual(encounterPool, progressionPool);
@@ -148,10 +150,65 @@ test('V130 arcade pools expose short maps before long routes without changing de
     for (const mapKey of V130_MAP_KEYS) {
         assert.ok(progressionPool.includes(mapKey), `${mapKey} is available to arcade parcours sectors`);
     }
+});
 
-    const firstLongIndex = Math.min(...progressionPool
-        .map((mapKey, index) => (LONG_MAPS.has(mapKey) ? index : Number.POSITIVE_INFINITY)));
-    const lastShortMidIndex = Math.max(...progressionPool
-        .map((mapKey, index) => (SHORT_AND_MID_MAPS.has(mapKey) ? index : -1)));
-    assert.ok(lastShortMidIndex < firstLongIndex, 'short and medium V130 maps enter pool before long routes');
+// The real pick, not the pool order: plan a run, resolve its maps and read the parcours sectors in
+// play order. Scenario sectors lock their own map, so only the pool picks are judged.
+function plannedParcours(seed, sectorCount) {
+    const plan = buildArcadeSectorPlan({ seed, sectorCount });
+    const maps = resolveMapSequence(plan, seed, MAP_PRESET_CATALOG);
+    return plan.sequence
+        .map((entry, index) => ({ entry, mapKey: maps[index] }))
+        .filter(({ entry }) => entry.templateId === 'sector_parcours');
+}
+
+const pooledPicks = (seed, sectorCount) => plannedParcours(seed, sectorCount)
+    .filter(({ entry }) => entry.mapKeyLocked !== true)
+    .map(({ mapKey }) => mapKey);
+const stageOf = (mapKey) => resolveMapDifficultyStage(MAP_PICKER_META[mapKey].difficulty).id;
+
+test('arcade parcours sectors play easier maps before harder ones', () => {
+    let longestRun = 0;
+    for (let run = 0; run < 60; run += 1) {
+        const maps = pooledPicks(`parcours-order-${run}`, 24);
+        longestRun = Math.max(longestRun, maps.length);
+        const difficulties = maps.map((mapKey) => MAP_PICKER_META[mapKey].difficulty);
+        for (let index = 1; index < difficulties.length; index += 1) {
+            assert.ok(difficulties[index - 1] <= difficulties[index],
+                `run ${run}: ${maps[index - 1]} (${difficulties[index - 1]}) is played before ${maps[index]} (${difficulties[index]})`);
+        }
+    }
+    assert.ok(longestRun >= 4, 'some runs draw several parcours maps from the pool, so the order is really tested');
+});
+
+test('arcade parcours campaign starts in the teaching stage and ends in mastery', () => {
+    const firstMaps = new Set();
+    let checkedEnds = 0;
+    for (let run = 0; run < 60; run += 1) {
+        const all = plannedParcours(`parcours-ends-${run}`, 24);
+        if (all[0].entry.mapKeyLocked !== true) {
+            assert.equal(stageOf(all[0].mapKey), 'lehre', `run ${run}: first parcours is a teaching map`);
+            firstMaps.add(all[0].mapKey);
+            checkedEnds += 1;
+        }
+        const last = all[all.length - 1];
+        if (last.entry.mapKeyLocked !== true) assert.equal(stageOf(last.mapKey), 'meisterschaft', `run ${run}: last parcours is a mastery map`);
+        const short = plannedParcours(`parcours-ends-${run}`, 8);
+        assert.equal(short.length, 1, 'an 8-sector run has one parcours sector');
+        if (short[0].entry.mapKeyLocked !== true) assert.equal(stageOf(short[0].mapKey), 'lehre', 'the only parcours of a short run is a teaching map');
+    }
+    assert.ok(checkedEnds >= 10 && firstMaps.size > 1, 'chance still picks among the maps of the teaching stage');
+});
+
+test('arcade parcours picks are deterministic per seed and do not repeat a map while others remain', () => {
+    assert.deepEqual(plannedParcours('parcours-stable', 24), plannedParcours('parcours-stable', 24));
+    for (let run = 0; run < 60; run += 1) {
+        const maps = pooledPicks(`parcours-fresh-${run}`, 24);
+        const perStage = new Map();
+        for (const mapKey of maps) perStage.set(stageOf(mapKey), [...(perStage.get(stageOf(mapKey)) || []), mapKey]);
+        for (const [stage, played] of perStage) {
+            const inStage = SECTOR_MAP_POOLS.sector_parcours.filter((key) => stageOf(key) === stage).length;
+            assert.equal(new Set(played).size, Math.min(played.length, inStage), `run ${run}: ${stage} maps are not repeated early`);
+        }
+    }
 });

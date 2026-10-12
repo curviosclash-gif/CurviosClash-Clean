@@ -27,20 +27,25 @@ import {
     WALL_DISTANCE_UP,
 } from '../src/entities/ai/observation/ObservationSchemaV1.js';
 
-test('ObservationBridgePolicy skips latest checkpoint auto-load in desktop app runtime', async () => {
+test('ObservationBridgePolicy auto-loads checkpoints only in authorized development web runtime', async () => {
     const originalFetch = globalThis.fetch;
     const fetchCalls = [];
+    const checkpoint = {
+        contractVersion: 'v35-dqn-checkpoint-v1',
+        online: { layers: [{ inputSize: 40, outputSize: 1, weights: new Array(40).fill(0), bias: [0] }] },
+    };
 
     globalThis.fetch = async (input) => {
         fetchCalls.push(String(input?.url || input));
-        return { ok: false };
+        return { ok: true, json: async () => ({ ok: true, checkpoint }) };
     };
 
     try {
+        // Node's import.meta.env is absent, so ordinary Node/browser-production callers do not fetch.
         new ObservationBridgePolicy({
             type: 'classic-bridge',
             trainerBridgeEnabled: false,
-            isDesktopRuntime: () => false,
+            isDesktopRuntime: false,
             fallbackPolicy: {
                 update() {
                     return { yawRight: true };
@@ -48,13 +53,14 @@ test('ObservationBridgePolicy skips latest checkpoint auto-load in desktop app r
             },
         });
         await new Promise((resolve) => setTimeout(resolve, 0));
-        assert.deepEqual(fetchCalls, ['/api/bot/latest-checkpoint']);
+        assert.deepEqual(fetchCalls, []);
 
-        fetchCalls.length = 0;
-        const desktopPolicy = new ObservationBridgePolicy({
+        // The production build's false DEV value is represented by the environment probe override.
+        new ObservationBridgePolicy({
             type: 'classic-bridge',
             trainerBridgeEnabled: false,
-            isDesktopRuntime: () => true,
+            isDesktopRuntime: false,
+            isDevelopmentRuntime: false,
             fallbackPolicy: {
                 update() {
                     return { yawLeft: true };
@@ -62,17 +68,47 @@ test('ObservationBridgePolicy skips latest checkpoint auto-load in desktop app r
             },
         });
         await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.deepEqual(fetchCalls, [], 'production browser does not request the developer endpoint');
 
-        const action = desktopPolicy.update(1 / 60, { index: 0, inventory: [] }, {
-            mode: 'classic',
-            dt: 1 / 60,
-            players: [],
-            projectiles: [],
-            observation: new Array(40).fill(0),
+        class RecordingPolicy extends ObservationBridgePolicy {
+            loadLocalCheckpoint(loaded, vocabulary) {
+                this.loadedCheckpoint = loaded;
+                this.loadedVocabulary = vocabulary;
+                return { ok: true };
+            }
+        }
+        const developmentPolicy = new RecordingPolicy({
+            type: 'classic-bridge', trainerBridgeEnabled: false,
+            isDesktopRuntime: false, isDevelopmentRuntime: true,
         });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.deepEqual(fetchCalls, ['/api/bot/latest-checkpoint']);
+        assert.equal(developmentPolicy.loadedCheckpoint, checkpoint);
+        assert.equal(typeof developmentPolicy.loadedVocabulary.decode, 'function');
 
-        assert.deepEqual(fetchCalls, []);
-        assert.equal(action?.yawLeft, true);
+        fetchCalls.length = 0;
+        new ObservationBridgePolicy({
+            type: 'classic-bridge', trainerBridgeEnabled: false,
+            isDesktopRuntime: true, isDevelopmentRuntime: true,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.deepEqual(fetchCalls, [], 'desktop remains excluded even in a development build');
+
+        new ObservationBridgePolicy({
+            type: 'classic-bridge', trainerBridgeEnabled: false,
+            isDesktopRuntime: false, isDevelopmentRuntime: true, autoLoadCheckpoint: false,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.deepEqual(fetchCalls, [], 'the explicit false option still suppresses automatic loading');
+
+        const manualPolicy = new ObservationBridgePolicy({
+            type: 'classic-bridge', trainerBridgeEnabled: false,
+            isDesktopRuntime: false, isDevelopmentRuntime: false, autoLoadCheckpoint: false,
+        });
+        assert.equal(manualPolicy.loadLocalCheckpoint(checkpoint).ok, true, 'manual loading stays available outside development');
+        assert.equal(manualPolicy._localInference.loaded, true);
+        assert.deepEqual(fetchCalls, [], 'manual loading does not request the developer endpoint');
+
     } finally {
         globalThis.fetch = originalFetch;
     }

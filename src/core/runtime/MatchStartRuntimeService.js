@@ -14,6 +14,7 @@ export class MatchStartRuntimeService {
 
     cancel() {
         this._generation += 1;
+        this._facade?._cancelRuntimePlayersLoadedWait?.();
     }
 
     _getPorts() {
@@ -83,7 +84,10 @@ export class MatchStartRuntimeService {
 
         const loadGate = lifecyclePort?.waitForAllPlayersLoaded?.();
         if (isPromiseLike(loadGate)) {
-            await Promise.resolve(loadGate);
+            const playersLoaded = await Promise.resolve(loadGate);
+            if (playersLoaded === false) {
+                return false;
+            }
         }
         if (generation !== this._generation) {
             return false;

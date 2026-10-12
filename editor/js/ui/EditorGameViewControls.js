@@ -14,6 +14,7 @@ import {
     resolveEditorGameFogRange,
 } from '../EditorGameView.js';
 import { resolveEditorUnitsPerWorldUnit } from '../EditorShipFlight.js';
+import { EDITOR_OUTLINE_LAYER } from '../EditorLayers.js';
 
 function forEachMaterial(root, callback) {
     root.traverse((node) => {
@@ -60,6 +61,7 @@ export function bindEditorGameViewControls(editor) {
         const arenaSize = editor.getArenaSizeForExport();
         rig.setShadowCoverage(resolveEditorArenaShadowBounds(arenaSize));
         const lighting = applyEditorGameLighting(rig, core.scene, {
+            // The map's own lighting, as the match will apply it; undefined keeps the style base.
             mapLighting: editor.mapManager?.mapDocumentMeta?.lighting,
             unitsPerWorldUnit: resolveEditorUnitsPerWorldUnit(arenaSize),
         });
@@ -107,6 +109,8 @@ export function bindEditorGameViewControls(editor) {
         environment = new SceneEnvironmentController(core.renderer, core.scene);
         core.editorLights?.forEach((light) => { light.visible = false; });
         if (core.gridHelper) core.gridHelper.visible = false;
+        core.perspectiveCamera.layers.disable(EDITOR_OUTLINE_LAYER);
+        core.orthographicCamera.layers.disable(EDITOR_OUTLINE_LAYER);
         core.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         setSolidParts(true);
         applyLook();
@@ -121,6 +125,9 @@ export function bindEditorGameViewControls(editor) {
         if (!rig) return false;
         core.beforeRenderCallbacks.delete(followCameraWithFog);
         rig.dispose();
+        // rig.dispose only takes the lights out of the scene; the key light's shadow map stays in
+        // GPU memory until the light itself is disposed.
+        [rig.keyLight, rig.fillLight, rig.rimLight].forEach((light) => light.dispose?.());
         environment.dispose();
         rig = null;
         environment = null;
@@ -132,6 +139,8 @@ export function bindEditorGameViewControls(editor) {
         core.renderer.toneMappingExposure = editorLook.exposure;
         core.editorLights?.forEach((light) => { light.visible = true; });
         if (core.gridHelper) core.gridHelper.visible = editorLook.gridVisible;
+        core.perspectiveCamera.layers.enable(EDITOR_OUTLINE_LAYER);
+        core.orthographicCamera.layers.enable(EDITOR_OUTLINE_LAYER);
         setSolidParts(false);
         if (fogInstalledHere) {
             uninstallAtmosphericFog();
@@ -151,6 +160,16 @@ export function bindEditorGameViewControls(editor) {
     editor.enableGameView = enableGameView;
     editor.disableGameView = disableGameView;
     editor.isGameViewActive = () => !!rig;
-    // Arena size or map lighting changed: the fog distances and the shadow box follow.
-    editor.refreshGameView = applyLook;
+    // Arena size or map lighting changed: the fog distances and the shadow box follow. An import
+    // reports the arena size before it stores the map's lighting, so the refresh waits until the
+    // import has finished.
+    let refreshQueued = false;
+    editor.refreshGameView = () => {
+        if (!rig || refreshQueued) return;
+        refreshQueued = true;
+        queueMicrotask(() => {
+            refreshQueued = false;
+            applyLook();
+        });
+    };
 }

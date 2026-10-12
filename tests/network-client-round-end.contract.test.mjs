@@ -176,6 +176,23 @@ function createHostRunningSnapshot(round) {
     }, null);
 }
 
+function createHostSnapshotWithSerial({
+    outcomeRound = 1,
+    hostRoundSerial = outcomeRound,
+    includeOutcomeRound = true,
+    includeHostRoundSerial = true,
+    winnerIndex = 1,
+    reason = 'ELIMINATION',
+} = {}) {
+    const safeRound = Number.isSafeInteger(outcomeRound) && outcomeRound >= 0 ? outcomeRound : 1;
+    const snapshot = createHostSnapshot({ round: safeRound, winnerIndex, reason });
+    if (includeOutcomeRound) snapshot.roundOutcome.round = outcomeRound;
+    else delete snapshot.roundOutcome.round;
+    if (includeHostRoundSerial) snapshot.roundSerial = hostRoundSerial;
+    else delete snapshot.roundSerial;
+    return snapshot;
+}
+
 test('the client keeps its board after its own countdown until the host starts the next round', async () => {
     const { client, wired, reconciler, system, calls } = await openClientBoard();
 
@@ -214,26 +231,131 @@ test('a host without a round serial leaves the client its own countdown', async 
     wired.kernel.dispose();
 });
 
-test('a stale host outcome is ignored after the client restarted, the next host round ends again', () => {
+test('a stale host outcome stays ignored across reconnect on the same entity manager', () => {
     const emitted = [];
     const players = [{ index: 0 }, { index: 1 }];
     const client = {
         players,
         _eventBus: { emitRoundEnd: (winner, outcome) => emitted.push({ winner, outcome }) },
     };
-    const reconciler = new StateReconciler();
+    const firstConnection = new StateReconciler();
 
-    deliver(reconciler, client, createHostSnapshot({ round: 1, winnerIndex: 1 }));
+    deliver(firstConnection, client, createHostSnapshot({ round: 1, winnerIndex: 1 }));
     // The client counted down on its own and restarted; the host still sends round 1.
     client._roundEnded = false;
-    deliver(reconciler, client, createHostSnapshot({ round: 1, winnerIndex: 1 }));
+    // A reconnect creates a new reconciler but retains this session's entity manager.
+    const reconnected = new StateReconciler();
+    deliver(reconnected, client, createHostSnapshot({ round: 1, winnerIndex: 1 }));
     assert.equal(emitted.length, 1, 'the outcome of round 1 must not end the client round 2');
 
-    deliver(reconciler, client, createHostSnapshot({ round: 2, winnerIndex: 0, reason: 'PARCOURS_COMPLETE' }));
+    deliver(reconnected, client, createHostSnapshot({ round: 2, winnerIndex: 0, reason: 'PARCOURS_COMPLETE' }));
     assert.equal(emitted.length, 2);
     assert.equal(emitted[1].winner, players[0]);
     assert.equal(emitted[1].outcome.reason, 'PARCOURS_COMPLETE');
     assert.equal(client._roundEnded, true);
+});
+
+test('a newer running-round serial fences a late result but accepts and deduplicates the current result', () => {
+    const emitted = [];
+    const players = [{ index: 0 }, { index: 1 }];
+    const client = { players, _eventBus: { emitRoundEnd: (winner, outcome) => emitted.push({ winner, outcome }) } };
+    const reconciler = new StateReconciler();
+
+    deliver(reconciler, client, createHostRunningSnapshot(2));
+    assert.equal(client._hostRoundSerial, 2);
+    deliver(reconciler, client, createHostSnapshotWithSerial({ outcomeRound: 1, hostRoundSerial: 2 }));
+    assert.equal(emitted.length, 0, 'round 1 cannot end a client after the host has started round 2');
+    deliver(reconciler, client, createHostSnapshotWithSerial({ outcomeRound: 3, hostRoundSerial: 2 }));
+    assert.equal(emitted.length, 0, 'a future result cannot be applied before the host reports that round');
+    assert.equal(client._appliedHostRoundOutcome, undefined, 'a future result cannot advance the applied-round fence');
+
+    const currentRound = createHostSnapshotWithSerial({ outcomeRound: 2, hostRoundSerial: 2, winnerIndex: 0, reason: 'PARCOURS_COMPLETE' });
+    deliver(reconciler, client, currentRound);
+    deliver(reconciler, client, currentRound);
+    deliver(reconciler, client, createHostSnapshotWithSerial({ outcomeRound: 1, hostRoundSerial: 2 }));
+    assert.equal(emitted.length, 1, 'the current result is applied once and cannot be rolled back by round 1');
+    assert.equal(emitted[0].winner, players[0]);
+    assert.equal(emitted[0].outcome.reason, 'PARCOURS_COMPLETE');
+    assert.equal(client._appliedHostRoundOutcome, 2);
+});
+
+test('a future result cannot suppress the next-round signal or duplicate its later legitimate result', async () => {
+    const { client, wired, reconciler, system, calls } = await openClientBoard(createHostSnapshot({ round: 2 }));
+    assert.equal(client.entityManager._appliedHostRoundOutcome, 2);
+
+    deliver(reconciler, client.entityManager, createHostSnapshotWithSerial({ outcomeRound: 3, hostRoundSerial: 2 }));
+    assert.equal(client.game.boards, 1, 'the future result is ignored while the host is still on round 2');
+    system.updateRoundEnd(1);
+    assert.equal(calls.restarts, 0, 'the current host serial does not advance the board');
+
+    deliver(reconciler, client.entityManager, createHostRunningSnapshot(3));
+    system.updateRoundEnd(1 / 60);
+    assert.equal(calls.restarts, 1, 'host serial 3 advances the legitimate round 2 result');
+
+    const currentRoundResult = createHostSnapshotWithSerial({ outcomeRound: 3, hostRoundSerial: 3 });
+    deliver(reconciler, client.entityManager, currentRoundResult);
+    deliver(reconciler, client.entityManager, currentRoundResult);
+    assert.equal(client.game.boards, 2, 'the legitimate round 3 result is applied exactly once');
+    assert.equal(client.entityManager._appliedHostRoundOutcome, 3);
+    wired.kernel.dispose();
+});
+
+test('invalid host outcome serials are ignored without poisoning the known round', () => {
+    const emitted = [];
+    const client = { players: [], _eventBus: { emitRoundEnd: () => emitted.push(1) } };
+    const reconciler = new StateReconciler();
+    const invalidRounds = [null, -1, 1.5, Infinity, NaN, '2', Number.MAX_SAFE_INTEGER + 1, undefined];
+
+    for (const outcomeRound of invalidRounds) {
+        deliver(reconciler, client, createHostSnapshotWithSerial({
+            outcomeRound,
+            hostRoundSerial: 2,
+            includeOutcomeRound: outcomeRound !== undefined,
+        }));
+    }
+
+    assert.equal(client._hostRoundSerial, 2, 'a valid top-level host serial is still recorded');
+    assert.equal(client._appliedHostRoundOutcome, undefined);
+    assert.equal(emitted.length, 0);
+    deliver(reconciler, client, createHostSnapshotWithSerial({ outcomeRound: 2, hostRoundSerial: 2 }));
+    assert.equal(emitted.length, 1, 'the valid current outcome remains applicable');
+});
+
+test('missing and invalid top-level serials preserve the legacy client countdown', async () => {
+    for (const hostRoundSerial of [undefined, null, -1, 1.5, Infinity, NaN, '2', Number.MAX_SAFE_INTEGER + 1]) {
+        const snapshot = createHostSnapshotWithSerial({
+            outcomeRound: 1,
+            hostRoundSerial,
+            includeHostRoundSerial: hostRoundSerial !== undefined,
+        });
+        const { client, wired, system, calls } = await openClientBoard(snapshot);
+
+        assert.equal(client.entityManager._hostRoundSerial, undefined, `serial ${String(hostRoundSerial)} stays absent`);
+        for (let i = 0; i < 4 && calls.restarts === 0; i += 1) system.updateRoundEnd(1);
+        assert.equal(calls.restarts, 1, `serial ${String(hostRoundSerial)} keeps the local countdown fallback`);
+        wired.kernel.dispose();
+    }
+});
+
+test('a new match entity manager accepts host round 1 independently of the previous session', async () => {
+    const snapshot = createHostSnapshot({ round: 1 });
+    const first = startClientMatch();
+    const second = startClientMatch();
+    const firstWired = await first.start();
+    const secondWired = await second.start();
+
+    try {
+        assert.notEqual(first.entityManager, second.entityManager);
+        deliver(new StateReconciler(), first.entityManager, snapshot);
+        deliver(new StateReconciler(), second.entityManager, snapshot);
+        assert.equal(first.entityManager._appliedHostRoundOutcome, 1);
+        assert.equal(second.entityManager._appliedHostRoundOutcome, 1);
+        assert.equal(first.game.boards, 1);
+        assert.equal(second.game.boards, 1);
+    } finally {
+        firstWired.kernel.dispose();
+        secondWired.kernel.dispose();
+    }
 });
 
 test('a snapshot without a round outcome (older host or running round) ends nothing', () => {

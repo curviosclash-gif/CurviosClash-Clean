@@ -24,7 +24,7 @@ import {
     applyOnlineLobbySettings,
     createOnlineLobbyCreateEnvelope,
     createOnlineLobbyJoinEnvelope,
-    emitOnlineLobbyReconnectProgress,
+    emitOnlineLobbyReconnectProgress, setOnlineLobbyVehicle,
 } from './OnlineSignalingSupport.js';
 import { routeOnlineLobbyMessage } from './OnlineMatchLobbyMessageRouter.js';
 import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
@@ -511,6 +511,8 @@ export class OnlineMatchLobby extends MatchLobby {
     }
 
     updateSettings(settings) { return applyOnlineLobbySettings(this, settings); }
+
+    setVehicle(vehicleId) { return setOnlineLobbyVehicle(this, vehicleId); }
 
     startMatch(options = {}) { return startOnlineLobbyMatch(this, options); }
 
