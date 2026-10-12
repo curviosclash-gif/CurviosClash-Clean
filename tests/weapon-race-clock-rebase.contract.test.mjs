@@ -66,6 +66,33 @@ test('the grace period survives a clock switch after the first finish', () => {
     assert.equal(runtime.getRoundOutcome(), null, 'only 5 s of the grace period have been played');
 });
 
+test('a finish in the first tick after a rebind keeps the time from both clocks', () => {
+    const first = createManager(0);
+    const runtime = new WeaponRaceRuntime({ now: () => 1_790_000_000_000 });
+    runtime.start({ entityManager: first });
+    first._simulationClockMs = 10_000;
+
+    // No update between the rebuild and the finish: the race tick runs after the simulation.
+    const second = createManager(0);
+    runtime.rebind({ entityManager: second });
+    second._simulationClockMs = 5_000;
+    runtime.handleFinish({ playerIndex: 0, finishedAtMs: second._simulationClockMs });
+
+    assert.equal(runtime.state.racers['0'].finishTimeMs, 15_000);
+});
+
+test('the hud reads the grace period on the new clock right after a rebind', () => {
+    const first = createManager(0);
+    const runtime = new WeaponRaceRuntime({ now: () => 1_790_000_000_000 });
+    runtime.start({ entityManager: first });
+    first._simulationClockMs = 30_000;
+    runtime.handleFinish({ playerIndex: 0, finishedAtMs: first._simulationClockMs });
+
+    runtime.rebind({ entityManager: createManager(0) });
+
+    assert.equal(runtime.getHudState().graceRemainingMs, WEAPON_RACE_FINISH_GRACE_SECONDS * 1000);
+});
+
 test('normal ticks on one clock never move the race start', () => {
     const manager = createManager(0);
     const runtime = new WeaponRaceRuntime({ now: () => 1_790_000_000_000 });

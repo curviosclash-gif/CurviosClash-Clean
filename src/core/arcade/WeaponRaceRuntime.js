@@ -94,7 +94,9 @@ export class WeaponRaceRuntime {
         for (const player of this.entityManager?.players || []) {
             clearWeaponRaceLoadout(player, { projectileSystem: this.entityManager?._projectileSystem });
         }
+        this._followRaceClock(); // last reading of the old clock, so the switch below is exact
         this.entityManager = entityManager;
+        this._followRaceClock();
         const players = Array.isArray(entityManager?.players) ? entityManager.players.filter(Boolean) : [];
         for (const player of players) {
             clearWeaponRaceLoadout(player, { projectileSystem: entityManager?._projectileSystem });
@@ -336,6 +338,7 @@ export class WeaponRaceRuntime {
     }
 
     handleFinish({ playerIndex, finishedAtMs = this._raceNow() } = {}) {
+        this._followRaceClock(); // a finish can arrive in the simulation tick before update()
         const result = finishWeaponRaceRacer(this.state, playerIndex, finishedAtMs);
         if (result.accepted) {
             this.phase = 'grace';
@@ -464,6 +467,7 @@ export class WeaponRaceRuntime {
     }
 
     getRoundOutcome(now = this._raceNow()) {
+        this._followRaceClock();
         if (this.roundOutcome) return this.roundOutcome;
         if (this.state.firstFinishAtMs === null || Number(now) < this.state.graceEndsAtMs) return null;
         let rewardsPending = false;
@@ -508,6 +512,7 @@ export class WeaponRaceRuntime {
     }
 
     getHudState(now = this._raceNow()) {
+        this._followRaceClock();
         const standings = rankWeaponRaceRacers(this.state);
         const human = this.state?.racers?.[this.state.humanPlayerId] || null;
         return {
