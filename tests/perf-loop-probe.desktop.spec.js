@@ -19,7 +19,7 @@ const cpuProfileDir = process.env.PW_PERF_PROBE_CPU_PROFILE || '';
 const dumpDir = process.env.PW_PERF_PROBE_DUMP || '';
 test.describe.configure({ timeout: (measureSeconds + warmupSeconds + 180) * 1000 });
 
-// Seeds Math.random (and, for the quality phase, freezes the clock), then starts a fresh match.
+// Seeds the random stream and, for the quality phase, freezes the clock; then starts a fresh match.
 const startSeededMatch = async ({ virtualClock }) => {
     const game = window.GAME_INSTANCE;
     const probe = window.__perfProbe = { random: Math.random, now: performance.now, dateNow: Date.now,
