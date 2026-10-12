@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createVehicleMesh } from '../../entities/vehicle-registry.js';
 import { resolveHangarPart, resolveVehicleHardpoints } from './HangarPartCatalog.js';
 import { applyVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
-import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
+import { listPlayerShipPartDonors } from '../../shared/vehicles/player-ships/index.js';
 
 const _bounds = new THREE.Box3();
 const _size = new THREE.Vector3();
@@ -477,4 +477,4 @@ export class HangarVehicleAssembly {
         this.group.removeFromParent();
     }
 }
-import { applyArcadeMilestonePattern } from '../../shared/vehicle-lab/ArcadeMilestoneAppearance.js';
+import { applyArcadeMilestonePattern } from '../../shared/vehicles/ArcadeMilestoneAppearance.js';

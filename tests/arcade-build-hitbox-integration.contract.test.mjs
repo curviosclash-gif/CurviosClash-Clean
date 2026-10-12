@@ -31,7 +31,7 @@ import {
 } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { getArcadeRunVehicleBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
-import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicle-lab/player-ships/index.js';
+import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicles/player-ships/index.js';
 
 const ARCADE_CONFIG = Object.freeze({
     ...DEFAULT_ENTITY_RUNTIME_CONFIG,

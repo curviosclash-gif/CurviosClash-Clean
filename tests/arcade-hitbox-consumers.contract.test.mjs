@@ -29,7 +29,7 @@ import { SpawnPlacementSystem } from '../src/entities/systems/SpawnPlacementSyst
 import { EntityManager } from '../src/entities/EntityManager.js';
 import { listVehicleDescriptors } from '../src/entities/vehicle-registry.js';
 import { resolveEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
-import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicle-lab/player-ships/index.js';
+import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicles/player-ships/index.js';
 
 const BESIDE_TIP = 2.31;
 const ON_WING = 1.8;

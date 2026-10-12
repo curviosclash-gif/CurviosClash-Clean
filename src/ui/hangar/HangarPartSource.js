@@ -1,4 +1,4 @@
-import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
+import { listPlayerShipPartDonors } from '../../shared/vehicles/player-ships/index.js';
 import { getRegisteredArcadeLabShip } from '../../shared/contracts/ArcadeLabRegistryContract.js';
 
 export function resolveHangarPartSource(vehicleId) {

@@ -8,7 +8,7 @@ import { ModularVehicleMesh } from './src/ModularVehicleMesh.js';
 import { VEHICLE_PRESETS } from './src/VehiclePresets.js';
 import { GameVehicleReferenceMesh } from './src/GameVehicleReferenceMesh.js';
 import { listVehicleLabGameReferences } from './src/VehicleLabGameVehicleCatalog.js';
-import { getPlayerShipPartConfig } from '../../src/shared/vehicle-lab/player-ships/index.js';
+import { getPlayerShipPartConfig } from '../../src/shared/vehicles/player-ships/index.js';
 import {
     buildValidatedArcadeBlueprint,
     describeArcadeBlueprintStatus,

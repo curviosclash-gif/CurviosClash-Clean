@@ -1,5 +1,5 @@
 import { getVehicleModularConfig, listBaseVehicleDescriptors } from '../../entities/vehicle-registry.js';
-import { BUILT_IN_COMPLEX_VEHICLE_IDS } from '../../shared/vehicle-lab/VehiclePresetCatalogBridge.js';
+import { BUILT_IN_COMPLEX_VEHICLE_IDS } from '../../shared/vehicles/VehiclePresetCatalogBridge.js';
 import { DEFAULT_VEHICLE_ID } from '../../shared/contracts/GameplayConfigContract.js';
 import { normalizeLobbyVehicleId } from '../../shared/contracts/LobbyVehicleContract.js';
 
