@@ -27,6 +27,7 @@ import {
     releaseRoundEndInputLock,
 } from './RoundEndInputLockOps.js';
 import {
+    DEFAULT_ROUND_PAUSE_SECONDS,
     deriveMatchEndTickStep,
     deriveRoundEndTickStep,
 } from './RoundStateControllerOps.js';
@@ -320,14 +321,25 @@ export class MatchKernel {
      * The caller (PlayingStateSystem / headless runner) is responsible for
      * deciding when to call this based on RoundStateController output.
      */
-    signalRoundEnd({ roundPause = 3 } = {}) {
-        if (this._lifecycle === 'running' || this._lifecycle === 'round_end') {
+    signalRoundEnd({ roundPause = DEFAULT_ROUND_PAUSE_SECONDS } = {}) {
+        if (this._lifecycle === 'round_end') return false;
+        if (this._lifecycle === 'running') {
             this._lifecycle = 'round_end';
-            this._roundPause = normalizeRoundPause(roundPause, 3);
+            this._roundPause = normalizeRoundPause(roundPause, DEFAULT_ROUND_PAUSE_SECONDS);
             armRoundEndInputLock(this._inputLock, ROUND_END_INPUT_LOCK_PHASES.ROUND_END);
+            return true;
         } else if (typeof console !== 'undefined') {
             console.debug(`[MatchKernel] signalRoundEnd ignored (lifecycle=${this._lifecycle})`);
         }
+        return false;
+    }
+
+    /** Explicit controller-owned countdown updates; does not re-arm the board input lock. */
+    setRoundPause(value) {
+        const numeric = Number(value);
+        if (this._lifecycle === 'disposed' || !Number.isFinite(numeric)) return false;
+        this._roundPause = normalizeRoundPause(numeric, this._roundPause);
+        return true;
     }
 
     /**

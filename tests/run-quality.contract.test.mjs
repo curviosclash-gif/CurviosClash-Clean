@@ -38,6 +38,8 @@ const FORMER_QUALITY_CHAIN = [
     'test:dev:training',
     'test:contract:dist',
 ];
+const QUALITY_GUARD_ADDITIONS = ['check:player-health-boundary'];
+const EXPECTED_QUALITY_TASKS = [...FORMER_QUALITY_CHAIN, ...QUALITY_GUARD_ADDITIONS];
 
 const SERIAL_TAIL = ['test:contract:coverage', 'test:dev:training', 'test:contract:dist'];
 
@@ -49,10 +51,10 @@ function failedResult(name, durationMs = 1000) {
     return { name, status: 'failed', code: 1, durationMs };
 }
 
-test('the task list carries every command of the former quality chain exactly once', () => {
+test('the task list carries every former command and the health boundary guard exactly once', () => {
     const scriptNames = QUALITY_TASKS.map((task) => task.script);
 
-    assert.deepEqual([...scriptNames].sort(), [...FORMER_QUALITY_CHAIN].sort());
+    assert.deepEqual([...scriptNames].sort(), [...EXPECTED_QUALITY_TASKS].sort());
     assert.equal(new Set(scriptNames).size, scriptNames.length, 'no npm script runs twice');
 });
 
@@ -73,14 +75,14 @@ test('npm run quality delegates to the runner instead of chaining with &&', () =
     assert.doesNotMatch(qualityScript, /&&/);
 });
 
-test('phase 1 holds the six independent checks, phase 2 the serial tail in its old order', () => {
+test('phase 1 holds independent checks including the health boundary, phase 2 keeps the serial tail', () => {
     const phaseOne = selectPhaseTasks(1).map((task) => task.script);
     const phaseTwo = selectPhaseTasks(2).map((task) => task.script);
 
     assert.deepEqual(phaseTwo, SERIAL_TAIL);
     assert.deepEqual(
         [...phaseOne].sort(),
-        FORMER_QUALITY_CHAIN.filter((script) => !SERIAL_TAIL.includes(script)).sort()
+        EXPECTED_QUALITY_TASKS.filter((script) => !SERIAL_TAIL.includes(script)).sort()
     );
 });
 
@@ -123,7 +125,7 @@ test('a red task does not stop the others: every task still runs', async () => {
         },
     });
 
-    assert.deepEqual([...ran].sort(), [...FORMER_QUALITY_CHAIN].sort());
+    assert.deepEqual([...ran].sort(), [...EXPECTED_QUALITY_TASKS].sort());
     assert.equal(exitCode, 1);
 });
 

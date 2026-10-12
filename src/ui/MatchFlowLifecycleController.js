@@ -2,6 +2,7 @@ import { createRoundEndRecorderAdapter, getLastRoundGhostClip } from './MatchFlo
 import { resolveLocalPlayerIndexes } from './postmatch/PostMatchStandingsBlock.js';
 import { WEAPON_RACE_GHOST_ROUTE_ID, isWeaponRaceConfig } from '../shared/contracts/WeaponRaceContract.js';
 import { SPLIT_SCREEN_VARIANTS } from '../four-player-planar/FourPlayerPlanarContract.js';
+import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 
 export class MatchFlowLifecycleController {
     constructor(deps = {}) {
@@ -142,10 +143,7 @@ export class MatchFlowLifecycleController {
         this.sessionOrchestrator?.resetRoundRuntime?.();
         this._requestGhostPlaybackForActiveRoute();
 
-        game.hudRuntimeSystem?.resetMatchScoreEvents?.();
-        game.huntHud?.resetMatchScoreEvents?.();
-        game.fourPlayerPlanar?.resetMatchScoreEvents?.();
-        game.threePlayerSplit?.resetMatchScoreEvents?.();
+        this._resetMatchScoreEvents();
 
         game.gameLoop.setTimeScale(1.0);
         controller.applyMatchUiState(roundStartTransition.uiState);
@@ -162,7 +160,6 @@ export class MatchFlowLifecycleController {
         // A killcam ends with its respawn countdown, which stands still on the result
         // board; left running it covers the board and freezes the round-end replay.
         game.entityManager?.resetKillcamFrameCapture?.();
-        this.runtimePort?.enterRoundEnd?.(3.0);
 
         const roundEndPlan = this.coordinateRoundEnd
             ? this.coordinateRoundEnd(this.buildRoundEndCoordinatorRequest(winner, outcome))
@@ -179,6 +176,11 @@ export class MatchFlowLifecycleController {
         // The hunt kills/deaths/assists used to hang below the headline as one long line; since
         // the result board's standings table carries those columns itself, the headline stays
         // the winner alone.
+        // The plan already contains the final ROUND_END or MATCH_END state. Apply that decision
+        // once; only use the legacy round-end entry when no transition could be derived.
+        if (!roundEndPlan?.transition) {
+            this.runtimePort?.enterRoundEnd?.();
+        }
         this.applyRoundEndCoordinatorPlan(roundEndPlan);
         this.telemetryController?.recordRoundEndTelemetry?.(roundEndPlan);
         game.hudRuntimeSystem?.refreshArcadeHud?.();
@@ -233,7 +235,20 @@ export class MatchFlowLifecycleController {
     applyRoundEndCoordinatorPlan(roundEndPlan) {
         this.applyRoundEndControllerTransitionState(roundEndPlan?.transition);
         this.applyRoundEndCoordinatorEffects(roundEndPlan?.effectsPlan);
+        // The final score update can raise "Pn übernimmt die Führung"; on the match-end
+        // board that banner would announce a lead in a match that is already decided.
+        if (roundEndPlan?.transition?.nextState === GAME_STATE_IDS.MATCH_END) {
+            this._resetMatchScoreEvents();
+        }
         this.applyRoundEndCoordinatorUiState(roundEndPlan?.uiState);
+    }
+
+    _resetMatchScoreEvents() {
+        const game = this.game;
+        game.hudRuntimeSystem?.resetMatchScoreEvents?.();
+        game.huntHud?.resetMatchScoreEvents?.();
+        game.fourPlayerPlanar?.resetMatchScoreEvents?.();
+        game.threePlayerSplit?.resetMatchScoreEvents?.();
     }
 
     applyRoundEndCoordinatorEffects(effectsPlan) {

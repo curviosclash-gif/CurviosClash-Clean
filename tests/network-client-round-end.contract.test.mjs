@@ -11,6 +11,7 @@ import { wireInitializedMatchRuntime } from '../src/state/MatchSessionFactory.js
 import { createRoundStateController } from '../src/state/RoundStateController.js';
 import { RoundStateTickSystem } from '../src/state/RoundStateTickSystem.js';
 import { createCountingInput } from './helpers/round-state-tick-harness.mjs';
+import { createMatchStatePort } from '../src/shared/runtime/MatchStatePort.js';
 
 /**
  * Stands in for the client's EntityManager: the event bus is wired to `onRoundEnd`
@@ -39,8 +40,19 @@ function createClientEntityManager({ huntEnabled = true } = {}) {
  */
 function startClientMatch(options = {}) {
     const entityManager = createClientEntityManager(options);
-    const game = { state: 'PLAYING', roundPause: 0, boards: 0 };
     let wired = null;
+    const game = {
+        state: 'PLAYING',
+        boards: 0,
+        runtimeCoordinator: {
+            getRuntimeHandle: (key) => key === 'matchKernel' ? wired?.kernel || null : null,
+        },
+    };
+    Object.defineProperty(game, 'roundPause', {
+        enumerable: true,
+        get: () => game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.roundPause ?? 0,
+    });
+    const matchStatePort = createMatchStatePort(game);
     const facade = {
         isNetworkSession: () => true,
         isHost: () => false,
@@ -49,8 +61,7 @@ function startClientMatch(options = {}) {
                 prepareMatchStartProjection: () => true,
                 startRound() {},
                 onRoundEnd: () => {
-                    game.state = 'ROUND_END';
-                    game.roundPause = 3;
+                    matchStatePort.enterRoundEnd(3);
                     game.boards += 1;
                 },
             },
@@ -151,12 +162,16 @@ async function openClientBoard(hostSnapshot = createHostSnapshot()) {
     const game = {
         state: client.game.state,
         input: createCountingInput(),
-        roundPause: client.game.roundPause,
+        runtimeCoordinator: client.game.runtimeCoordinator,
         roundStateController: createRoundStateController({ defaultRoundPause: 3 }),
         gameLoop: { renderFrameId: 1 },
         entityManager: client.entityManager,
         matchFlowUiController: { applyMatchUiState() {} },
     };
+    Object.defineProperty(game, 'roundPause', {
+        enumerable: true,
+        get: () => game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.roundPause ?? 0,
+    });
     const adapter = createMatchKernelInteractiveAdapter({ game, kernel: wired.kernel });
     game.playingStateSystem = { getKernelAdapter: () => adapter };
     const system = new RoundStateTickSystem({

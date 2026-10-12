@@ -73,11 +73,17 @@ function createArcadeControllerStub() {
     });
 }
 
+test('the arcade wrapper preserves an explicitly configured zero countdown', () => {
+    const controller = createArcadeRoundStateController({
+        baseController: createRoundStateController({ defaultRoundPause: 0 }),
+    });
+
+    assert.equal(controller.defaultRoundPause, 0);
+});
+
 function createHarness({
-    roundPause = 3,
     sessionSnapshot = null,
     arcadeSurface = null,
-    withoutKernel = false,
     now,
 } = {}) {
     const input = createContinueInput();
@@ -87,20 +93,22 @@ function createHarness({
     const game = {
         state: 'ROUND_END',
         input,
-        roundPause,
-        roundStateController: withoutKernel
-            ? createArcadeControllerStub()
-            : createRoundStateController({ defaultRoundPause: 3 }),
+        roundStateController: createRoundStateController({ defaultRoundPause: 3 }),
         gameLoop: { renderFrameId: 1 },
-        runtimeCoordinator: arcadeSurface
-            ? { getArcadeMenuSurfaceState: () => arcadeSurface }
-            : undefined,
         entityManager: {
             updateCameras() {},
             updateLastRoundGhostPlayback() {},
         },
         matchFlowUiController: { applyMatchUiState() {} },
     };
+    game.runtimeCoordinator = {
+        getArcadeMenuSurfaceState: () => arcadeSurface,
+        getRuntimeHandle(key) { return key === 'matchKernel' ? state.kernel : null; },
+    };
+    Object.defineProperty(game, 'roundPause', {
+        enumerable: true,
+        get: () => game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.roundPause ?? 0,
+    });
     game.playingStateSystem = { getKernelAdapter: () => state.adapter };
 
     const system = new RoundStateTickSystem({
@@ -125,7 +133,6 @@ function createHarness({
         get adapter() { return state.adapter; },
         /** A new match builds a new kernel (MatchSessionFactory does the same). */
         replaceKernel() {
-            if (withoutKernel) return null;
             state.kernel = createInteractiveMatchKernel({ simPorts: {} });
             state.kernel.boot({ roundIndex: 0 });
             state.adapter = createMatchKernelInteractiveAdapter({ game, kernel: state.kernel });
@@ -232,7 +239,7 @@ test('the gamepad pause button reaches the menu through wasPressed(Escape)', () 
 });
 
 test('the round-end countdown still runs down without any input', () => {
-    const harness = createHarness({ roundPause: 1 });
+    const harness = createHarness();
     harness.kernel.signalRoundEnd({ roundPause: 1 });
 
     stepRoundEnd(harness, 0.9, 0.1);
@@ -423,7 +430,6 @@ test('a round-end board left from outside locks again for the next match', () =>
 
     const clearsBefore = harness.input.stats.clearContinue;
     harness.replaceKernel();
-    harness.game.roundPause = 3;
     harness.kernel.signalRoundEnd({ roundPause: 3 });
     harness.input.press('Continue');
     harness.system.updateRoundEnd(0.05);
@@ -441,26 +447,11 @@ test('the second round of the same match locks again', () => {
 
     // The round was restarted elsewhere (arcade run advance, host sync, overlay button).
     harness.kernel.signalRoundRestart();
-    harness.game.roundPause = 3;
     harness.kernel.signalRoundEnd({ roundPause: 3 });
     harness.input.press('Continue');
     harness.system.updateRoundEnd(0.05);
 
     assert.equal(harness.calls.restartRound, 0, 'the next board must lock again');
-    assert.ok(harness.system.getRoundEndInputLockState().remaining > ROUND_END_INPUT_LOCK_SECONDS - 0.2);
-});
-
-test('a board without a kernel locks again after the state was left', () => {
-    const harness = createHarness({ withoutKernel: true, roundPause: 3 });
-    stepRoundEnd(harness, ROUND_END_INPUT_LOCK_SECONDS + 0.1);
-
-    // Leaving ROUND_END is reported by the state dispatch, not by a tick action.
-    harness.system.resetRoundEndInputLock();
-    harness.game.roundPause = 3;
-    harness.input.press('Continue');
-    harness.system.updateRoundEnd(0.05);
-
-    assert.equal(harness.calls.restartRound, 0, 'the arcade board must lock again too');
     assert.ok(harness.system.getRoundEndInputLockState().remaining > ROUND_END_INPUT_LOCK_SECONDS - 0.2);
 });
 
@@ -512,7 +503,6 @@ test('the session role is read again for every board', () => {
 test('a network client keeps its countdown and its way to the menu', () => {
     const harness = createHarness({ sessionSnapshot: { isNetworkSession: true, isHost: false } });
     harness.kernel.signalRoundEnd({ roundPause: 1 });
-    harness.game.roundPause = 1;
 
     harness.input.press('Enter');
     stepRoundEnd(harness, 0.9, 0.1);
@@ -587,7 +577,8 @@ test('the match-end lock uses monotonic elapsed time without changing simulation
 
 test('the controller match-end lock uses monotonic elapsed time too', () => {
     let now = 3;
-    const harness = createHarness({ withoutKernel: true, now: () => now });
+    const harness = createHarness({ now: () => now });
+    harness.game.roundStateController = createArcadeControllerStub();
     harness.system.updateMatchEnd(0);
     now += MATCH_END_INPUT_LOCK_SECONDS;
     harness.system.updateMatchEnd(0);

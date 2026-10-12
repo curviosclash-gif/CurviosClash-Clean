@@ -14,6 +14,7 @@ export const SESSION_RUNTIME_STATES = Object.freeze({
     DISPOSED: 'disposed',
 });
 
+/** @type {Set<string>} */
 const VALID_SESSION_RUNTIME_STATE_SET = new Set(Object.values(SESSION_RUNTIME_STATES));
 
 const GAME_STATE_TO_RUNTIME_STATE = Object.freeze({
@@ -80,6 +81,7 @@ const ALLOWED_SESSION_RUNTIME_TRANSITIONS = Object.freeze({
     ]),
 });
 
+/** @type {Set<string>} */
 const FINALIZING_MENU_COMPLETION_EVENT_TYPE_SET = new Set([
     SESSION_RUNTIME_EVENT_TYPES.MATCH_FINALIZED,
     SESSION_RUNTIME_EVENT_TYPES.MENU_OPENED,
@@ -106,6 +108,10 @@ function canCompleteFinalizingMenuTransition(sessionRuntime, currentState, nextS
         && FINALIZING_MENU_COMPLETION_EVENT_TYPE_SET.has(completionEventType);
 }
 
+/**
+ * @param {unknown} value
+ * @param {string} [fallback]
+ */
 export function normalizeSessionRuntimeState(value, fallback = SESSION_RUNTIME_STATES.MENU) {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
     return VALID_SESSION_RUNTIME_STATE_SET.has(normalized)
@@ -113,12 +119,20 @@ export function normalizeSessionRuntimeState(value, fallback = SESSION_RUNTIME_S
         : fallback;
 }
 
+/**
+ * @param {unknown} gameStateId
+ * @param {string} [fallback]
+ */
 export function deriveSessionRuntimeStateFromGameStateId(gameStateId, fallback = SESSION_RUNTIME_STATES.MENU) {
     const normalizedGameStateId = normalizeGameStateId(gameStateId, GAME_STATE_IDS.MENU);
     return GAME_STATE_TO_RUNTIME_STATE[normalizedGameStateId]
         || normalizeSessionRuntimeState(fallback, SESSION_RUNTIME_STATES.MENU);
 }
 
+/**
+ * @param {unknown} currentState
+ * @param {unknown} nextState
+ */
 export function canTransitionSessionRuntimeState(currentState, nextState) {
     const normalizedCurrentState = normalizeSessionRuntimeState(currentState, SESSION_RUNTIME_STATES.MENU);
     const normalizedNextState = normalizeSessionRuntimeState(nextState, normalizedCurrentState);

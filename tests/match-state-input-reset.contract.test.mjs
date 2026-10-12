@@ -4,6 +4,7 @@ import test from 'node:test';
 import { InputManager } from '../src/core/InputManager.js';
 import { GAME_STATE_IDS } from '../src/shared/contracts/GameStateIds.js';
 import { createMatchStatePort } from '../src/shared/runtime/MatchStatePort.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
 
 function createPendingInput(code = 'Escape') {
     const source = {
@@ -22,7 +23,19 @@ function createPendingInput(code = 'Escape') {
 
 test('match state changes drop held and pending input from the previous state', () => {
     const { input, source } = createPendingInput();
-    const game = { state: GAME_STATE_IDS.MENU, input };
+    const kernel = createInteractiveMatchKernel({ simPorts: {} });
+    kernel.boot({ roundIndex: 0 });
+    const game = {
+        state: GAME_STATE_IDS.MENU,
+        input,
+        runtimeCoordinator: {
+            getRuntimeHandle: (key) => key === 'matchKernel' ? kernel : null,
+        },
+    };
+    Object.defineProperty(game, 'roundPause', {
+        enumerable: true,
+        get: () => game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.roundPause ?? 0,
+    });
     const port = createMatchStatePort(game);
 
     port.applyLifecycleTransition({ state: GAME_STATE_IDS.PLAYING });
@@ -52,4 +65,34 @@ test('match state changes drop held and pending input from the previous state', 
     port.applyRoundEndTransition({ nextState: GAME_STATE_IDS.MATCH_END, roundPause: 0 });
     assert.deepEqual(input.keys, {}, 'round and match transitions do not carry held actions');
     assert.equal(source.clearCount, 5);
+});
+
+test('duplicate round-end entry keeps its countdown while an explicit transition may change it', () => {
+    const kernel = createInteractiveMatchKernel({ simPorts: {} });
+    kernel.boot({ roundIndex: 0 });
+    const game = {
+        state: GAME_STATE_IDS.PLAYING,
+        runtimeCoordinator: {
+            getRuntimeHandle: (key) => key === 'matchKernel' ? kernel : null,
+        },
+    };
+    Object.defineProperty(game, 'roundPause', {
+        enumerable: true,
+        get: () => game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.roundPause ?? 0,
+    });
+    const port = createMatchStatePort(game);
+
+    assert.equal(port.enterRoundEnd(3), true);
+    kernel.tick({ fixedStepSeconds: 0.2, frameId: 1 }, { wasPressed: () => false }, true);
+    const countdownAfterTick = game.roundPause;
+    const inputLockAfterTick = kernel.getInputLockState().remaining;
+
+    assert.equal(port.enterRoundEnd(1), true);
+    assert.equal(game.roundPause, countdownAfterTick);
+    assert.equal(kernel.getInputLockState().remaining, inputLockAfterTick);
+    assert.equal(port.applyRoundEndTransition({
+        nextState: GAME_STATE_IDS.ROUND_END,
+        roundPause: 1,
+    }), true);
+    assert.equal(game.roundPause, 1, 'the explicit countdown transition still reaches the owner');
 });

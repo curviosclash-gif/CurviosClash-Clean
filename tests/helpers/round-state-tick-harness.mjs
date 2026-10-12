@@ -41,13 +41,12 @@ export function createCountingInput() {
 export function createRoundStateHarness({ roundPause = 3, now = () => null } = {}) {
     const input = createCountingInput();
     const kernel = createInteractiveMatchKernel({ simPorts: {} });
-    kernel.boot({ roundIndex: 0 });
+    kernel.boot({ roundIndex: 0, roundPause });
 
     const calls = { returnToMenu: 0, restartRound: 0, startMatch: 0, uiStates: 0, cameraUpdates: 0 };
     const game = {
         state: 'ROUND_END',
         input,
-        roundPause,
         roundStateController: createRoundStateController({ defaultRoundPause: 3 }),
         gameLoop: { renderFrameId: 7 },
         entityManager: {
@@ -61,7 +60,14 @@ export function createRoundStateHarness({ roundPause = 3, now = () => null } = {
                 calls.uiStates += 1;
             },
         },
+        runtimeCoordinator: {
+            getRuntimeHandle(key) { return key === 'matchKernel' ? kernel : null; },
+        },
     };
+    Object.defineProperty(game, 'roundPause', {
+        enumerable: true,
+        get: () => game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.roundPause ?? 0,
+    });
     const adapter = createMatchKernelInteractiveAdapter({ game, kernel });
     game.playingStateSystem = { getKernelAdapter: () => adapter };
 

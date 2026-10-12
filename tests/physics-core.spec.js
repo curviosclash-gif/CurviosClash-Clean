@@ -207,6 +207,14 @@ test.describe('Physics Core (Tests 41-60)', () => {
                 (position?.y || 0) - (target?.y || 0),
                 (position?.z || 0) - (target?.z || 0),
             );
+            // Read the spawn distances right after the start: the item wait below can take up to
+            // a second on a cold cache, and bots fly away from their spawn meanwhile.
+            const playerSpawnDistance = human && authoredPlayerSpawn ? distanceTo(human.position, authoredPlayerSpawn) : null;
+            const botSpawnDistances = Array.isArray(game.entityManager?.players)
+                ? game.entityManager.players
+                    .filter((player) => player?.isBot)
+                    .map((bot) => authoredBotSpawns.reduce((best, spawn) => Math.min(best, distanceTo(bot.position, spawn)), Number.POSITIVE_INFINITY))
+                : [];
 
             powerupManager.clear();
             powerupManager._spawnRandom();
@@ -233,12 +241,8 @@ test.describe('Physics Core (Tests 41-60)', () => {
                 tubeObstacleCount: Array.isArray(arena?.obstacles) ? arena.obstacles.filter((entry) => !!entry?.tube).length : 0,
                 aircraftDecorationCount: Array.isArray(arena?._aircraftDecorations) ? arena._aircraftDecorations.length : 0,
                 authoredItemAnchorCount: authoredItemAnchors.length,
-                playerSpawnDistance: human && authoredPlayerSpawn ? distanceTo(human.position, authoredPlayerSpawn) : null,
-                botSpawnDistances: Array.isArray(game.entityManager?.players)
-                    ? game.entityManager.players
-                        .filter((player) => player?.isBot)
-                        .map((bot) => authoredBotSpawns.reduce((best, spawn) => Math.min(best, distanceTo(bot.position, spawn)), Number.POSITIVE_INFINITY))
-                    : [],
+                playerSpawnDistance,
+                botSpawnDistances,
                 spawnedItemType: spawnedItem?.type || null,
                 spawnedAuthoredModel,
                 spawnedAnchorDistance,

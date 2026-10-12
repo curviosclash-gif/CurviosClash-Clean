@@ -12,6 +12,7 @@ import { PlayerProfileManager } from '../application/player-profile/PlayerProfil
 import { createElectronPreloadHangarAdapter } from '../platform/electron/ElectronPlatformBridge.js';
 import { flushArcadePersistenceSavesResult } from './arcade/ArcadeRunPersistenceOps.js';
 import { createRoundStateController } from '../state/RoundStateController.js';
+import { DEFAULT_ROUND_PAUSE_SECONDS } from '../state/RoundStateControllerOps.js';
 import { PlayingStateSystem } from './PlayingStateSystem.js';
 import { RoundStateTickSystem } from '../state/RoundStateTickSystem.js';
 import { GameDebugApi } from './GameDebugApi.js';
@@ -81,8 +82,7 @@ export class Game {
 
         /** @type {string} */
         this.state = GAME_STATE_IDS.MENU;
-        this.roundPause = 0;
-        this.roundStateController = createRoundStateController({ defaultRoundPause: 3.0 });
+        this.roundStateController = createRoundStateController({ defaultRoundPause: DEFAULT_ROUND_PAUSE_SECONDS });
         const runtimeAccess = createCoreRuntimeAccess(this);
         this.playingStateSystem = new PlayingStateSystem(runtimeAccess.playingState);
         this.roundStateTickSystem = new RoundStateTickSystem({
@@ -160,6 +160,11 @@ export class Game {
         window.addEventListener('keydown', this._boundKeyCaptureHandler, true);
 
         this._autoStartPlaytestIfRequested();
+    }
+
+    get roundPause() {
+        const pause = this.runtimeCoordinator?.getRuntimeHandle?.('matchKernel')?.roundPause;
+        return Number.isFinite(pause) ? Math.max(0, pause) : 0;
     }
 
     // update() ist weiter unten definiert (einzelne Methode für alles)
