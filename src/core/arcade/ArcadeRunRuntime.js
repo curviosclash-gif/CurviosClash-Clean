@@ -1,4 +1,5 @@
 import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
+import { arcadeRunUsesProfileBuild } from '../../shared/contracts/ArcadeDifficultyContract.js';
 import { recordArcadeDailyResult, finalizeArcadeRun, finalizeExpiredArcadeTestFlight } from './ArcadeRunCompletionOps.js';
 import { completeArcadeParcoursSector } from './ArcadeRunParcoursSectorOps.js';
 import { resolveArcadeRunReplayState } from './ArcadeRunReplayStateOps.js';
@@ -375,8 +376,14 @@ export class ArcadeRunRuntime {
         };
     }
 
+    // The strategy is built for the match being started, so its run type wins over a not yet synced config.
+    _usesProfileBuild() {
+        const runType = this._strategy?.getRunType?.() || this._config.runType || 'gauntlet';
+        return arcadeRunUsesProfileBuild(runType, { dailyChallenge: this._config.dailyChallenge });
+    }
+
     _getVehicleBonuses(profile = this.getVehicleProfile()) {
-        return this._config.dailyChallenge ? null : (this._runBonuses = getArcadeRunVehicleBonusesForRun(this, profile));
+        return this._usesProfileBuild() ? (this._runBonuses = getArcadeRunVehicleBonusesForRun(this, profile)) : null;
     }
 
     setStrategy(strategy, humanPlayers = null) {
@@ -387,7 +394,7 @@ export class ArcadeRunRuntime {
         try { this._strategy.setScenarioId?.(this._getEncounterSectorEntry(this._state?.sectorIndex)?.scenarioId || null); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
         try { this._strategy.applyVehicleUpgrades?.(resolveArcadeRunStrategyUpgradeBonuses(this,
-            humanPlayers, this._getVehicleBonuses(profile), this._config.dailyChallenge)); } catch { /* no-op */ }
+            humanPlayers, this._getVehicleBonuses(profile), !this._usesProfileBuild())); } catch { /* no-op */ }
         syncArcadeRunRewardEffects(this._state, this._strategy);
         if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
             this._restoreSuddenDeath();
