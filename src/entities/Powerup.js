@@ -219,12 +219,8 @@ export class PowerupManager {
         const authoredAnchor = shouldUseAuthoredAnchor
             ? this._pickAuthoredAnchor(authoredAnchors, random)
             : null;
-        if (!authoredAnchor && itemSpawnAuthoring.requiresAuthoredAnchor) {
-            return;
-        }
-        if (!authoredAnchor && itemSpawnAuthoring.usesRandomFallback !== true) {
-            return;
-        }
+        if (!authoredAnchor && itemSpawnAuthoring.requiresAuthoredAnchor) return;
+        if (!authoredAnchor && itemSpawnAuthoring.usesRandomFallback !== true) return;
 
         const fixedType = resolveAuthoredPickupType(authoredAnchor?.anchor, modeType, config) || null;
         let type = fixedType;
@@ -260,9 +256,7 @@ export class PowerupManager {
                 pos = findSafePowerupPosition(this, random, level);
             }
         }
-        if (!pos) {
-            pos = findSafePowerupPosition(this, random);
-        }
+        if (!pos) pos = findSafePowerupPosition(this, random);
         if (!pos) return;
 
         const mesh = this._createPowerupMesh(type, powerupConfig);

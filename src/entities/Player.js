@@ -307,9 +307,7 @@ export class Player {
     }
 
     setControlOptions(options = {}) {
-        if (typeof options.invertPitch === 'boolean') {
-            this.invertPitchBase = options.invertPitch;
-        }
+        if (typeof options.invertPitch === 'boolean') this.invertPitchBase = options.invertPitch;
         if (typeof options.modelScale === 'number') {
             this.modelScale = options.modelScale;
             this.trail?.setVisualRearOffset?.(

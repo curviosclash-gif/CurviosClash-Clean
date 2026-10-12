@@ -476,9 +476,7 @@ export class Arena {
             const y = 3 + random() * (b.maxY - 6);
             const z = b.minZ + margin + random() * (b.maxZ - b.minZ - 2 * margin);
             const pos = new THREE.Vector3(x, y, z);
-            if (!this.checkCollision(pos, 3)) {
-                return pos;
-            }
+            if (!this.checkCollision(pos, 3)) return pos;
         }
         const x = b.minX + margin + random() * (b.maxX - b.minX - 2 * margin);
         const y = 3 + random() * (b.maxY - 6);

@@ -504,9 +504,7 @@ export class Trail {
         }
 
         const ref = this.segmentRefs[segmentIdx];
-        if (!ref || ref.entry !== entry) {
-            return false;
-        }
+        if (!ref || ref.entry !== entry) return false;
 
         DUMMY.scale.set(0, 0, 0);
         DUMMY.updateMatrix();
