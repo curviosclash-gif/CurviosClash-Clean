@@ -5,10 +5,12 @@ import { normalizePortalChainId } from './PortalChainContract.js';
 
 export const ARCADE_DIFFICULTY_STORAGE_KEY = 'cuviosclash.arcade-difficulty-progress.v1';
 export const ARCADE_DIFFICULTY_SCHEMA_VERSION = 'arcade-difficulty-progress.v1';
+// intermissionHealFactor scales the heal between sectors, aggressionBonus is added to the authored
+// bot aggressiveness. Albtraum shares the HARD AI with Hart and differs through these two.
 export const ARCADE_DIFFICULTY_TIERS = Object.freeze([
-    Object.freeze({ id: 'normal', label: 'Normal', ai: 'NORMAL', hp: 1, damage: 1 }),
-    Object.freeze({ id: 'hard', label: 'Hart', ai: 'HARD', hp: 1.1, damage: 1.05 }),
-    Object.freeze({ id: 'nightmare', label: 'Albtraum', ai: 'HARD', hp: 1.2, damage: 1.1 }),
+    Object.freeze({ id: 'normal', label: 'Normal', ai: 'NORMAL', hp: 1, damage: 1, intermissionHealFactor: 1, aggressionBonus: 0 }),
+    Object.freeze({ id: 'hard', label: 'Hart', ai: 'HARD', hp: 1.1, damage: 1.05, intermissionHealFactor: 1, aggressionBonus: 0 }),
+    Object.freeze({ id: 'nightmare', label: 'Albtraum', ai: 'HARD', hp: 1.2, damage: 1.1, intermissionHealFactor: 0.6, aggressionBonus: 0.08 }),
 ]);
 export const ARCADE_HIGHEST_DIFFICULTY_TIER_ID = 'nightmare';
 const BUILD_RUNS = new Set(['gauntlet', 'endless_parcours', 'arena_waves', 'five_portals', 'hangar_test']);

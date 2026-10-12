@@ -8,13 +8,15 @@ import {
     createArcadeRunBlocks,
     createArcadeSectorBlock,
     createArcadeVictoryBlocks,
-    resolveArcadeMapLabel,
 } from './arcade/postrun/ArcadePostRunBlocks.js';
 import { formatCount } from './postmatch/PostMatchFormat.js';
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
 import { createArenaWavesMapBlocks, createDemolitionMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
 import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
+import { createArcadeOverlayGamepadNav } from './arcade/ArcadeOverlayGamepadNav.js';
+import { isArcadeMotionReduced } from './arcade/ArcadeReducedMotion.js';
+import { createArcadeRouteChoiceButton } from './arcade/ArcadeRouteChoiceButton.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
@@ -41,6 +43,7 @@ export class MatchFlowArcadeOverlayController {
         this._arcadeOverlayPanel = null;
         this._arcadeXpAnimFrame = 0;
         this._arcadeXpAnimToken = 0;
+        this._gamepadNav = createArcadeOverlayGamepadNav();
     }
 
     get game() {
@@ -85,6 +88,7 @@ export class MatchFlowArcadeOverlayController {
         this.game?.ui?.messageOverlay?.classList?.remove?.('has-arcade-results');
         this._renderKey = null;
         this._cancelArcadeXpAnimation();
+        this._gamepadNav.stop();
         const panel = this._arcadeOverlayPanel;
         if (!panel) return;
         panel.classList.add('hidden');
@@ -98,6 +102,11 @@ export class MatchFlowArcadeOverlayController {
         this._cancelArcadeXpAnimation();
         const token = this._arcadeXpAnimToken;
         const target = Math.max(0, Math.round(toSafeNumber(toValue, 0)));
+        // A JS count-up ignores the CSS reduced-motion rule, so both motion wishes are asked here.
+        if (isArcadeMotionReduced()) {
+            node.textContent = `${formatCount(target)} XP`;
+            return;
+        }
         const duration = Math.max(180, Math.round(toSafeNumber(durationMs, 900)));
         const start = performance.now();
         const step = (now) => {
@@ -178,14 +187,17 @@ export class MatchFlowArcadeOverlayController {
 
         // The countdown runs while the panel is open: route, reward and confirm come first, the
         // review of the last sector after them, so a short window never scrolls the choice away.
-        const review = document.createElement('header');
+        const review = document.createElement('section');
         review.className = 'arcade-overlay-header arcade-overlay-review';
+        review.setAttribute('aria-label', 'Rückschau');
         appendArcadeCards(review, createArcadeIntermissionBlocks({
             ...intermission,
             lastSectorPoints,
             lastSectorXp,
             missionsCompleted,
             missionsTotal,
+            // The sector XP is the sum of every local pilot; a per-ship share has no sector start value.
+            xpForAllPilots: (Number(this.runtimePort?.getMatchRuntimeProjection?.()?.localHumanCount || this.game?.numHumans) || 1) > 1,
         }));
         if (missionsCompleted < missionsTotal) {
             const missed = document.createElement('p');
@@ -205,11 +217,11 @@ export class MatchFlowArcadeOverlayController {
         appendArcadeCards(sect1, [createArcadeNextSectorBlock(preview)]);
         bodyDiv.appendChild(sect1);
 
-        // Section 2: Map-/Modifier-Wahl
+        // Section 2: map and modifier choice
         const sect2 = document.createElement('section');
         sect2.className = 'arcade-overlay-section';
         const s2h4 = document.createElement('h4');
-        s2h4.textContent = 'Map-/Modifier-Wahl';
+        s2h4.textContent = 'Karten- und Modifikator-Wahl';
         sect2.appendChild(s2h4);
 
         const choiceGrid = document.createElement('div');
@@ -221,34 +233,10 @@ export class MatchFlowArcadeOverlayController {
             choiceGrid.appendChild(emptyP);
         } else {
             choices.forEach((entry) => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                const active = entry?.id === intermission.selectedChoiceId;
-                btn.className = `arcade-overlay-choice-btn${active ? ' is-active' : ''}`;
-                const choiceId = String(entry?.id || '');
-                btn.setAttribute('data-arcade-choice-id', choiceId);
-                btn.id = `arcade-choice-${choiceId}`;
-                btn.setAttribute('aria-pressed', String(active));
-
-                const strong = document.createElement('strong');
-                strong.textContent = resolveArcadeMapLabel(entry?.mapKey, entry?.mapLabel);
-                btn.appendChild(strong);
-
-                const span = document.createElement('span');
-                span.textContent = String(entry?.modifierLabel || 'Kein Modifier');
-                btn.appendChild(span);
-
-                const small = document.createElement('small');
-                small.textContent = String(entry?.modifierEffect || '').trim() || 'Standardsektor';
-                btn.appendChild(small);
-
-                btn.addEventListener('click', () => {
-                    if (!choiceId) return;
+                choiceGrid.appendChild(createArcadeRouteChoiceButton(entry, entry?.id === intermission.selectedChoiceId, (choiceId) => {
                     selectArcadeIntermissionChoice(this.runtimePort, this.game, choiceId);
                     this.syncArcadeOverlayPanel();
-                });
-
-                choiceGrid.appendChild(btn);
+                }));
             });
         }
         sect2.appendChild(choiceGrid);
@@ -343,7 +331,7 @@ export class MatchFlowArcadeOverlayController {
         const title = document.createElement('h2');
         title.textContent = 'Fünf Fronten – Vorteil wählen';
         const copy = document.createElement('p');
-        copy.textContent = 'Wähle einen dauerhaften Vorteil. Enter aktiviert die fokussierte Wahl.';
+        copy.textContent = 'Wähle einen Vorteil für diesen Run. Enter oder A am Controller aktiviert die markierte Wahl.';
         const grid = document.createElement('div'); grid.className = 'arcade-overlay-choice-grid';
         for (const choiceId of runtimeState.choices || []) {
             const button = document.createElement('button'); button.type = 'button'; button.className = 'arcade-overlay-choice-btn';
@@ -445,6 +433,12 @@ export class MatchFlowArcadeOverlayController {
 
         panel.appendChild(bodyDiv);
         panel.classList.remove('hidden');
+        // Main action is the board's continue button (a press on it still means "continue"); while
+        // it is locked or hidden the heading holds the focus without catching any key.
+        const continueButton = this.game?.ui?.messageActions?.querySelector?.('[data-postmatch-action="continue"]');
+        h3.tabIndex = -1;
+        (continueButton && !continueButton.disabled && !continueButton.closest?.('.hidden') ? continueButton : h3)
+            .focus({ preventScroll: true });
 
         const xpCounter = panel.querySelector('#arcade-overlay-xp-counter');
         this._animateArcadeXpCounter(
@@ -475,8 +469,8 @@ export class MatchFlowArcadeOverlayController {
         while (panel.firstChild) panel.removeChild(panel.firstChild);
         const title = document.createElement('h2'); title.textContent = `${runtimeState?.chainLabel || 'Fünf Portale'} abgeschlossen`;
         const list = createArcadeCardScroller(createFivePortalsBlocks(summary), 'Zeiten', 'Keine Zeiten.');
-        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
-        close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
+        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
+        close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'five_portals_finished' }));
         panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
     }
 
@@ -525,26 +519,30 @@ export class MatchFlowArcadeOverlayController {
         if (runtimeState?.intermission && game.ui.messageSub) game.ui.messageSub.textContent = runtimeState.intermissionPaused
             ? 'Countdown angehalten – wähle Route und Belohnung.' : 'Wähle Route und Belohnung oder halte den Countdown an.';
         if (key === this._renderKey) return;
-        const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
         this._renderKey = key;
-        if (this._renderDemolitionPostRunPanel(runtimeState)) return;
-        if (this._renderFivePortalsPostRunPanel(runtimeState)) return;
-        if (this._renderArenaWavesPostRunPanel(runtimeState)) return;
-        if (this._renderArcadeVictoryPanel(runtimeState)) return;
+        // The pad poller runs only while a panel is on screen; clearing the panel stops it again.
+        if (this._renderArcadePanelForState(runtimeState)) this._gamepadNav.start();
+        else this.clearArcadeOverlayPanel();
+    }
+
+    _renderArcadePanelForState(runtimeState) {
+        const game = this.game;
+        const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
+        if (this._renderDemolitionPostRunPanel(runtimeState)) return true;
+        if (this._renderFivePortalsPostRunPanel(runtimeState)) return true;
+        if (this._renderArenaWavesPostRunPanel(runtimeState)) return true;
+        if (this._renderArcadeVictoryPanel(runtimeState)) return true;
         const state = normalizeGameStateId(game?.state, GAME_STATE_IDS.MENU);
         if (this._renderArenaWavesUpgradePanel(runtimeState)) {
             this._arcadeOverlayPanel?.querySelector('button')?.focus({ preventScroll: true });
-            return;
+            return true;
         }
         if (state === GAME_STATE_IDS.ROUND_END && this._renderArcadeIntermissionPanel(runtimeState)) {
             const focus = focusedId && document.getElementById(focusedId);
             (focus || this._arcadeOverlayPanel?.querySelector('button'))?.focus({ preventScroll: true });
-            return;
+            return true;
         }
-        if (state === GAME_STATE_IDS.MATCH_END && this._renderArcadePostRunPanel(runtimeState)) {
-            return;
-        }
-        this.clearArcadeOverlayPanel();
+        return state === GAME_STATE_IDS.MATCH_END && this._renderArcadePostRunPanel(runtimeState);
     }
 
     dispose() {

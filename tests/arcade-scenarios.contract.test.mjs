@@ -355,7 +355,7 @@ test('the intermission briefs the next scenario instead of listing a modifier', 
     assert.match(texts, /Einsatz: Wurmjagd/);
     assert.match(texts, /Der Riesenwurm ist erwacht\./);
     assert.doesNotMatch(texts, /Modifier/);
-    assert.match(JSON.stringify(createArcadeNextSectorBlock({ mapKey: 'maze' })), /Modifier/, 'regular sectors keep their rows');
+    assert.match(JSON.stringify(createArcadeNextSectorBlock({ mapKey: 'maze' })), /Modifikator/, 'regular sectors keep their rows');
 });
 
 test('a destroyed map unit reaches the arcade run for every run type', () => {
