@@ -41,6 +41,17 @@ test('W7.4 weapon race has a versioned offline Arcade contract on parcours_assau
     }), false);
 });
 
+test('weapon race only starts as a single-player session, so it never books a second pilot', () => {
+    // WeaponRaceRuntime knows one human (state.humanPlayerId) and credits no partner store. If a shared
+    // session ever starts a weapon race, partner XP needs the getPlayerRewardTarget wiring of Arena Waves.
+    for (const sessionType of ['splitscreen', 'lan', 'online']) {
+        assert.equal(isWeaponRaceConfig({
+            arcade: { enabled: true, runType: 'weapon_race' },
+            session: { sessionType, mapKey: 'parcours_assault' },
+        }), false, sessionType);
+    }
+});
+
 test('W7.4 old Arcade settings stay backward compatible while weapon_race is accepted', () => {
     const legacy = normalizeArcadeRunSettings({
         profileId: 'legacy-profile',

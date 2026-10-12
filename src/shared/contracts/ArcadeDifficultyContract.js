@@ -13,6 +13,11 @@ export const ARCADE_DIFFICULTY_TIERS = Object.freeze([
 export const ARCADE_HIGHEST_DIFFICULTY_TIER_ID = 'nightmare';
 const BUILD_RUNS = new Set(['gauntlet', 'endless_parcours', 'arena_waves', 'five_portals', 'hangar_test']);
 
+/** Whether a run flies the pilot's profile build (stones, size, weapons); Daily and factory-size runs never do. */
+export function arcadeRunUsesProfileBuild(runType, { dailyChallenge = false } = {}) {
+    return dailyChallenge !== true && BUILD_RUNS.has(String(runType || ''));
+}
+
 export function normalizeArcadeDifficultyTier(value) {
     return ARCADE_DIFFICULTY_TIERS.some((tier) => tier.id === value) ? value : 'normal';
 }

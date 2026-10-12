@@ -4,8 +4,6 @@ import { test as baseTest, expect } from './helpers.desktop.js';
 import { collectErrors, resolveAppUrl } from './helpers.js';
 import { EDITOR_API_ROUTES, EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
-import { getCustomMapConversionScale } from '../src/entities/CustomMapLoader.js';
-import { CHECKPOINT_RING_RADIUS_FACTOR, resolveCheckpointRingVisualRadius } from '../src/entities/arena/CheckpointRingVisualRadius.js';
 
 const IS_BROWSER_COMPAT = process.env.PW_RUN_PROFILE === 'browser-compat';
 
@@ -907,14 +905,12 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             return {
                 radius: exported.parcours.checkpoints.find((entry) => entry.id === id)?.radius,
                 scale: object.scale.toArray(),
-                torusRadius: editor.mapManager.torusGeo.parameters.radius,
+                // The shared ring rule (with arena conversion and minimum ring) names the ring size.
+                ringScale: editor.mapManager.getCheckpointRingScale(9, false),
             };
         }, ids.checkpoint);
-        // The shared match visual contract clamps a ring that would otherwise be too small.
-        const mapScale = getCustomMapConversionScale({ arenaSize: { width: 2800, depth: 2400, height: 950 } }).scale;
-        const ringRadius = resolveCheckpointRingVisualRadius(9 / mapScale) * mapScale;
-        expect(checkpoint.radius).toBeCloseTo(ringRadius / CHECKPOINT_RING_RADIUS_FACTOR, 8);
-        expect(checkpoint.scale).toEqual(Array(3).fill(ringRadius / checkpoint.torusRadius));
+        expect(checkpoint.radius).toBe(9);
+        expect(checkpoint.scale).toEqual([checkpoint.ringScale, checkpoint.ringScale, checkpoint.ringScale]);
 
         await page.evaluate((id) => {
             const editor = window.CURVIOS_EDITOR;

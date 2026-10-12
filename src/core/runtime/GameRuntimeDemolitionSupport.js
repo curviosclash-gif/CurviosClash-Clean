@@ -1,5 +1,5 @@
 import { DemolitionRuntime } from '../arcade/DemolitionRuntime.js';
-import { applyDemolitionComboEvent, clearDemolitionCombo, getDemolitionComboMultiplier, resetDemolitionCombo } from '../arcade/DemolitionComboOps.js';
+import { advanceDemolitionComboClock, applyDemolitionComboEvent, clearDemolitionCombo, getDemolitionComboMultiplier, resetDemolitionCombo } from '../arcade/DemolitionComboOps.js';
 import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
 
 export class GameRuntimeDemolitionSupport {
@@ -72,6 +72,7 @@ export class GameRuntimeDemolitionSupport {
 
     updateIfActive(dt) {
         if (!this.isActive()) return false;
+        if (this._comboRuntime) advanceDemolitionComboClock(this._comboRuntime, dt);
         this.runtime.update(dt);
         return true;
     }

@@ -13,6 +13,9 @@ export class EntitySpawnOps {
         const owner = this.entityManager;
         if (!owner) return;
         owner._railgunSystem?.clear?.();
+        // Mines, rockets and the machine gun heat belong to the old round, like the teardown clears them.
+        owner._projectileSystem?.clear?.();
+        owner._overheatGunSystem?.reset?.();
         owner._roundEnded = false;
         owner._simulationClockMs = 0;
         owner.arena?.setGlbAnimationElapsedSeconds?.(0);

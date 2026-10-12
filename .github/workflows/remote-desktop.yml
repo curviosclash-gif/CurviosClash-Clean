@@ -1,0 +1,114 @@
+name: Remote desktop tests
+run-name: remote ${{ inputs.label }} ${{ inputs.targets }}
+
+# Runs the Playwright desktop clusters on the self-hosted test machine
+# (setup: scripts/remote-runner/README.md, start: npm run test:remote).
+# Manual dispatch only: push, pull_request or schedule triggers would let code
+# from forks or unreviewed branches reach a private computer.
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Cluster-IDs oder tests/<name>.spec.js, mit Leerzeichen getrennt (leer = Standard-Cluster)'
+        required: false
+        default: ''
+      grep:
+        description: 'Optional: nur passende Testtitel (Playwright --grep), z. B. T20kb:|T20kc:'
+        required: false
+        default: ''
+      label:
+        description: 'Kennung, mit der npm run test:remote seinen Lauf wiederfindet'
+        required: false
+        default: 'manual'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: powershell
+
+# No concurrency group: the machine runs one job at a time anyway, and a group
+# would cancel every pending run but the newest one.
+jobs:
+  remote-desktop:
+    if: ${{ github.repository == 'curviosclash-gif/CurviosClash-Clean' }}
+    runs-on: [self-hosted, Windows, X64, curvios-remote]
+    timeout-minutes: 300
+    env:
+      CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS: '7200000'
+      PW_OUTPUT_DIR: test-results/remote
+      PW_HTML_REPORT_DIR: playwright-report/remote
+    steps:
+      - name: Check runner session
+        run: |
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = New-Object Security.Principal.WindowsPrincipal $identity
+          if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            Write-Output '::error::Der Runner laeuft mit Adminrechten. Bitte als normales Benutzerkonto starten (scripts/remote-runner/README.md).'
+            exit 1
+          }
+          if ((Get-Process -Id $PID).SessionId -eq 0) {
+            Write-Output '::error::Der Runner laeuft als Windows-Dienst ohne Desktop. Electron zeichnet dort nicht; run.cmd in einer angemeldeten Sitzung starten.'
+            exit 1
+          }
+
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+      - run: npm run app:setup
+      - run: npx playwright install chromium
+      - run: npm run build:app:test
+
+      - name: Run desktop clusters
+        env:
+          REMOTE_TARGETS: ${{ inputs.targets }}
+          REMOTE_GREP: ${{ inputs.grep }}
+        run: |
+          $targets = @("$env:REMOTE_TARGETS".Split(' ', [StringSplitOptions]::RemoveEmptyEntries))
+          foreach ($target in $targets) {
+            if ($target -notmatch '^(?:[a-z0-9-]+|tests/[A-Za-z0-9._-]+\.spec\.js)$') {
+              Write-Output '::error::Ungueltiges Ziel. Erlaubt sind Cluster-IDs und tests/<name>.spec.js.'
+              exit 2
+            }
+          }
+          if ($targets -contains 'gpu-stress') {
+            Write-Output '::warning::Leistungswerte vom Testrechner gelten nicht fuer den Zielrechner. Leistung lokal messen.'
+          }
+          $grep = "$env:REMOTE_GREP".Trim()
+          $extra = @()
+          if ($grep) {
+            if ($grep -match '"' -or $grep.Length -gt 300) {
+              Write-Output '::error::Der grep-Ausdruck darf keine Anfuehrungszeichen enthalten und hoechstens 300 Zeichen lang sein.'
+              exit 2
+            }
+            $extra = @('--grep', $grep)
+          }
+          node scripts/run-playwright-targeted-clusters.mjs @targets --skip-known @extra | Tee-Object -Variable runOutput
+          $code = $LASTEXITCODE
+          # Tee-Object -FilePath would write UTF-16 in Windows PowerShell; npm run test:remote reads UTF-8.
+          $utf8 = New-Object Text.UTF8Encoding $false
+          [IO.File]::WriteAllLines((Join-Path $PWD 'remote-run.log'), [string[]]@($runOutput), $utf8)
+          $lines = @($runOutput) | Where-Object { "$_" -match '^\[playwright:summary\]' } | ForEach-Object { '    ' + $_ }
+          if ($lines) {
+            [IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, (($lines -join "`n") + "`n"), $utf8)
+          }
+          exit $code
+
+      - name: Upload results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: remote-desktop-results-${{ github.run_id }}
+          path: |
+            remote-run.log
+            test-results/remote
+            playwright-report/remote
+          if-no-files-found: ignore
+          retention-days: 7

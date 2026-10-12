@@ -77,12 +77,17 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
         node.scrollWidth <= node.clientWidth + 1
     ))).toBe(true);
 
+    // The title bar is taller than its 54px minimum (92px measured on 12.10.2026); the shell must
+    // fill what is left below it, at any window height.
     const layout = await hangarPage.evaluate(() => {
         const shell = document.getElementById('arcade-vehicle-manager')?.getBoundingClientRect();
-        return { innerWidth, innerHeight, shellWidth: shell?.width || 0, shellHeight: shell?.height || 0 };
+        const titlebar = document.querySelector('.hangar-window-titlebar')?.getBoundingClientRect();
+        return { innerWidth, innerHeight, titlebarHeight: titlebar?.height || 0, shellWidth: shell?.width || 0, shellHeight: shell?.height || 0 };
     });
     expect(layout.shellWidth).toBeGreaterThan(layout.innerWidth * 0.95);
-    expect(layout.shellHeight).toBeGreaterThan((layout.innerHeight - 54) * 0.95);
+    expect(layout.titlebarHeight).toBeGreaterThanOrEqual(54);
+    expect(layout.titlebarHeight).toBeLessThanOrEqual(120);
+    expect(layout.shellHeight).toBeGreaterThan((layout.innerHeight - layout.titlebarHeight) * 0.95);
     const cameraButtons = await hangarPage.locator('.hangar-camera-toolbar .secondary-btn').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
     expect(Math.max(...cameraButtons) - Math.min(...cameraButtons)).toBeLessThan(8);
 

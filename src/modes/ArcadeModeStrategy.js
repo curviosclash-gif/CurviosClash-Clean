@@ -192,6 +192,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     get modeType() { return 'ARCADE'; }
     getPickupModeType() { return this._huntCombat ? 'HUNT' : this.modeType; }
     getCombatProfile() { return this._combatProfile; }
+    getRunType() { return this._runType; }
     isEndlessParcours() { return this._runType === ENDLESS_PARCOURS_RUN_TYPE; } isWeaponRace() { return this._runType === 'weapon_race'; }
     isNormalArcadeRun() { return isNormalArcadeRunType(this._runType, this._isDailyChallenge); }
     hasCombatHud() { return !!this._huntCombat; }

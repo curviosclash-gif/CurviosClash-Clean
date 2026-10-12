@@ -1,4 +1,5 @@
 import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
+import { arcadeRunUsesProfileBuild } from '../../shared/contracts/ArcadeDifficultyContract.js';
 import { recordArcadeDailyResult, finalizeArcadeRun, finalizeExpiredArcadeTestFlight } from './ArcadeRunCompletionOps.js';
 import { completeArcadeParcoursSector } from './ArcadeRunParcoursSectorOps.js';
 import { resolveArcadeRunReplayState } from './ArcadeRunReplayStateOps.js';
@@ -16,12 +17,10 @@ import { createArcadeDailyProjection } from '../../state/arcade/ArcadeDailyState
 import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/ArcadeMapProgression.js';
 import {
     calculateSectorXp,
-    loadVehicleProfiles,
     resolveArcadeRunHudVehicleStats,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
-import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
-import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleBonusesForRun, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadePlayerRewardBinding, resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
+import { awardArcadeRunPartnersXp, awardArcadeRunPlayerXp, bindArcadeRunVehicleRewards, getArcadeRunVehicleBonusesForRun, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
 import { createLeaderboardProjection, loadLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET,
@@ -377,8 +376,14 @@ export class ArcadeRunRuntime {
         };
     }
 
+    // The strategy is built for the match being started, so its run type wins over a not yet synced config.
+    _usesProfileBuild() {
+        const runType = this._strategy?.getRunType?.() || this._config.runType || 'gauntlet';
+        return arcadeRunUsesProfileBuild(runType, { dailyChallenge: this._config.dailyChallenge });
+    }
+
     _getVehicleBonuses(profile = this.getVehicleProfile()) {
-        return this._config.dailyChallenge ? null : (this._runBonuses = getArcadeRunVehicleBonusesForRun(this, profile));
+        return this._usesProfileBuild() ? (this._runBonuses = getArcadeRunVehicleBonusesForRun(this, profile)) : null;
     }
 
     setStrategy(strategy, humanPlayers = null) {
@@ -389,7 +394,7 @@ export class ArcadeRunRuntime {
         try { this._strategy.setScenarioId?.(this._getEncounterSectorEntry(this._state?.sectorIndex)?.scenarioId || null); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
         try { this._strategy.applyVehicleUpgrades?.(resolveArcadeRunStrategyUpgradeBonuses(this,
-            humanPlayers, this._getVehicleBonuses(profile), this._config.dailyChallenge)); } catch { /* no-op */ }
+            humanPlayers, this._getVehicleBonuses(profile), !this._usesProfileBuild())); } catch { /* no-op */ }
         syncArcadeRunRewardEffects(this._state, this._strategy);
         if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
             this._restoreSuddenDeath();
@@ -1166,8 +1171,7 @@ export class ArcadeRunRuntime {
 
     // playerVehicleId: plane of that local pilot, so split-screen XP levels the plane that earned it.
     applyParcoursXpEvent(eventType, playerIndex = 0, playerVehicleId = null) {
-        const { binding: rewardBinding, ownsRunPerks } = resolveArcadePlayerRewardBinding(this, playerVehicleId);
-        if (!this._enabled || !rewardBinding || !this._vehicleProfiles) return null;
+        if (!this._enabled) return null;
         const xpByEvent = {
             checkpoint: XP_REWARD_TABLE.parcoursCheckpoint,
             finish: XP_REWARD_TABLE.parcoursFinish,
@@ -1176,12 +1180,11 @@ export class ArcadeRunRuntime {
         const baseXp = xpByEvent[String(eventType)] || 0;
         if (baseXp <= 0) return null;
 
-        const result = awardBoundArcadeVehicleXp(this._vehicleProfiles, rewardBinding, baseXp);
+        const { result, ownsRunPerks } = awardArcadeRunPlayerXp(this, baseXp, playerIndex, playerVehicleId) || {};
         if (!result) return null;
         const xpEarned = result.earned;
         if (this._state) this._state.xpEarned += xpEarned;
         if (ownsRunPerks) syncArcadeMasteryPerks(this._state, result.profile);
-        this._scheduleVehicleProfilesSave();
 
         if (this._state) {
             this._state.lastParcoursXpGain = this._enqueueHudEvent('parcours_xp', {
@@ -1199,23 +1202,6 @@ export class ArcadeRunRuntime {
     }
 
     _applySectorXpReward(telemetryPayload) {
-        const rewardBinding = ensureArcadeRunVehicleRewards(this);
-        if (!rewardBinding || !this._vehicleProfiles) return;
-
-        // Weapon-race finish/checkpoint prizes are written through their runtime while the
-        // Arcade run keeps its start-time profile snapshot. Rebase this vehicle before the
-        // sector award so the scheduled whole-profile save cannot erase those prizes.
-        if (this._config.runType === 'weapon_race') {
-            const store = this._resolveSettingsRecordStore();
-            if (typeof store?.loadJsonRecord === 'function') {
-                const latestProfiles = loadVehicleProfiles(store);
-                const latestProfile = latestProfiles[rewardBinding.vehicleId];
-                if (latestProfile) {
-                    this._vehicleProfiles = { ...this._vehicleProfiles, [rewardBinding.vehicleId]: latestProfile };
-                }
-            }
-        }
-
         const missionsCompleted = this._missionState?.completedCount || 0;
         const totalMissions = this._missionState?.missions?.length || 0;
         const telemetry = {
@@ -1230,12 +1216,12 @@ export class ArcadeRunRuntime {
         };
 
         const baseXp = calculateSectorXp(telemetry);
-        const result = awardBoundArcadeVehicleXp(this._vehicleProfiles, rewardBinding, baseXp);
+        // Player one's plane keeps the run perks; split-screen partners level their own planes.
+        const result = awardArcadeRunPlayerXp(this, baseXp)?.result;
         if (!result) return;
         const xpEarned = result.earned;
-        if (this._state) this._state.xpEarned += xpEarned;
+        if (this._state) this._state.xpEarned += xpEarned + awardArcadeRunPartnersXp(this, baseXp);
         syncArcadeMasteryPerks(this._state, result.profile);
-        this._scheduleVehicleProfilesSave();
 
         // Attach XP info to state for UI consumption
         if (this._state) {

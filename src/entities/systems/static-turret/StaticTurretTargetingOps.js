@@ -3,6 +3,7 @@ import {
     isTurretTargetPlayerEligible,
 } from '../../../shared/contracts/TurretCombatContract.js';
 import { canTargetEnemy } from '../../../shared/contracts/TeamCombatContract.js';
+import { isMapStructureClosedToBots } from '../../../shared/contracts/MapDestructibleBotTargetContract.js';
 import { isRocketTierType } from '../../../hunt/RocketPickupSystem.js';
 import * as THREE from 'three';
 
@@ -26,6 +27,7 @@ function isTargetableEligible(turret, candidate) {
         && candidate.ownerPlayer !== owner
         && candidate.ownerIndex !== owner.index
         && canTargetEnemy(owner, candidate)
+        && !(owner.isBot === true && isMapStructureClosedToBots(candidate))
         && !!candidate.position;
 }
 
