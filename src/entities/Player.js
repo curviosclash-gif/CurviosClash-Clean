@@ -405,11 +405,13 @@ export class Player {
 
     takeDamage(amount, options = {}) {
         const clockMs = this.entityManager?._simulationClockMs;
+        // Without a match clock the stamp stays undefined, so HealthSystem keeps its wall clock fallback (8a2a3b8d).
+        const nowSeconds = normalizeLegacyHealthNumber(options?.nowSeconds, Number.isFinite(clockMs) ? Math.max(0, clockMs) / 1000 : NaN);
         return applyHit(this.entityManager || this, {
             ...(options && typeof options === 'object' ? options : {}),
             target: this,
             amount: Math.max(0, normalizeLegacyHealthNumber(amount)),
-            nowSeconds: normalizeLegacyHealthNumber(options?.nowSeconds, Number.isFinite(clockMs) ? Math.max(0, clockMs) / 1000 : 0),
+            nowSeconds: Number.isFinite(nowSeconds) ? nowSeconds : undefined,
             emitDamageEvent: false, killOnDeath: false,
         });
     }

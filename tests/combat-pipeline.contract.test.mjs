@@ -10,6 +10,15 @@ import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { normalizeCombatHealInput, normalizeCombatHitInput } from '../src/shared/contracts/CombatHitContract.js';
 import { TEAM_IDS } from '../src/shared/contracts/TeamCombatContract.js';
 
+// Clockless callers keep the HealthSystem wall clock fallback (8a2a3b8d, user decision 12.10.).
+function stubWallClockSeconds(t, seconds) {
+    const originalNow = performance.now;
+    const originalDateNow = Date.now;
+    performance.now = () => seconds * 1000;
+    Date.now = () => seconds * 1000;
+    t.after(() => { performance.now = originalNow; Date.now = originalDateNow; });
+}
+
 function createPlayer({ index, teamId, hp = 100, shieldHP = 0, alive = true, spawnProtectionTimer = 0 } = {}) {
     return {
         index,
@@ -388,7 +397,8 @@ test('damage-event suppression keeps the hit and its death but emits no damage e
     assert.equal(harness.kills.length, 1);
 });
 
-test('legacy Player damage delegates mode math once and leaves event/death publication to its caller', () => {
+test('legacy Player damage delegates mode math once and leaves event/death publication to its caller', (t) => {
+    stubWallClockSeconds(t, 7);
     const huntStrategy = new HuntModeStrategy();
     const hunt = createWorld(huntStrategy, []);
     hunt.world._simulationClockMs = 8_000;
@@ -435,7 +445,7 @@ test('legacy Player damage delegates mode math once and leaves event/death publi
     assert.equal(arcadeResult.absorbedByShield, 5);
     assert.equal(arcadeResult.hpApplied, 15);
     assert.equal(arcadePlayer.hp, 85);
-    assert.equal(arcadePlayer.lastDamageTimestamp, 0, 'clockless legacy damage uses the deterministic zero fallback');
+    assert.equal(arcadePlayer.lastDamageTimestamp, 7, 'clockless legacy damage keeps the HealthSystem wall clock fallback');
     assert.equal(arcade.events.length, 0);
     assert.equal(arcade.kills.length, 0);
 });
@@ -495,7 +505,8 @@ test('legacy Player damage preserves guards, team/self exceptions, safe amounts,
     assert.equal(hunt.kills.length, 0);
 });
 
-test('legacy Player healing delegates active mode rules and standalone HealthSystem fallback without recursion', () => {
+test('legacy Player healing delegates active mode rules and standalone HealthSystem fallback without recursion', (t) => {
+    stubWallClockSeconds(t, 7);
     const huntStrategy = new HuntModeStrategy();
     let healingCalls = 0;
     const applyHealing = huntStrategy.applyHealing.bind(huntStrategy);
@@ -534,7 +545,7 @@ test('legacy Player healing delegates active mode rules and standalone HealthSys
     };
     assert.equal(standalone.takeDamage(5).hpApplied, 0);
     assert.equal(standalone.hp, 90);
-    assert.equal(standalone.lastDamageTimestamp, 0);
+    assert.equal(standalone.lastDamageTimestamp, 7);
     assert.deepEqual(standalone.heal(20), { healed: 10, hp: 100, blocked: null });
 
     const standaloneClassic = createPlayerFacade(null, { index: 6, hp: 1, shieldHP: 1 });

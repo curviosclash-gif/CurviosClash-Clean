@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { Player } from '../src/entities/Player.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { applyPlayerCrashDamage } from '../src/modes/HuntCollisionOps.js';
 
@@ -54,6 +55,20 @@ test('an exclusion zone rocket still takes the shield of an unprotected player',
     assert.equal(result.absorbedByShield, 1);
     assert.equal(target.hasShield, false);
     assert.equal(target.hp, 100);
+});
+
+test('a player without a match clock keeps the health wall clock fallback (user decision 12.10.)', (t) => {
+    const originalNow = performance.now;
+    performance.now = () => 42_000;
+    t.after(() => { performance.now = originalNow; });
+    const player = Object.assign(Object.create(Player.prototype), createPlayer({ index: 0, hp: 100 }), {
+        entityManager: null,
+        gameModeStrategy: new HuntModeStrategy(),
+    });
+
+    player.takeDamage(10);
+
+    assert.equal(player.lastDamageTimestamp, 42, 'the damage stamp follows the wall clock, not a frozen 0');
 });
 
 test('a crash survives a side whose hit was rejected before the pipeline', () => {
