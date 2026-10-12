@@ -113,6 +113,32 @@ test('runtime verification requires both teams and observed objective assignment
     assert.equal(missingAssignments.team.ok, false);
 });
 
+function fullFlagAssignments() {
+    return ['ALPHA', 'BRAVO', 'ALPHA', 'BRAVO', 'ALPHA'].map((teamId) => ({
+        teamId, objectiveType: 'FLAGS', objectiveRole: 'ATTACKER',
+    }));
+}
+
+test('a team objective must be assigned to every bot on the first tick of the round', () => {
+    const scenario = getBotValidationMatrix().find((entry) => entry.id === 'H-TEAM-FLAGS');
+    const start = { ...teamSample('FLAGS', fullFlagAssignments().slice(0, 3)), checkpoint: 'start' };
+    const end = { ...teamSample('FLAGS', fullFlagAssignments()), checkpoint: 'end' };
+    const verification = buildBotValidationRuntimeVerification(scenario, [start, end]);
+    assert.equal(verification.team.ok, false, 'two bots without a task on the first tick');
+    assert.equal(verification.team.missingObjectiveBotSamples, 2);
+});
+
+test('a bot that retreats later without a current task is observation, not a contract break', () => {
+    const scenario = getBotValidationMatrix().find((entry) => entry.id === 'H-TEAM-FLAGS');
+    const start = { ...teamSample('FLAGS', fullFlagAssignments()), checkpoint: 'start' };
+    // After 40 s two bots evade with low vitality; a retreating bot holds no current assignment.
+    const end = { ...teamSample('FLAGS', fullFlagAssignments().slice(0, 3)), checkpoint: 'end' };
+    const verification = buildBotValidationRuntimeVerification(scenario, [start, end]);
+    assert.equal(verification.team.ok, true);
+    assert.equal(verification.team.missingObjectiveBotSamples, 0);
+    assert.equal(verification.team.objectiveBotSampleCount, 5, 'only the start sample is counted');
+});
+
 test('team objective assignments become comparable validation metrics', () => {
     const metrics = buildBotValidationRuntimeMetrics([
         {

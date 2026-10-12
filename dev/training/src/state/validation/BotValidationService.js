@@ -176,7 +176,11 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
         samples.flatMap((sample) => Array.isArray(sample.botTeamIds) ? sample.botTeamIds : []),
         normalizeGameMode
     );
-    const objectiveBotSamples = samples.flatMap((sample) => (
+    // Every bot holds its team task on the first tick (the first-tick start sample). Later samples
+    // are observation: a bot that retreats holds no current assignment, by design.
+    const startSamples = samples.filter((sample) => sample?.checkpoint === 'start');
+    const assignmentSamples = startSamples.length > 0 ? startSamples : samples;
+    const objectiveBotSamples = assignmentSamples.flatMap((sample) => (
         Array.isArray(sample.botObjectiveAssignments) ? sample.botObjectiveAssignments : []
     ));
     const objectiveTypes = uniqueNormalized(
@@ -187,7 +191,7 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
         objectiveBotSamples.map((entry) => entry?.objectiveRole),
         normalizeGameMode
     );
-    const expectedObjectiveBotSamples = samples.reduce(
+    const expectedObjectiveBotSamples = assignmentSamples.reduce(
         (sum, sample) => sum + Math.max(0, Math.trunc(Number(sample?.botCount) || 0)),
         0
     );
