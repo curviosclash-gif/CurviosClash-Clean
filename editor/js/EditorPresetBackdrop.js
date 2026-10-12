@@ -65,8 +65,34 @@ function adaptLightingToScaledAnchors(lighting, preset, mapScale) {
 }
 
 /**
+ * View distance and travelling fog layer. The far plane is world units either way; the layer's
+ * heights follow the anchors like the static fog height, so a preset without
+ * scaleAuthoredAnchors gets them converted the same way.
+ */
+function presetViewFields(preset, mapScale) {
+    const fields = {};
+    const cameraFar = finiteOr(preset?.cameraFar, 0);
+    if (cameraFar > 0) fields.cameraFar = cameraFar;
+    const stages = preset?.fogLayer?.stages;
+    if (Array.isArray(stages)) {
+        const scale = preset.scaleAuthoredAnchors === true ? 1 : Math.max(0.001, finiteOr(mapScale, 3));
+        fields.fogLayer = {
+            stages: stages.map((stage) => ({
+                ...stage,
+                ...(stage?.ceiling !== undefined ? { ceiling: finiteOr(stage.ceiling, 0) / scale } : {}),
+                ...(stage?.floor !== undefined ? { floor: finiteOr(stage.floor, 0) / scale } : {}),
+                ...(stage?.ceilingFalloff !== undefined ? { ceilingFalloff: finiteOr(stage.ceilingFalloff, 0) * scale } : {}),
+                ...(stage?.floorFalloff !== undefined ? { floorFalloff: finiteOr(stage.floorFalloff, 0) * scale } : {}),
+            })),
+        };
+    }
+    return fields;
+}
+
+/**
  * Editor map document of a built-in map. Spawns follow the preset's own convention: map units
- * with scaleAuthoredAnchors, match world units without.
+ * with scaleAuthoredAnchors, match world units without. The document names the preset
+ * (editorBackdrop), so a reopened map still copies with that preset's anchor rule.
  */
 export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}) {
     if (!Array.isArray(preset?.size) || preset.size.length !== 3) {
@@ -74,7 +100,13 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
     }
     if ((!Array.isArray(preset?.glbModels) || preset.glbModels.length === 0)
         && Array.isArray(preset?.obstacles) && preset.obstacles.length > 0) {
-        return { document: { ...fromArenaMapDefinition(preset, { mapScale }).document, editorBackdrop: key } };
+        return {
+            document: {
+                ...fromArenaMapDefinition(preset, { mapScale }).document,
+                ...presetViewFields(preset, mapScale),
+                editorBackdrop: key,
+            },
+        };
     }
     const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
     const anchorUnits = preset?.scaleAuthoredAnchors === true ? units : units / Math.max(0.001, finiteOr(mapScale, 3));
@@ -102,6 +134,7 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
             arenaSize: { width, height, depth },
             glbModels,
             ...(lighting ? { lighting } : {}),
+            ...presetViewFields(preset, mapScale),
             ...(preset.glbColliderMode ? { glbColliderMode: preset.glbColliderMode } : {}),
             ...(preset.playerSpawn ? { playerSpawn: toAnchor(preset.playerSpawn, 'spawn_player') } : {}),
             botSpawns: (preset.botSpawns || []).map((spawn, index) => toAnchor(spawn, `spawn_bot_${index + 1}`)),
