@@ -11,7 +11,8 @@ function cosmeticUnlocks(priorLevel, newLevel) {
 
 export function resolveArcadePostMatchProgression(store, runState = null) {
     const vehicleId = String(runState?.vehicleId || '').trim();
-    const xpEarned = Math.max(0, Number(runState?.xpEarned ?? runState?.postRunSummary?.xpEarned) || 0);
+    // xpEarned can include split-screen partners' planes; the level jump belongs to the run vehicle alone.
+    const xpEarned = Math.max(0, Number(runState?.vehicleXpEarned ?? runState?.xpEarned ?? runState?.postRunSummary?.xpEarned) || 0);
     if (!vehicleId || !store?.loadJsonRecord) return null;
     const profile = getOrCreateProfile(loadVehicleProfiles(store), vehicleId);
     const newLevel = Math.max(1, Number(profile.level) || 1);

@@ -19,6 +19,7 @@ import { GameRuntimeDemolitionSupport } from './GameRuntimeDemolitionSupport.js'
 import { startArenaWavesRun, startFivePortalsRun, startWeaponRaceRun } from './GameRuntimeDedicatedRunStartOps.js';
 import { createPlayerRecordStorePortResolver } from './PlayerProfileRuntimeAccess.js';
 import { clearArcadePlayerProfileBindings } from '../arcade/ArcadePlayerProfileBindings.js';
+import { resolveArcadePartnerRewardTarget } from '../arcade/ArcadeRunVehicleRewardOps.js';
 
 export class GameRuntimeArcadeSupport {
     constructor({
@@ -66,12 +67,14 @@ export class GameRuntimeArcadeSupport {
                 request
             ),
         });
+        // Split-screen partners with an own profile earn their XP in that profile (store of the run's bindings).
+        const getPlayerRewardTarget = (playerIndex) => resolveArcadePartnerRewardTarget(this.arcadeRunRuntime, playerIndex);
         this.arenaWavesRuntime = new ArenaWavesRuntime({
-            now: this._nowMs, getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
+            now: this._nowMs, getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null, getPlayerRewardTarget,
             requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
         });
         this.fivePortalsRuntime = new FivePortalsRuntime({
-            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
+            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null, getPlayerRewardTarget,
             requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
             requestAdvance: () => this._requestRunAdvance(),
         });

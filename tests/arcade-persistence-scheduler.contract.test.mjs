@@ -61,9 +61,9 @@ test('a delayed Arcade profile snapshot merges XP acknowledged after the snapsho
     };
     const baseline = { ship1: addXp(createArcadeVehicleProfile('ship1', 1), 100, 2).profile };
     assert.equal(saveVehicleProfiles(store, baseline), true);
-    const staleArcadeSnapshot = {
-        ship1: addXp(baseline.ship1, 10, 3).profile,
-    };
+    // Like ArcadeRunRuntime: the run edits the map it loaded, so the save merge knows its base.
+    const staleArcadeSnapshot = loadVehicleProfiles(store);
+    staleArcadeSnapshot.ship1 = addXp(staleArcadeSnapshot.ship1, 10, 3).profile;
     let timerCallback = null;
     const scheduler = new ArcadeRunPersistenceScheduler({
         saveThrottleMs: 100,
