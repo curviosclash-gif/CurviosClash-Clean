@@ -1,6 +1,7 @@
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { HUNT_CONFIG } from './HuntConfig.js';
 import { canTargetEnemy } from '../shared/contracts/TeamCombatContract.js';
+import { isMapStructureClosedToBots } from '../shared/contracts/MapDestructibleBotTargetContract.js';
 
 /**
  * Bots open fire on tanks and destructible turrets (S5.11). A bot does not hunt them: it keeps
@@ -10,6 +11,9 @@ import { canTargetEnemy } from '../shared/contracts/TeamCombatContract.js';
  *
  * Its own deployed turrets are never a target. A lit flamethrower owns the fire key (E79), so a bot
  * carrying one leaves this to the flamethrower tactics.
+ *
+ * Standing segments of a destructible structure count as well, but only where the round opened
+ * them to bots (the hunt). The aim help ranks them below every player, tank and turret.
  */
 export function applyBotMapUnitFire(policy, input, player, runtimeContext) {
     if (input.shootMG === true || player?.hasFlamethrower === true || !player?.position) return false;
@@ -24,7 +28,8 @@ export function applyBotMapUnitFire(policy, input, player, runtimeContext) {
     aim.normalize();
     const toTarget = policy._tmpFlameOffset;
     for (const target of targets) {
-        if (!target?.position || !(Number(target.hp) > 0)) continue;
+        if (!target?.position || !(Number(target.hp) > 0) || target.alive === false) continue;
+        if (isMapStructureClosedToBots(target)) continue;
         if (target.teamId && !canTargetEnemy(player, target)) continue;
         if (target.ownerPlayer === player || (Number.isInteger(player.index) && target.ownerIndex === player.index)) continue;
         toTarget.subVectors(target.position, player.position);
