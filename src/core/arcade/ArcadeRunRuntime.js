@@ -1,5 +1,7 @@
 import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import { recordArcadeDailyResult, finalizeArcadeRun, finalizeExpiredArcadeTestFlight } from './ArcadeRunCompletionOps.js';
+import { completeArcadeParcoursSector } from './ArcadeRunParcoursSectorOps.js';
+import { resolveArcadeRunReplayState } from './ArcadeRunReplayStateOps.js';
 import {
     ARCADE_RUN_PHASES,
     beginArcadeSector,
@@ -65,7 +67,6 @@ const DEFAULT_ARCADE_PERSISTENCE_SAVE_THROTTLE_MS = 250;
 const ARCADE_RUN_ABORT_REASONS = new Set(['ABORT', 'ABORTED', 'MATCH_ABORT', 'QUIT', 'RUN_ABORT']);
 
 import { LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from '../../shared/contracts/ArcadeRunSettingsContract.js';
-import { getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { toSafeInt, toSafeNumber, computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 
 function resolveLogger(logger) {
@@ -530,27 +531,7 @@ export class ArcadeRunRuntime {
 
     getTelemetrySnapshot(terminalReason = '') { return createArcadeTelemetrySnapshot({ enabled: this._enabled, state: this._state, activeVehicleId: this._getRunVehicleId(), terminalReason }); }
 
-    getReplayState() {
-        const replay = this._state?.replay && typeof this._state.replay === 'object'
-            ? this._state.replay
-            : {};
-        const runReplayId = typeof replay.runReplayId === 'string' ? replay.runReplayId : '';
-        const playbackEnabled = replay.playbackEnabled !== false;
-        const snapshot = this._latestReplaySnapshot;
-        const payloadAvailable = !!snapshot
-            && typeof snapshot === 'object'
-            && (
-                (Array.isArray(snapshot.actions) && snapshot.actions.length >= 0)
-                || (snapshot.initialState && typeof snapshot.initialState === 'object')
-            );
-        return {
-            runReplayId,
-            playbackEnabled,
-            payloadAvailable,
-            playbackAvailable: playbackEnabled && payloadAvailable,
-            fallbackMode: playbackEnabled ? 'json_export_if_no_player' : 'disabled',
-        };
-    }
+    getReplayState() { return resolveArcadeRunReplayState(this); }
 
     getMenuSurfaceState() {
         return {
@@ -1005,67 +986,7 @@ export class ArcadeRunRuntime {
      * @param {Object} parcoursResult - Result from ParcoursProgressSystem.getRoundOutcome()
      * @returns {Object|null} Round end plan with intermission prepared, or null if not enabled.
      */
-    completeParcoursSector(parcoursResult = {}, options = {}) {
-        if (!this._enabled || !this._state) return null;
-        if (!this.isCurrentSectorParcours()) return null;
-        if (!['sector_active', 'sudden_death'].includes(this._state.phase)) return null;
-
-        const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
-        const completionMs = Math.max(0, toSafeNumber(
-            parcoursResult?.parcours?.completionTimeMs,
-            toSafeNumber(parcoursResult?.parcours?.standings?.[0]?.finishTimeMs, 0)
-        ));
-        const completionReason = String(parcoursResult?.reason || 'PARCOURS_COMPLETE');
-        this.applyGameplayEvent({
-            type: 'sector_complete',
-            elapsed: completionMs > 0 ? completionMs / 1000 : this._sectorElapsedSeconds,
-        });
-        this._state = completeArcadeSector(this._state, nowMs);
-        const map = getRuntimeMapDefinition(this._state.currentMapKey);
-        const references = (map?.missions || []).filter(m => m.type === 'TIME_TRIAL')
-            .map(m => Number(m.params?.target)).filter(value => value > 0 && Number.isFinite(value));
-        this._state.lastCompletedSectorResult = { ...this._state.lastCompletedSectorResult,
-            parcours: { ...parcoursResult.parcours, referenceTimeMs: (references.length ? Math.min(...references) : 60) * 1000 } };
-        // Preserve the result before the next sector changes the map.
-        this._prepareIntermission(nowMs);
-
-        const scoreTotal = Math.max(0, toSafeNumber(this._state?.score?.total, 0));
-        const sectorLabel = `${this._state.completedSectors}/${this._state.config.sectorCount}`;
-        const completionSec = completionMs > 0 ? (completionMs / 1000).toFixed(2) : '?';
-        const requiredWins = Math.max(1, Number(options?.winsNeeded) || 1);
-        const messageText = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!'
-            : completionReason === 'WEAPON_RACE_COMPLETE'
-                ? `Weapon Race gewonnen — ${completionSec}s | Sektor ${sectorLabel}`
-                : `Parcours abgeschlossen — ${completionSec}s | Sektor ${sectorLabel}`;
-        const messageSub = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run abschließen oder freiwillig weiterspielen' : 'Intermission: nächster Sektor';
-
-        return {
-            outcome: {
-                state: 'ROUND_END',
-                canWinMatch: true,
-                requiredWins,
-                matchWinner: null,
-                reason: completionReason,
-                parcours: parcoursResult?.parcours || null,
-                messageText,
-                messageSub,
-                arcade: {
-                    phase: this._state.phase,
-                    sectorIndex: this._state.sectorIndex,
-                    completedSectors: this._state.completedSectors,
-                    score: scoreTotal,
-                    intermission: this.getIntermissionState(),
-                    parcours: parcoursResult?.parcours || null,
-                },
-            },
-            transition: {
-                roundPause: Number(this._config.intermissionSeconds) || 10,
-                nextState: 'ROUND_END',
-                overlayMessageText: messageText,
-                overlayMessageSub: messageSub,
-            },
-        };
-    }
+    completeParcoursSector(parcoursResult = {}, options = {}) { return completeArcadeParcoursSector(this, parcoursResult, options); }
 
     deriveRoundEndPlan({ players, inputs = {}, baseController } = {}) {
         if (!this._enabled || !this._state || !baseController) {
