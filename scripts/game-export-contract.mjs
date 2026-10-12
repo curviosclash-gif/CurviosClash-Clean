@@ -61,6 +61,8 @@ export function isGameExportSourcePath(relativePath) {
     if (GAME_EXPORT_TEST_FILES.has(normalized)) return true;
     if (GAME_EXPORT_ELECTRON_FILES.has(normalized)) return true;
     if (normalized.startsWith('electron/settings-studio/')) return true;
+    // Shipped per-map balancing catalog that MapBalancingRuntime imports at build time.
+    if (normalized.startsWith('data/balancing/')) return normalized.endsWith('.json');
     if (normalized.startsWith('assets/')) return !FORBIDDEN_ASSET_SOURCE_PATTERN.test(normalized);
     if (normalized.startsWith('src/')) {
         return normalized !== 'src/shared/vehicle-lab/ModularVehicleMeshBridge.js'
