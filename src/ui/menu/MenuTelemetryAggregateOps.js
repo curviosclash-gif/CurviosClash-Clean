@@ -1,3 +1,5 @@
+import { getMenuFunnelClickBucket } from '../../shared/contracts/MenuFunnelContract.js';
+
 function nonNegativeInt(value) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
@@ -56,7 +58,17 @@ export function mergeItemUseTypeCounts(target, source) {
 }
 
 export function createDefaultFunnelSummary() {
-    return { eventCounts: {}, abortReasonCounts: {}, quickStartVariantCounts: {}, sessionTypeCounts: {} };
+    return {
+        eventCounts: {},
+        abortReasonCounts: {},
+        quickStartVariantCounts: {},
+        sessionTypeCounts: {},
+        // New menu structure (MenuFunnelContract). Absent in data saved by older versions.
+        clicksToMatchCounts: {},
+        clicksToMatchSum: 0,
+        durationToMatchMsSum: 0,
+        matchPathSamples: 0,
+    };
 }
 
 export function normalizeFunnelSummary(source = null) {
@@ -66,6 +78,10 @@ export function normalizeFunnelSummary(source = null) {
         abortReasonCounts: countMap(value.abortReasonCounts),
         quickStartVariantCounts: countMap(value.quickStartVariantCounts),
         sessionTypeCounts: countMap(value.sessionTypeCounts),
+        clicksToMatchCounts: countMap(value.clicksToMatchCounts),
+        clicksToMatchSum: nonNegativeInt(value.clicksToMatchSum),
+        durationToMatchMsSum: nonNegativeInt(value.durationToMatchMsSum),
+        matchPathSamples: nonNegativeInt(value.matchPathSamples),
     };
 }
 
@@ -74,7 +90,14 @@ export function recordFunnelTelemetry(state, eventType, payload = null) {
     const source = payload && typeof payload === 'object' ? payload : {};
     increment(summary.eventCounts, eventType);
     if (eventType === 'abort') increment(summary.abortReasonCounts, source.reason || source.trigger || 'unknown');
+    if (eventType === 'menu_aborted') increment(summary.abortReasonCounts, source.reason || 'unknown');
     if (eventType === 'quickstart') increment(summary.quickStartVariantCounts, source.variant || 'unknown');
+    if (eventType === 'match_started' && typeof source.clicks === 'number' && Number.isFinite(source.clicks)) {
+        increment(summary.clicksToMatchCounts, getMenuFunnelClickBucket(source.clicks));
+        summary.clicksToMatchSum += nonNegativeInt(source.clicks);
+        summary.durationToMatchMsSum += nonNegativeInt(source.durationMs);
+        summary.matchPathSamples += 1;
+    }
     if (source.sessionType) increment(summary.sessionTypeCounts, source.sessionType);
     state.funnelSummary = summary;
 }
