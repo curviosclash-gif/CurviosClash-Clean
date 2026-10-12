@@ -10,8 +10,11 @@
 // The utility part (not in the old model) is an equipment hump at the tail base, a flattened ellipsoid
 // like the wings. It grows out of the rounded rear rim and rests on the tail wedge; its top stays under
 // the slab top (y 2.5) and it ends before the tail tip, so the model box that Classic and Hunt read
-// (hitbox, muzzle, weapon mounts) keeps its size. A larger or smaller hull carries it along
-// (resolveHullMountedPivot), so the rim never swallows it.
+// (hitbox, muzzle, weapon mounts) keeps its size. Its mount (anchor) is its pivot, which a larger or
+// smaller hull carries along, so the rim never swallows it.
+// Every part names its mount (VehiclePartMountContract): the point where it meets its carrier. The
+// arcade size workshop grows a part away from that point and moves it with its carrier: the wings
+// from the end of their root, the engines from the wing plate, the nose point and both slabs with the hull.
 const RIM_SCALE_Y = 1.875; // 1.2 rim radius stretched to the 2.25 half-height of the slab
 
 function wing(side) {
@@ -21,6 +24,8 @@ function wing(side) {
     return {
         name: `${q} Flügel`, geo: 'sphere', size: [4.4], pos: [s * 13.5, 0, -6.3], scale: [1.4545, 0.18, 1],
         material: 'primary', role: `wing_${side}`,
+        // The mirrored root carries the left wing with its left half.
+        mount: { anchor: [s * 9, 0, -6.4], carrier: 'Flügelwurzel' },
     };
 }
 
@@ -28,8 +33,10 @@ function engine(side) {
     const s = side === 'left' ? -1 : 1;
     const q = side === 'left' ? 'Linkes' : 'Rechtes';
     const f = side === 'left' ? 'Linke' : 'Rechte';
+    const w = side === 'left' ? 'Linker' : 'Rechter';
     return {
         name: `${q} Flügeltriebwerk`, geo: 'engine', size: [0.5, 0.45, 2.2], pos: [s * 17.5, -0.2, -2.4], role: `engine_${side}`,
+        mount: { anchor: [s * 17.5, -0.2, -3.2], carrier: `${w} Flügel` },
         children: [
             { name: `${f} Triebwerksglut`, geo: 'sphere', size: [0.35], pos: [0, 0, 1.2], material: 'glow', color: 0x00eeff, opacity: 0.8 },
         ],
@@ -49,18 +56,22 @@ export default {
             // Box turned 45° inside the hull's z stretch (2.42) becomes a rhombus prism: a flat point at z 21.2 growing out of the rounded rim.
             { name: 'Schwanzkeil', geo: 'box', size: [6.36, 2.0, 6.36], pos: [0, 0, 3.0], rot: [0, 45, 0], material: 'primary' },
         ] },
-        { name: 'Vorderrumpf', geo: 'cylinder', size: [5.4, 5.4, 4.5], pos: [0, 0.25, 1.5], scale: [1, 1, 2.0], material: 'primary', children: [
+        { name: 'Vorderrumpf', geo: 'cylinder', size: [5.4, 5.4, 4.5], pos: [0, 0.25, 1.5], scale: [1, 1, 2.0], material: 'primary',
+            mount: { anchor: [0, 0.25, 1.5], carrier: 'hull' }, children: [
             { name: 'Vorderrumpfkante', geo: 'torus', size: [5.4, 1.2], rot: [90, 0, 0], scale: [1, 1, RIM_SCALE_Y], material: 'primary' },
         ] },
         // Rounded front point; its y scale also flattens the two front edge capsules to the slab height.
-        { name: 'Bugspitze', geo: 'sphere', size: [1.2], pos: [0, 0.25, -11.17], scale: [1, RIM_SCALE_Y, 1], material: 'primary', role: 'nose', children: [
+        { name: 'Bugspitze', geo: 'sphere', size: [1.2], pos: [0, 0.25, -11.17], scale: [1, RIM_SCALE_Y, 1], material: 'primary', role: 'nose',
+            mount: { anchor: [0, 0.25, -11.17], carrier: 'hull' }, children: [
             { name: 'Rechte Bugkante', geo: 'capsule', size: [1.2, 3.8], pos: [1.3, 0, 1.385], rot: [90, 0, -43.2], material: 'primary' },
             { name: 'Linke Bugkante', geo: 'capsule', size: [1.2, 3.8], pos: [-1.3, 0, 1.385], rot: [90, 0, 43.2], material: 'primary' },
         ] },
         // Narrow wing root widening from the hull (r 1.56 at x 4.6) to r 4.09 at x 11; its edges run tangent into the plate.
-        { name: 'Flügelwurzel', geo: 'cylinder', size: [1.56, 4.09, 6.4], pos: [7.8, 0, -6.4], rot: [0, 0, 90], scale: [0.19, 1, 1], material: 'primary', mirror: true },
+        { name: 'Flügelwurzel', geo: 'cylinder', size: [1.56, 4.09, 6.4], pos: [7.8, 0, -6.4], rot: [0, 0, 90], scale: [0.19, 1, 1], material: 'primary', mirror: true,
+            mount: { anchor: [5.4, 0, -6.4], carrier: 'hull' } },
         // Semi-axes x 2.2, y 0.95, z 3.6: top at y 2.45, rear end at z 20.4 (tail tip 21.14).
-        { name: 'Heckmodul', geo: 'sphere', size: [2.0], pos: [0, 1.5, 16.8], scale: [1.1, 0.475, 1.8], material: 'primary', role: 'utility' },
+        { name: 'Heckmodul', geo: 'sphere', size: [2.0], pos: [0, 1.5, 16.8], scale: [1.1, 0.475, 1.8], material: 'primary', role: 'utility',
+            mount: { anchor: [0, 1.5, 16.8], carrier: 'hull' } },
         wing('left'),
         wing('right'),
         engine('left'),

@@ -39,6 +39,22 @@ function resolveDesktopRuntimeProbe(options = {}) {
     return () => false;
 }
 
+function resolveDevelopmentRuntimeProbe(options = {}) {
+    if (typeof options.isDevelopmentRuntime === 'boolean') {
+        return () => options.isDevelopmentRuntime;
+    }
+    if (typeof options.isDevelopmentRuntime === 'function') {
+        return () => {
+            try {
+                return options.isDevelopmentRuntime() === true;
+            } catch {
+                return false;
+            }
+        };
+    }
+    return () => import.meta.env?.DEV === true;
+}
+
 export class ObservationBridgePolicy {
     constructor(options = {}) {
         this.type = normalizeBotPolicyType(options.type || BOT_POLICY_TYPES.CLASSIC_BRIDGE);
@@ -55,6 +71,7 @@ export class ObservationBridgePolicy {
             updatedAt: 0,
         };
         this._isDesktopRuntime = resolveDesktopRuntimeProbe(options);
+        this._isDevelopmentRuntime = resolveDevelopmentRuntimeProbe(options);
         this._neutralAction = createNeutralBotAction({});
         this._localInference = null;
         this._localInferenceVocabulary = null;
@@ -205,7 +222,7 @@ export class ObservationBridgePolicy {
     }
 
     _autoLoadLatestCheckpoint() {
-        if (this._isDesktopRuntime()) {
+        if (this._isDesktopRuntime() || !this._isDevelopmentRuntime()) {
             return;
         }
         const CHECKPOINT_API_URL = '/api/bot/latest-checkpoint';

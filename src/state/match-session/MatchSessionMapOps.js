@@ -5,6 +5,7 @@ import {
 import { resolveArenaMapSelection } from '../../entities/CustomMapLoader.js';
 import { createArenaMapFingerprint } from '../../entities/arena/ArenaBuildResourceCache.js';
 import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
+import { resolveBreakSceneLoadKey } from '../../entities/arena/MapBreakSceneLoadPolicy.js';
 
 export function toSafeInt(value, fallback) {
     const parsed = Number(value);
@@ -39,6 +40,7 @@ export function buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnable
         Math.max(0, Math.round(Number(gameplay.planarLevelCount) || 0)),
         isFivePortalsConfig(runtimeConfig) ? 'five_portals' : '',
         String(graphicsStyle || 'modern'),
+        resolveBreakSceneLoadKey(arenaSourceMap, runtimeConfig),
     ].join('|');
 }
 

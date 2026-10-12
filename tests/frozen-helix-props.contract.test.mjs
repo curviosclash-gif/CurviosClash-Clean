@@ -14,7 +14,9 @@ test('frozen helix places the crystals on the ice floor, clear of pillars, tubes
     const map = MAP_PRESET_CATALOG.frozen_helix;
     assert.equal(map.glbModels[0].url, 'assets/maps/frozen_helix/glb/01_world.glb', 'the world loads first');
     assert.deepEqual(map.glbModels.slice(1), [...FROZEN_ICE_CRYSTALS]);
+    assert.equal(map.glbModels[0].role, 'primaryWorld');
     assert.equal(FROZEN_ICE_CRYSTALS.length, 12);
+    assert.ok(FROZEN_ICE_CRYSTALS.every((entry) => entry.role === 'optionalProp' && entry.collision === false));
     assertPropsClearOfRoute(map, FROZEN_ICE_CRYSTALS, { floorY: 0, obstacles: map.obstacles });
 });
 

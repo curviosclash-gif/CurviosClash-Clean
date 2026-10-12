@@ -14,6 +14,7 @@ import { bindEditorRelationshipControls } from './ui/EditorRelationshipControls.
 import { bindEditorShipFlightControls } from './ui/EditorShipFlightControls.js';
 import { bindEditorFlightPlacementControls } from './ui/EditorFlightPlacementControls.js';
 import { bindEditorGameViewControls } from './ui/EditorGameViewControls.js';
+import { bindEditorBackdropControls } from './ui/EditorBackdropControls.js';
 import { readArenaSizeInputs, writeArenaSizeInputs } from './ui/EditorFormState.js';
 import {
     setupEditorSceneVisuals,
@@ -264,6 +265,7 @@ export class EditorUI {
         const shipFlight = bindEditorShipFlightControls(this);
         bindEditorFlightPlacementControls(this, shipFlight);
         bindEditorGameViewControls(this);
+        bindEditorBackdropControls(this);
 
         bindEditorShortcutControls(this);
 

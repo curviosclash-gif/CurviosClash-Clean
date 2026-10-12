@@ -1,45 +1,16 @@
-const ROOM_HALF = 17;
-const FLOOR = -29;
-const CEILING = -5;
-const WALL = 1;
-const MID_Y = (FLOOR + CEILING) / 2;
-const HEIGHT = CEILING - FLOOR;
-const SHELL = ROOM_HALF + WALL;
+import { createVaultRoom } from '../siege_shared/VaultRoom.js';
 
-export const STORM_LIGHTHOUSE_SECRET_ROOM_OBSTACLES = Object.freeze([
-    { pos: [0, FLOOR - WALL / 2, 0], size: [SHELL * 2, WALL, SHELL * 2] },
-    { pos: [0, CEILING + WALL / 2, 0], size: [SHELL * 2, WALL, SHELL * 2] },
-    { pos: [-ROOM_HALF - WALL / 2, MID_Y, 0], size: [WALL, HEIGHT, SHELL * 2] },
-    { pos: [ROOM_HALF + WALL / 2, MID_Y, 0], size: [WALL, HEIGHT, SHELL * 2] },
-    { pos: [0, MID_Y, -ROOM_HALF - WALL / 2], size: [SHELL * 2, HEIGHT, WALL] },
-    { pos: [0, MID_Y, ROOM_HALF + WALL / 2], size: [SHELL * 2, HEIGHT, WALL] },
-].map((box) => Object.freeze({ ...box, kind: 'hard', renderWithGlb: true, compileWithGlb: true })));
-
-const ITEMS = Object.freeze([
-    ...[
-        [-10, -11, -10], [10, -11, -10], [10, -11, 10], [-10, -11, 10],
-        [0, -9, 0], [-7, -9, 0], [7, -9, 0], [0, -9, 7], [0, -9, -7],
-    ].map((pos) => ({ pos })),
-    // The prizes every secret room holds (user decision 28.09.2026).
-    { pos: [0, -11, -13], type: 'BOMBER_STRIKE' },
-    { pos: [0, -11, 13], type: 'LIGHTNING' },
-].flatMap((item) => [
-    item,
-    { ...item, pos: [item.pos[0], item.pos[1] - HEIGHT / 2, item.pos[2]] },
-]).map(({ pos, type }) => Object.freeze({ pos: Object.freeze(pos), ...(type ? { type } : {}) })));
-
-export const STORM_LIGHTHOUSE_SECRET_ROOM = Object.freeze({
+const VAULT = createVaultRoom({
     id: 'lighthouse_vault',
-    modes: Object.freeze(['HUNT', 'ARCADE']),
-    unlock: Object.freeze({ destructible: 'storm_lighthouse', when: 'anyBreak', delaySeconds: 5.5 }),
-    stayLimitSeconds: 20,
-    refillSeconds: 30,
-    entryPortal: Object.freeze({ pos: Object.freeze([42, 11, 0]), color: 0xffd35a }),
-    roomPortal: Object.freeze({ pos: Object.freeze([0, -11, 0]) }),
-    bounds: Object.freeze({
-        min: Object.freeze([-ROOM_HALF, FLOOR, -ROOM_HALF]),
-        max: Object.freeze([ROOM_HALF, CEILING, ROOM_HALF]),
-    }),
-    ejectPoint: Object.freeze({ pos: Object.freeze([46, 17, -18]), yawDeg: 135 }),
-    items: ITEMS,
+    half: 17,
+    floor: -29,
+    ceiling: -5,
+    destructible: 'storm_lighthouse',
+    delaySeconds: 5.5,
+    entryPortal: { pos: [42, 11, 0], color: 0xffd35a },
+    ejectPos: [46, 17, -18],
+    ejectYawDeg: 135,
 });
+
+export const STORM_LIGHTHOUSE_SECRET_ROOM_OBSTACLES = VAULT.obstacles;
+export const STORM_LIGHTHOUSE_SECRET_ROOM = VAULT.room;

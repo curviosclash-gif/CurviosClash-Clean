@@ -10,6 +10,7 @@ import { ArenaCollision } from '../src/entities/arena/ArenaCollision.js';
 import {
     EXCLUSION_ZONE_PHASES,
     ExclusionZoneSystem,
+    resolveExclusionZoneRocketTuning,
 } from '../src/entities/systems/ExclusionZoneSystem.js';
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
@@ -84,8 +85,11 @@ function createZoneHarness(playerCount = 1) {
             removeOldest([...projectiles], globalLimit);
         },
     };
-    const manager = { arena, players, audio: { play() {} } };
-    return { manager, players, projectiles, system: new ExclusionZoneSystem(manager, { projectileSystem }) };
+    // The salvo speed and caps derive from the product ship physics, so the harness carries it.
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    const manager = { arena, players, audio: { play() {} }, entityRuntimeConfig };
+    const tuning = resolveExclusionZoneRocketTuning(entityRuntimeConfig);
+    return { manager, players, projectiles, tuning, system: new ExclusionZoneSystem(manager, { projectileSystem }) };
 }
 
 test('open-face contract normalizes order, duplicates and invalid values while default stays closed', () => {
@@ -111,7 +115,8 @@ test('physical boundary opens only authored faces while floor, closed faces and 
 });
 
 test('zone enters after fully crossing, grants exactly five seconds and escalates deterministic salvos', () => {
-    const { players, projectiles, system } = createZoneHarness();
+    const { players, projectiles, system, tuning } = createZoneHarness();
+    const { WEAK, MEDIUM, HEAVY } = tuning.stages;
     const player = players[0];
     player.position.x = 12;
 
@@ -127,31 +132,33 @@ test('zone enters after fully crossing, grants exactly five seconds and escalate
         && projectile.ignoresTrails
         && projectile.ignoresTurrets));
     assert.ok(projectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 96) < 1e-9
-        && projectile.speedMultiplier === 0.55
+        && projectile.speedMultiplier === WEAK.speedMultiplier
         && projectile.homingTurnRateMultiplier === 0.35
         && projectile.minimumLifetimeSeconds === 24
-        && projectile.minimumTravelDistance === 720));
+        && projectile.minimumTravelDistance === WEAK.minimumTravelDistance));
 
     system.update(10);
     assert.equal(player.exclusionZoneState.stage, 'MEDIUM');
-    assert.equal(projectiles.length, 12);
+    // Four weak salvos (5, 8, 11, 14 s) and the first medium one (15 s), within the derived cap.
+    assert.equal(projectiles.length, Math.min(4 * 4 + 6, tuning.maxPlayerRockets));
     const mediumProjectiles = projectiles.filter((projectile) => projectile.type === 'ROCKET_MEDIUM');
     assert.equal(mediumProjectiles.length, 6);
     assert.ok(mediumProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 120) < 1e-9
-        && projectile.speedMultiplier === 0.65
+        && projectile.speedMultiplier === MEDIUM.speedMultiplier
         && projectile.homingTurnRateMultiplier === 0.4
         && projectile.minimumLifetimeSeconds === 20
-        && projectile.minimumTravelDistance === 720));
+        && projectile.minimumTravelDistance === MEDIUM.minimumTravelDistance));
     system.update(10);
     assert.equal(player.exclusionZoneState.stage, 'HEAVY');
-    assert.equal(projectiles.length, 12);
+    // Four more medium salvos (17-23 s) and the first heavy one (25 s), trimmed to the cap.
+    assert.equal(projectiles.length, Math.min(4 * 4 + 6 + 4 * 6 + 8, tuning.maxPlayerRockets));
     const heavyProjectiles = projectiles.filter((projectile) => projectile.type === 'ROCKET_HEAVY');
     assert.equal(heavyProjectiles.length, 8);
     assert.ok(heavyProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 144) < 1e-9
-        && projectile.speedMultiplier === 0.75
+        && projectile.speedMultiplier === HEAVY.speedMultiplier
         && projectile.homingTurnRateMultiplier === 0.45
         && projectile.minimumLifetimeSeconds === 18
-        && projectile.minimumTravelDistance === 720));
+        && projectile.minimumTravelDistance === HEAVY.minimumTravelDistance));
 });
 
 test('hysteresis resets only after a clear return and re-entry starts a fresh countdown', () => {
@@ -375,12 +382,12 @@ test('parallel intruders keep independent deterministic salvos and disconnected 
 });
 
 test('zone projectile caps hold per intruder and globally under sustained parallel salvos', () => {
-    const { players, projectiles, system } = createZoneHarness(6);
+    const { players, projectiles, system, tuning } = createZoneHarness(6);
     for (const player of players) player.position.x = 12 + player.index;
     system.update(40);
-    assert.equal(projectiles.length, 64);
+    assert.equal(projectiles.length, tuning.maxGlobalRockets);
     for (const player of players) {
-        assert.ok(projectiles.filter((entry) => entry.targetPlayerIndex === player.index).length <= 12);
+        assert.ok(projectiles.filter((entry) => entry.targetPlayerIndex === player.index).length <= tuning.maxPlayerRockets);
     }
 });
 

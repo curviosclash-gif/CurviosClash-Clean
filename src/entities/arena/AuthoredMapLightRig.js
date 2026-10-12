@@ -48,11 +48,29 @@ export class AuthoredMapLightRig {
             light.name = `map-light-${source.id || i}`;
             light.position.set(source.x * scale, source.y * scale, source.z * scale);
             light.castShadow = false;
-            light.userData = { ...(light.userData || {}), authoredLightId: source.id };
+            light.userData = {
+                ...(light.userData || {}),
+                authoredLightId: source.id,
+                ...(source.offWhenDestroyed ? { offWhenDestroyed: source.offWhenDestroyed, baseIntensity: source.intensity } : {}),
+            };
             this.renderer.addToScene(light);
             this.lights.push(light);
         }
         return this.lights;
+    }
+
+    /**
+     * Puts out the lights tied to a destroyed segment and relights them when the segment stands
+     * again (a new round). Intensity rather than visibility, so the shader does not recompile.
+     * @param {{ segments?: ReadonlyArray<{ id: string, destroyed?: boolean }> } | null | undefined} state
+     */
+    applyDestructibleState(state) {
+        for (const light of this.lights) {
+            const segmentId = light.userData.offWhenDestroyed;
+            if (!segmentId) continue;
+            const segment = state?.segments?.find((entry) => entry.id === segmentId);
+            light.intensity = segment?.destroyed === true ? 0 : light.userData.baseIntensity;
+        }
     }
 
     getLightCount() {

@@ -208,6 +208,7 @@ export function defaultJoinLobby(lobby, options = {}) {
         actorId: options.actorId,
         name: options.name,
         lobbyName: options.lobbyName,
+        vehicleId: options.vehicleId,
         participantMetadata: options.participantMetadata,
     });
 }

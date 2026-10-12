@@ -18,6 +18,8 @@
  *   hudNoun?: string,
  *   focusSegment?: MapDestructibleStatusSegment | null,
  *   breakingSecondsRemaining?: number,
+ *   destroyedSegments?: number,
+ *   totalSegments?: number,
  * } | null | undefined} state
  * @returns {string} empty when there is nothing to report
  */
@@ -36,5 +38,11 @@ export function formatMapDestructibleStatus(state) {
 
     if (!focus) return '';
     const ratio = Math.max(0, Math.min(1, Number(focus.ratio) || 0));
-    return `STRUKTUR · ${name.toUpperCase()} ${Math.round(ratio * 100)} %`;
+    const line = `STRUKTUR · ${name.toUpperCase()} ${Math.round(ratio * 100)} %`;
+    // Overall progress next to the segment under fire; a one-segment structure has none to report.
+    const total = Math.floor(Number(state.totalSegments) || 0);
+    if (total <= 1) return line;
+    const down = Math.min(total, Math.max(0, Math.floor(Number(state.destroyedSegments) || 0)));
+    const noun = (typeof state.hudNoun === 'string' ? state.hudNoun.trim() : '') || 'BAUWERK';
+    return `${line} · ${noun.toUpperCase()} ${down}/${total} SEGMENTE`;
 }

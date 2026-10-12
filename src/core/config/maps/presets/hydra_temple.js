@@ -17,6 +17,12 @@ export const HYDRA_TEMPLE_MAP = Object.freeze({
         glbColliderMode: 'scene',
         obstacles: Object.freeze([]),
         portals: Object.freeze([]),
+        // Map units. The Hydra bites up to ~11 units around its route (radius 24), so the anchors
+        // sit on the central dais and out between the spawns, never in the band 13 to 35.
+        items: Object.freeze([
+            [-4.5, 5.5, -4.5], [4.5, 5.5, -4.5], [-4.5, 5.5, 4.5], [4.5, 5.5, 4.5],
+            [-28, 5.5, -28], [28, 5.5, -28], [-28, 5.5, 28], [28, 5.5, 28],
+        ].map((pos) => Object.freeze({ pos }))),
         playerSpawn: spawn(0),
         botSpawns: Object.freeze([spawn(Math.PI / 2), spawn(Math.PI), spawn(3 * Math.PI / 2)]),
         mapUnits: Object.freeze([Object.freeze({

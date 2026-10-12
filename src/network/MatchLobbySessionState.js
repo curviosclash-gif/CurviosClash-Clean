@@ -3,6 +3,7 @@ import { normalizeString } from '../shared/contracts/ContractNormalizeUtils.js';
 import { normalizePublicLobbyMetadata } from '../shared/contracts/SignalingSessionContract.js';
 import { normalizeOptionalMultiplayerPlayerName } from '../shared/contracts/MultiplayerSessionContract.js';
 import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
+import { normalizeLobbyVehicleId } from '../shared/contracts/LobbyVehicleContract.js';
 
 function normalizeBoolean(value) {
     return value === true;
@@ -31,6 +32,9 @@ export function normalizeLobbyMember(member, fallbackRole = MULTIPLAYER_SESSION_
         actorId: normalizeString(member?.actorId || member?.name, role === MULTIPLAYER_SESSION_ROLES.HOST ? 'Host' : peerId),
         name: normalizeString(member?.name || member?.actorId, role === MULTIPLAYER_SESSION_ROLES.HOST ? 'Host' : peerId),
         lobbyName: normalizeOptionalMultiplayerPlayerName(member?.lobbyName),
+        vehicleId: normalizeLobbyVehicleId(member?.vehicleId),
+        // Ship of the second player at a LAN host's screen; '' for everyone else.
+        secondVehicleId: normalizeLobbyVehicleId(member?.secondVehicleId),
         teamId: normalizeTeamId(member?.teamId),
         role,
         isHost: role === MULTIPLAYER_SESSION_ROLES.HOST,

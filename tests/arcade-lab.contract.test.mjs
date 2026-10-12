@@ -178,6 +178,49 @@ test('unreadable or unknown Lab records never get replaced and a failed unlock i
     assert.equal(syncArcadeLabUnlock(s,profiles).record.unlocked,false);
 });
 
+function mountsByName(parts) {
+    return Object.fromEntries(parts.filter((part) => part.mount).map((part) => [part.name, part.mount]));
+}
+
+test('a Lab copy of a factory ship keeps its part mounts through save and load', () => {
+    const s = store();
+    const copy = createArcadeLabFactoryCopy('arrow');
+    const donorMounts = mountsByName(copy.parts);
+    assert.ok(Object.keys(donorMounts).length > 0, 'the factory arrow carries mounts to copy');
+
+    const created = createArcadeLabShip({ schemaVersion: 'arcade-lab.v1', unlocked: true, nextSerial: 1, ships: [] }, copy);
+    assert.equal(created.ok, true, created.reason);
+    assert.equal(saveArcadeLabShips(s, created.record), true);
+    const loaded = loadArcadeLabShips(s).ships[0];
+    assert.deepEqual(mountsByName(loaded.config.parts), donorMounts, 'the saved ship keeps every mount');
+    assert.deepEqual(mountsByName(validateArcadeLabShip(loaded).config.parts), donorMounts, 'the deployed ship reads the same mounts');
+});
+
+test('a broken Lab part mount is dropped while the ship stays valid', () => {
+    const config = createArcadeLabStarterConfig('fighter');
+    config.parts[1].mount = { anchor: [0, 'x', 1], carrier: 'hull' };
+    config.parts[2].mount = 'hull';
+    config.parts[3].mount = { anchor: [0.85, 0, 0], carrier: 'Rumpf' };
+    const result = validateArcadeLabShip({ id: 'arcade_lab_1', config });
+    assert.equal(result.ok, true, result.errors.join(' · '));
+    assert.equal('mount' in result.config.parts[1], false, 'an anchor with a word in it is no mount');
+    assert.equal('mount' in result.config.parts[2], false, 'a bare string is no mount');
+    assert.deepEqual(result.config.parts[3].mount, { anchor: [0.85, 0, 0], carrier: 'Rumpf' });
+});
+
+test('a Lab ship saved before mounts existed loads exactly as before', () => {
+    const s = store();
+    const config = createArcadeLabStarterConfig('allrounder');
+    const before = validateArcadeLabShip({ id: 'arcade_lab_1', config }).config;
+    s.values.set('curviosclash.arcade-lab.ships.v1',
+        { schemaVersion: 'arcade-lab.v1', unlocked: true, nextSerial: 2, ships: [{ id: 'arcade_lab_1', label: config.label, config }] });
+    const loaded = loadArcadeLabShips(s).ships[0];
+    const result = validateArcadeLabShip(loaded);
+    assert.equal(result.ok, true, result.errors.join(' · '));
+    assert.deepEqual(result.config, before);
+    assert.equal(result.config.parts.some((part) => 'mount' in part), false, 'no mount appears out of nowhere');
+});
+
 test('deletion write failure restores progress, and role changes keep XP, purchases and weapon levels', () => {
     const s=store();
     const prior={vehicleId:'arcade_lab_1',level:30,xp:18000,xpBank:1200,machineGunLevel:9,rocketDamageLevel:5,shieldLevel:4};

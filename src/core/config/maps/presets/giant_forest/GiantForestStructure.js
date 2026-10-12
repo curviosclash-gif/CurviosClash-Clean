@@ -25,6 +25,13 @@ export const FOREST_HALF_SIZE = 320;
  */
 export const CANOPY_DECK = 52;
 
+/**
+ * Where the fog has closed completely, in world units (the fog is not scaled with the map). The fog
+ * and the camera's far plane end here, so nothing is visible beyond it - the decks included, because
+ * the closure to the far plane does not depend on height. Draw distances are derived from it.
+ */
+export const FOREST_FOG_FAR = 380;
+
 export const FOREST_MAP_SIZE = Object.freeze([FOREST_HALF_SIZE * 2, 150, FOREST_HALF_SIZE * 2]);
 
 /**

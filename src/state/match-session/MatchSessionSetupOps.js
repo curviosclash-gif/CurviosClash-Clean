@@ -64,6 +64,19 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     const slotTeams = new Map((Array.isArray(session?.networkPlayerSlots) ? session.networkPlayerSlots : [])
         .map((slot) => [Number(slot.playerIndex), normalizeTeamId(slot?.teamId)])
         .filter(([, teamId]) => teamId));
+    // Every member of a network match flies the ship it announced in the lobby, on every
+    // machine alike. Without an announcement (older peer) a local seat takes this machine's
+    // own pick by its local number, a remote seat stays open and gets the default ship.
+    const slotVehicles = new Map((Array.isArray(session?.networkPlayerSlots) ? session.networkPlayerSlots : [])
+        .filter((slot) => typeof slot?.vehicleId === 'string' && slot.vehicleId.trim())
+        .map((slot) => [Number(slot.playerIndex), slot.vehicleId.trim()]));
+    const resolveVehicleId = (index) => {
+        if (slotVehicles.has(index)) return slotVehicles.get(index);
+        const networkEnabled = session?.networkEnabled === true;
+        if (networkEnabled && !isLocalSlot(index)) return undefined;
+        const slot = `PLAYER_${(networkEnabled ? index - localPlayerIndex : index) + 1}`;
+        return runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId;
+    };
     const withName = (index, config) => (slotNames.has(index) ? { ...config, name: slotNames.get(index) } : config);
     const configs = [];
     const teamSettings = normalizeTeamHuntSettings(runtimeConfig?.hunt || settings?.hunt);
@@ -78,7 +91,7 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
             invertPitch: session?.networkEnabled !== true && !!settings?.invertPitch?.[slot],
             smoothSteering: isLocalSlot(index) && smoothSteering,
             cockpitCamera: true,
-            vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
+            vehicleId: resolveVehicleId(index),
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
             color: resolveLocalSplitScreenPlayerColor(runtimeConfig?.session?.splitScreenVariant, index),
             teamId: teamRoster ? (slotTeams.get(index) || teamRoster.teamIds[index] || null) : null,
@@ -89,6 +102,7 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     for (let index = configuredHumanCount; index < totalHumanCount; index += 1) {
         configs.push(withName(index, {
             smoothSteering: isLocalSlot(index) && smoothSteering,
+            ...(slotVehicles.has(index) ? { vehicleId: slotVehicles.get(index) } : {}),
             teamId: teamRoster ? (slotTeams.get(index) || teamRoster.teamIds[index] || null) : null,
         }));
     }

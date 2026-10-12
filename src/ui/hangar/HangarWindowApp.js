@@ -3,6 +3,7 @@ import { setupArcadeHangarWorkshop } from './ArcadeHangarWorkshop.js';
 import { createHangarAudioPort } from '../../composition/core-ui/CoreHangarAudioPort.js';
 import { ARCADE_TEST_FLIGHT_REQUEST_KEY, createArcadeTestFlightRequest } from '../../shared/contracts/ArcadeTestFlightContract.js';
 import { createArcadeLabSurface } from '../lab/LabSurface.js';
+import { createHangarGamepadNavigation } from './HangarGamepadNavigation.js';
 
 export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hangarWindow } = {}) {
     const audio = createHangarAudioPort(settings?.localSettings?.audio);
@@ -100,6 +101,10 @@ export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hanga
         closeButton?.click();
     });
 
+    // Controller: focus, A = click, B = Escape, LB/RB = tabs; off with the "Controller-Steuerung" setting.
+    const gamepadNavigation = createHangarGamepadNavigation({ getControls: () => /** @type {any} */ (settings)?.controls });
+    gamepadNavigation.start();
+
     bind(globalThis, 'beforeunload', (event) => {
         if (!activeHangarWindow.isAvailable() && workshop?.hasUnsavedChanges?.()) {
             event.preventDefault();
@@ -108,6 +113,7 @@ export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hanga
     });
 
     bind(globalThis, 'unload', () => {
+        gamepadNavigation.dispose();
         workshop?.flushDraft?.();
         lab?.flushDraft?.();
         lab?.dispose?.();

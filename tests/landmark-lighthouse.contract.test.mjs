@@ -80,6 +80,10 @@ test('storm eye layout creates three populated traversal layers inside the arena
     assert.ok(map.items.some((item) => item.pickupType === 'SHIELD'));
     assert.equal(map.botSpawns.length, 6);
     assert.equal(normalizeMapLightSources(map.lights).length, 3);
+    // The lantern goes out when the tower falls (E5), and sits inside the arena it lights.
+    const lantern = normalizeMapLightSources(map.lights).find((light) => light.id === 'lighthouse_lantern');
+    assert.equal(lantern.offWhenDestroyed, 'lighthouse_tower');
+    assert.ok(lantern.y > 0 && lantern.y <= map.size[1], 'the lantern light is inside the arena height');
 
     const authoredAnchors = [map.playerSpawn, ...map.botSpawns, ...map.items, ...map.gates.map((gate) => ({
         x: gate.pos[0], y: gate.pos[1], z: gate.pos[2],

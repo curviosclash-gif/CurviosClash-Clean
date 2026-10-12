@@ -211,6 +211,8 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * last segment that broke while its announcement is active.
  * @property {number} breakingSecondsRemaining Rest of the announcement of the last break.
  * @property {MapDestructibleHudSegment[]} segments
+ * @property {number} destroyedSegments How many segments are down (HUD overall progress).
+ * @property {number} totalSegments How many segments the structure has.
  */
 
 const DIRECTION_EPSILON = 1e-9;
@@ -977,5 +979,7 @@ export function resolveMapDestructibleHudState(state, definition, elapsedSeconds
         focusSegment,
         breakingSecondsRemaining,
         segments,
+        // A destroyed or collapsed segment has no health left, so ratio 0 counts it.
+        totalSegments: segments.length, destroyedSegments: segments.filter((entry) => entry.ratio <= 0).length,
     };
 }

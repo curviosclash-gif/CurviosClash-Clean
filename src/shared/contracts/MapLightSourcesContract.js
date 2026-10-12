@@ -43,7 +43,11 @@ function normalizeColor(value, fallback) {
 export function normalizeMapLightSource(source) {
     const entry = source && typeof source === 'object' ? source : {};
     const id = typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id.trim() : null;
+    // Optional: id of a destructible segment whose destruction puts this light out (a lantern on a
+    // tower that falls). Only present when set, so a plain light keeps its plain shape.
+    const offWhenDestroyed = typeof entry.offWhenDestroyed === 'string' ? entry.offWhenDestroyed.trim().slice(0, 80) : '';
     return Object.freeze({
+        ...(offWhenDestroyed ? { offWhenDestroyed } : {}),
         id,
         x: normalizeNumber(entry.x, DEFAULT_MAP_LIGHT_SOURCE.x, -DISTANCE_MAX, DISTANCE_MAX),
         y: normalizeNumber(entry.y, DEFAULT_MAP_LIGHT_SOURCE.y, -DISTANCE_MAX, DISTANCE_MAX),
