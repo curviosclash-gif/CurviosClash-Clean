@@ -52,7 +52,7 @@ function resolveConfig(config, fallbackConfig = null) {
     return resolveEntityRuntimeConfig(config || null, fallback);
 }
 
-function pickWeightedType(typeEntries = [], random = Math.random) {
+function pickWeightedType(typeEntries, random) {
     const weighted = [];
     for (const entry of typeEntries) {
         const type = String(entry?.type || '').trim().toUpperCase();
@@ -87,14 +87,13 @@ export class HuntModeStrategy extends GameModeContract {
     constructor(options = {}) {
         super();
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options?.entityRuntimeConfig || null);
+        // The match hands in its seeded runtimeRng; a standalone strategy lets the contract decide
+        // its fallback, so this file never rolls its own dice.
         const runtimeRng = options?.runtimeRng && typeof options.runtimeRng.next === 'function'
             ? options.runtimeRng
-            : createRuntimeRng({
-                seed: Number(options?.seed),
-                random: typeof options?.random === 'function' ? options.random : Math.random,
-            });
+            : createRuntimeRng({ seed: Number(options?.seed), random: options?.random });
         this.runtimeRng = runtimeRng;
-        this._random = typeof runtimeRng.next === 'function' ? runtimeRng.next.bind(runtimeRng) : Math.random;
+        this._random = runtimeRng.next.bind(runtimeRng);
     }
 
     get modeType() { return 'HUNT'; }

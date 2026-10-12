@@ -1,8 +1,26 @@
 import { test, expect } from './helpers.desktop.js';
 import { waitForLoadedGame, openCustomSubmenu } from './helpers.js';
 import { BLOOM_CORE_FINAL_OPEN_SECONDS } from '../src/core/config/maps/presets/bloom_core.js';
+import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
+import { listSkippedBreakSceneModelIds } from '../src/entities/arena/MapBreakSceneLoadPolicy.js';
 
 const SEEDS = { bridge_convoy: 16, vault_breaker: 9, bloom_escape: 5 };
+
+// The arena leaves out break scenes the session's mode can never trigger (the bridge collapse in
+// the Arcade convoy), so "fully loaded" is the map's models minus the ones the same policy skips.
+async function countLoadableGlbModels(page) {
+    const { mapKey, modelIds, policyConfig } = await page.evaluate(() => {
+        const arena = window.GAME_INSTANCE.entityManager.arena;
+        const config = arena.runtimeConfig || {};
+        return {
+            mapKey: arena.currentMapKey,
+            modelIds: arena.currentMapDefinition.glbModels.map((model) => model?.id),
+            policyConfig: JSON.parse(JSON.stringify({ session: config.session, arcade: config.arcade })),
+        };
+    });
+    const skipped = listSkippedBreakSceneModelIds(MAP_PRESET_CATALOG[mapKey], policyConfig);
+    return modelIds.filter((modelId) => !skipped.has(modelId)).length;
+}
 
 async function startScenario(page, id) {
     await waitForLoadedGame(page);
@@ -40,10 +58,11 @@ async function startScenario(page, id) {
     }
     expect((await readScenario(page)).scenarioId).toBe(id);
     if (id !== 'bloom_escape') {
-        await expect.poll(() => page.evaluate(() => {
+        const modelCount = await countLoadableGlbModels(page);
+        await expect.poll(() => page.evaluate((count) => {
             const arena = window.GAME_INSTANCE.entityManager.arena;
-            return !arena._glbLoadError && arena._glbScene?.children?.length === arena.currentMapDefinition.glbModels.length;
-        }), { timeout: 120_000 }).toBe(true);
+            return !arena._glbLoadError && arena._glbScene?.children?.length === count;
+        }, modelCount), { timeout: 120_000 }).toBe(true);
         await expect(page.locator('#hunt-objective')).toContainText(id === 'bridge_convoy' ? 'Konvoi' : 'Tresorknacker');
         const posedAt = await page.evaluate((mission) => {
             const game = window.GAME_INSTANCE;

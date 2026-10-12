@@ -22,6 +22,12 @@ import {
 const APSE_BORE_Y = GROUND + 27;
 const APSE_BORE_Z = 4;
 const APSE_ROUTE_Z = 4;
+// The ambulatory ring sits mid-aisle, clear of the aisle pier row at z = -16.8, so a full-size
+// ship can turn towards the nave before that row instead of while it threads it. The lane then
+// crosses both pier rows square to them, on the bay line midway between the choir piers at
+// x = 47.95 and 56.35.
+const AMBULATORY_RING_Z = -21;
+const AMBULATORY_CROSSING_X = 52.15;
 
 const NOTRE_DAME_CHECKPOINTS = [
     { id: 'CP01', type: 'entry', pos: [-196, GROUND + 14, 0], radius: 7.2, forward: [1, 0, 0] },
@@ -107,7 +113,7 @@ const NOTRE_DAME_CHECKPOINTS = [
     {
         id: 'CP11_AMBULATORY',
         type: 'ambulatory_low',
-        pos: [52, AISLE_RUN, -19.6],
+        pos: [52, AISLE_RUN, AMBULATORY_RING_Z],
         radius: 4.2,
         forward: [1, 0.1, 0.3],
         nextIds: ['CP11_APSE_EXIT'],
@@ -182,7 +188,7 @@ const NOTRE_DAME_GUIDANCE_PATHS = [
     {
         branchCheckpointId: 'CP11_AMBULATORY',
         endCheckpointId: 'CP12',
-        points: [[52, AISLE_RUN, -19.6], [53, 17, -8.6], [54, 18, 2.4], [57, 18, 3], [60, AISLE_RUN, 0], [62, 20, 0], [64, 24, 0], [68, 26, 0], [72, 28, 0], [76, 32, 2], [80, GROUND + 26, APSE_ROUTE_Z], [82, GROUND + 26, APSE_ROUTE_Z], [84, GROUND + 27, APSE_BORE_Z], [86, GROUND + 27, APSE_BORE_Z], [94, GROUND + 27, APSE_BORE_Z]],
+        points: [[52, AISLE_RUN, AMBULATORY_RING_Z], [AMBULATORY_CROSSING_X, AISLE_RUN, AMBULATORY_RING_Z + 1], [AMBULATORY_CROSSING_X, 17, -4], [54, 18, 2.4], [57, 18, 3], [60, AISLE_RUN, 0], [62, 20, 0], [64, 24, 0], [68, 26, 0], [72, 28, 0], [76, 32, 2], [80, GROUND + 26, APSE_ROUTE_Z], [82, GROUND + 26, APSE_ROUTE_Z], [84, GROUND + 27, APSE_BORE_Z], [86, GROUND + 27, APSE_BORE_Z], [94, GROUND + 27, APSE_BORE_Z]],
     },
 ];
 

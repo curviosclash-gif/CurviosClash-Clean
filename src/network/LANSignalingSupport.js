@@ -91,6 +91,33 @@ export async function publishLanLobbyName({
     return res.json();
 }
 
+// Announces the ship of one seat; like the name, only the seat's own token may change it.
+// A host with a second player at its screen announces that seat's ship alongside its own.
+/** @param {{ signalingUrl?: string, playerId?: string, isHost?: boolean, token?: string, vehicleId?: string, secondVehicleId?: string }} options */
+export async function publishLanLobbyVehicle({ signalingUrl, playerId, isHost, token, vehicleId, secondVehicleId } = {}) {
+    const res = await fetch(`${signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_VEHICLE}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            playerId,
+            vehicleId: String(vehicleId ?? ''),
+            secondVehicleId: isHost && secondVehicleId !== undefined ? String(secondVehicleId ?? '') : undefined,
+            hostToken: isHost ? token : undefined,
+            playerToken: isHost ? undefined : token,
+        }),
+    });
+    if (res?.ok === false) {
+        const payload = await res.json().catch(() => ({}));
+        throw buildLanRequestError({
+            response: res,
+            payload,
+            fallbackMessage: 'Fahrzeug konnte nicht an die Lobby gemeldet werden.',
+            fallbackCode: 'lobby_vehicle_failed',
+        });
+    }
+    return res.json();
+}
+
 /**
  * @param {{ signalingUrl?: string, hostPeerId?: string, hostToken?: string,
  *   metadata?: object | null }} options

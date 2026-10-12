@@ -4,6 +4,7 @@ import {
     normalizePickupType,
 } from '../shared/contracts/PickupRegistryContract.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 const TIER_BY_ITEM = Object.freeze({
     ROCKET_WEAK: 'WEAK',
@@ -99,7 +100,7 @@ export function resolveRocketTierSpawnWeights({ allowedTypes = null, tiersConfig
 }
 
 export function pickWeightedRocketTierType(options = {}) {
-    const random = typeof options?.random === 'function' ? options.random : Math.random;
+    const random = typeof options?.random === 'function' ? options.random : createRuntimeRng().next;
     const weighted = resolveRocketTierSpawnWeights({
         allowedTypes: options?.allowedTypes || null,
         tiersConfig: options?.tiersConfig || null,

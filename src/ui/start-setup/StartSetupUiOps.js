@@ -141,6 +141,14 @@ export function renderPreviewCard(container, payload = {}) {
     });
     container.appendChild(metaDiv);
 
+    const descriptionText = String(payload.description || '').trim();
+    if (descriptionText) {
+        const descriptionDiv = document.createElement('div');
+        descriptionDiv.className = 'preview-card-description';
+        descriptionDiv.textContent = descriptionText;
+        container.appendChild(descriptionDiv);
+    }
+
     const gridDiv = document.createElement('div');
     gridDiv.className = 'preview-kv-grid';
     facts.forEach((fact) => {

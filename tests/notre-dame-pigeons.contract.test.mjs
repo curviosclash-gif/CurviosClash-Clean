@@ -2,13 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
-import { NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
 import { NOTRE_DAME_EVOLUTION_MAPS } from '../src/core/config/maps/presets/notre_dame/NotreDameEvolution.js';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { isMapUnitCombatActive } from '../src/shared/contracts/MapUnitContract.js';
 import { isParcoursActiveForGameMode } from '../src/shared/contracts/MapModeContract.js';
 
-const maps = { ...NOTRE_DAME_MAPS, ...NOTRE_DAME_FIRE_MAPS, ...NOTRE_DAME_EVOLUTION_MAPS };
+const maps = { ...NOTRE_DAME_MAPS, ...NOTRE_DAME_EVOLUTION_MAPS };
 
 test('the shared Notre-Dame flock is ten pigeons on HUNT and all arena rounds', () => {
     for (const [key, map] of Object.entries(maps)) {

@@ -11,24 +11,22 @@
             207,
             442
           ],
-          "flower_count": 19402,
+          "flower_count": 11542,
           "file": "akebono_01.glb",
-          "file_bytes": 41294208,
-          "objects": 56,
-          "triangles": 923782,
+          "file_bytes": 6654704,
+          "objects": 55,
+          "triangles": 166112,
           "materials": [
-            "Akebono | calyx and young growth",
             "Akebono | lenticels",
             "Akebono | petal highlights",
             "Akebono | petals, blush to ivory",
             "Akebono | silver-grey bark",
-            "Akebono | sparse spring leaves",
-            "Akebono | stamens"
+            "Akebono | sparse spring leaves"
           ],
           "bounds_m": [
-            9.9604,
-            9.8822,
-            9.9405
+            9.9082,
+            9.8661,
+            9.9495
           ],
           "reimported_wind_leaf_nodes": 48,
           "wind_leaf_extras": 48,
@@ -415,25 +413,23 @@
             "3": 162,
             "4": 955
           },
-          "flower_count": 14485,
+          "flower_count": 7099,
           "file": "kanzan_01.glb",
-          "file_bytes": 47317132,
-          "objects": 56,
-          "triangles": 971184,
+          "file_bytes": 5329096,
+          "objects": 54,
+          "triangles": 192094,
           "materials": [
             "Bark | warm reddish brown",
-            "Calyx | muted rose",
             "Lenticels | pale warm gray",
             "Petals | blush",
             "Petals | pale pink",
             "Petals | warm pink",
-            "Stamens | golden ivory",
             "Young leaves | bronze green"
           ],
           "bounds_m": [
-            7.9171,
-            8.1622,
-            6.5137
+            7.8844,
+            8.11,
+            6.4576
           ],
           "reimported_wind_leaf_nodes": 48,
           "wind_leaf_extras": 48,
@@ -496,25 +492,23 @@
             "3": 171,
             "4": 1038
           },
-          "flower_count": 3374,
+          "flower_count": 4137,
           "file": "kanzan_02.glb",
-          "file_bytes": 11045688,
-          "objects": 56,
-          "triangles": 262914,
+          "file_bytes": 3949100,
+          "objects": 54,
+          "triangles": 150084,
           "materials": [
             "Bark | warm reddish brown",
-            "Calyx | muted rose",
             "Lenticels | pale warm gray",
             "Petals | blush",
             "Petals | pale pink",
             "Petals | warm pink",
-            "Stamens | golden ivory",
             "Young leaves | bronze green"
           ],
           "bounds_m": [
             7.926,
-            9.0009,
-            6.1253
+            9.0739,
+            6.1694
           ],
           "reimported_wind_leaf_nodes": 48,
           "wind_leaf_extras": 48,
@@ -577,25 +571,23 @@
             "3": 176,
             "4": 1069
           },
-          "flower_count": 3295,
+          "flower_count": 4191,
           "file": "kanzan_03.glb",
-          "file_bytes": 10885688,
-          "objects": 56,
-          "triangles": 261303,
+          "file_bytes": 4022140,
+          "objects": 54,
+          "triangles": 153206,
           "materials": [
             "Bark | warm reddish brown",
-            "Calyx | muted rose",
             "Lenticels | pale warm gray",
             "Petals | blush",
             "Petals | pale pink",
             "Petals | warm pink",
-            "Stamens | golden ivory",
             "Young leaves | bronze green"
           ],
           "bounds_m": [
-            8.3888,
-            8.072,
-            6.2545
+            8.3048,
+            8.0087,
+            6.208
           ],
           "reimported_wind_leaf_nodes": 48,
           "wind_leaf_extras": 48,
@@ -658,25 +650,23 @@
             "3": 166,
             "4": 974
           },
-          "flower_count": 3215,
+          "flower_count": 3892,
           "file": "kanzan_04.glb",
-          "file_bytes": 10351984,
-          "objects": 56,
-          "triangles": 250106,
+          "file_bytes": 3733188,
+          "objects": 54,
+          "triangles": 141906,
           "materials": [
             "Bark | warm reddish brown",
-            "Calyx | muted rose",
             "Lenticels | pale warm gray",
             "Petals | blush",
             "Petals | pale pink",
             "Petals | warm pink",
-            "Stamens | golden ivory",
             "Young leaves | bronze green"
           ],
           "bounds_m": [
-            8.2984,
-            7.5613,
-            5.9949
+            8.2957,
+            7.6656,
+            5.9376
           ],
           "reimported_wind_leaf_nodes": 48,
           "wind_leaf_extras": 48,
@@ -739,23 +729,21 @@
             "3": 197,
             "4": 1192
           },
-          "flower_count": 3782,
+          "flower_count": 4592,
           "file": "kanzan_05.glb",
-          "file_bytes": 12417988,
-          "objects": 56,
-          "triangles": 296516,
+          "file_bytes": 4418188,
+          "objects": 54,
+          "triangles": 168642,
           "materials": [
             "Bark | warm reddish brown",
-            "Calyx | muted rose",
             "Lenticels | pale warm gray",
             "Petals | blush",
             "Petals | pale pink",
             "Petals | warm pink",
-            "Stamens | golden ivory",
             "Young leaves | bronze green"
           ],
           "bounds_m": [
-            8.3268,
+            8.3627,
             9.2301,
             6.5165
           ],
@@ -862,10 +850,10 @@
       "kanzan_04.glb",
       "kanzan_05.glb"
     ],
-    "near_triangles": 1894966,
-    "distance_triangles": 1281657,
-    "all_visible_triangles": 3176623,
-    "total_render_bytes": 143481684,
+    "near_triangles": 358206,
+    "distance_triangles": 824656,
+    "all_visible_triangles": 1182862,
+    "total_render_bytes": 38275412,
     "total_collision_bytes": 8588
   }
 }

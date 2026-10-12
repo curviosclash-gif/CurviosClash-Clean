@@ -1432,6 +1432,12 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     gap: 6px;
 }
 
+.preview-card-description {
+    color: #b9cde6;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
 .preview-badge {
     display: inline-flex;
     align-items: center;
@@ -6597,7 +6603,9 @@ body:has(#hunt-hud:not(.hidden) #hunt-target-progress:not(.hidden)) #hud-notice-
 .hangar-status-message[data-tone="warning"] { color: #ffd184; }
 .hangar-status-message[data-tone="error"] { color: #ff9aa8; }
 
-.hangar-workshop-shell :is(button, input, select, summary, [tabindex]):focus-visible {
+.hangar-workshop-shell :is(button, input, select, summary, [tabindex]):focus-visible,
+/* Pad focus after a mouse click is not :focus-visible; HangarGamepadNavigation flags the page instead. */
+[data-gamepad-focus="true"] :is(button, input, select, summary, [href], [tabindex]):focus {
     outline: 2px solid #7ccaff;
     outline-offset: 2px;
 }

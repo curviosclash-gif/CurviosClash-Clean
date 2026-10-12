@@ -1,9 +1,5 @@
 import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
-import {
-    HANGAR_SELECTION_PLAYER_SLOTS,
-    writeHangarMapSelection,
-    writeHangarVehicleSelection,
-} from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { writeHangarMapSelection } from '../../composition/core-ui/CoreUiMenuPorts.js';
 import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import { CONFIG } from '../Config.js';
 import { MATCH_SETTING_CHANGE_KEY_SET, START_VALIDATION_RELEVANT_KEY_SET } from './GameRuntimeSettingsKeySets.js';
@@ -49,23 +45,13 @@ export class GameRuntimeSettingsHandler {
             game.settings,
             { accessContext: this._facade?._resolveMenuAccessContext?.() }
         );
-        const modePath = game.settings?.localSettings?.modePath;
+        // Only the map follows the host; the hangar vehicle stays the guest's own pick.
         writeHangarMapSelection(
             game.settings,
             game.settings.mapKey,
             game.settings.mapKey,
-            { modePath }
+            { modePath: game.settings?.localSettings?.modePath }
         );
-        for (const playerSlot of Object.values(HANGAR_SELECTION_PLAYER_SLOTS)) {
-            const vehicleId = game.settings?.vehicles?.[playerSlot];
-            writeHangarVehicleSelection(
-                game.settings,
-                playerSlot,
-                vehicleId,
-                vehicleId,
-                { modePath }
-            );
-        }
         this.markSettingsDirty(false);
         game.uiManager?.syncAll?.();
         game.uiManager?.updateContext?.();

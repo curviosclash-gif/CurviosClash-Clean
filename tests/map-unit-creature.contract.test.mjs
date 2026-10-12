@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 
+import { CONFIG } from '../src/core/Config.js';
 import { MAP_PRESET_CATALOG_BASE_DATA } from '../src/core/config/maps/MapPresetCatalogBaseData.js';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { normalizeMapUnit } from '../src/shared/contracts/MapUnitContract.js';
@@ -109,18 +110,27 @@ test('standard arena places the first giant worm on a clear in-bounds ground rou
     const worm = map.mapUnits.find((unit) => unit.kind === 'creature');
     assert.ok(worm);
     assert.equal(worm.id, 'standard_giant_worm');
-    for (const [x, y, z] of worm.path) {
-        assert.ok(Math.abs(x) <= map.size[0] / 2 - worm.hitboxRadius);
-        assert.ok(Math.abs(z) <= map.size[2] / 2 - worm.hitboxRadius);
-        assert.equal(y, 0);
+    // The runtime scales a unit only on maps that scale their anchors (resolveAuthoredAnchorScale), so
+    // this path counts in world units; the obstacles and the arena size are always built x MAP_SCALE.
+    const unitScale = map.scaleAuthoredAnchors === true ? CONFIG.ARENA.MAP_SCALE : 1;
+    const blockers = (path, hitboxRadius) => path.flatMap(([x, y, z]) => {
+        const found = [];
+        if (Math.abs(x) > (map.size[0] * CONFIG.ARENA.MAP_SCALE) / 2 - hitboxRadius
+            || Math.abs(z) > (map.size[2] * CONFIG.ARENA.MAP_SCALE) / 2 - hitboxRadius) found.push('arena wall');
+        if (y !== 0) found.push('not on the ground');
         for (const obstacle of map.obstacles) {
-            const halfX = obstacle.size[0] / 2 + worm.hitboxRadius;
-            const halfZ = obstacle.size[2] / 2 + worm.hitboxRadius;
-            assert.equal(Math.abs(x - obstacle.pos[0]) < halfX && Math.abs(z - obstacle.pos[2]) < halfZ, false);
+            const halfX = (obstacle.size[0] * CONFIG.ARENA.MAP_SCALE) / 2 + hitboxRadius;
+            const halfZ = (obstacle.size[2] * CONFIG.ARENA.MAP_SCALE) / 2 + hitboxRadius;
+            if (Math.abs(x - obstacle.pos[0] * CONFIG.ARENA.MAP_SCALE) < halfX
+                && Math.abs(z - obstacle.pos[2] * CONFIG.ARENA.MAP_SCALE) < halfZ) found.push(`obstacle at ${obstacle.pos}`);
         }
-    }
+        return found;
+    });
+    const path = worm.path.map((point) => point.map((value) => value * unitScale));
+    assert.deepEqual(blockers(path, worm.hitboxRadius * unitScale), []);
+    // The check itself: a route through the 12 unit centre pillar was waved through in map units.
+    assert.deepEqual(blockers([[10, 0, -10]], worm.hitboxRadius * unitScale), ['obstacle at 0,5,0']);
 });
-
 test('the renderer builds one segmented worm visual and clears it on restart', () => {
     const roots = [];
     const renderer = { addToScene: (root) => roots.push(root), removeFromScene() {} };

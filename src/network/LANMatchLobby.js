@@ -18,7 +18,7 @@ import {
 import {
     buildLanRequestError,
     postLanHostCommand,
-    publishLanLobbyMetadata, publishLanLobbyName,
+    publishLanLobbyMetadata, publishLanLobbyName, publishLanLobbyVehicle,
 } from './LANSignalingSupport.js';
 import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
 
@@ -79,7 +79,7 @@ export class LANMatchLobby extends MatchLobby {
                 maxPlayers: Number(options.maxPlayers || 10), localPlayerCount: options.localPlayerCount,
                 actorId: options.actorId,
                 name: options.name || options.actorId,
-                lobbyName: options.lobbyName,
+                lobbyName: options.lobbyName, vehicleId: options.vehicleId,
                 metadata: options.metadata,
             }),
         });
@@ -128,7 +128,7 @@ export class LANMatchLobby extends MatchLobby {
                     lobbyCode: this.lobbyCode,
                     actorId: joinOptions.actorId,
                     name: joinOptions.name || joinOptions.actorId,
-                    lobbyName: joinOptions.lobbyName,
+                    lobbyName: joinOptions.lobbyName, vehicleId: joinOptions.vehicleId,
                     participantMetadata: joinOptions.participantMetadata,
                 }),
             });
@@ -193,6 +193,7 @@ export class LANMatchLobby extends MatchLobby {
                 actorId: String(player?.actorId || existing?.actorId || player?.name || (peerId === hostPeerId ? 'Host' : peerId)).trim(),
                 name: String(player?.name || existing?.name || peerId).trim(),
                 lobbyName: typeof player?.lobbyName === 'string' ? player.lobbyName : (existing?.lobbyName || ''),
+                vehicleId: typeof player?.vehicleId === 'string' ? player.vehicleId : (existing?.vehicleId || ''), secondVehicleId: typeof player?.secondVehicleId === 'string' ? player.secondVehicleId : (existing?.secondVehicleId || ''),
                 role: peerId === hostPeerId ? 'host' : fallbackRole,
                 ready: resolvedReady,
                 joinedAt: Number(existing?.joinedAt || now),
@@ -204,7 +205,7 @@ export class LANMatchLobby extends MatchLobby {
             playerId: hostPeerId,
             actorId: status.hostActorId,
             name: status.hostName || status.hostActorId || 'Host',
-            lobbyName: status.hostLobbyName,
+            lobbyName: status.hostLobbyName, vehicleId: status.hostVehicleId, secondVehicleId: status.hostSecondVehicleId,
             ready: status.hostReady === true,
         }, 'host');
         for (const player of serverPlayers) {
@@ -463,6 +464,12 @@ export class LANMatchLobby extends MatchLobby {
         const data = await publishLanLobbyName({ signalingUrl: this._signalingUrl, playerId: this._localPeerId || 'host', isHost: this.isHost, token: this._localPeerToken, lobbyName });
         this._processServerStatus(data);
         return data;
+    }
+
+    /** @param {string} vehicleId @param {{ secondVehicleId?: string }} [options] */
+    setVehicle(vehicleId, { secondVehicleId } = {}) {
+        return publishLanLobbyVehicle({ signalingUrl: this._signalingUrl, playerId: this._localPeerId || 'host', isHost: this.isHost, token: this._localPeerToken, vehicleId, secondVehicleId })
+            .then((data) => { this._processServerStatus(data); return data; });
     }
 
     updateSettings(settings) {

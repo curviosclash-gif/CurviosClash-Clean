@@ -853,6 +853,7 @@ export async function startHuntGame(page, options = {}) {
     await trySelectModePath(page, 'fight');
     await ensureModePathSelected(page, 'fight', options);
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    if (options.mapKey) await page.selectOption('#map-select', options.mapKey);
     await triggerMatchStart(page, options);
     await waitForHuntRuntimeReady(page, 1, 60000);
 }

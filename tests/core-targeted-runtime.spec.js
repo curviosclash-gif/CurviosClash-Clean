@@ -2056,7 +2056,10 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
             const clientWaitPromise = waitForRuntimePlayersLoaded(clientFacade);
             await new Promise((resolve) => setTimeout(resolve, 0));
-            clientSession.emit('roundStartGate', { expectedPeerIds: ['host', 'client'] });
+            clientSession.emit('roundStartGate', {
+                expectedPeerIds: ['host', 'client'],
+                timestamp: Date.now(),
+            });
             await clientWaitPromise;
 
             let resolveReconcilerFactory = null;

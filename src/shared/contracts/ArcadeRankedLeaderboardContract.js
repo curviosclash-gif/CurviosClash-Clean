@@ -1,4 +1,5 @@
 import { resolveArcadeLevelRange } from './ArcadeHangarRulesContract.js';
+import { DEFAULT_PORTAL_CHAIN_ID, normalizePortalChainId } from './PortalChainContract.js';
 
 export const ARCADE_RANKED_STORAGE_KEY = 'cuviosclash.arcade-ranked-leaderboard.v1';
 export const ARCADE_RANKED_VERSION = 'arcade-ranked-leaderboard.v1';
@@ -7,7 +8,10 @@ const RUNS = new Set(['gauntlet', 'endless_parcours', 'arena_waves', 'five_porta
 export function resolveArcadeRankKey(context) {
     if (!context?.ranked || !RUNS.has(context.runType)) return '';
     const range = resolveArcadeLevelRange(context.vehicleLevel);
-    return `${context.runType}:${context.tierId}:${range.min}-${range.max}`;
+    // Every portal chain rides five_portals; the default chain keeps the key its saved times use.
+    const chainId = context.runType === 'five_portals' ? normalizePortalChainId(context.portalChainId) : DEFAULT_PORTAL_CHAIN_ID;
+    const chain = chainId === DEFAULT_PORTAL_CHAIN_ID ? '' : `${chainId}:`;
+    return `${context.runType}:${chain}${context.tierId}:${range.min}-${range.max}`;
 }
 
 export function resolveArcadeParcoursRankKey(routeId, context) {

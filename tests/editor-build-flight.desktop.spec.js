@@ -112,10 +112,14 @@ test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isol
         await editorPage.keyboard.up('Enter');
         await editorPage.waitForFunction(() => !window.CURVIOS_EDITOR.ui.buildFlight.loading);
         expect(await editorPage.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(initial.count + 2);
+        // Each placement is exactly one undo step: undo removes one block, redo brings it back.
+        const objectCount = () => editorPage.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount());
         await editorPage.keyboard.press('Control+z');
         await editorPage.waitForFunction(() => !window.CURVIOS_EDITOR.ui.buildFlight.loading);
+        await expect.poll(objectCount).toBe(initial.count + 1);
         await editorPage.keyboard.press('Control+y');
         await editorPage.waitForFunction(() => !window.CURVIOS_EDITOR.ui.buildFlight.loading);
+        await expect.poll(objectCount).toBe(initial.count + 2);
         await editorPage.keyboard.press('KeyC');
         expect(await editorPage.evaluate(() => window.CURVIOS_EDITOR.ui.buildFlight.firstPerson)).toBe(true);
         await editorPage.keyboard.press('KeyC');

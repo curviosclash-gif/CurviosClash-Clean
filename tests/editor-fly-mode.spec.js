@@ -47,6 +47,8 @@ const readLook = (page) => page.evaluate(() => {
         cameraDistance: core.camera.position.length(),
         sky: !!core.scene.getObjectByName('scene-atmosphere-sky'),
         editorLightsVisible: core.editorLights.every((light) => light.visible),
+        // Layer 1 holds the selection outlines.
+        outlinesDrawn: core.camera.layers.isEnabled(1),
         hardOpacity: window.CURVIOS_EDITOR.mapManager.mats.hard.opacity,
         drawCalls: core.renderer.info.render.calls,
     };
@@ -68,6 +70,7 @@ test('Spielansicht: Licht, Himmel und Nebel wie im Spiel, danach wieder die Baua
     expect(gameView.sky).toBe(true);
     expect(gameView.toneMapping).not.toBe(before.toneMapping);
     expect(gameView.editorLightsVisible).toBe(false);
+    expect(gameView.outlinesDrawn).toBe(false);
     expect(gameView.hardOpacity).toBe(1);
     // The overview camera stands outside the match view distance; the arena must stay visible.
     expect(gameView.fogFar).toBeGreaterThan(gameView.cameraDistance);
@@ -120,6 +123,60 @@ test('Kartenwelt: das Welt-Modell einer Karte erscheint in Spielgroesse statt al
     expect(world.extent).toBeCloseTo(35 * world.sourceSize, 3);
     expect(world.extent).toBeGreaterThan(3000);
     expect(world.extent).toBeLessThan(6000);
+});
+
+test('Spielkarte als Grundlage: Kinderzimmer gesperrt mit Spiel-Licht, Platzierung im Kartenformat', async ({ page }) => {
+    await openEditorWithSelectedBlock(page);
+    await page.locator('[data-editor-tab="map"]').click();
+    await expect(page.locator('#selBackdropMap option[value="toybox_titan"]')).toHaveCount(1);
+    await page.locator('#selBackdropMap').selectOption('toybox_titan');
+    await page.locator('#btnLoadBackdrop').click();
+    // The selected block from the helper makes the editor ask before replacing the map.
+    await page.locator('#btnEditorModalConfirm').click();
+
+    await expect.poll(() => page.evaluate(() => (
+        window.CURVIOS_EDITOR.assetLoader.getLoadStatus('toybox-titan-world')?.state
+    )), { timeout: 30_000 }).toBe('loaded');
+    const backdrop = await page.evaluate(() => {
+        const editor = window.CURVIOS_EDITOR;
+        const world = editor.core.objectsContainer.children.find((child) => child.userData.type === 'glb');
+        return {
+            locked: world.userData.editorLocked === true,
+            placeholder: world.userData.isEditorPlaceholder === true,
+            gameView: editor.ui.isGameViewActive(),
+            fogColor: editor.core.scene.fog.color.getHex(),
+            spawn: !!editor.mapManager.getObjectById('spawn_player'),
+            arenaWidth: editor.ui.ARENA_W,
+            cameraAtSpawn: editor.core.camera.position.distanceTo(editor.mapManager.getObjectById('spawn_player').position) < 1,
+        };
+    });
+    expect(backdrop).toEqual({
+        locked: true,
+        placeholder: false,
+        gameView: true,
+        // Toybox fog blends fully into its horizon colour (skyBlend 1).
+        fogColor: 0xe8f2ff,
+        spawn: true,
+        arenaWidth: 120 * 35,
+        cameraAtSpawn: true,
+    });
+
+    // Saved as a new map, the toybox lighting goes along into the match.
+    const savedLighting = await page.evaluate(() => {
+        const editor = window.CURVIOS_EDITOR;
+        return JSON.parse(editor.mapManager.generateJSONExport(editor.ui.getArenaSizeForExport())).lighting || null;
+    });
+    expect(savedLighting?.hemisphere).toEqual({ skyColor: 0xdfefff, groundColor: 0xcbb89a });
+
+    await page.evaluate(() => {
+        window.CURVIOS_EDITOR.mapManager.createMesh('item', 'item_star', 350, 700, -1050, 0, { id: 'star_1' });
+    });
+    await page.locator('#btnCopyPresetPlacements').click();
+    await expect.poll(async () => JSON.parse(await page.locator('#jsonOutput').inputValue() || '{}').items?.[0] || null)
+        .toMatchObject({ x: 10, y: 20, z: -30 });
+    const copied = JSON.parse(await page.locator('#jsonOutput').inputValue());
+    expect(copied.glbModels).toBeUndefined();
+    expect(copied.scaleAuthoredAnchors).toBe(true);
 });
 
 test('Bauflug: G in einem Eingabefeld startet keinen Flug, ausserhalb schon', async ({ page }) => {

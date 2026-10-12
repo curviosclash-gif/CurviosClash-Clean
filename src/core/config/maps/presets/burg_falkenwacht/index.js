@@ -15,6 +15,14 @@ const lighting = {
     exposureOffset: 0.08,
 };
 
+// The portcullis bars (11_portcullis, y 18 to 42.6 when down) stop short of the arch of the inner
+// gate (05_inner_wall, up to y 66), and the GLB has no surface in between: with the bars down the
+// upper arch was a free corridor through the wall. This box fills it. It stays active next to the
+// scene collision (compileWithGlb), sits inside the wall's own 13 units of thickness, starts at the
+// bar tops and ends under the roof beam, and leaves the passage below y 42.4 untouched. When the
+// portcullis is raised its iron stands in the same space, so nothing visible changes.
+const GATE_ARCH_FILL = { pos: [0, 55.2, 0], size: [42, 25.6, 4], compileWithGlb: true };
+
 function item(id, pickupType, type, x, y, z) {
     return { id: `falkenwacht_${id}`, pickupType, type, x, y, z, weight: 1 };
 }
@@ -28,6 +36,14 @@ const items = [
     item('palas_ghost', 'GHOST', 'item_coin', 80, 34, -56),
     item('keep_reward', 'SHIELD', 'item_crystal', -64, 117, -42),
     item('gallery_reward', 'ROCKET_WEAK', 'item_rocket', 70, 61, -102),
+    // Forecourt and corners: the first eight stood inside the castle, 8 items on 460 x 360 left
+    // the outer ground empty. Every point is open ground at 18 to 28 units above the terrain.
+    item('forecourt_west_rocket', 'ROCKET_WEAK', 'item_rocket', -120, 28, 150),
+    item('forecourt_east_shield', 'SHIELD', 'item_shield', 120, 28, 150),
+    item('corner_nw_speed', 'SPEED_UP', 'item_battery', -190, 30, -130),
+    item('corner_ne_ghost', 'GHOST', 'item_coin', 190, 30, -130),
+    item('north_thick', 'THICK', 'item_coin', 0, 45, -130),
+    item('corner_se_speed', 'SPEED_UP', 'item_battery', 190, 30, 120),
 ];
 
 const spawns = [
@@ -57,7 +73,7 @@ const common = {
     glbAuthoredObstaclesCollisionOnly: true,
     glbAnimationClock: { beatSeconds: 4 },
     glbLoadConcurrency: 3,
-    obstacles: FALKENWACHT_OBSTACLES,
+    obstacles: [...FALKENWACHT_OBSTACLES, GATE_ARCH_FILL],
     lighting,
     lights: [
         { id: 'fw_stable', x: -85, y: 39, z: 45, color: 0xffba67, intensity: 2600, distance: 35 },

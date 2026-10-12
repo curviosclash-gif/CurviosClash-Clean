@@ -27,6 +27,9 @@ export const CLOCKWORK_CANYON_MAPS = {
         name: 'Clockwork Canyon',
         size: [150, 70, 150],
         preferAuthoredPortals: true,
+        // Spawns, Items und Flugzeuge sind wie Hindernisse, Tore und Portale in Karteneinheiten
+        // geschrieben; ohne dieses Flag zählten sie als Weltmaß und lagen in den Zahnradpfeilern.
+        scaleAuthoredAnchors: true,
         portalLevels: [10, 25, 40],
         ...CLOCKWORK_CANYON_APPEARANCE,
         obstacles: [

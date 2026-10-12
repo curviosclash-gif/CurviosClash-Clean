@@ -2,7 +2,8 @@ import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.j
 import { createDemolitionMapPlan } from '../../shared/contracts/DemolitionContract.js';
 import { validateArcadePlayerProfileSelection } from './ArcadeDemolitionProfileSelection.js';
 
-export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, seed, demolitionProfiles, runtimeAccess) {
+// getSeed is read on click: "Seed neu rollen" and "Seed setzen" change the seed after binding.
+export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, getSeed, demolitionProfiles, runtimeAccess) {
     bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
     bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
     bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }, 'five_portals'));
@@ -19,7 +20,7 @@ export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, se
             runtimeAccess?.showStatusToast?.(message, 1800, 'warning');
             return;
         }
-        const firstMap = createDemolitionMapPlan(seed).maps[0];
+        const firstMap = createDemolitionMapPlan(getSeed()).maps[0];
         startRunWithOwnMap('demolition', { mapKey: firstMap.mapKey, numBots: firstMap.botCount });
     });
 }

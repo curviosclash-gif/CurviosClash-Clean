@@ -36,9 +36,11 @@ import { clearDeadPlayerEffects } from './player/PlayerCombatResetOps.js';
 import { PlayerController } from './player/PlayerController.js';
 import { createPlayerView } from './player/createPlayerView.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../four-player-planar/FourPlayerPlanarPhysics.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 export class Player {
     constructor(renderer, index, color, isBot = false, options = {}) {
+        this._fallbackRuntimeRng = createRuntimeRng({});
         this.renderer = renderer;
         this.index = index;
         this.color = color;
@@ -226,7 +228,7 @@ export class Player {
             this.quaternion.setFromUnitVectors(this._tmpDir.set(0, 0, -1), this._tmpVec);
         } else {
             const roll = this.entityManager?.runtimeRng?.next;
-            const angle = (typeof roll === 'function' ? roll() : Math.random()) * Math.PI * 2;
+            const angle = (typeof roll === 'function' ? roll() : this._fallbackRuntimeRng.next()) * Math.PI * 2;
             this._tmpEuler.set(0, angle, 0, 'YXZ');
             this.quaternion.setFromEuler(this._tmpEuler);
         }
@@ -306,9 +308,7 @@ export class Player {
     }
 
     setControlOptions(options = {}) {
-        if (typeof options.invertPitch === 'boolean') {
-            this.invertPitchBase = options.invertPitch;
-        }
+        if (typeof options.invertPitch === 'boolean') this.invertPitchBase = options.invertPitch;
         if (typeof options.modelScale === 'number') {
             this.modelScale = options.modelScale;
             this.trail?.setVisualRearOffset?.(

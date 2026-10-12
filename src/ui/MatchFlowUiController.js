@@ -1,5 +1,6 @@
 import { MatchFeedbackAdapter } from './MatchFeedbackAdapter.js';
 import { PauseOverlayController } from './PauseOverlayController.js';
+import { setPauseOverlayHidden } from './PauseOverlayFocus.js';
 import { MatchFlowArcadeOverlayController } from './MatchFlowArcadeOverlayController.js';
 import { MatchFlowLifecycleController } from './MatchFlowLifecycleController.js';
 import { MatchFlowTelemetryController } from './MatchFlowTelemetryController.js';
@@ -148,7 +149,7 @@ export class MatchFlowUiController {
             this._applyContinuePromptUi(uiState.continuePrompt);
         }
         if (game.ui.pauseOverlay && hasOwn('pauseOverlayHidden')) {
-            game.ui.pauseOverlay.classList.toggle('hidden', visibility.pauseOverlayHidden !== false);
+            setPauseOverlayHidden(game.ui, visibility.pauseOverlayHidden !== false);
         }
         if (game.ui.statusToast && hasOwn('statusToastHidden')) {
             game.ui.statusToast.classList.toggle('hidden', visibility.statusToastHidden !== false);

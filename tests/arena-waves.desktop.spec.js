@@ -2,6 +2,8 @@ import { expect, test } from './helpers.desktop.js';
 import { waitForLoadedGame } from './helpers.js';
 import { applyArenaWavesChoice } from '../src/shared/contracts/ArenaWavesContract.js';
 import { EIFFEL_TOWER_SIEGE_MODELS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeModels.js';
+import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
+import { listSkippedBreakSceneModelIds } from '../src/entities/arena/MapBreakSceneLoadPolicy.js';
 import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 
 test('T-ARC-W3: Five Fronts starts with the selected Hangar MG', async ({ page }) => {
@@ -117,16 +119,25 @@ test('Five Fronts starts, offers one upgrade, retains it across a forced map tra
     await expect(page.locator('#arcade-overlay-panel .arcade-overlay-choice-btn')).toHaveCount(4);
     await page.locator('#arcade-overlay-panel .arcade-overlay-choice-btn').first().click();
     await page.evaluate(async () => window.GAME_INSTANCE.runtimeFacade.restartRound());
-    await page.waitForFunction((modelCount) => {
+    await page.waitForFunction(() => {
         const game = window.GAME_INSTANCE;
         const runtime = game?.runtimeFacade?._arcadeSupport?.arenaWavesRuntime;
         return runtime?.mapIndex === 2
             && runtime?.phase === 'countdown'
             && runtime?.getHudState?.().currentMapKey === 'eiffel_tower_siege'
-            && game?.arena?.currentMapKey === 'eiffel_tower_siege'
-            && game?.arena?._glbLoadError == null
-            && game?.arena?._glbScene?.children?.length === modelCount;
-    }, EIFFEL_TOWER_SIEGE_MODELS.length, { timeout: 360_000 });
+            && game?.arena?.currentMapKey === 'eiffel_tower_siege';
+    }, null, { timeout: 360_000 });
+    // Five Fronts is an Arcade run, where the tower cannot fall: the arena leaves the collapse
+    // scenes out, so the loaded world is the map's models minus the ones the same policy skips.
+    const policyConfig = await page.evaluate(() => {
+        const config = window.GAME_INSTANCE.arena.runtimeConfig || {};
+        return JSON.parse(JSON.stringify({ session: config.session, arcade: config.arcade }));
+    });
+    const skippedScenes = listSkippedBreakSceneModelIds(MAP_PRESET_CATALOG.eiffel_tower_siege, policyConfig);
+    await page.waitForFunction((modelCount) => {
+        const arena = window.GAME_INSTANCE?.arena;
+        return arena?._glbLoadError == null && arena?._glbScene?.children?.length === modelCount;
+    }, EIFFEL_TOWER_SIEGE_MODELS.filter((model) => !skippedScenes.has(model.id)).length, { timeout: 360_000 });
 
     await page.evaluate(() => {
         const runtime = window.GAME_INSTANCE.runtimeFacade._arcadeSupport.arenaWavesRuntime;
