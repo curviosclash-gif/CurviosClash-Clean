@@ -7,15 +7,14 @@ import {
     applyMapDestructibleDamage,
     applyMapDestructibleNetworkState,
     createMapDestructibleState,
-    isMapDestructibleModeAllowed,
     normalizeMapDestructibles,
     resolveMapDestructibleHudState,
     resolveMapDestructibleSegmentByHit,
     serializeMapDestructibleState,
 } from '../../shared/contracts/MapDestructibleContract.js';
 import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
-import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
 import { allowsBotMapDestructibleFire } from '../../shared/contracts/MapDestructibleBotTargetContract.js';
+import { resolveMapDestructibleEligibility } from '../arena/MapBreakSceneLoadPolicy.js';
 import * as THREE from 'three';
 
 const WIND_STEPS = 3600;
@@ -63,13 +62,10 @@ export class MapDestructibleSystem {
         const map = arena?.currentMapDefinition;
         const authored = normalizeMapDestructibles(map?.destructibles);
         const mode = String(this.entityManager?.gameModeStrategy?.modeType || '').toUpperCase();
-        const demolitionAllowed = mode === 'ARCADE' && isDemolitionConfig(this.entityManager?.runtimeConfig);
-        const scenarioId = this.entityManager?.runtimeConfig?.arcade?.scenarioId;
-        const scenarioAllowed = mode === 'ARCADE' && scenarioId === 'vault_breaker'
-            && this.entityManager?.runtimeConfig?.session?.mapKey === 'eiffel_tower_siege';
-        this._vaultScenarioActive = scenarioAllowed;
+        const eligibility = resolveMapDestructibleEligibility(authored, mode, this.entityManager?.runtimeConfig);
+        this._vaultScenarioActive = eligibility.vaultScenario;
         this.botFireAllowed = allowsBotMapDestructibleFire(mode);
-        this.definition = isMapDestructibleModeAllowed(authored, mode) || demolitionAllowed || scenarioAllowed ? authored : null;
+        this.definition = eligibility.active ? authored : null;
         // Authored anchors are given in the map's own units; a scaled map builds its tower that
         // much larger, so the anchors a hit is measured against have to grow with it.
         this.anchorScale = resolveAuthoredAnchorScale(map, this.entityManager);

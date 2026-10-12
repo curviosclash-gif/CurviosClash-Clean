@@ -35,3 +35,34 @@ test('garden game variants retain geometry and animation bytes with a smaller te
     }
     assert.ok(optimizedBytes < originalBytes * 0.6, `${optimizedBytes} / ${originalBytes}`);
 });
+
+function webpSize(bytes) {
+    assert.equal(bytes.toString('ascii', 0, 4), 'RIFF');
+    assert.equal(bytes.toString('ascii', 8, 12), 'WEBP');
+    const kind = bytes.toString('ascii', 12, 16);
+    if (kind === 'VP8 ') return [bytes.readUInt16LE(26) & 0x3fff, bytes.readUInt16LE(28) & 0x3fff];
+    if (kind === 'VP8L') {
+        const bits = bytes.readUInt32LE(21);
+        return [(bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1];
+    }
+    assert.equal(kind, 'VP8X');
+    return [1 + bytes.readUIntLE(24, 3), 1 + bytes.readUIntLE(27, 3)];
+}
+
+test('garden game variants keep textures at 1024 px or less and constant maps tiny', () => {
+    // The 2048 px atlases of the bushes cost about 22 MB of video memory each on the shared-memory
+    // reference GPU for a bush that is a few dozen pixels wide in flight; the sky texture of the
+    // black hole (4096 px) is showcase content and is left alone.
+    const dir = 'assets/models/optimized_cc0/pm-avatar-garden/';
+    for (const file of readdirSync(dir).filter((name) => name.endsWith('.glb') && name !== 'BlackHole01.glb')) {
+        const { json, binary } = readGlb(`${dir}${file}`);
+        for (const image of json.images) {
+            const view = json.bufferViews[image.bufferView];
+            const [width, height] = webpSize(binary.subarray(view.byteOffset || 0, (view.byteOffset || 0) + view.byteLength));
+            assert.ok(Math.max(width, height) <= 1024, `${file}: ${image.name} is ${width}x${height}`);
+            if (/metallic/i.test(image.name) && view.byteLength < 400) {
+                assert.ok(Math.max(width, height) <= 4, `${file}: constant map ${image.name} is ${width}x${height}`);
+            }
+        }
+    }
+});

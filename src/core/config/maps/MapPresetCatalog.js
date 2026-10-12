@@ -25,7 +25,6 @@ import { DANDELION_SKY_MAP } from './presets/dandelion_sky.js';
 import { SUNFLOWER_MEADOW_MAP } from './presets/sunflower_meadow.js';
 import { AETHERION_ORRERY_MAP } from './presets/aetherion_orrery.js';
 import { NOTRE_DAME_MAPS } from './presets/notre_dame/index.js';
-import { NOTRE_DAME_FIRE_MAPS } from './presets/notre_dame_fire/index.js';
 import { EIFFEL_TOWER_MAPS } from './presets/eiffel_tower/index.js';
 import { EIFFEL_TOWER_SIEGE_MAPS } from './presets/eiffel_tower_siege/index.js';
 import { REACTOR_SITE_MAPS } from './presets/reactor_site/index.js';
@@ -70,7 +69,6 @@ export const MAP_PRESET_CATALOG = {
     ...(SUNFLOWER_MEADOW_MAP || {}),
     ...(AETHERION_ORRERY_MAP || {}),
     ...(NOTRE_DAME_MAPS || {}),
-    ...(NOTRE_DAME_FIRE_MAPS || {}),
     ...NOTRE_DAME_EVOLUTION_MAPS,
     ...(EIFFEL_TOWER_MAPS || {}),
     ...(EIFFEL_TOWER_SIEGE_MAPS || {}),

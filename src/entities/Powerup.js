@@ -7,7 +7,7 @@ import { PowerupModelFactory } from './PowerupModelFactory.js';
 import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
 import { applyBlenderPickupModel } from './powerup/PowerupVisualCatalog.js';
 import { findSafePowerupPosition } from './powerup/PowerupSpawnSafetyOps.js';
-import { resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
+import { isAnchorInSealedRing, resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
 import { isSharedPowerupMaterial } from './powerup/PowerupSharedMaterials.js';
 import {
     isPickupTypeAllowedForMode,
@@ -28,6 +28,7 @@ import {
     resolveFixedItemRespawnSeconds, scheduleCollectedAnchorRespawn, spawnDueAuthoredAnchors,
 } from './powerup/PowerupAuthoredRespawnOps.js';
 import { countArenaPowerups } from './powerup/SecretRoomRefillOps.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 const SPAWN_TELEGRAPH_SECONDS = 0.75;
 const PICKUP_PREDICTION_GRACE_SECONDS = 0.35;
@@ -39,10 +40,11 @@ function isTypeAllowedForMode(type, modeType, entityRuntimeConfig) {
     return isPickupTypeAllowedForMode(normalizedType, modeType);
 }
 
-function nextRuntimeRandom(strategy = null) {
+function nextRuntimeRandom(strategy = null, fallbackRuntimeRng = null) {
     const random = typeof strategy?.runtimeRng?.next === 'function'
         ? strategy.runtimeRng.next
-        : Math.random;
+        : fallbackRuntimeRng?.next;
+    if (typeof random !== 'function') return 0;
     const value = Number(random());
     if (!Number.isFinite(value) || value <= 0) return 0;
     if (value >= 1) return 0.999999999;
@@ -109,6 +111,7 @@ export class PowerupManager {
         this.runtimeConfig = config?.runtimeConfig || null;
         this.getStrategy = null;
         this.getSafetyContext = null;
+        this._fallbackRuntimeRng = createRuntimeRng({});
         this.items = []; // { mesh, type, box }
         this.spawnTimer = 0;
         this.typeKeys = Object.keys(config.POWERUP.TYPES);
@@ -139,7 +142,7 @@ export class PowerupManager {
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
         const spawnRateMul = (strategy && typeof strategy.getSpawnRateMultiplier === 'function')
             ? strategy.getSpawnRateMultiplier() : 1.0;
-        const fieldLimit = resolvePowerupFieldLimit(config.POWERUP.MAX_ON_FIELD, this.arena?.bounds, config.GAMEPLAY.PLANAR_MODE);
+        const fieldLimit = resolvePowerupFieldLimit(config.POWERUP.MAX_ON_FIELD, this.arena?.bounds, config.GAMEPLAY.PLANAR_MODE, config.ARENA?.MAP_SCALE);
         const effectiveInterval = resolvePowerupSpawnInterval(config.POWERUP, fieldLimit, spawnRateMul);
         const authoredItemTarget = this.arena?.currentMapDefinition?.keepAuthoredItemsAvailable === true
             ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
@@ -200,7 +203,7 @@ export class PowerupManager {
     _spawnRandom() {
         const config = this.entityRuntimeConfig;
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
-        const random = () => nextRuntimeRandom(strategy);
+        const random = () => nextRuntimeRandom(strategy, this._fallbackRuntimeRng);
         const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
         const itemSpawnAuthoring = resolveItemSpawnAuthoringContract(this.arena?.currentMapDefinition);
         const spawnableTypes = strategy
@@ -216,12 +219,8 @@ export class PowerupManager {
         const authoredAnchor = shouldUseAuthoredAnchor
             ? this._pickAuthoredAnchor(authoredAnchors, random)
             : null;
-        if (!authoredAnchor && itemSpawnAuthoring.requiresAuthoredAnchor) {
-            return;
-        }
-        if (!authoredAnchor && itemSpawnAuthoring.usesRandomFallback !== true) {
-            return;
-        }
+        if (!authoredAnchor && itemSpawnAuthoring.requiresAuthoredAnchor) return;
+        if (!authoredAnchor && itemSpawnAuthoring.usesRandomFallback !== true) return;
 
         const fixedType = resolveAuthoredPickupType(authoredAnchor?.anchor, modeType, config) || null;
         let type = fixedType;
@@ -257,9 +256,7 @@ export class PowerupManager {
                 pos = findSafePowerupPosition(this, random, level);
             }
         }
-        if (!pos) {
-            pos = findSafePowerupPosition(this, random);
-        }
+        if (!pos) pos = findSafePowerupPosition(this, random);
         if (!pos) return;
 
         const mesh = this._createPowerupMesh(type, powerupConfig);
@@ -438,7 +435,7 @@ export class PowerupManager {
         const availableAnchors = [];
         for (let i = 0; i < anchors.length; i += 1) {
             const anchor = anchors[i];
-            if (!anchor || !Number.isFinite(Number(anchor.x)) || !Number.isFinite(Number(anchor.z))) continue;
+            if (!anchor || !Number.isFinite(Number(anchor.x)) || !Number.isFinite(Number(anchor.z)) || isAnchorInSealedRing(this.arena, anchor)) continue;
             const key = buildAnchorKey(anchor, i);
             if (this._occupiedAnchorKeys.has(key)) continue;
             availableAnchors.push({
@@ -450,13 +447,16 @@ export class PowerupManager {
         return availableAnchors;
     }
 
-    _pickAuthoredAnchor(availableAnchors = [], random = Math.random) {
+    _pickAuthoredAnchor(availableAnchors = [], random = null) {
         if (!Array.isArray(availableAnchors) || availableAnchors.length === 0) return null;
+        const resolveRandom = typeof random === 'function'
+            ? random
+            : () => nextRuntimeRandom(typeof this.getStrategy === 'function' ? this.getStrategy() : null, this._fallbackRuntimeRng);
         let totalWeight = 0;
         for (const entry of availableAnchors) {
             totalWeight += Math.max(0.01, Number(entry.weight) || 1);
         }
-        let roll = random() * totalWeight;
+        let roll = resolveRandom() * totalWeight;
         for (const entry of availableAnchors) {
             roll -= Math.max(0.01, Number(entry.weight) || 1);
             if (roll <= 0) {

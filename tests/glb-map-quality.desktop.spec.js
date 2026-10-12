@@ -1,6 +1,7 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 import { writeFile } from 'node:fs/promises';
+import { getMapPickerMeta } from '../src/shared/maps/MapPickerMeta.js';
 
 for (const key of ['rift_bazaar', 'aether_relay', 'verdant_aperture', 'glb_gallery']) {
     test(`${key} loads complete geometry and releases it on map replacement`, async ({ page }, testInfo) => {
@@ -9,6 +10,8 @@ for (const key of ['rift_bazaar', 'aether_relay', 'verdant_aperture', 'glb_galle
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
         await page.waitForSelector('#submenu-game:not(.hidden)');
+        // Development maps (glb_gallery) are listed only behind the Showcase filter, as for a player.
+        await page.selectOption('#map-filter-select', getMapPickerMeta(key).tier === 'dev' ? 'showcase' : 'all');
         await page.selectOption('#map-select', key);
         await page.evaluate(() => {
             const game = window.GAME_INSTANCE;

@@ -42,6 +42,8 @@ def main(output_dir=None):
             'SAKURA_KANZAN_OUTPUT_DIR': str(glb),
             'SAKURA_KANZAN_VARIANT': f'{index:02d}',
             'SAKURA_KANZAN_SEED': str(seed),
+            # The game build: rosette blossoms and thinned trees (see the kanzan author), not the studio hero.
+            'SAKURA_KANZAN_DETAIL': 'grove',
         })
     # Last on purpose: kanzan variant 01 writes a shorter kanzan_collision.glb that this replaces.
     run('generate_cherry_grove_collisions.py', {'CHERRY_GROVE_OUTPUT_DIR': str(glb)})

@@ -14,6 +14,7 @@ import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
 import {
     loadGLBMap,
     loadGLBMapCollection,
+    normalizeGLBModelCollection,
     resolveGLBCollectionFootprint,
     shouldDiscardAuthoredObstacleVisuals,
 } from '../src/entities/GLBMapLoader.js';
@@ -23,6 +24,17 @@ import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.
 import { listRuntimeMapPresetDescriptors } from '../src/shared/contracts/RuntimeMapCatalogContract.js';
 
 const WORKSPACE_ROOT = path.resolve(import.meta.dirname, '..');
+
+test('GLB model roles default to required and reject unknown values safely', () => {
+    const normalized = normalizeGLBModelCollection([
+        { url: '/legacy.glb' },
+        { url: '/no-collider-but-required.glb', collision: false },
+        { url: '/world.glb', role: 'primaryWorld' },
+        { url: '/decor.glb', role: 'optionalProp' },
+        { url: '/typo.glb', role: 'optional' },
+    ]);
+    assert.deepEqual(normalized.map((entry) => entry.role), ['required', 'required', 'primaryWorld', 'optionalProp', 'required']);
+});
 
 test('GLB gallery publishes every downloaded model exactly once', () => {
     const map = GLB_GALLERY_MAPS.glb_gallery;
@@ -179,6 +191,35 @@ test('required collections dispose successful siblings before falling back and c
     assert.equal(disposed, 9);
 });
 
+test('optional prop failures keep a complete primary world and preserve warning evidence', async () => {
+    let disposed = 0;
+    const loader = { async loadAsync(url) {
+        if (url.includes('optional')) throw new Error('decorative prop unavailable');
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        geometry.addEventListener('dispose', () => { disposed++; });
+        const scene = new THREE.Group();
+        scene.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+        return { scene, animations: [] };
+    } };
+    const result = await loadGLBMapCollection([
+        { id: 'world', url: '/world.glb', role: 'primaryWorld', collision: false },
+        { id: 'pylon', url: '/optional-pylon.glb', role: 'optionalProp', collision: false },
+    ], { loader, requireComplete: true, collectColliders: false });
+
+    assert.equal(result.loadedCount, 1);
+    assert.equal(result.failedCount, 1);
+    assert.equal(result.requiredWorldComplete, true);
+    assert.match(result.warnings[0], /pylon.*decorative prop unavailable/);
+    assert.equal(disposed, 0, 'a tolerated decoration failure does not dispose the world');
+    assert.equal(shouldDiscardAuthoredObstacleVisuals({
+        usedGlbModel: true,
+        requiredWorldComplete: result.requiredWorldComplete,
+        map: { glbAuthoredObstaclesCollisionOnly: true },
+    }), true, 'fallback obstacle visuals stay out from under the intact authored world');
+    disposeObject3DResources(result.scene);
+    assert.equal(disposed, 1);
+});
+
 test('GLB animation playback uses the first exported clip and is owned by the arena lifecycle', async () => {
     const scene = new THREE.Group();
     const animatedNode = new THREE.Object3D();
@@ -262,17 +303,17 @@ test('partial GLB collection warnings keep collision-only authored visuals as fa
     const map = { glbAuthoredObstaclesCollisionOnly: true };
     assert.equal(shouldDiscardAuthoredObstacleVisuals({
         usedGlbModel: true,
-        loadWarnings: [],
+        requiredWorldComplete: true,
         map,
     }), true);
     assert.equal(shouldDiscardAuthoredObstacleVisuals({
         usedGlbModel: true,
-        loadWarnings: ['one collection model failed'],
+        requiredWorldComplete: false,
         map,
     }), false);
     assert.equal(shouldDiscardAuthoredObstacleVisuals({
         usedGlbModel: false,
-        loadWarnings: ['all models failed'],
+        requiredWorldComplete: true,
         map,
     }), false);
 });
@@ -315,6 +356,68 @@ test('a partially missing gameplay collection uses visible fallback and retries 
         assert.equal(arena._mergedObstacleMesh, null);
     } finally { arena.dispose(); }
     assert.equal(disposed, 3);
+});
+
+test('Arena retains authored fallback geometry when an optional-only collection is partial', async (t) => {
+    t.mock.method(GLTFLoader.prototype, 'loadAsync', async (url) => {
+        if (url.includes('missing-prop')) throw new Error('optional decoration missing');
+        const scene = new THREE.Group();
+        scene.add(new THREE.Mesh(new THREE.BoxGeometry(4, 4, 4), new THREE.MeshBasicMaterial()));
+        return { scene };
+    });
+    const arena = new Arena({
+        addToScene() {}, removeFromScene() {}, setMapLighting() {}, setShadowCoverage() {},
+        getGraphicsStyle() { return 'modern'; }, getMaxAnisotropy() { return 1; },
+    });
+    arena.runtimeMapKey = 'optional-only-partial-collection';
+    arena.runtimeMapDefinition = {
+        size: [40, 24, 40], glbColliderMode: 'scene',
+        glbModels: [
+            { id: 'loaded-decoration', url: '/loaded-prop.glb', role: 'optionalProp', collision: false },
+            { id: 'missing-decoration', url: '/missing-prop.glb', role: 'optionalProp', collision: false },
+        ],
+        obstacles: [{ pos: [0, 4, 0], size: [8, 8, 8] }], portals: [], gates: [],
+    };
+    try {
+        const result = await arena.build(arena.runtimeMapKey);
+        assert.equal(result.usedGlbModel, true);
+        assert.equal(result.glbLoadError, null);
+        assert.match(result.glbLoadWarnings[0], /missing-decoration.*optional decoration missing/);
+        assert.ok(arena._mergedObstacleMesh, 'incomplete optional props do not suppress authored fallback geometry');
+        assert.equal(arena.checkCollisionFast(new THREE.Vector3(0, 4, 0), 0.1), true,
+            'the fallback obstacle continues to block gameplay when no complete world loaded');
+    } finally { arena.dispose(); }
+});
+
+test('Arena keeps authored collision under a world when only an optional prop fails', async (t) => {
+    t.mock.method(GLTFLoader.prototype, 'loadAsync', async (url) => {
+        if (url.includes('missing-prop')) throw new Error('optional decoration missing');
+        const scene = new THREE.Group();
+        scene.add(new THREE.Mesh(new THREE.BoxGeometry(4, 4, 4), new THREE.MeshBasicMaterial()));
+        return { scene };
+    });
+    const arena = new Arena({
+        addToScene() {}, removeFromScene() {}, setMapLighting() {}, setShadowCoverage() {},
+        getGraphicsStyle() { return 'modern'; }, getMaxAnisotropy() { return 1; },
+    });
+    arena.runtimeMapKey = 'optional-prop-degraded-world';
+    arena.runtimeMapDefinition = {
+        size: [40, 24, 40], glbColliderMode: 'dynamic', glbAuthoredObstaclesCollisionOnly: true,
+        glbModels: [
+            { id: 'world', url: '/world.glb', role: 'primaryWorld', collision: false },
+            { id: 'decoration', url: '/missing-prop.glb', role: 'optionalProp', collision: false },
+        ],
+        obstacles: [{ pos: [0, 4, 0], size: [8, 8, 8] }], portals: [], gates: [],
+    };
+    try {
+        const result = await arena.build(arena.runtimeMapKey);
+        assert.equal(result.usedGlbModel, true);
+        assert.equal(result.glbLoadError, null);
+        assert.match(result.glbLoadWarnings[0], /decoration.*optional decoration missing/);
+        assert.equal(arena._mergedObstacleMesh, null, 'authored obstacle visuals do not cover the primary world');
+        assert.equal(arena.checkCollisionFast(new THREE.Vector3(0, 4, 0), 0.1), true,
+            'discarding fallback visuals retains authored box collision');
+    } finally { arena.dispose(); }
 });
 
 test('GLB mesh colliders follow triangle geometry instead of the enclosing box', async () => {

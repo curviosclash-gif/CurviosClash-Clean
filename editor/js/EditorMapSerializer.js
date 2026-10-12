@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createMapDocument, parseMapJSON } from '../../src/entities/MapSchema.js';
+import { isValidGLBModelRole, normalizeGLBModelRole } from '../../src/entities/mapSchema/MapSchemaGlbOps.js';
 import {
     deriveItemSpawnModeDefault,
     derivePortalModeDefault,
@@ -72,6 +73,9 @@ function readManagerMapMetadata(manager) {
     if (Array.isArray(source.flagObjectives)) {
         metadata.flagObjectives = cloneSerializable(source.flagObjectives) || [];
     }
+    if (source.lighting && typeof source.lighting === 'object') {
+        metadata.lighting = cloneSerializable(source.lighting);
+    }
 
     return metadata;
 }
@@ -134,6 +138,10 @@ function extractMapMetadata(data) {
     // Flag anchors are carried through until the editor gets a dedicated placement surface.
     if (Array.isArray(data.flagObjectives) && data.flagObjectives.length > 0) {
         metadata.flagObjectives = cloneSerializable(data.flagObjectives) || [];
+    }
+    // The map's own lighting; the schema already reduced it to the stored form.
+    if (data.lighting && typeof data.lighting === 'object') {
+        metadata.lighting = cloneSerializable(data.lighting);
     }
     if (data.parcours && typeof data.parcours === 'object') {
         const parcoursMetadata = cloneSerializable(data.parcours) || {};
@@ -281,6 +289,8 @@ export function generateJSONExport(manager, arenaSize) {
                 url: u.glbUrl,
                 position: [p.x, p.y, p.z],
                 rotation: [obj.rotation.x || 0, ry, obj.rotation.z || 0],
+                ...(u.collision === false ? { collision: false } : {}),
+                ...(u.role === undefined ? {} : { role: normalizeGLBModelRole(u.role) }),
             };
             if (Number.isFinite(Number(u.targetSize)) && Number(u.targetSize) > 0) {
                 glbEntry.targetSize = Number(u.targetSize);
@@ -566,6 +576,8 @@ export function importFromJSON(manager, jsonString, options = {}) {
                         id: placementId || model.id,
                         glbUrl: model.url,
                         ...(targetSize ? { targetSize } : { glbScale: scale }),
+                        ...(model.collision === false ? { collision: false } : {}),
+                        ...(isValidGLBModelRole(model.role) ? { role: model.role } : {}),
                         rotateX: model.rotation?.[0] || 0,
                         rotateY: model.rotation?.[1] || 0,
                         rotateZ: model.rotation?.[2] || 0,

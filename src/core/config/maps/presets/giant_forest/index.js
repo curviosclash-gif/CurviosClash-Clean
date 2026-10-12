@@ -21,6 +21,7 @@ import { GIANT_FOREST_TREES, GIANT_FOREST_UNDERGROWTH } from './GiantForestTrees
 import {
     CANOPY_DECK,
     FOREST_BOT_SPAWNS,
+    FOREST_FOG_FAR,
     FOREST_GATES,
     FOREST_ITEMS,
     FOREST_MAP_SIZE,
@@ -95,7 +96,7 @@ export const GIANT_FOREST_MAPS = {
                 // with the map. 380 is about 125 authored units, under two tree pitches - close
                 // enough that the ground storey is genuinely blind while the fog lies on it.
                 near: 40,
-                far: 380,
+                far: FOREST_FOG_FAR,
                 height: CANOPY_DECK,
                 // Steep, because the whole map turns on the difference between the two storeys.
                 // At 0.12 authored the fog has thinned to a third one tree-crown above its edge.

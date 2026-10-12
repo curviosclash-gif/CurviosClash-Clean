@@ -143,12 +143,18 @@ const EIFFEL_TOWER_OBSTACLES = [
     { pos: [0, SECOND_DECK + 0.4, SECOND_OUTER - 1.6], size: [12, 2, 5], renderWithGlb: true, compileWithGlb: true },
 ];
 
+// The approach pad is a box centred on up(18) and 3 units thick, so its top is at up(18) + 1.5.
+// A portal at the pad height sat inside it, and the arena rescues such a portal by stepping it up
+// (the live position was only the nudge, not the authored one). up(22) puts the authored point
+// 1.7 units above the pad, still under the first route ring (up(28)).
+const APPROACH_PORTAL_Y = up(22.0);
+
 // Portals shortcut the long way round: back down from the summit to the esplanade, and up the
 // outside of the tower for a run that lost its climb.
 const EIFFEL_TOWER_PORTALS = [
-    { a: [-72, up(18.0), 0], b: [0, up(34.0), 0], color: 0x77aaff },
+    { a: [-72, APPROACH_PORTAL_Y, 0], b: [0, up(34.0), 0], color: 0x77aaff },
     { a: [FIRST_OUTER + 4, FIRST_DECK + 6, 0], b: [9, SECOND_DECK + 10, 0], color: 0xffaa33 },
-    { a: [0, TOP_DECK + 14, 0], b: [-72, up(20.0), 0], color: 0xaa66ff },
+    { a: [0, TOP_DECK + 14, 0], b: [-72, APPROACH_PORTAL_Y, 0], color: 0xaa66ff },
 ];
 
 // A climb needs lift, so most of these are slingshots rather than flat boosts.

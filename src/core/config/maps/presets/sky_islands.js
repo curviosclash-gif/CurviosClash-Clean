@@ -5,11 +5,13 @@
 // ============================================================
 
 import { authoredWorld } from './world_appearance.js';
+import { CLOUD_SEA_LIGHTING } from './map_lighting_profiles.js';
 
 export const SKY_ISLANDS_MAP = {
     sky_islands: {
         ...authoredWorld('sky_islands'),
         name: 'Sky Islands',
+        lighting: CLOUD_SEA_LIGHTING,
         exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [200, 110, 200],
         scaleAuthoredAnchors: true,
@@ -121,6 +123,13 @@ export const SKY_ISLANDS_MAP = {
             { x: -62, y: 34, z: 0 },
             { x: -70, y: 34, z: -8 },
             { x: -70, y: 34, z: 8 },
+            // More levels for a ten player HUNT round; the first entries stay at the start line.
+            { x: 66, y: 96, z: 66 },
+            { x: 66, y: 8, z: 50 },
+            { x: 10, y: 88, z: -54 },
+            { x: 10, y: 8, z: -38 },
+            { x: 66, y: 56, z: 2 },
+            { x: -62, y: 64, z: 58 },
         ],
         items: [
             { id: 'si_speed_1', type: 'item_battery', pickupType: 'SPEED_UP', x: -40, y: 38, z: -15, weight: 1.4 },

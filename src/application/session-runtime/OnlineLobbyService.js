@@ -37,6 +37,7 @@ export class OnlineLobbyService extends NetworkLobbyService {
                     signalingUrl: joinOptions.signalingUrl,
                     actorId: joinOptions.actorId,
                     name: joinOptions.name,
+                    vehicleId: joinOptions.vehicleId,
                 }),
         });
         this._resolveConfiguredUrl = resolveConfiguredUrl;

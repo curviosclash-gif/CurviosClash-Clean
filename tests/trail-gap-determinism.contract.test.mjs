@@ -73,6 +73,21 @@ test('trail gaps ignore Math.random once the seeded rng is present', () => {
     }
 });
 
+test('player yaw and trail gaps resolve an rng injected after construction', () => {
+    const draws = [];
+    const entityManager = { entityRuntimeConfig: TRAIL_CONFIG, getTrailSpatialIndex() { return null; } };
+    const player = new Player(createRenderer(), 0, 0x33aaff, true, { entityManager });
+    const trail = new Trail(createRenderer(), 0x33aaff, 1, entityManager);
+    const runtimeRng = createRuntimeRng({ random: () => { draws.push(draws.length); return 0.2; } });
+
+    entityManager.runtimeRng = runtimeRng;
+    player.spawn(new THREE.Vector3(0, 5, 0));
+    trail.update(0.05, new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, -1));
+
+    assert.equal(draws.length, 2, 'spawn yaw and the first trail sample each consume one match draw');
+    assert.equal(trail.inGap, true);
+});
+
 function spawnHeading(seed) {
     const entityManager = {
         entityRuntimeConfig: TRAIL_CONFIG,

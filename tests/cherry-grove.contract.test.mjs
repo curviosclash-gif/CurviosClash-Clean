@@ -28,8 +28,8 @@ test('Kirschhain is registered with five variants per family and shared trunk co
         'assets/maps/cherry_grove/glb/akebono_collision.glb',
         'assets/maps/cherry_grove/glb/kanzan_collision.glb',
     ]));
-    assert.equal(renders.filter((model) => model.maxRenderDistance === 230).length, 2);
-    assert.ok(renders.filter((model) => model.maxRenderDistance === 145).length === 8);
+    // How far a tree is drawn follows the fog, not the file weight: tests/map-render-distance-fog.contract.test.mjs.
+    assert.ok(renders.every((model) => model.maxRenderDistance > 0), 'every tree is culled at some distance');
 });
 
 test('tree variant roundtrips preserve wind leaf anchors and measured render budgets', () => {

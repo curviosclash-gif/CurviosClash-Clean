@@ -1,70 +1,59 @@
 import { NOTRE_DAME_EVOLUTION_MAPS } from '../src/core/config/maps/presets/notre_dame/NotreDameEvolution.js';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import path from 'node:path';
+import * as fireModule from '../src/core/config/maps/presets/notre_dame_fire/index.js';
 import test from 'node:test';
 
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
-import { NOTRE_DAME_FIRE_AUDIO_PROFILE, NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
-import {
-    NOTRE_DAME_FIRE_MODELS,
-    NOTRE_DAME_FIRE_REPLACED_MODEL_IDS,
-} from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireModels.js';
-import {
-    NOTRE_DAME_FIRE_CHECKPOINTS,
-    NOTRE_DAME_FIRE_FINISH,
-} from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireRoute.js';
+import { NOTRE_DAME_FIRE_AUDIO_PROFILE, NOTRE_DAME_FIRE_LOOK } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
 import { resolveMapPickerCollection } from '../src/ui/menu/MenuMapCollectionCatalog.js';
 import { MAP_LIGHT_SOURCE_LIMIT } from '../src/shared/contracts/MapLightSourcesContract.js';
 import { NOTRE_DAME_FIRE_HAZARDS } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireHazards.js';
 
-const fire = NOTRE_DAME_FIRE_MAPS.notre_dame_fire;
-const fireArena = NOTRE_DAME_FIRE_MAPS.notre_dame_fire_arena;
+// notre_dame_fire / notre_dame_fire_arena have no map of their own any more (E6): they are hidden
+// redirects to the Notre-Dame evolution, and the fire look lives in NOTRE_DAME_FIRE_LOOK.
+const fire = NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire;
+const fireArena = NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire_arena;
 const restoration = NOTRE_DAME_MAPS.notre_dame;
 const restorationArena = NOTRE_DAME_MAPS.notre_dame_arena;
+const fireLights = NOTRE_DAME_FIRE_LOOK.lights;
+const fireLightings = [NOTRE_DAME_FIRE_LOOK.lighting, NOTRE_DAME_FIRE_LOOK.arenaLighting];
 
 test('the fire maps use their own deterministic emergency ambience profile', () => {
     assert.equal(NOTRE_DAME_FIRE_AUDIO_PROFILE.id, 'notre_dame_fire');
-    assert.equal(fire.audioProfile, NOTRE_DAME_FIRE_AUDIO_PROFILE);
-    assert.equal(fireArena.audioProfile, NOTRE_DAME_FIRE_AUDIO_PROFILE);
-    assert.equal(fire.audioProfile.interiorBounds, restoration.audioProfile.interiorBounds);
-    assert.equal(fire.audioProfile.constructionCenters, undefined);
-    assert.ok(fire.audioProfile.collapse.intervalSeconds >= 20);
+    assert.equal(fire.fireAudioProfile, NOTRE_DAME_FIRE_AUDIO_PROFILE);
+    assert.equal(fireArena.fireAudioProfile, NOTRE_DAME_FIRE_AUDIO_PROFILE);
+    assert.equal(NOTRE_DAME_FIRE_AUDIO_PROFILE.interiorBounds, restoration.audioProfile.interiorBounds);
+    assert.equal(NOTRE_DAME_FIRE_AUDIO_PROFILE.constructionCenters, undefined);
+    assert.ok(NOTRE_DAME_FIRE_AUDIO_PROFILE.collapse.intervalSeconds >= 20);
 });
 
-test('both fire maps are registered everywhere a map has to appear', () => {
-    assert.equal(MAP_PRESET_CATALOG.notre_dame_fire, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire);
-    assert.equal(MAP_PRESETS_BASE.notre_dame_fire, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire);
-    assert.equal(fire.name, 'Notre-Dame Brand');
+test('the retired fire keys stay registered as hidden redirects to the evolution', () => {
+    for (const [key, target] of [['notre_dame_fire', 'notre_dame'], ['notre_dame_fire_arena', 'notre_dame_arena']]) {
+        const redirect = NOTRE_DAME_EVOLUTION_MAPS[key];
+        assert.equal(MAP_PRESET_CATALOG[key], redirect);
+        assert.equal(MAP_PRESETS_BASE[key], redirect);
+        assert.equal(redirect.hiddenFromMapPicker, true);
+        assert.equal(redirect.destructibles, NOTRE_DAME_EVOLUTION_MAPS[target].destructibles);
+        assert.equal(redirect.fireProgression, NOTRE_DAME_EVOLUTION_MAPS[target].fireProgression);
+        assert.equal(redirect.glbModels.length, NOTRE_DAME_EVOLUTION_MAPS[target].glbModels.length);
+    }
     assert.equal(fire.parcours.enabled, true);
+    assert.equal(fireArena.parcours, undefined);
     // Without a collection the picker drops the map into the unsorted fallback bucket.
     assert.equal(resolveMapPickerCollection('notre_dame_fire').id, 'adventure');
-
-    assert.equal(MAP_PRESET_CATALOG.notre_dame_fire_arena, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire_arena);
-    assert.equal(MAP_PRESETS_BASE.notre_dame_fire_arena, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire_arena);
-    assert.equal(fireArena.name, 'Notre-Dame Brand Arena');
-    assert.equal(fireArena.parcours, undefined);
     assert.equal(resolveMapPickerCollection('notre_dame_fire_arena').id, 'arena');
 });
 
-test('the fire maps fly the same cathedral instead of loading a second copy', () => {
-    // Identity, not equality. The geometry is what this map costs; a copy would double the load
-    // and let the two buildings drift apart. Both maps share the same obstacle objects.
-    const carried = restoration.obstacles;
-    for (const map of [fire, fireArena]) {
-        assert.equal(map.glbModels, fire.glbModels);
-        assert.equal(map.obstacles, carried);
-        assert.deepEqual(map.obstacles, carried);
-        for (let index = 0; index < carried.length; index += 1) {
-            assert.equal(map.obstacles[index], carried[index], 'a kept box is the object the intact map holds');
-        }
-        assert.equal(map.portals, restoration.portals);
-        assert.deepEqual(map.size, restoration.size);
-        assert.equal(map.glbColliderMode, 'scene');
-        assert.equal(map.glbAuthoredObstaclesCollisionOnly, true);
+test('the retired fire presets keep no playable definition of their own', () => {
+    assert.equal(fireModule.NOTRE_DAME_FIRE_MAPS, undefined);
+    for (const dead of ['NotreDameFireRoute.js', 'NotreDameFireModels.js']) {
+        assert.equal(existsSync(new URL('../src/core/config/maps/presets/notre_dame_fire/' + dead, import.meta.url)), false, dead);
     }
+    assert.equal(MAP_PRESET_CATALOG.notre_dame_fire.parcours.routeId, 'notre_dame_evolution_v1');
+    assert.equal(MAP_PRESET_CATALOG.notre_dame_fire_arena.name, MAP_PRESET_CATALOG.notre_dame_arena.name);
 });
 
 test('neither map keeps invisible construction frames', () => {
@@ -74,76 +63,16 @@ test('neither map keeps invisible construction frames', () => {
     }
 });
 
-test('the fire keeps surviving fabric and replaces damaged sections', () => {
-    const burnt = fire.glbModels.filter((model) => model.url.includes('notre_dame_fire'));
-    const carried = fire.glbModels.filter((model) => !model.url.includes('notre_dame_fire'));
-    const carriedTrees = carried.filter((model) => model.id.startsWith('notre-dame-tree-'));
-
-    // Four surviving fabric parts, four damaged parts and the shared 32-tree island. Fire is
-    // particle-only, and the living ground remains identical in both cathedral states.
-    assert.equal(fire.glbModels.length, 40);
-    assert.equal(burnt.length, 4);
-    assert.equal(carried.length, 36);
-    assert.equal(carriedTrees.length, 32);
-    assert.equal(fire.glbModels, NOTRE_DAME_FIRE_MODELS);
-    assert.ok(
-        fire.glbModels.every((model) => (
-            !model.url.includes('30_fire_')
-            && !model.url.includes('31_fire_')
-            && !model.url.includes('32_ember_')
-            && (model.id === 'notre-dame-west-facade'
-                ? model.animationClock?.clipName === 'NotreDameMotion'
-                : model.animationClock === undefined)
-        )),
-        'the fire contains no cone or ember GLB effect and keeps only the facade motion',
-    );
-    // The whole point of filtering rather than re-listing: an unburnt part is the same object the
-    // intact map holds, so it cannot pick up a different scale, position or url over time.
-    for (const model of carried) {
-        assert.ok(
-            restoration.glbModels.includes(model),
-            `${model.id} is carried over from the intact map, not re-declared`,
-        );
-    }
-    for (const id of NOTRE_DAME_FIRE_REPLACED_MODEL_IDS) {
-        assert.ok(
-            restoration.glbModels.some((model) => model.id === id),
-            `${id} exists on the intact map`,
-        );
-        assert.ok(
-            !fire.glbModels.some((model) => model.id === id),
-            `${id} is replaced rather than left standing beside its burnt version`,
-        );
-    }
-});
-
-test('every fire-map model points at a file and keeps the right placement contract', () => {
-    const METRE = 1.4;
-    for (const model of fire.glbModels) {
-        assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
-        if (model.id.startsWith('notre-dame-tree-')) {
-            assert.equal(model.targetSize, 14.28, `${model.id} keeps the tree envelope`);
-            assert.equal(model.collision, false, `${model.id} stays decorative in the fire map`);
-        } else {
-            // targetSize would normalise each cathedral file to a size of its own and tear the
-            // building apart; the architectural pieces retain their one shared scale factor.
-            assert.equal(model.scale, METRE, `${model.id} shares the one scale factor`);
-            assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
-        }
-    }
-    assert.equal(new Set(fire.glbModels.map((model) => model.id)).size, fire.glbModels.length);
-});
-
 test('the fire light is held separately from the restoration map it was taken from', () => {
     // The intact map is in the late afternoon and its profile is expected to
     // move back towards daylight. This map must not follow it, so nothing here may be the same
     // object -- which is what would silently reintroduce the coupling.
-    assert.notEqual(fire.lighting, restoration.lighting);
-    assert.notEqual(fireArena.lighting, restorationArena.lighting);
-    assert.notEqual(fire.lighting, fireArena.lighting);
-    assert.notEqual(fire.lights, restoration.lights);
-    assert.equal(fire.lights, fireArena.lights);
-    for (const source of fire.lights) {
+    const [fireLighting, fireArenaLighting] = fireLightings;
+    assert.notEqual(fireLighting, restoration.lighting);
+    assert.notEqual(fireArenaLighting, restorationArena.lighting);
+    assert.notEqual(fireLighting, fireArenaLighting);
+    assert.notEqual(fireLights, restoration.lights);
+    for (const source of fireLights) {
         assert.ok(
             !restoration.lights.some((other) => other.id === source.id),
             `${source.id} is the fire map's own light source, not a shared id`,
@@ -152,7 +81,7 @@ test('the fire light is held separately from the restoration map it was taken fr
 });
 
 test('both fire profiles are lit as a night fire rather than as a dusk', () => {
-    for (const lighting of [fire.lighting, fireArena.lighting]) {
+    for (const lighting of fireLightings) {
         // Red fog rather than grey: the smoke is lit from below by the fire, not by the sky.
         const fogRed = (lighting.fog.color >> 16) & 0xff;
         const fogBlue = lighting.fog.color & 0xff;
@@ -176,36 +105,13 @@ test('the sun no longer lights a cathedral that has no roof', () => {
     //
     // Asserted as an absolute rather than against the restoration map, which is free to move back
     // towards daylight without dragging this one along.
-    for (const lighting of [fire.lighting, fireArena.lighting]) {
+    for (const lighting of fireLightings) {
         assert.ok(lighting.key.intensity <= 0.5, 'the key is night, not afternoon');
         assert.ok(lighting.fill.intensity <= 0.2, 'the fill does not undo it');
         // Colour is the only ambient dial a map has, so a bright sky colour is the other way the
         // interior can be flooded from outside.
         assert.ok(lighting.hemisphere.skyColor < 0x333a44, 'the ambient sky stays dark');
     }
-});
-
-test('the fire route is ranked on its own identity', () => {
-    // A shared id would rank runs through two different buildings against each other, and ghosts
-    // recorded here would replay against a building that is still standing.
-    assert.equal(fire.parcours.routeId, 'notre_dame_fire_v1');
-    assert.notEqual(fire.parcours.routeId, restoration.parcours.routeId);
-    assert.equal(fire.parcours.checkpoints, NOTRE_DAME_FIRE_CHECKPOINTS);
-    assert.equal(fire.parcours.finish, NOTRE_DAME_FIRE_FINISH);
-    assert.notEqual(fire.parcours.checkpoints, restoration.parcours.checkpoints);
-    assert.notEqual(fire.parcours.finish, restoration.parcours.finish);
-    assert.equal(fire.parcours.finish.id, 'FIRE_EVACUATION');
-});
-
-test('the fire arena spreads movement over the roof, transept, apse and buttresses', () => {
-    const spawns = fireArena.botSpawns;
-    assert.ok(spawns.some((entry) => entry.y >= 60), 'one spawn starts at the open roof');
-    assert.ok(spawns.some((entry) => Math.abs(entry.z) >= 50), 'transept spawns approach from both sides');
-    assert.ok(spawns.some((entry) => entry.x >= 80), 'the apse has its own start vector');
-    assert.ok(fireArena.items.some((entry) => entry.id === 'ndf_heavy_buttress'));
-    assert.ok(fireArena.gates.some((entry) => entry.id === 'ndf_roof_dive'));
-    assert.notEqual(fireArena.gates, restorationArena.gates);
-    assert.notEqual(fireArena.items, restorationArena.items);
 });
 
 test('the fire maps share fair telegraphed hazards while the restoration stays static', () => {
@@ -222,6 +128,6 @@ test('the interior lamps leave room for the fire that replaces them', () => {
     // Every extra point light costs shader work on every lit surface, so a map gets eight. The
     // breaches, the open roof and the debris cone all want one, and they replace these rather
     // than being added to them.
-    assert.ok(fire.lights.length <= MAP_LIGHT_SOURCE_LIMIT);
-    assert.equal(new Set(fire.lights.map((source) => source.id)).size, fire.lights.length);
+    assert.ok(fireLights.length <= MAP_LIGHT_SOURCE_LIMIT);
+    assert.equal(new Set(fireLights.map((source) => source.id)).size, fireLights.length);
 });
