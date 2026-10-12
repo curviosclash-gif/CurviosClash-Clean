@@ -158,6 +158,32 @@ test('a map without scaled anchors keeps its spawns in world units both ways', (
     assert.equal(exported.scaleAuthoredAnchors, undefined);
 });
 
+test('aircraft and turrets placed on a map without scaled anchors are handed out in world units', () => {
+    const preset = {
+        size: [100, 40, 100],
+        glbModels: [{ id: 'w', url: 'assets/maps/w/glb/w.glb', position: [0, 0, 0] }],
+        playerSpawn: { x: 0, y: 9, z: 0 },
+    };
+    const { document } = convertPresetToEditorDocument('plain', preset, { mapScale: MAP_SCALE });
+    const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
+    document.aircraft = [{ id: 'jet_1', jetId: 'ship1', x: 10 * units, y: 20 * units, z: -30 * units, scale: 2 * units }];
+    document.staticTurrets = [{ id: 'turret_1', pos: [4 * units, 5 * units, 6 * units], range: 20 * units }];
+    const { mapManager, load } = createEditor();
+    const arenaSize = load(document);
+
+    // The editor map scales its anchors, so the match puts these at map units x MAP_SCALE; the
+    // preset does not, so it has to state that world position itself.
+    const exported = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
+    near(exported.aircraft[0].x, 10 * MAP_SCALE, 'aircraft x in world units');
+    near(exported.aircraft[0].z, -30 * MAP_SCALE, 'aircraft z in world units');
+    near(exported.aircraft[0].scale, 2 * MAP_SCALE, 'aircraft scale in world units');
+    near(exported.staticTurrets[0].pos[1], 5 * MAP_SCALE, 'turret y in world units');
+    near(exported.staticTurrets[0].range, 20 * MAP_SCALE, 'turret range in world units');
+
+    const scaled = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset: { ...preset, scaleAuthoredAnchors: true }, mapScale: MAP_SCALE });
+    near(scaled.aircraft[0].x, 10, 'aircraft x stays in map units for a map that scales anchors');
+});
+
 /** Lighting of the map the match builds from an editor export. */
 function exportedMatchLighting(mapManager, arenaSize) {
     const parsed = parseMapJSON(mapManager.generateJSONExport(arenaSize));

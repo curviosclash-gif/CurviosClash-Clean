@@ -15,8 +15,9 @@ export const BACKDROP_ID_PREFIX = 'backdrop_';
 const PLACEMENT_KEYS = Object.freeze([
     'obstacles', 'staticTurrets', 'portals', 'gates', 'items', 'aircraft', 'glbModels', 'mapUnits',
 ]);
-// Positions the match multiplies by MAP_SCALE only when the map sets scaleAuthoredAnchors.
-const ANCHOR_KEYS = Object.freeze(['playerSpawn', 'botSpawns', 'items']);
+// Placements the match multiplies by MAP_SCALE only when the map sets scaleAuthoredAnchors
+// (Arena anchors and aircraft, StaticTurretSystem, MapUnitSystem).
+const ANCHOR_KEYS = Object.freeze(['playerSpawn', 'botSpawns', 'items', 'aircraft', 'staticTurrets', 'mapUnits']);
 
 function finiteOr(value, fallback) {
     const numeric = Number(value);
@@ -119,21 +120,25 @@ export function exportPlacementsInPresetFormat(mapManager, arenaSize, { preset =
     const parsed = parseMapJSON(mapManager.generateJSONExport(arenaSize));
     const conversion = getCustomMapConversionScale(parsed.map).scale;
     const runtime = toArenaMapDefinition(parsed.map, { mapScale: conversion }).map;
+    // A preset without scaleAuthoredAnchors states anchors in world units: the same conversion
+    // with MAP_SCALE folded in scales every spatial field the match would scale.
     const anchorScale = preset?.scaleAuthoredAnchors === true ? 1 : Math.max(0.001, finiteOr(mapScale, 3));
-    const toPresetAnchor = (entry) => ({ ...entry, x: entry.x * anchorScale, y: entry.y * anchorScale, z: entry.z * anchorScale });
+    const anchors = anchorScale === 1
+        ? runtime
+        : toArenaMapDefinition(parsed.map, { mapScale: conversion / anchorScale }).map;
 
     const result = {};
     if (preset?.scaleAuthoredAnchors === true) result.scaleAuthoredAnchors = true;
-    if (runtime.playerSpawn && parsed.map.playerSpawn) result.playerSpawn = toPresetAnchor(runtime.playerSpawn);
-    if (runtime.botSpawns?.length) result.botSpawns = runtime.botSpawns.map(toPresetAnchor);
+    if (anchors.playerSpawn && parsed.map.playerSpawn) result.playerSpawn = anchors.playerSpawn;
+    if (anchors.botSpawns?.length) result.botSpawns = anchors.botSpawns;
     for (const key of PLACEMENT_KEYS) {
-        let entries = Array.isArray(runtime[key]) ? runtime[key] : [];
+        const source = ANCHOR_KEYS.includes(key) ? anchors : runtime;
+        let entries = Array.isArray(source[key]) ? source[key] : [];
         if (key === 'glbModels') {
             entries = entries
                 .filter((model) => includeBackdrop || !String(model.id).includes(`#${BACKDROP_ID_PREFIX}`))
                 .map(({ targetSize, ...model }) => (targetSize > 0 ? { ...model, targetSize } : model));
         }
-        if (ANCHOR_KEYS.includes(key)) entries = entries.map(toPresetAnchor);
         if (entries.length > 0) result[key] = entries;
     }
     if (runtime.parcours?.checkpoints?.length) result.parcours = runtime.parcours;
