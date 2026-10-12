@@ -89,6 +89,7 @@
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
     "benchmark:jitter": "node scripts/perf-jitter-matrix.mjs",
     "benchmark:jitter:gate": "node scripts/perf-jitter-matrix.mjs --enforce",
+    "perf:loop": "node scripts/perf-loop.mjs",
     "council:check": "node scripts/check-council-config.mjs",
     "council:agent": "node scripts/council-hardening-runner.mjs agent",
     "council:live-smoke": "node scripts/council-live-smoke.mjs",
