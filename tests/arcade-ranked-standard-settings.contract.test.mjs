@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createArcadeRankContext } from '../src/shared/contracts/ArcadeDifficultyContract.js';
 import { createDefaultArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
-import { ARCADE_RANKED_STORAGE_KEY } from '../src/shared/contracts/ArcadeRankedLeaderboardContract.js';
+import { ARCADE_RANKED_STORAGE_KEY, ARCADE_RANKED_VERSION, resolveArcadeRankKey } from '../src/shared/contracts/ArcadeRankedLeaderboardContract.js';
 import { settleArcadeRunRanking } from '../src/state/arcade/ArcadeRunRanking.js';
 import { prepareArcadeRunRanking } from '../src/core/arcade/ArcadeRunRankingOps.js';
 import '../src/core/Config.js';
@@ -64,4 +64,31 @@ test('the runtime ranks with the run settings the match started with and writes 
     const standard = prepare(createDefaultArcadeRunSettings());
     assert.equal(standard.rankContext.ranked, true);
     assert.equal(settleArcadeRunRanking(standard, { succeeded: true, score: 500, completedSectors: 5 }).rank, 1);
+});
+
+test('entries saved before the standard-settings rule stay on their board untouched', () => {
+    // Before this rule a 20-sector run with a 25x cap was written to the standard board. Those rows
+    // carry no settings, so they cannot be told apart and are deliberately kept, not filtered.
+    const legacy = { runId: 'legacy', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 99_999,
+        completedWaves: 0, completedSectors: 20, date: '2026-10-01T10:00:00.000Z' };
+    const key = resolveArcadeRankKey(createArcadeRankContext({ ...base, runType: 'gauntlet', runSettings: createDefaultArcadeRunSettings() }));
+    assert.equal(key, 'gauntlet:normal:1-5');
+    const records = new Map([[ARCADE_RANKED_STORAGE_KEY, { schemaVersion: ARCADE_RANKED_VERSION, boards: { [key]: [legacy] } }]]);
+    const store = {
+        readJsonRecordResult: (k) => records.has(k) ? { status: 'found', value: structuredClone(records.get(k)) } : { status: 'missing' },
+        loadJsonRecord: (k, fallback) => records.has(k) ? structuredClone(records.get(k)) : fallback,
+        saveJsonRecord: (k, value) => { records.set(k, structuredClone(value)); return true; },
+    };
+    const runFor = (runSettings, runId) => ({ _rankingStore: store,
+        rankContext: createArcadeRankContext({ ...base, runId, runType: 'gauntlet', runSettings }) });
+
+    assert.equal(settleArcadeRunRanking(runFor({ ...createDefaultArcadeRunSettings(), sectorCount: 20 }, 'custom'),
+        { succeeded: true, score: 123_456, completedSectors: 20 }), null);
+    assert.deepEqual(records.get(ARCADE_RANKED_STORAGE_KEY).boards[key], [legacy]);
+
+    assert.equal(settleArcadeRunRanking(runFor(createDefaultArcadeRunSettings(), 'standard'),
+        { succeeded: true, score: 500, completedSectors: 5 }).rank, 2);
+    const rows = records.get(ARCADE_RANKED_STORAGE_KEY).boards[key];
+    assert.deepEqual(rows.map((row) => row.runId), ['legacy', 'standard']);
+    assert.deepEqual(rows[0], legacy);
 });

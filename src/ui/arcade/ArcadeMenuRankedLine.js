@@ -21,8 +21,9 @@ export function formatArcadeMenuRankedLine(rankContext, store, { tierLabel, form
     // An unranked choice still shows the standard board it would otherwise compete on.
     const key = resolveArcadeRankKey({ ...rankContext, ranked: rankContext.strengthScaled });
     const rows = normalizeArcadeRankedLeaderboard(store?.loadJsonRecord?.(ARCADE_RANKED_STORAGE_KEY, null)).boards[key] || [];
-    const note = rankContext.customSettings ? ' · nicht gewertet (eigene Einstellungen)'
-        : (rankContext.companions && rankContext.strengthScaled ? ' · nicht gewertet (mit Mitstreitern)' : '');
+    // An unranked run neither enters the board nor unlocks a difficulty tier (evaluateArcadeDifficultyUnlock).
+    const note = rankContext.customSettings ? ' · nicht gewertet, keine Stufen-Freischaltung (eigene Einstellungen)'
+        : (rankContext.companions && rankContext.strengthScaled ? ' · nicht gewertet, keine Stufen-Freischaltung (mit Mitstreitern)' : '');
     const formatRow = (row, index) => `${index + 1}. ${resolveVehiclePreview(row.vehicleId).label} (Lv. ${row.vehicleLevel}) `
         + (rankContext.runType === 'five_portals' ? `${(row.score / 1000).toFixed(2)} s` : `${formatInteger(row.score)} Punkte`);
     return `Bestenliste · ${tierLabel} · Level ${rankContext.levelRange.label}${note}: `

@@ -183,11 +183,12 @@ test('the ranked line says when the chosen settings keep a run off the board', (
 
     for (const arcade of [{ maxMultiplier: 25 }, { sectorCount: 20 }, { comboDecayPerSecond: 0 }]) {
         const line = mountSurface({ storeRecords, arcade }).byId('arcade-ranked-line').textContent;
-        assert.match(line, /nicht gewertet \(eigene Einstellungen\)/, JSON.stringify(arcade));
+        // An unranked run also unlocks no difficulty tier; the line has to say so.
+        assert.match(line, /nicht gewertet, keine Stufen-Freischaltung \(eigene Einstellungen\)/, JSON.stringify(arcade));
         assert.match(line, /4\.321 Punkte/, 'the standard board stays visible');
     }
     const helped = mountSurface({ storeRecords, arcade: { companionCount: 1 } }).byId('arcade-ranked-line').textContent;
-    assert.match(helped, /nicht gewertet \(mit Mitstreitern\)/);
+    assert.match(helped, /nicht gewertet, keine Stufen-Freischaltung \(mit Mitstreitern\)/);
 });
 
 test('the ranked line of a portal chain reads that chain\'s board, Fünf Portale its saved one', () => {
