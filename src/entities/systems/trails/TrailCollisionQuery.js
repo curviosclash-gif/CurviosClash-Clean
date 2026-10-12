@@ -71,17 +71,10 @@ export class TrailCollisionQuery {
 
     _segmentIntersectsSphere(seg, position, radius, outClosestPoint = null) {
         const totalRadius = radius + seg.radius;
-        const minX = Math.min(seg.fromX, seg.toX) - seg.radius;
-        const maxX = Math.max(seg.fromX, seg.toX) + seg.radius;
-        if (position.x < minX - radius || position.x > maxX + radius) return false;
-
-        const minY = Math.min(seg.fromY, seg.toY) - seg.radius;
-        const maxY = Math.max(seg.fromY, seg.toY) + seg.radius;
-        if (position.y < minY - radius || position.y > maxY + radius) return false;
-
-        const minZ = Math.min(seg.fromZ, seg.toZ) - seg.radius;
-        const maxZ = Math.max(seg.fromZ, seg.toZ) + seg.radius;
-        if (position.z < minZ - radius || position.z > maxZ + radius) return false;
+        // Bounds are stored by TrailSegmentRegistry.registerTrailSegment, the only writer of segments.
+        if (position.x < seg.boundsMinX - radius || position.x > seg.boundsMaxX + radius) return false;
+        if (position.y < seg.boundsMinY - radius || position.y > seg.boundsMaxY + radius) return false;
+        if (position.z < seg.boundsMinZ - radius || position.z > seg.boundsMaxZ + radius) return false;
 
         const vx = seg.toX - seg.fromX;
         const vy = seg.toY - seg.fromY;
