@@ -181,6 +181,7 @@ export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
         specs: [
             'tests/gpu.spec.js',
             'tests/map-performance.desktop.spec.js',
+            'tests/perf-loop-probe.desktop.spec.js',
             'tests/perf-match-ab.desktop.spec.js',
             'tests/perf-quality-audit.desktop.spec.js',
             'tests/perf-quality-implementation.desktop.spec.js',
