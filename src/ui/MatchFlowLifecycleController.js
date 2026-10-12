@@ -1,6 +1,10 @@
-import { createRoundEndRecorderAdapter, getLastRoundGhostClip } from './MatchFlowTransitionHotspots.js';
+import {
+    createRoundEndRecorderAdapter,
+    getLastRoundGhostClip,
+    resolveGhostRouteContext,
+} from './MatchFlowTransitionHotspots.js';
 import { resolveLocalPlayerIndexes } from './postmatch/PostMatchStandingsBlock.js';
-import { WEAPON_RACE_GHOST_ROUTE_ID, isWeaponRaceConfig } from '../shared/contracts/WeaponRaceContract.js';
+import { isWeaponRaceConfig } from '../shared/contracts/WeaponRaceContract.js';
 import { SPLIT_SCREEN_VARIANTS } from '../four-player-planar/FourPlayerPlanarContract.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 
@@ -31,37 +35,7 @@ export class MatchFlowLifecycleController {
     }
 
     _resolveGhostRouteContext() {
-        const game = this.game;
-        if (isWeaponRaceConfig(game?.runtimeConfig)) {
-            return { routeId: WEAPON_RACE_GHOST_ROUTE_ID, routeAliases: [WEAPON_RACE_GHOST_ROUTE_ID] };
-        }
-        const explicitRouteId = String(game?.arena?.currentMapDefinition?.parcours?.routeId || '').trim();
-        const runtimeRouteId = String(game?.arena?.runtimeMapDefinition?.parcours?.routeId || '').trim();
-        const fallbackMapKeys = [
-            game?.arena?.currentMapKey,
-            game?.runtimeConfig?.session?.mapKey,
-            game?.settings?.mapKey,
-            game?.mapKey,
-        ];
-        const routeAliases = [];
-        const seen = new Set();
-        const pushCandidate = (value) => {
-            const candidate = String(value || '').trim();
-            if (!candidate || seen.has(candidate)) return;
-            seen.add(candidate);
-            routeAliases.push(candidate);
-        };
-
-        pushCandidate(explicitRouteId);
-        pushCandidate(runtimeRouteId);
-        for (let i = 0; i < fallbackMapKeys.length; i += 1) {
-            pushCandidate(fallbackMapKeys[i]);
-        }
-
-        return {
-            routeId: routeAliases[0] || '',
-            routeAliases,
-        };
+        return resolveGhostRouteContext(this.game);
     }
 
     _resolveGhostRouteId() {

@@ -1,3 +1,5 @@
+import { WEAPON_RACE_GHOST_ROUTE_ID, isWeaponRaceConfig } from '../shared/contracts/WeaponRaceContract.js';
+
 function getRuntimePorts(game) {
     return game?.runtimeBundle?.ports || game?.runtimePorts || null;
 }
@@ -26,7 +28,12 @@ function getLegacyRoundRecorder(game) {
     return game?.recorder || null;
 }
 
-function resolveGhostRouteContext(game) {
+// The one answer to "which ghost route is running": the round start and the menu replay fallback
+// both ask here, so the Weapon Race ghost is found under its own route ID by either of them.
+export function resolveGhostRouteContext(game) {
+    if (isWeaponRaceConfig(game?.runtimeConfig)) {
+        return { routeId: WEAPON_RACE_GHOST_ROUTE_ID, routeAliases: [WEAPON_RACE_GHOST_ROUTE_ID] };
+    }
     const explicitRouteId = String(game?.arena?.currentMapDefinition?.parcours?.routeId || '').trim();
     const runtimeRouteId = String(game?.arena?.runtimeMapDefinition?.parcours?.routeId || '').trim();
     const fallbackMapKeys = [
