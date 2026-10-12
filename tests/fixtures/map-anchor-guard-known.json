@@ -1,5 +1,5 @@
 {
-  "count": 41,
+  "count": 37,
   "entries": [
     {
       "map": "showcase_nexus",
@@ -12,18 +12,6 @@
       "check": "item-type",
       "point": "items[showcase_random_lane]",
       "reason": "no known pickup type in pickupType=undefined type=\"item_coin\"; deliberate random lane? the game rolls a random type for an unknown one; set pickupType or decide it is intended"
-    },
-    {
-      "map": "parcours_assault",
-      "check": "free-directions",
-      "point": "botSpawns[2]",
-      "reason": "only 0/6 axis directions free for 8 units at (132, 54, 90); blocked: +x obstacles[8] (foam), -x obstacles[8] (foam), +y obstacles[8] (foam), -y obstacles[8] (foam), +z obstacles[8] (foam), -z obstacles[8] (foam)"
-    },
-    {
-      "map": "parcours_assault",
-      "check": "in-solid",
-      "point": "botSpawns[4]",
-      "reason": "spawn (306, 72, 72) sits inside obstacles[12]"
     },
     {
       "map": "storm_switchyard",
@@ -132,18 +120,6 @@
       "check": "in-solid",
       "point": "gates[mm_boost_mid]",
       "reason": "gate (0, 30, 0) sits inside obstacles[31] (foam)"
-    },
-    {
-      "map": "eclipse_foundry",
-      "check": "in-solid",
-      "point": "portals[0].a",
-      "reason": "portal (-306, 66, -87) sits inside obstacles[10]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "eclipse_foundry",
-      "check": "in-solid",
-      "point": "portals[0].b",
-      "reason": "portal (-234, 120, 81) sits inside obstacles[14]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
     },
     {
       "map": "eclipse_foundry",

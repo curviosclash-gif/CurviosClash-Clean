@@ -4,8 +4,15 @@ import test from 'node:test';
 
 import { CONFIG } from '../src/core/Config.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
+import { SETTINGS_LIMITS } from '../src/shared/contracts/SettingsRuntimeContract.js';
+import { getPlayerVehicleIds, getVehicleDefinition } from '../src/entities/vehicle-registry.js';
+import { ARCADE_LAB_MAX_SWEEP_RADIUS, createArcadeLabStarterConfig, validateArcadeLabShip } from '../src/shared/contracts/ArcadeLabContract.js';
+import { buildArcadeHitboxShape } from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
+import { ARCADE_PART_SIZE_GROUPS, ARCADE_PART_SIZE_MAX_PCT } from '../src/shared/contracts/ArcadeVehicleSizeContract.js';
+import { isArcadeSelectableVehicleId, resolveArcadeWallHitboxScale } from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
+import { listRegisteredArcadeLabShips, registerArcadeLabShips } from '../src/shared/contracts/ArcadeLabRegistryContract.js';
 import { listCompiledBoxObstacles } from '../scripts/parcours-ring-clearance.mjs';
-import { analyzeMapAnchors, CHECKS, violationKey } from './helpers/map-anchor-guard.mjs';
+import { analyzeMapAnchors, CHECKS, MAX_SELECTABLE_PLAYER_RADIUS, violationKey } from './helpers/map-anchor-guard.mjs';
 
 // Every catalog map, every placed point: spawns, items, portals, gates and lights must lie inside
 // the arena, outside solid boxes, with room to fly, and make sense (known pickup type, no stacked
@@ -138,4 +145,106 @@ test('the map scale applies to anchors only when the map says so', () => {
     // unscaled it is still inside.
     assert.deepEqual(analyzeMapAnchors('probe', { ...base, scaleAuthoredAnchors: true }, MAP_SCALE).map((v) => v.check), ['bounds']);
     assert.deepEqual(analyzeMapAnchors('probe', base, MAP_SCALE).map((v) => v.check), []);
+});
+
+test('portal and Parcours trigger volumes stay separated in scaled 3D space for the largest selectable vehicle', () => {
+    const selectableFactoryIds = getPlayerVehicleIds().filter((vehicleId) => isArcadeSelectableVehicleId(vehicleId));
+    assert.ok(selectableFactoryIds.length > 0);
+    assert.ok(getPlayerVehicleIds().every((vehicleId) => (
+        !isArcadeSelectableVehicleId(vehicleId) || selectableFactoryIds.includes(vehicleId)
+    )), 'trigger guard selection explicitly follows the Arcade-selectable factory rule');
+    const factoryRadius = Math.max(...selectableFactoryIds.map((vehicleId) => (
+        Number(getVehicleDefinition(vehicleId)?.hitbox?.radius) || CONFIG.PLAYER.HITBOX_RADIUS || 0.8
+    )));
+    const labTriggerHitboxRadius = 1.2;
+    const maxPlayerRadius = Math.max(factoryRadius, labTriggerHitboxRadius) * SETTINGS_LIMITS.gameplay.planeScale.max;
+    assert.equal(MAX_SELECTABLE_PLAYER_RADIUS, maxPlayerRadius,
+        'anchor trigger guard uses actual Player hitbox radii, including the Lab definition radius, at maximum plane scale');
+    const maxPartSizes = Object.fromEntries(ARCADE_PART_SIZE_GROUPS.map((group) => [group, ARCADE_PART_SIZE_MAX_PCT]));
+    const previousLabShips = listRegisteredArcadeLabShips();
+    const fixtureShips = ['fighter', 'allrounder', 'tank'].map((role, index) => ({
+        id: `arcade_lab_${990 + index}`,
+        label: `Lab ${role}`,
+        role,
+        config: createArcadeLabStarterConfig(role),
+    }));
+    registerArcadeLabShips([...previousLabShips, ...fixtureShips]);
+    for (const [index, role] of ['fighter', 'allrounder', 'tank'].entries()) {
+        const id = `arcade_lab_${990 + index}`;
+        const config = createArcadeLabStarterConfig(role);
+        assert.equal(validateArcadeLabShip({ id, config }).ok, true, `${role} is a valid Lab archetype`);
+        const shape = buildArcadeHitboxShape(config.parts, maxPartSizes, { originScale: resolveArcadeWallHitboxScale(id) });
+        assert.ok(shape.boundRadius <= ARCADE_LAB_MAX_SWEEP_RADIUS,
+            `${role} max-size wall hitbox remains inside the separate Lab sweep ceiling`);
+        assert.equal(isArcadeSelectableVehicleId(id), true, `${role} Lab archetype is accepted by Arcade selection`);
+        assert.equal(getVehicleDefinition(id)?.hitbox?.radius, labTriggerHitboxRadius,
+            `${role} runtime Player trigger radius comes from getVehicleDefinition`);
+        assert.ok(MAX_SELECTABLE_PLAYER_RADIUS >= labTriggerHitboxRadius * SETTINGS_LIMITS.gameplay.planeScale.max,
+            `${role} runtime trigger radius is dominated by the anchor guard independent of its larger wall shape`);
+    }
+    registerArcadeLabShips(previousLabShips);
+    const portalRadius = CONFIG.PORTAL.RADIUS;
+    const map = {
+        size: [200, 200, 200],
+        obstacles: [],
+        portals: [{ a: [0, 0, 0], b: [60, 0, 0] }],
+        parcours: {
+            enabled: true,
+            checkpoints: [{ id: 'CP01', pos: [0, 0, 4], radius: 2 }],
+        },
+    };
+
+    // Portal centers scale as map coordinates; the live Parcours route scales both its center
+    // and radius by MAP_SCALE. The Y offset makes this a true 3D sphere check, not an XZ test.
+    const scaledCheckpointRadius = 2 * 2;
+    const combinedTriggerRadius = portalRadius + scaledCheckpointRadius + 2 * maxPlayerRadius;
+    const overlapMap = structuredClone(map);
+    overlapMap.parcours.checkpoints[0].pos = [0, 6.25, 0];
+    const overlap = analyzeMapAnchors('trigger_overlap', overlapMap, 2, { checkPortalCheckpointOverlaps: true })
+        .filter((violation) => violation.check === 'portal-checkpoint-trigger-overlap');
+    assert.deepEqual(overlap.map((violation) => violation.point), ['portals[0].a ↔ parcours.checkpoints[0]']);
+    assert.ok(Math.hypot(6.25 * 2, 0) < combinedTriggerRadius, 'the scaled 3D centers overlap only after both trigger radii and maximum selectable hulls are included');
+
+    const verticallyClearMap = structuredClone(map);
+    verticallyClearMap.parcours.checkpoints[0].pos = [0, combinedTriggerRadius / 2 + 1, 0];
+    assert.deepEqual(
+        analyzeMapAnchors('trigger_clear', verticallyClearMap, 2, { checkPortalCheckpointOverlaps: true })
+            .filter((violation) => violation.check === 'portal-checkpoint-trigger-overlap'),
+        [],
+        'a vertical gap beyond the combined 3D trigger radius is clear even when the XZ centers coincide',
+    );
+});
+
+test('item and light IDs are unique within their own runtime namespaces', () => {
+    const map = {
+        size: [100, 60, 100],
+        obstacles: [],
+        items: [
+            { id: ' shared-anchor ', type: 'item_crystal', x: -20, y: 20, z: 0 },
+            { id: 'shared-anchor', type: 'item_crystal', x: 20, y: 20, z: 0 },
+        ],
+        lights: [
+            { id: 'shared-anchor', x: -20, y: 20, z: -20, distance: 100 },
+            { id: ' shared-anchor ', x: 20, y: 20, z: -20, distance: 100 },
+        ],
+    };
+    const duplicates = analyzeMapAnchors('id_probe', map, MAP_SCALE)
+        .filter((violation) => violation.check.endsWith('-duplicate-id'));
+    assert.deepEqual(
+        duplicates.map((violation) => `${violation.check}:${violation.point}`),
+        ['item-duplicate-id:items[shared-anchor]', 'light-duplicate-id:lights[shared-anchor]'],
+    );
+
+    const sameIdInSeparateNamespaces = {
+        ...map,
+        items: [{ id: 'shared', type: 'item_crystal', x: -20, y: 20, z: 0 }],
+        lights: [{ id: 'shared', x: 20, y: 20, z: -20, distance: 100 }],
+        portals: [{ id: 'shared', a: [0, 20, 0], b: [0, 20, 20] }],
+    };
+    assert.deepEqual(
+        analyzeMapAnchors('id_namespaces', sameIdInSeparateNamespaces)
+            .filter((violation) => violation.check.endsWith('-duplicate-id')),
+        [],
+        'item anchor keys and light object IDs are separate namespaces; authored portal pair IDs are not a runtime identity',
+    );
 });

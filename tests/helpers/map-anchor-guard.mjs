@@ -16,6 +16,13 @@
 // vertically out of a wall: the nudge is a rescue, not a placement.
 
 import { listCompiledBoxObstacles, RING_CLEARANCE_WORLD_RADIUS } from '../../scripts/parcours-ring-clearance.mjs';
+import { CONFIG } from '../../src/core/Config.js';
+import { SETTINGS_LIMITS } from '../../src/shared/contracts/SettingsRuntimeContract.js';
+import { getPlayerVehicleIds, getVehicleDefinition } from '../../src/entities/vehicle-registry.js';
+import { isArcadeSelectableVehicleId } from '../../src/shared/contracts/ArcadeVehicleBalanceContract.js';
+import { listRegisteredArcadeLabShips } from '../../src/shared/contracts/ArcadeLabRegistryContract.js';
+import { buildRouteFromParcours } from '../../src/entities/systems/ParcoursProgressUtils.js';
+import { resolvePortalMode } from '../../src/shared/contracts/PortalAuthoringContract.js';
 import { normalizeMapLightSources } from '../../src/shared/contracts/MapLightSourcesContract.js';
 import { getPickupDefinition, normalizePickupType } from '../../src/shared/contracts/PickupRegistryContract.js';
 
@@ -26,6 +33,9 @@ export const CHECKS = Object.freeze([
     'free-directions',
     'item-type',
     'item-duplicate',
+    'item-duplicate-id',
+    'portal-checkpoint-trigger-overlap',
+    'light-duplicate-id',
     'light-reach',
 ]);
 
@@ -34,8 +44,24 @@ export const CHECKS = Object.freeze([
 export const FREE_DISTANCE = 8;
 export const MIN_FREE_DIRECTIONS = 3;
 export const SHIP_CLEARANCE = RING_CLEARANCE_WORLD_RADIUS;
+// Player portal/route triggers use Player.hitboxRadius from getVehicleDefinition, not the
+// separate Arcade part-wall sweep bound. getVehicleDefinition assigns Lab ships radius 1.2.
+const ARCADE_LAB_TRIGGER_HITBOX_RADIUS = 1.2;
 // Two items closer than this are one item in practice (the pickup radius is larger).
 export const ITEM_DUPLICATE_DISTANCE = 1;
+
+// Player uses this same selectable registry radius multiplied by its setting-clamped model scale.
+// Parcours and portals each add player.hitboxRadius to their own trigger radius.
+export const MAX_SELECTABLE_PLAYER_RADIUS = Math.max(
+    CONFIG.PLAYER.HITBOX_RADIUS || 0.8,
+    ...getPlayerVehicleIds().filter((vehicleId) => isArcadeSelectableVehicleId(vehicleId)).map((vehicleId) => (
+        Number(getVehicleDefinition(vehicleId)?.hitbox?.radius) || CONFIG.PLAYER.HITBOX_RADIUS || 0.8
+    )),
+    ...listRegisteredArcadeLabShips()
+        .filter((ship) => isArcadeSelectableVehicleId(ship.id))
+        .map((ship) => Number(getVehicleDefinition(ship.id)?.hitbox?.radius) || ARCADE_LAB_TRIGGER_HITBOX_RADIUS),
+    ARCADE_LAB_TRIGGER_HITBOX_RADIUS,
+) * SETTINGS_LIMITS.gameplay.planeScale.max;
 
 const AXIS_DIRECTIONS = Object.freeze([
     ['+x', [1, 0, 0]], ['-x', [-1, 0, 0]],
@@ -185,9 +211,10 @@ function readAnchorPoint(entry, requireY) {
  * @param {string} mapKey
  * @param {any} map a catalog preset
  * @param {number} mapScale CONFIG.ARENA.MAP_SCALE
+ * @param {{ checkPortalCheckpointOverlaps?: boolean }} [options]
  * @returns {{ map: string, check: string, point: string, reason: string }[]}
  */
-export function analyzeMapAnchors(mapKey, map, mapScale) {
+export function analyzeMapAnchors(mapKey, map, mapScale, options = {}) {
     const violations = [];
     const add = (check, point, reason) => violations.push({ map: mapKey, check, point, reason });
     const anchorScale = map?.scaleAuthoredAnchors === true ? mapScale : 1;
@@ -228,8 +255,18 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
     (Array.isArray(map?.botSpawns) ? map.botSpawns : []).forEach((entry, index) => checkSpawn(entry, `botSpawns[${index}]`));
 
     const itemWorlds = [];
+    const itemIds = new Map();
     (Array.isArray(map?.items) ? map.items : []).forEach((entry, index) => {
         const point = `items[${label(entry, index, '#')}]`;
+        const itemId = typeof entry?.id === 'string' ? entry.id.trim() : '';
+        if (itemId) {
+            const firstIndex = itemIds.get(itemId);
+            if (firstIndex !== undefined) {
+                add('item-duplicate-id', point, `item ID ${itemId} duplicates items[${label(map.items[firstIndex], firstIndex, '#')}]`);
+            } else {
+                itemIds.set(itemId, index);
+            }
+        }
         const local = readAnchorPoint(entry, true);
         if (!local) {
             const written = Array.isArray(entry?.pos) ? ` pos ${JSON.stringify(entry.pos)}` : '';
@@ -250,7 +287,10 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
         itemWorlds.push({ point, world });
     });
 
-    (Array.isArray(map?.portals) ? map.portals : []).forEach((portal, index) => {
+    const authoredPortalsAreBuilt = CONFIG.GAMEPLAY.PLANAR_MODE !== true
+        && ['authored', 'hybrid'].includes(resolvePortalMode(map));
+    const portals = Array.isArray(map?.portals) ? map.portals : [];
+    portals.forEach((portal, index) => {
         for (const end of ['a', 'b']) {
             if (!Array.isArray(portal?.[end])) continue;
             const world = portal[end].map((value) => value * mapScale);
@@ -258,14 +298,68 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
         }
     });
 
+    // PortalLayoutBuilder identifies authored portal pairs by array index and MapSchemaRuntimeOps
+    // drops editor endpoint IDs while pairing nodes. Therefore portal `id` values are not a
+    // runtime namespace; only item anchors and normalized lights below have consumed IDs to guard.
+    if (options.checkPortalCheckpointOverlaps === true
+        && authoredPortalsAreBuilt
+        && map?.parcours?.enabled === true) {
+        const route = buildRouteFromParcours(map.parcours, { positionScale: mapScale });
+        const checkpointTriggers = [
+            ...(route?.checkpoints || []).map((entry, index) => ({
+                point: `parcours.checkpoints[${index}]`,
+                id: entry.id,
+                world: entry.pos,
+                radius: entry.radius,
+            })),
+            ...(route?.finish ? [{
+                point: 'parcours.finish',
+                id: route.finish.id,
+                world: route.finish.pos,
+                radius: route.finish.radius,
+            }] : []),
+        ];
+        const portalRadius = Number(CONFIG.PORTAL.RADIUS);
+        for (let portalIndex = 0; portalIndex < portals.length; portalIndex += 1) {
+            const portal = portals[portalIndex];
+            for (const end of ['a', 'b']) {
+                const local = portal?.[end];
+                if (!Array.isArray(local) || local.length < 3 || !local.slice(0, 3).every(isNumber)) continue;
+                const portalWorld = local.slice(0, 3).map((value) => value * mapScale);
+                for (const checkpoint of checkpointTriggers) {
+                    const centerDistance = Math.hypot(...portalWorld.map((value, axis) => value - checkpoint.world[axis]));
+                    const combinedTriggerRadius = portalRadius + checkpoint.radius + 2 * MAX_SELECTABLE_PLAYER_RADIUS;
+                    if (centerDistance <= combinedTriggerRadius) {
+                        const fmtScalar = (value) => Math.round(value * 100) / 100;
+                        add(
+                            'portal-checkpoint-trigger-overlap',
+                            `portals[${portalIndex}].${end} ↔ ${checkpoint.point}`,
+                            `portal center ${fmt(portalWorld)} and checkpoint ${checkpoint.id} center ${fmt(checkpoint.world)} are ${fmtScalar(centerDistance)} apart; portal radius ${fmtScalar(portalRadius)} + checkpoint radius ${fmtScalar(checkpoint.radius)} + two max selectable player radii ${fmtScalar(2 * MAX_SELECTABLE_PLAYER_RADIUS)} = ${fmtScalar(combinedTriggerRadius)}`,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     (Array.isArray(map?.gates) ? map.gates : []).forEach((gate, index) => {
         if (!Array.isArray(gate?.pos)) return;
         checkPlacement(`gates[${label(gate, index, '#')}]`, gate.pos.map((value) => value * mapScale), worldSize, 'gate');
     });
 
     const targets = listLightTargets(map, mapScale);
-    normalizeMapLightSources(map?.lights).forEach((light, index) => {
+    const lightIds = new Map();
+    const normalizedLights = normalizeMapLightSources(map?.lights);
+    normalizedLights.forEach((light, index) => {
         const point = `lights[${label(light, index, '#')}]`;
+        if (light.id) {
+            const firstIndex = lightIds.get(light.id);
+            if (firstIndex !== undefined) {
+                add('light-duplicate-id', point, `light ID ${light.id} duplicates lights[${label(normalizedLights[firstIndex], firstIndex, '#')}]`);
+            } else {
+                lightIds.set(light.id, index);
+            }
+        }
         const world = [light.x * anchorScale, light.y * anchorScale, light.z * anchorScale];
         const reach = light.distance * anchorScale;
         checkPlacement(point, world, worldSize, 'light', { solid: false });

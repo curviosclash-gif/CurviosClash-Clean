@@ -271,11 +271,11 @@ const KINETIC_TIDE_OBSTACLES = [
 ];
 
 const KINETIC_TIDE_PORTALS = [
-    { a: [-128, 19, 14], b: [-102, 34, 26], color: 0x22ccdd },
-    { a: [50, 72, -30], b: [52, 80, 34], color: 0xff8811 },
-    { a: [190, 102, 58], b: [170, 108, 96], color: 0xaa66ff },
+    { a: [-139, 29, 27], b: [-99, 24, 50], color: 0x22ccdd },
+    { a: [36, 84, -30], b: [33, 85, 34], color: 0xff8811 },
+    { a: [209, 114, 63], b: [151, 113, 86], color: 0xaa66ff },
     // Just past the end of the tide panels' stroke, beside the descent tunnel mouth.
-    { a: [52, 96, 88], b: [-6, 72, 30], color: 0x44ffbb },
+    { a: [42, 101, 98], b: [-6, 92, 30], color: 0x44ffbb },
 ];
 
 const KINETIC_TIDE_GATES = [

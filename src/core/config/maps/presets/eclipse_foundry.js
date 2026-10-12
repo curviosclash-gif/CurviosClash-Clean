@@ -154,10 +154,10 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
 ];
 
 const ECLIPSE_FOUNDRY_PORTALS = [
-    { a: [-102, 22, -29], b: [-78, 40, 27], color: 0x22aaff },
-    { a: [80, 76, -47], b: [80, 87, 41], color: 0xff8811 },
-    { a: [104, 101, 96], b: [61, 116, 108], color: 0xaa66ff },
-    { a: [-58, 93, 22], b: [-34, 72, -38], color: 0x44ffbb },
+    { a: [-102, 36, -29], b: [-78, 56, 27], color: 0x22aaff },
+    { a: [91, 92, -47], b: [80, 103, 41], color: 0xff8811 },
+    { a: [105, 78, 101], b: [61, 123, 130], color: 0xaa66ff },
+    { a: [-90, 96, 22], b: [-25, 72, -59], color: 0x44ffbb },
 ];
 
 const ECLIPSE_FOUNDRY_GATES = [
