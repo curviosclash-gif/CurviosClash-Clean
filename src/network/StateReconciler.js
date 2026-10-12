@@ -199,9 +199,11 @@ export class StateReconciler {
 
         entityManager?.applyNetworkSnapshot?.(this._lastStateUpdate?.state);
         applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
+        // Record the host's current round first. A late result from an older round must
+        // not end a client that has already observed the host start a newer one.
+        applyRoundSerialNetworkState(entityManager, this._lastStateUpdate?.state?.roundSerial);
         // After the fight state, so the result board already sees the final HUNT scores.
         applyRoundOutcomeNetworkState(entityManager, this._lastStateUpdate?.state?.roundOutcome);
-        applyRoundSerialNetworkState(entityManager, this._lastStateUpdate?.state?.roundSerial);
 
         const serverPlayers = this._lastStateUpdate?.state?.players;
         if (!Array.isArray(localPlayers) || !serverPlayers) return;

@@ -157,7 +157,7 @@ Drei Dateien unter `src/core/config/maps/presets/<map_key>/`, wie beim Turm:
 - **`<Name>Destructibles.js`** — `gameModes`, `segments` (mit `id`, `label` für das HUD, `kind`, `hp`, `meshPrefixes`, `anchor`, bei Bedarf `piece`), `pieces` und `breakScenes` (`trigger: { kind }` oder `{ segmentId }`, nie beides; `modelId`; `bakedHeading`; `pieces`; `hideModelIds` = **alle** Modelle der fallenden Stücke, Maschinen eingeschlossen — ein hängen gebliebener Aufzug über leerer Esplanade verrät den Trick). Ein `trigger.segmentId` schlägt `trigger.kind`, so kann die Spitze einen eigenen Sturz haben und eine generische Szene den Rest derselben Art abdecken.
 - **`index.js`** — Feldgröße ≥ Reichweite + 20 Einheiten Rand (Reichweite aus Phase 3, in Kartenmaßstab umgerechnet); der Rückfall-Boden (`compileWithGlb`, `kind: 'foam'`) wächst mit dem Feld; gezeichnete Kisten (`renderWithGlb`), die nach dem Sturz in der Luft hängen würden, fliegen raus; keine Portale, die in fallende Geometrie enden; Spawns außerhalb des Bauwerks; `singlePlayerScenario` mit dem Modus, in dem gebrochen werden darf.
 
-Registrierung an drei Stellen: `MapPresetCatalog.js` (Import + Spread), `BASE_MAP_KEYS` in `MapPresetsBase.js` (sonst bietet der Picker die Karte nie an) und eine Sammlung in `src/ui/menu/MenuMapCollectionCatalog.js`. Danach:
+Registrierung an drei Stellen: `MapPresetCatalog.js` (Import + Spread), `BASE_MAP_KEYS` in `MapPresetsBase.js` (sonst bietet der Picker die Karte nie an) und ein Eintrag (Sammlung, Beschreibung, Merkmal `destructible`) in `src/shared/maps/MapPickerMeta.js`. Danach:
 
 ```bash
 rg "eiffel_tower_siege" tests/ scripts/

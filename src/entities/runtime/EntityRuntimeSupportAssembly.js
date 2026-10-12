@@ -266,6 +266,7 @@ export function createEntityRuntimeSupport(owner) {
             },
             lifecycle: {
                 killPlayer: (player, cause = 'UNKNOWN', options = {}) => owner._killPlayer(player, cause, options),
+                resetExclusionZoneForSpawn: (player) => owner._exclusionZoneSystem?.resetPlayer?.(player),
             },
             trails: {
                 getTrailSpatialIndex: () => trailSpatialIndex,

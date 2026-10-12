@@ -42,6 +42,10 @@ export function createEditorDomRefs(doc = document) {
 
         btnShipFlight: doc.getElementById("btnShipFlight"),
         btnGameView: doc.getElementById("btnGameView"),
+        selBackdropMap: doc.getElementById("selBackdropMap"),
+        btnLoadBackdrop: doc.getElementById("btnLoadBackdrop"),
+        btnCopyPresetPlacements: doc.getElementById("btnCopyPresetPlacements"),
+        jsonSection: doc.getElementById("jsonSection"),
         shipFlightHud: doc.getElementById("shipFlightHud"),
         shipFlightSpeed: doc.getElementById("shipFlightSpeed"),
         shipFlightTarget: doc.getElementById("shipFlightTarget"),

@@ -10,6 +10,12 @@ export const TOYBOX_TITAN_MAP = Object.freeze({
         glbColliderMode: 'scene',
         obstacles: Object.freeze([]),
         portals: Object.freeze([]),
+        // Map units, written next to the props they reward: the gateway between the castle
+        // pillars, the top of the book stack, the middle of the train ring, three open spots.
+        items: Object.freeze([
+            [0, 5, 0], [30.2, 9, -30], [-30, 4, -30],
+            [44, 4, 44], [-44, 4, 22], [22, 4, -4],
+        ].map((pos) => Object.freeze({ pos }))),
         playerSpawn: Object.freeze({ x: 0, y: 3, z: 44 }),
         botSpawns: Object.freeze([
             Object.freeze({ x: 44, y: 3, z: 0 }),

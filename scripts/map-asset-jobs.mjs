@@ -26,6 +26,7 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     standard: 'generate_map_world.py',
     wind_cathedral: 'generate_map_world.py',
     chrono_forge_nexus: 'generate_map_world.py',
+    eclipse_foundry: 'generate_map_world.py',
     maze: 'generate_map_world.py',
     complex: 'generate_map_world.py',
     pyramid: 'generate_pyramid_map_assets.py',

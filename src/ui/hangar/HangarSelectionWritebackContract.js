@@ -29,12 +29,14 @@ export const HANGAR_SELECTION_MODES = Object.freeze({
 
 /**
  * Map keys that are only hidden doubles of another map since that map absorbed them (the
- * Notre-Dame evolution plays sunshine, fire and ruins in one round). Stored recents and
- * favourites from before keep the old key and would list the same map twice.
+ * Notre-Dame evolution plays sunshine, fire and ruins in one round; Die Festung is the old name
+ * of the Expert Gauntlet). Stored recents and favourites from before keep the old key and would
+ * list the same map twice.
  */
 export const START_SETUP_RETIRED_MAP_KEYS = Object.freeze({
     notre_dame_fire: 'notre_dame',
     notre_dame_fire_arena: 'notre_dame_arena',
+    die_festung: 'expert_gauntlet',
 });
 
 /**

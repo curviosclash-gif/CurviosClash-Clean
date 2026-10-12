@@ -16,8 +16,8 @@ import {
     createSignalingEnvelope,
 } from '../src/shared/contracts/SignalingSessionContract.js';
 
-async function startServer() {
-    const wss = createSignalingServer(0);
+async function startServer(options = {}) {
+    const wss = createSignalingServer(0, options);
     if (!wss.address()) await once(wss, 'listening');
     return {
         wss,
@@ -30,8 +30,8 @@ async function stopServer(wss) {
     await new Promise((resolve) => wss.close(resolve));
 }
 
-async function openClient(url) {
-    const socket = new WebSocket(url);
+async function openClient(url, headers = undefined) {
+    const socket = headers ? new WebSocket(url, { headers }) : new WebSocket(url);
     socket.on('error', () => {});
     await once(socket, 'open');
     return socket;
@@ -341,5 +341,165 @@ test('online signaling caps active IP connections, IP lobbies, and idle sockets'
         assert.equal(idleReason.toString(), 'lobby_assignment_timeout');
     } finally {
         await stopServer(wss);
+    }
+});
+
+test('online signaling trusts a forwarded chain only from an allowed proxy and applies per-client IP quotas', async () => {
+    const { wss, url } = await startServer({
+        trustedProxyIps: ['::ffff:127.0.0.1', '192.0.2.10'],
+        maxMessagesPerIp: 1,
+    });
+    const clients = [];
+    const connect = async (forwardedFor) => {
+        const socket = await openClient(url, { 'x-forwarded-for': forwardedFor });
+        clients.push(socket);
+        return socket;
+    };
+    try {
+        const clientA = await connect('198.51.100.11');
+        const clientB = await connect('198.51.100.12');
+        const [firstA, firstB] = await Promise.all([
+            sendAndReceive(clientA, SIGNALING_COMMAND_TYPES.LIST_LOBBIES),
+            sendAndReceive(clientB, SIGNALING_COMMAND_TYPES.LIST_LOBBIES),
+        ]);
+        assert.equal(firstA.type, SIGNALING_EVENT_TYPES.LOBBY_LIST);
+        assert.equal(firstB.type, SIGNALING_EVENT_TYPES.LOBBY_LIST, 'different forwarded clients receive separate IP quotas');
+
+        const chained = await connect('198.51.100.99, 203.0.113.7, 192.0.2.10');
+        const chainResult = await sendAndReceive(chained, SIGNALING_COMMAND_TYPES.LIST_LOBBIES);
+        assert.equal(chainResult.type, SIGNALING_EVENT_TYPES.LOBBY_LIST);
+
+        const spoofedLeftmost = await connect('203.0.113.66, 203.0.113.7, 192.0.2.10');
+        const rejected = await sendAndReceive(spoofedLeftmost, SIGNALING_COMMAND_TYPES.LIST_LOBBIES);
+        assert.equal(rejected.type, SIGNALING_EVENT_TYPES.ERROR);
+        assert.equal(rejected.code, 'rate_limit_exceeded', 'the leftmost forged address cannot split a trusted client quota');
+    } finally {
+        for (const client of clients) client.terminate();
+        await stopServer(wss);
+    }
+});
+
+test('online signaling ignores forwarded headers when no trusted proxy is configured', async () => {
+    const { wss, url } = await startServer({ trustedProxyIps: [], maxMessagesPerIp: 1 });
+    const clients = [];
+    try {
+        const first = await openClient(url, { 'x-forwarded-for': '198.51.100.21' });
+        clients.push(first);
+        assert.equal((await sendAndReceive(first, SIGNALING_COMMAND_TYPES.LIST_LOBBIES)).type, SIGNALING_EVENT_TYPES.LOBBY_LIST);
+
+        const spoofed = await openClient(url, { 'x-forwarded-for': '198.51.100.22' });
+        clients.push(spoofed);
+        const rejected = await sendAndReceive(spoofed, SIGNALING_COMMAND_TYPES.LIST_LOBBIES);
+        assert.equal(rejected.type, SIGNALING_EVENT_TYPES.ERROR);
+        assert.equal(rejected.code, 'rate_limit_exceeded', 'untrusted X-Forwarded-For values cannot evade the socket IP quota');
+    } finally {
+        for (const client of clients) client.terminate();
+        await stopServer(wss);
+    }
+});
+
+test('online signaling reads the explicit trusted proxy IP allowlist from its server environment', async () => {
+    const variable = 'CURVIOS_SIGNALING_TRUSTED_PROXY_IPS';
+    const previous = process.env[variable];
+    let wss = null;
+    const clients = [];
+    try {
+        process.env[variable] = '::ffff:127.0.0.1';
+        const server = await startServer({ maxMessagesPerIp: 1 });
+        wss = server.wss;
+        const client = await openClient(server.url, { 'x-forwarded-for': '198.51.100.61' });
+        clients.push(client);
+        assert.equal((await sendAndReceive(client, SIGNALING_COMMAND_TYPES.LIST_LOBBIES)).type, SIGNALING_EVENT_TYPES.LOBBY_LIST);
+    } finally {
+        for (const client of clients) client.terminate();
+        if (wss) await stopServer(wss);
+        if (previous === undefined) delete process.env[variable];
+        else process.env[variable] = previous;
+    }
+});
+
+test('online signaling does not treat CIDR entries as trusted proxy addresses', async () => {
+    const { wss, url } = await startServer({
+        trustedProxyIps: ['127.0.0.1/32'],
+        maxMessagesPerIp: 1,
+    });
+    const clients = [];
+    try {
+        const first = await openClient(url, { 'x-forwarded-for': '198.51.100.71' });
+        clients.push(first);
+        assert.equal((await sendAndReceive(first, SIGNALING_COMMAND_TYPES.LIST_LOBBIES)).type, SIGNALING_EVENT_TYPES.LOBBY_LIST);
+
+        const second = await openClient(url, { 'x-forwarded-for': '198.51.100.72' });
+        clients.push(second);
+        const rejected = await sendAndReceive(second, SIGNALING_COMMAND_TYPES.LIST_LOBBIES);
+        assert.equal(rejected.type, SIGNALING_EVENT_TYPES.ERROR);
+        assert.equal(rejected.code, 'rate_limit_exceeded');
+    } finally {
+        for (const client of clients) client.terminate();
+        await stopServer(wss);
+    }
+});
+
+test('online signaling ignores malformed, oversized, and overlong forwarded chains', async (t) => {
+    const cases = [
+        ['malformed', ['198.51.100.31, not-an-ip', '198.51.100.32, not-an-ip']],
+        ['oversized', [11, 12].map((last) => Array.from({ length: 16 }, (_, index) =>
+            `${' '.repeat(70)}198.51.100.${index === 15 ? last : 30 + index}`).join(','))],
+        ['too many hops', [11, 12].map((last) => Array.from({ length: 17 }, (_, index) =>
+            `198.51.100.${index === 16 ? last : 40 + index}`).join(','))],
+    ];
+
+    for (const [label, headers] of cases) {
+        await t.test(label, async () => {
+            const { wss, url } = await startServer({
+                trustedProxyIps: ['127.0.0.1'],
+                maxMessagesPerIp: 1,
+            });
+            const clients = [];
+            try {
+                const first = await openClient(url, { 'x-forwarded-for': headers[0] });
+                clients.push(first);
+                assert.equal((await sendAndReceive(first, SIGNALING_COMMAND_TYPES.LIST_LOBBIES)).type, SIGNALING_EVENT_TYPES.LOBBY_LIST);
+
+                const second = await openClient(url, { 'x-forwarded-for': headers[1] });
+                clients.push(second);
+                const rejected = await sendAndReceive(second, SIGNALING_COMMAND_TYPES.LIST_LOBBIES);
+                assert.equal(rejected.type, SIGNALING_EVENT_TYPES.ERROR);
+                assert.equal(rejected.code, 'rate_limit_exceeded', 'invalid chains fall back to the same socket peer identity');
+            } finally {
+                for (const client of clients) client.terminate();
+                await stopServer(wss);
+            }
+        });
+    }
+});
+
+test('online signaling normalizes IPv4-mapped and equivalent IPv6 client addresses for quotas', async (t) => {
+    const cases = [
+        ['IPv4-mapped IPv6', '198.51.100.51', '::ffff:c633:6433'],
+        ['equivalent IPv6 spellings', '[2001:0db8:0000:0000:0000:0000:0000:0001]', '2001:db8::1'],
+    ];
+    for (const [label, firstHeader, secondHeader] of cases) {
+        await t.test(label, async () => {
+            const { wss, url } = await startServer({
+                trustedProxyIps: ['127.0.0.1'],
+                maxMessagesPerIp: 1,
+            });
+            const clients = [];
+            try {
+                const first = await openClient(url, { 'x-forwarded-for': firstHeader });
+                clients.push(first);
+                assert.equal((await sendAndReceive(first, SIGNALING_COMMAND_TYPES.LIST_LOBBIES)).type, SIGNALING_EVENT_TYPES.LOBBY_LIST);
+
+                const equivalent = await openClient(url, { 'x-forwarded-for': secondHeader });
+                clients.push(equivalent);
+                const rejected = await sendAndReceive(equivalent, SIGNALING_COMMAND_TYPES.LIST_LOBBIES);
+                assert.equal(rejected.type, SIGNALING_EVENT_TYPES.ERROR);
+                assert.equal(rejected.code, 'rate_limit_exceeded');
+            } finally {
+                for (const client of clients) client.terminate();
+                await stopServer(wss);
+            }
+        });
     }
 });

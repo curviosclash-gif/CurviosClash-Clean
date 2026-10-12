@@ -38,7 +38,7 @@ import {
     invalidateNetworkLobbyReadyForAll,
     reportNetworkLobbyMatchEnded,
     requestNetworkLobbyMatchStart,
-    setNetworkLobbyName,
+    setNetworkLobbyName, setNetworkLobbyVehicle,
     toggleNetworkLobbyReady,
 } from './NetworkLobbyMutationActions.js';
 
@@ -299,7 +299,7 @@ export class NetworkLobbyService {
                 localPlayerCount: options.localPlayerCount,
                 actorId,
                 name,
-                lobbyName: options.lobbyName,
+                lobbyName: options.lobbyName, vehicleId: options.vehicleId,
                 metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, name),
             });
         } catch (error) {
@@ -368,7 +368,7 @@ export class NetworkLobbyService {
                 lobbyCode: requestedLobbyCode,
                 actorId,
                 name,
-                lobbyName: options.lobbyName,
+                lobbyName: options.lobbyName, vehicleId: options.vehicleId,
                 participantMetadata: this._participantMetadata,
             }));
         } catch (error) {
@@ -405,6 +405,8 @@ export class NetworkLobbyService {
     setLobbyName(lobbyName) {
         return setNetworkLobbyName(this, lobbyName);
     }
+
+    setLobbyVehicle(vehicleId, options) { return setNetworkLobbyVehicle(this, vehicleId, options); }
 
     invalidateReadyForAll(reason = 'host_settings_changed') {
         return invalidateNetworkLobbyReadyForAll(this, reason);

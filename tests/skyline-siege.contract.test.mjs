@@ -46,6 +46,15 @@ test('Skyline Siege is registered with three valid HUNT destructible buildings',
     assert.deepEqual(resolveMapPickerCollection(KEY).id, 'adventure');
 });
 
+// The HUD names a tower by its segment label ("Hochhaus Spitzturm 62 %"); every other siege map
+// is German there. The model labels (Spire, Crown, Arcology) are Blender clip names, not display.
+test('Skyline Siege names its towers and itself in German like the other siege maps', () => {
+    const definition = normalizeMapDestructibles(MAP.destructibles);
+    assert.deepEqual(definition.segments.map((segment) => segment.label), ['Spitzturm', 'Kronenturm', 'Arkologie']);
+    assert.equal(definition.hudNoun, 'Hochhaus');
+    assert.equal(MAP.name, 'Skyline Belagerung');
+});
+
 test('Skyline Siege resolves to its deterministic Blender asset job', () => {
     const plan = resolveMapAssetJobs({ mapKeys: [KEY], all: false, part: undefined });
     assert.deepEqual(plan.nativeMaps, []);

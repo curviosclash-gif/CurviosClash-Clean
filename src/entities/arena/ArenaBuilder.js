@@ -13,6 +13,7 @@ import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.
 import { resolveGLBColliderMode } from '../mapSchema/MapSchemaGlbOps.js';
 import { ArenaExpansionController } from './ArenaExpansionController.js';
 import { resolveArenaPlayableVolumes } from './ArenaPlayableVolumes.js';
+import { listSkippedBreakSceneModelIds, resolveBreakSceneLoadKey } from './MapBreakSceneLoadPolicy.js';
 
 function asPositiveScale(value, fallback = 1) {
     const scale = Number(value);
@@ -77,7 +78,10 @@ export class ArenaBuilder {
             planarLevelCount: config.GAMEPLAY.PLANAR_LEVEL_COUNT,
             graphicsStyle,
             runVariant: isFivePortalsConfig(this.arena.runtimeConfig) ? 'five_portals' : '',
+            breakSceneLoad: resolveBreakSceneLoadKey(mapResolution.map, this.arena.runtimeConfig),
         });
+        // Collapse scenes this session's mode can never trigger stay unloaded (reactor clouds, tower falls).
+        const skippedBreakSceneIds = listSkippedBreakSceneModelIds(mapResolution.map, this.arena.runtimeConfig);
         const canReuse = previousBuildSignature
             && previousBuildSignature === buildSignature
             && this._hasCompiledGeometry();
@@ -111,7 +115,8 @@ export class ArenaBuilder {
             obstacleDefs: Array.isArray(mapResolution.map.obstacles) ? mapResolution.map.obstacles : [],
             glbModel: typeof mapResolution.map?.glbModel === 'string' ? mapResolution.map.glbModel : '',
             glbModels: Array.isArray(mapResolution.map?.glbModels)
-                ? mapResolution.map.glbModels.filter((entry) => entry?.graphicsStyle !== 'modern' || graphicsStyle === 'modern')
+                ? mapResolution.map.glbModels.filter((entry) => (entry?.graphicsStyle !== 'modern' || graphicsStyle === 'modern')
+                    && !skippedBreakSceneIds.has(entry?.id))
                 : [],
             glbLoadDelayMs: Number(mapResolution.map?.glbLoadDelayMs) || 0,
             glbLoadConcurrency: Number(mapResolution.map?.glbLoadConcurrency) || 4,

@@ -2,6 +2,9 @@
 // Traced from DroneMesh (src/entities/drone-mesh.js): flat box body with dark top cover, two diagonal
 // X-arms (split here into four half-arms so each side can be edited), dark end brackets, two boxy rear
 // thrusters on the rear brackets, a front camera head and an underslung cannon.
+// Every part names its mount (VehiclePartMountContract): the point where it meets its carrier. The
+// arcade size workshop grows a part away from that point and moves it with its carrier: the arms
+// from the body corner they leave, the thrusters from their rear bracket, the camera from the body front.
 const DARK = 0x111122;
 const ARM_REACH = 0.8;
 const BRACKET_REACH = 2.263; // distance of the (±1.6, ±1.6) bracket from the body centre along the arm
@@ -14,6 +17,7 @@ function arm(name, bracketName, sx, sz, role) {
     return {
         name, geo: 'box', size: [1.6, 0.24, 0.4], pos: [sx * 0.566, 0.1, sz * 0.566], rot: [0, yaw, 0], material: 'primary',
         ...(role ? { role } : {}),
+        mount: { anchor: [sx * 0.7, 0.1, sz * 0.7], carrier: 'hull' },
         children: [
             { name: bracketName, geo: 'box', size: [0.5, 0.4, 0.5], pos: [along * (BRACKET_REACH - ARM_REACH), 0, 0], rot: [0, -yaw, 0], material: 'secondary', color: DARK },
         ],
@@ -27,6 +31,7 @@ function engine(side) {
     const r = side === 'left' ? 'Linker' : 'Rechter';
     return {
         name: `${q} Schubgehäuse`, geo: 'box', size: [0.4, 0.4, 0.8], pos: [s * 1.6, 0.1, 1.5], material: 'secondary', color: DARK, role: `engine_${side}`,
+        mount: { anchor: [s * 1.6, 0.1, 1.5], carrier: `${r} Hinterausleger` },
         children: [
             { name: `${p} Schubdüse`, geo: 'box', size: [0.28, 0.28, 0.2], pos: [0, 0, 0.4], material: 'secondary', color: 0x111111 },
             { name: `${r} Antriebskern`, geo: 'box', size: [0.16, 0.16, 0.16], pos: [0, 0, 0.3], material: 'glow', color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 1.5 },
@@ -49,11 +54,14 @@ export default {
             { name: 'LED-Leiste vorn', geo: 'box', size: [1.0, 0.08, 0.08], pos: [0, 0.42, -0.8], material: 'glow', color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 1.2 },
             { name: 'LED-Leiste hinten', geo: 'box', size: [1.0, 0.08, 0.08], pos: [0, 0.42, 0.8], material: 'glow', color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 1.2 },
         ] },
-        { name: 'Kamerakopf', geo: 'box', size: [0.6, 0.4, 0.3], pos: [0, -0.1, -1.4], material: 'secondary', color: 0x000011, role: 'nose', children: [
+        // The camera head sits 0.05 ahead of the body front; it grows from that front face.
+        { name: 'Kamerakopf', geo: 'box', size: [0.6, 0.4, 0.3], pos: [0, -0.1, -1.4], material: 'secondary', color: 0x000011, role: 'nose',
+            mount: { anchor: [0, -0.1, -1.2], carrier: 'hull' }, children: [
             { name: 'Kameralinse', geo: 'cylinder', size: [0.14, 0.14, 0.16], pos: [0, 0, -0.16], rot: [90, 0, 0], material: 'glass', color: 0x0011ff, opacity: 0.55 },
             { name: 'Entfernungssensor', geo: 'box', size: [0.2, 0.2, 0.16], pos: [0, 0.3, 0], material: 'glow', color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1.8 },
         ] },
-        { name: 'Geschützhalterung', geo: 'box', size: [0.4, 0.4, 1.6], pos: [0, -0.4, -0.8], material: 'secondary', color: DARK, role: 'utility', children: [
+        { name: 'Geschützhalterung', geo: 'box', size: [0.4, 0.4, 1.6], pos: [0, -0.4, -0.8], material: 'secondary', color: DARK, role: 'utility',
+            mount: { anchor: [0, -0.4, -0.8], carrier: 'hull' }, children: [
             { name: 'Geschützlauf', geo: 'pylon', size: [0.1, 0.1, 2.0], pos: [0, -0.2, -0.6], rot: [90, 0, 0], material: 'secondary', color: 0x0e0e16 },
         ] },
         arm('Linker Vorderausleger', 'Linke Vorderstrebe', -1, -1, 'wing_left'),

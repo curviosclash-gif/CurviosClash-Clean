@@ -28,7 +28,7 @@ export const WIND_CATHEDRAL_WORLD_LIGHTS = [
 export function authoredWorld(key, floorY = -.12) {
     return {
         glbModels: [{ id: `${key}-world`, url: `assets/maps/${key}/glb/01_world.glb`,
-            position: [0, floorY, 0], scale: 1 }],
+            position: [0, floorY, 0], scale: 1, role: 'primaryWorld' }],
         glbColliderMode: 'dynamic',
         glbAuthoredObstaclesCollisionOnly: true,
     };

@@ -1,22 +1,12 @@
-export const STORM_BRIDGE_DESTRUCTIBLES = Object.freeze({
-    gameModes: Object.freeze(['HUNT']),
-    hudNoun: 'Brücke',
-    segments: Object.freeze([Object.freeze({
-        id: 'bridge_span',
-        label: 'Brücke',
-        kind: 'landmark',
-        hp: 650,
-        meshPrefixes: Object.freeze(['bridge_span']),
-        anchor: Object.freeze([0, 8, 0]),
-    })]),
-    pieces: Object.freeze(['landmark']),
-    breakScenes: Object.freeze([Object.freeze({
-        id: 'collapse_bridge',
-        trigger: Object.freeze({ segmentId: 'bridge_span' }),
-        modelId: 'storm-bridge-collapse',
-        pieces: Object.freeze(['landmark']),
-        hideModelIds: Object.freeze(['storm-bridge-intact', 'storm-bridge-train']),
-        yawFromEvent: false,
-        blast: Object.freeze({ radius: 28, damage: 45, delaySeconds: 1.2 }),
-    })]),
+import { createLandmarkDestructibles } from '../siege_shared/LandmarkSiege.js';
+
+export const STORM_BRIDGE_DESTRUCTIBLES = createLandmarkDestructibles({
+    segmentId: 'bridge_span',
+    label: 'Brücke',
+    hp: 650,
+    anchor: [0, 8, 0],
+    sceneId: 'collapse_bridge',
+    collapseModelId: 'storm-bridge-collapse',
+    hideModelIds: ['storm-bridge-intact', 'storm-bridge-train'],
+    blast: { radius: 28, damage: 45, delaySeconds: 1.2 },
 });

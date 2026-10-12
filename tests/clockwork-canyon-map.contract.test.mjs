@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { CLOCKWORK_CANYON_MAPS } from '../src/core/config/maps/presets/clockwork_canyon/index.js';
+import { getMapPickerMeta } from '../src/shared/maps/MapPickerMeta.js';
 
 const map = CLOCKWORK_CANYON_MAPS.clockwork_canyon;
 
@@ -152,6 +153,5 @@ test('Clockwork Canyon is registered in the map catalog, base key list and menu 
     const baseSource = readRepoFile('src/core/config/maps/MapPresetsBase.js');
     assert.match(baseSource, /clockwork_canyon/, 'BASE_MAP_KEYS lists clockwork_canyon');
 
-    const menuSource = readRepoFile('src/ui/menu/MenuMapCollectionCatalog.js');
-    assert.match(menuSource, /clockwork_canyon/, 'menu map collection lists clockwork_canyon');
+    assert.equal(getMapPickerMeta('clockwork_canyon').collection, 'adventure', 'map picker table lists clockwork_canyon');
 });

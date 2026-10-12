@@ -3,8 +3,10 @@
 // ============================================
 
 import crypto from 'node:crypto';
+import { isIP } from 'node:net';
 import { isLobbySettingsRevisionCurrent } from '../src/shared/contracts/LobbyMatchSummaryContract.js';
 import { normalizeMultiplayerPlayerName } from '../src/shared/contracts/MultiplayerSessionContract.js';
+import { normalizeLobbyVehicleId } from '../src/shared/contracts/LobbyVehicleContract.js';
 import { WebSocketServer } from 'ws';
 import {
     SIGNALING_COMMAND_TYPES,
@@ -53,12 +55,77 @@ const MAX_CONNECTIONS_PER_IP = 32;
 const MAX_LOBBIES_PER_IP = 8;
 const MAX_PUBLIC_LOBBIES = 50;
 const UNASSIGNED_SOCKET_TIMEOUT_MS = 10_000;
+const MAX_TRUSTED_PROXY_IPS = 32;
+const MAX_FORWARDED_FOR_BYTES = 1024;
+const MAX_FORWARDED_FOR_HOPS = 16;
 
 let nextPeerId = 1;
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
+}
+
+function normalizeIpAddress(value) {
+    if (typeof value !== 'string') return null;
+    let address = value.trim();
+    if (!address || address.includes('%')) return null;
+    if (address.startsWith('[') || address.endsWith(']')) {
+        if (!address.startsWith('[') || !address.endsWith(']')) return null;
+        address = address.slice(1, -1);
+    }
+    const version = isIP(address);
+    if (version === 4) return address.split('.').map((part) => String(Number(part))).join('.');
+    if (version !== 6) return null;
+
+    let normalized;
+    try {
+        normalized = new URL(`http://[${address}]/`).hostname.slice(1, -1).toLowerCase();
+    } catch {
+        return null;
+    }
+    if (normalized.startsWith('::ffff:')) {
+        const mapped = normalized.slice('::ffff:'.length).split(':');
+        if (mapped.length === 2) {
+            const high = Number.parseInt(mapped[0], 16);
+            const low = Number.parseInt(mapped[1], 16);
+            if (Number.isFinite(high) && Number.isFinite(low)) {
+                return `${high >>> 8}.${high & 0xff}.${low >>> 8}.${low & 0xff}`;
+            }
+        }
+    }
+    return normalized;
+}
+
+function resolveTrustedProxyIps(value) {
+    const entries = Array.isArray(value)
+        ? value
+        : String(value || '').split(',');
+    if (entries.length > MAX_TRUSTED_PROXY_IPS) return new Set();
+    return new Set(entries.map(normalizeIpAddress).filter(Boolean));
+}
+
+function resolveClientAddress(request, trustedProxyIps) {
+    const socketAddress = String(request?.socket?.remoteAddress || 'unknown').trim() || 'unknown';
+    const normalizedSocketAddress = normalizeIpAddress(socketAddress);
+    const fallbackAddress = normalizedSocketAddress || socketAddress;
+    if (!normalizedSocketAddress || !trustedProxyIps.has(normalizedSocketAddress)) return fallbackAddress;
+
+    const forwardedFor = request?.headers?.['x-forwarded-for'];
+    if (typeof forwardedFor !== 'string'
+        || Buffer.byteLength(forwardedFor, 'utf8') > MAX_FORWARDED_FOR_BYTES) return fallbackAddress;
+    const forwardedHops = forwardedFor.split(',');
+    if (forwardedHops.length === 0 || forwardedHops.length > MAX_FORWARDED_FOR_HOPS) return fallbackAddress;
+    const normalizedHops = forwardedHops.map(normalizeIpAddress);
+    if (normalizedHops.some((address) => !address)) return fallbackAddress;
+
+    // X-Forwarded-For is ordered client-to-proxy. Walk from the socket's trusted
+    // side back through known proxy hops and stop at the first untrusted address.
+    for (let index = normalizedHops.length - 1; index >= 0; index -= 1) {
+        const address = normalizedHops[index];
+        if (!trustedProxyIps.has(address)) return address;
+    }
+    return fallbackAddress;
 }
 
 function normalizeLobbyCode(value, fallback = '') {
@@ -182,6 +249,7 @@ function createLobbyPlayer({
     ready = false,
     actorId = '',
     name = '',
+    vehicleId = '',
     joinedAt = Date.now(),
     lastSeenAt = Date.now(),
     sessionToken = generateSessionToken(),
@@ -196,6 +264,7 @@ function createLobbyPlayer({
         ready: ready === true,
         actorId: normalizedActorId,
         name: normalizeMultiplayerPlayerName(name, normalizedActorId || fallbackName),
+        vehicleId: normalizeLobbyVehicleId(vehicleId),
         sessionToken: normalizeString(sessionToken, ''),
         joinedAt: Number.isFinite(Number(joinedAt)) ? Math.max(0, Math.floor(Number(joinedAt))) : Date.now(),
         lastSeenAt: Number.isFinite(Number(lastSeenAt)) ? Math.max(0, Math.floor(Number(lastSeenAt))) : Date.now(),
@@ -219,6 +288,7 @@ function buildLobbyState(lobby) {
         playerId: player.peerId,
         actorId: player.actorId,
         name: player.name,
+        vehicleId: normalizeLobbyVehicleId(player.vehicleId),
         role: player.isHost === true ? 'host' : 'client',
         isHost: player.isHost === true,
         ready: player.ready === true,
@@ -278,6 +348,7 @@ function setReconnectLease(lobby, player) {
         settingsRevision: lobby.settingsRevision,
         actorId: normalizeString(player.actorId, ''),
         name: normalizeString(player.name, ''),
+        vehicleId: normalizeLobbyVehicleId(player.vehicleId),
         sessionToken: normalizeString(player.sessionToken, ''),
         joinedAt: Number(player.joinedAt || Date.now()),
         expiresAt: Date.now() + RECONNECT_WINDOW_MS,
@@ -371,6 +442,9 @@ function findSignalingRoute(senderWs, targetPeerId, commandType) {
 }
 
 export function createSignalingServer(port = 9090, options = {}) {
+    const trustedProxyIps = resolveTrustedProxyIps(
+        options.trustedProxyIps ?? process.env.CURVIOS_SIGNALING_TRUSTED_PROXY_IPS,
+    );
     const connectionLimit = Number.isFinite(Number(options.maxConnectionsPerIp))
         ? Math.max(1, Math.floor(Number(options.maxConnectionsPerIp)))
         : MAX_CONNECTIONS_PER_IP;
@@ -447,7 +521,7 @@ export function createSignalingServer(port = 9090, options = {}) {
         ws._lastPong = Date.now();
         ws._messageWindowStartedAt = Date.now();
         ws._messageCount = 0;
-        ws._remoteAddress = String(request?.socket?.remoteAddress || 'unknown');
+        ws._remoteAddress = resolveClientAddress(request, trustedProxyIps);
         ws.isAlive = true;
         ipConnectionCounts.set(ws._remoteAddress, (ipConnectionCounts.get(ws._remoteAddress) || 0) + 1);
         if (ipConnectionCounts.get(ws._remoteAddress) > connectionLimit) {
@@ -585,6 +659,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                         ready: true,
                         actorId: normalizeString(msg.actorId, 'Host'),
                         name: normalizeString(msg.name || msg.actorId, 'Host'),
+                        vehicleId: msg.vehicleId,
                         joinedAt: createdAt,
                         lastSeenAt: createdAt,
                     })],
@@ -635,6 +710,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     ready: false,
                     actorId: normalizeString(msg.actorId, peerId),
                     name: normalizeString(msg.name || msg.actorId, peerId),
+                    vehicleId: msg.vehicleId,
                 });
                 lobby.players.push(player);
                 bumpLobbyState(lobby);
@@ -691,6 +767,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     ready: lease.ready === true && lease.settingsRevision === lobby.settingsRevision,
                     actorId: lease.actorId,
                     name: lease.name,
+                    vehicleId: lease.vehicleId,
                     sessionToken: lease.sessionToken,
                     joinedAt: lease.joinedAt,
                     lastSeenAt: resumedAt,
@@ -842,6 +919,27 @@ export function createSignalingServer(port = 9090, options = {}) {
                         });
                     }
                 }
+                break;
+            }
+
+            case SIGNALING_COMMAND_TYPES.SET_VEHICLE: {
+                // Each member announces only its own ship; the socket decides whose seat it is.
+                const lobbyCode = peerToLobby.get(ws);
+                const lobby = lobbyCode ? lobbies.get(lobbyCode) : null;
+                const player = lobby?.players.find((entry) => entry.peerId === peerId);
+                if (!lobby || !player) break;
+                if (lobby.pendingMatchStart) {
+                    sendSignalingError(ws, 'match_start_pending', 'Das Match wird bereits gestartet.');
+                    break;
+                }
+                player.vehicleId = normalizeLobbyVehicleId(msg.vehicleId);
+                player.lastSeenAt = Date.now();
+                bumpLobbyState(lobby);
+                broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.PLAYER_VEHICLE_CHANGED, {
+                    peerId,
+                    vehicleId: player.vehicleId,
+                    sessionState: buildLobbyState(lobby),
+                });
                 break;
             }
 

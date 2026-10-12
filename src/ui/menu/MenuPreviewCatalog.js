@@ -17,6 +17,7 @@ function resolvePreviewPortalPairCount(mapDefinition, authoredPairs) {
 }
 import { compareMapPickerEntries, resolveMapPickerCollection } from './MenuMapCollectionCatalog.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+import { getMapPickerMeta } from '../../shared/maps/MapPickerMeta.js';
 import { resolveArcadeRunVehicleId, isArcadeSelectableVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 
 function toNumber(value, fallback = 0) {
@@ -51,6 +52,7 @@ export function listMapPreviewEntries() {
     const maps = getRuntimeMapCatalog();
     return Object.entries(maps).map(([mapKey, mapDefinition]) => {
         const collection = resolveMapPickerCollection(mapKey);
+        const meta = getMapPickerMeta(mapKey);
         const size = Array.isArray(mapDefinition?.size) ? mapDefinition.size : [80, 30, 80];
         const obstacles = Array.isArray(mapDefinition?.obstacles) ? mapDefinition.obstacles.length : 0;
         const portals = Array.isArray(mapDefinition?.portals) ? mapDefinition.portals.length : 0;
@@ -87,7 +89,12 @@ export function listMapPreviewEntries() {
             collectionLabel: collection.label,
             collectionOrder: collection.order,
             pickerOrder: collection.pickerOrder,
-            filterTags: [hasParcours ? 'parcours' : '', hasGlbModel ? 'glb' : ''].filter(Boolean),
+            // Table tags (destructible, ...) plus the two derived ones; dev maps join the Showcase filter.
+            filterTags: [...new Set([...meta.tags, hasParcours ? 'parcours' : '', hasGlbModel ? 'glb' : '', meta.tier === 'dev' ? 'showcase' : ''].filter(Boolean))],
+            tier: meta.tier,
+            difficulty: meta.difficulty,
+            players: meta.players,
+            description: meta.description,
             hiddenFromMapPicker: mapDefinition?.hiddenFromMapPicker === true,
             hasParcours,
             hasGlbModel,
@@ -123,6 +130,10 @@ export function resolveMapPreview(mapKey) {
         collectionOrder: Number.MAX_SAFE_INTEGER,
         pickerOrder: Number.MAX_SAFE_INTEGER,
         filterTags: [],
+        tier: 'public',
+        difficulty: 2,
+        players: { min: 1, recommended: 4, max: 8 },
+        description: '',
         hiddenFromMapPicker: false,
         hasParcours: false,
         hasGlbModel: false,

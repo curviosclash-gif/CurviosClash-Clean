@@ -21,7 +21,7 @@ const OUTCROP_SITES = [
 export const MAGMA_BASALT_OUTCROPS = Object.freeze(OUTCROP_SITES.map(([variant, x, z, targetSize, rotateY], index) => ({
     id: `magma-outcrop-${String(index + 1).padStart(2, '0')}`,
     url: `assets/maps/magma_maze/props/basalt-outcrops/magma-basalt-outcrop-v${String(variant).padStart(2, '0')}/runtime.glb`,
-    position: [x, LAVA_TOP, z], rotation: [0, rotateY, 0], targetSize, collision: false,
+    position: [x, LAVA_TOP, z], rotation: [0, rotateY, 0], targetSize, collision: false, role: 'optionalProp',
 })));
 
 export const MAGMA_MAZE_MAP = {
@@ -119,7 +119,7 @@ export const MAGMA_MAZE_MAP = {
         ],
         portals: [
             // Hilfe-Portal: Mitte → nahe Ziel
-            { a: [0, 10, 0], b: [50, 10, 50], color: 0x00ff88 },
+            { a: [0, 14, 0], b: [50, 10, 50], color: 0x00ff88 },
             // Fallen-Portal: Sackgasse NO → zurueck zum Start
             { a: [75, 10, -75], b: [-80, 10, -75], color: 0xff4444 },
             // Verbindung: Sued-Mitte → Nord-Korridor
@@ -136,7 +136,7 @@ export const MAGMA_MAZE_MAP = {
             {
                 id: 'mm_boost_mid',
                 type: 'boost',
-                pos: [0, 10, 0],
+                pos: [0, 14, 0],
                 forward: [1, 0, 1],
                 params: { duration: 1.2, forwardImpulse: 38, bonusSpeed: 48, cooldown: 1.0 },
             },
@@ -153,6 +153,13 @@ export const MAGMA_MAZE_MAP = {
             { x: -75, y: 10, z: -78 },
             { x: -80, y: 10, z: -72 },
             { x: -70, y: 10, z: -78 },
+            // More levels for a ten player HUNT round; the first entries stay at the start line.
+            { x: 66, y: 32, z: 66 },
+            { x: -62, y: 8, z: 66 },
+            { x: 58, y: 32, z: -62 },
+            { x: -14, y: 20, z: -6 },
+            { x: -2, y: 8, z: 50 },
+            { x: 50, y: 8, z: -6 },
         ],
         items: [
             // Auf dem Weg
