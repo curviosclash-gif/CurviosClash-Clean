@@ -77,6 +77,8 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._activeModifierId = null;
         this._slotBonuses = NULL_SLOT_BONUSES;
         this._slotBonusesByVehicle = null;
+        /** Bot strength of the ranked run; set by prepareArcadeRunRanking (ArcadeRunRankingOps). @type {any} */
+        this._botRankBonuses = null;
         /** @type {any} */
         this._runRewardEffects = createDefaultArcadeRunRewardEffects();
         // 61.6.2: Sudden Death state

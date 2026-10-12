@@ -277,7 +277,7 @@ export class HudRuntimeSystem {
         const suddenDeathActive = String(hudState.phase || '') === 'sudden_death';
         // The screen edge is the one sudden death pulse (score box and its banner stay still).
         this._arcadeSuddenDeathOverlay?.classList?.toggle('hidden', !suddenDeathActive);
-        this._arcadeSuddenDeathOverlay?.classList?.toggle('reduced-motion', suddenDeathActive && isArcadeMotionReduced(this.game));
+        this._arcadeSuddenDeathOverlay?.classList?.toggle('reduced-motion', suddenDeathActive && isArcadeMotionReduced());
 
         const sectorIndex = Math.max(0, Math.floor(Number(hudState.sectorIndex) || 0));
         const sectorChanged = sectorIndex > 0 && sectorIndex !== this._lastArcadeSectorIndex;

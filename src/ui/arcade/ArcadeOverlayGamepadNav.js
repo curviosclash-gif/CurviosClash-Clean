@@ -58,7 +58,7 @@ function isDirectionHeld(pad, direction) {
  * confirms a choice the player has not seen highlighted. A button, D-pad direction or stick push
  * already held when the panel takes the pad (the press that closed the continue prompt, say) does
  * not count as a new press; it counts again only after it was released.
- * @param {{ doc?: Document, getGamepads?: () => any, requestFrame?: Function, cancelFrame?: Function, now?: () => number }} [options]
+ * @param {{ doc?: Document, getGamepads?: () => any, requestFrame?: (tick: (time: number) => void) => any, cancelFrame?: (handle: any) => void, now?: () => number }} [options]
  */
 export function createArcadeOverlayGamepadNav(options = {}) {
     const resolveDoc = () => options.doc || globalThis.document;

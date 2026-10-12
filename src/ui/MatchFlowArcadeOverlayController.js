@@ -103,7 +103,7 @@ export class MatchFlowArcadeOverlayController {
         const token = this._arcadeXpAnimToken;
         const target = Math.max(0, Math.round(toSafeNumber(toValue, 0)));
         // A JS count-up ignores the CSS reduced-motion rule, so both motion wishes are asked here.
-        if (isArcadeMotionReduced(this.game)) {
+        if (isArcadeMotionReduced()) {
             node.textContent = `${formatCount(target)} XP`;
             return;
         }

@@ -43,6 +43,8 @@ export class ArenaWavesRuntime {
         this._getRecordStore = getRecordStore;
         this._getPlayerRewardTarget = getPlayerRewardTarget;
         this._requestMapTransition = requestMapTransition;
+        /** Rank context of the run; set by prepareArcadeRunRanking (ArcadeRunRankingOps), survives reset(). @type {any} */
+        this.rankContext = null;
         this.reset();
     }
 
