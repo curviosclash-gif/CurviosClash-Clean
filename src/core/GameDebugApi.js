@@ -9,6 +9,7 @@ export function createGameDebugRuntimeAccess(runtime) {
             getRecorder: () => game?.recorder || null,
             getRuntimePerfProfiler: () => game?.runtimePerfProfiler || null,
             getMediaRecorderSystem: () => game?.mediaRecorderSystem || null,
+            getEntityManager: () => game?.entityManager || null,
             setRecorderFrameCaptureEnabled(enabled) {
                 if (!game) return;
                 game._recorderFrameCaptureEnabled = !!enabled;
@@ -56,5 +57,29 @@ export class GameDebugApi {
 
     setRecorderFrameCaptureEnabled(enabled) {
         this.runtimeAccess.setRecorderFrameCaptureEnabled?.(enabled);
+    }
+
+    // ---- Match diagnostics for desktop measurements (bot flight safety) ----
+
+    /** Simulation time of the running match in ms; 0 without a match. */
+    getSimulationClockMs() {
+        const callbacks = this.runtimeAccess.getEntityManager?.()?.getRuntimeContext?.()?.callbacks;
+        return Math.max(0, Number(callbacks?.getSimulationNowMs?.()) || 0);
+    }
+
+    /** The shared bot flight-safety filter of the running match, or null. */
+    getBotFlightSafety() {
+        return this.runtimeAccess.getEntityManager?.()?.runtime?.systems?.playerInputSystem?.flightSafety || null;
+    }
+
+    /**
+     * Keeps the running round from ending while a measurement needs the bots past the first deaths.
+     * @returns {boolean} false without a running match
+     */
+    setRoundEndHold(active) {
+        const roundOutcomeSystem = this.runtimeAccess.getEntityManager?.()?.runtime?.systems?.roundOutcomeSystem;
+        if (typeof roundOutcomeSystem?.setRoundEndHold !== 'function') return false;
+        roundOutcomeSystem.setRoundEndHold(active);
+        return true;
     }
 }

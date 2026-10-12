@@ -47,10 +47,20 @@ export function createPlayerRecordStorePort({ profileId, globalRecordStore, allo
 
     function readResult(storageKey) {
         const scopedKey = resolve(storageKey);
-        if (!scopedKey) return store?.readJsonRecordResult?.(storageKey) || { ok: false, status: 'read_failed', reason: 'store_unavailable' };
+        if (!scopedKey) {
+            const result = store?.readJsonRecordResult?.(storageKey)
+                || { ok: false, status: 'read_failed', reason: 'store_unavailable' };
+            return { ...result, sourceKey: storageKey };
+        }
         const scoped = store?.readJsonRecordResult?.(scopedKey);
-        if (scoped?.status !== 'missing' || allowLegacyFallback() !== true) return scoped;
-        return store?.readJsonRecordResult?.(storageKey) || scoped;
+        if (scoped?.status !== 'missing' || allowLegacyFallback() !== true) {
+            return scoped && typeof scoped === 'object' ? { ...scoped, sourceKey: scopedKey } : scoped;
+        }
+        const legacy = store?.readJsonRecordResult?.(storageKey);
+        const source = legacy || scoped;
+        return source && typeof source === 'object'
+            ? { ...source, sourceKey: legacy ? storageKey : scopedKey }
+            : source;
     }
 
     return Object.freeze({

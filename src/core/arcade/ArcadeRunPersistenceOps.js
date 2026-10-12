@@ -13,12 +13,37 @@ export function resolveArcadeSettingsRecordStore(runtime) {
         || null;
 }
 
+/**
+ * Mirrors the saves the store rejected (full storage, quota) onto the post-run summary, so the
+ * result screen can say that progress was not stored. A later successful retry clears it again.
+ * @returns {string[]} kinds whose last save failed
+ */
+export function syncArcadePersistenceFailures(runtime) {
+    const failures = [
+        ...(runtime?._persistenceScheduler?.getFailedKinds?.() || []),
+        ...(runtime?._ghostLibrarySaveFailed === true ? ['ghostLibrary'] : []),
+    ];
+    const summary = runtime?._state?.postRunSummary;
+    if (summary && typeof summary === 'object') {
+        if (failures.length > 0) summary.saveFailures = failures;
+        else delete summary.saveFailures;
+    }
+    return failures;
+}
+
+function watchArcadePersistenceFailures(runtime) {
+    // Also covers throttled timer flushes, which no caller here sees.
+    runtime?._persistenceScheduler?.setFlushResultListener?.(() => syncArcadePersistenceFailures(runtime));
+}
+
 export function scheduleArcadeVehicleProfilesSave(runtime) {
+    watchArcadePersistenceFailures(runtime);
     const store = resolveArcadeSettingsRecordStore(runtime);
     return runtime._persistenceScheduler?.scheduleVehicleProfiles?.(store, runtime._vehicleProfiles) === true;
 }
 
 export function scheduleArcadeLeaderboardSave(runtime) {
+    watchArcadePersistenceFailures(runtime);
     const store = resolveArcadeSettingsRecordStore(runtime);
     return runtime._persistenceScheduler?.scheduleLeaderboard?.(store, runtime._leaderboard) === true;
 }
@@ -32,6 +57,7 @@ export function readArcadeRecordsFromStorage(runtime) {
 }
 
 export function scheduleArcadeRecordsSave(runtime, records = runtime._records, onPersisted = null) {
+    watchArcadePersistenceFailures(runtime);
     const store = resolveArcadeSettingsRecordStore(runtime);
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
     return runtime._persistenceScheduler?.scheduleRunRecords?.(
@@ -61,26 +87,28 @@ export function flushPendingGhostLibrarySave(runtime) {
     clearGhostLibrarySaveTimer(runtime);
     const pending = runtime._pendingGhostLibrarySave;
     if (!pending) return false;
+    let saved = false;
     try {
         const saveResult = saveGhostLibrary(pending.store, pending.ghostLibrary, pending.budgetOptions);
-        if (saveResult !== undefined && saveResult !== true && saveResult?.success !== true) {
-            return false;
-        }
-        runtime._pendingGhostLibrarySave = null;
-        return true;
+        saved = saveResult === undefined || saveResult === true || saveResult?.success === true;
+        if (saved) runtime._pendingGhostLibrarySave = null;
     } catch (error) {
         runtime.logger?.warn?.('[ArcadeRunPersistenceOps] ghost library save failed:', error);
-        return false;
     }
+    runtime._ghostLibrarySaveFailed = !saved;
+    syncArcadePersistenceFailures(runtime);
+    return saved;
 }
 
 export function flushArcadePersistenceSaves(runtime) {
+    watchArcadePersistenceFailures(runtime);
     const flushedArcadeSaves = runtime._persistenceScheduler?.flushAll?.() === true;
     const flushedGhostSaves = flushPendingGhostLibrarySave(runtime);
     return flushedArcadeSaves || flushedGhostSaves;
 }
 
 export function flushArcadePersistenceSavesResult(runtime) {
+    watchArcadePersistenceFailures(runtime);
     const scheduled = runtime._persistenceScheduler?.flushAllResult?.()
         || { ok: true, hadPending: false, failures: [] };
     const hadGhostPending = !!runtime._pendingGhostLibrarySave;
