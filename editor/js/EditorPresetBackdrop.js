@@ -15,6 +15,9 @@ export const BACKDROP_ID_PREFIX = 'backdrop_';
 const PLACEMENT_KEYS = Object.freeze([
     'obstacles', 'staticTurrets', 'portals', 'gates', 'items', 'aircraft', 'glbModels', 'mapUnits',
 ]);
+// Editor document lists a block-only game map fills: all of it is backdrop, so it gets locked on
+// load and stays out of a copy, like the world model of the other maps.
+const BLOCK_BACKDROP_KEYS = Object.freeze(['hardBlocks', 'foamBlocks', 'tunnels', 'portals', 'gates', 'items']);
 // Placements the match multiplies by MAP_SCALE only when the map sets scaleAuthoredAnchors
 // (Arena anchors and aircraft, StaticTurretSystem, MapUnitSystem).
 const ANCHOR_KEYS = Object.freeze(['playerSpawn', 'botSpawns', 'items', 'aircraft', 'staticTurrets', 'mapUnits']);
@@ -100,13 +103,14 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
     }
     if ((!Array.isArray(preset?.glbModels) || preset.glbModels.length === 0)
         && Array.isArray(preset?.obstacles) && preset.obstacles.length > 0) {
-        return {
-            document: {
-                ...fromArenaMapDefinition(preset, { mapScale }).document,
-                ...presetViewFields(preset, mapScale),
-                editorBackdrop: key,
-            },
-        };
+        const document = fromArenaMapDefinition(preset, { mapScale }).document;
+        for (const listKey of BLOCK_BACKDROP_KEYS) {
+            document[listKey] = (document[listKey] || []).map((entry, index) => ({
+                ...entry,
+                id: `${BACKDROP_ID_PREFIX}${entry.id || `${listKey}_${index + 1}`}`,
+            }));
+        }
+        return { document: { ...document, ...presetViewFields(preset, mapScale), editorBackdrop: key } };
     }
     const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
     const anchorUnits = preset?.scaleAuthoredAnchors === true ? units : units / Math.max(0.001, finiteOr(mapScale, 3));
@@ -151,7 +155,14 @@ export function isBackdropObject(object) {
  * convention, backdrop models left out unless asked for.
  */
 export function exportPlacementsInPresetFormat(mapManager, arenaSize, { preset = null, mapScale = 3, includeBackdrop = false } = {}) {
-    const parsed = parseMapJSON(mapManager.generateJSONExport(arenaSize));
+    const editorDocument = JSON.parse(mapManager.generateJSONExport(arenaSize));
+    if (!includeBackdrop) {
+        for (const listKey of BLOCK_BACKDROP_KEYS) {
+            if (!Array.isArray(editorDocument[listKey])) continue;
+            editorDocument[listKey] = editorDocument[listKey].filter((entry) => !String(entry?.id || '').startsWith(BACKDROP_ID_PREFIX));
+        }
+    }
+    const parsed = parseMapJSON(JSON.stringify(editorDocument));
     const conversion = getCustomMapConversionScale(parsed.map).scale;
     const runtime = toArenaMapDefinition(parsed.map, { mapScale: conversion }).map;
     // A preset without scaleAuthoredAnchors states anchors in world units: the same conversion

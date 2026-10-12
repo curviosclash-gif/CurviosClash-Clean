@@ -18,6 +18,7 @@ import {
     PRESET_EDITOR_UNITS_PER_MAP_UNIT,
     convertPresetToEditorDocument,
     exportPlacementsInPresetFormat,
+    isBackdropObject,
     listBackdropPresets,
 } from '../editor/js/EditorPresetBackdrop.js';
 
@@ -83,7 +84,19 @@ test('a block-only catalog map is offered and round-trips authored geometry thro
     const { mapManager, load } = createEditor();
     const arenaSize = load(document);
     assert.ok(mapManager.getObjectCount() > 0);
-    const exported = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
+    // Every block, tube, portal and item of the game map is backdrop: locked on load, left out
+    // of a copy unless asked for.
+    const placed = mapManager.core.objectsContainer.children;
+    assert.ok(placed.filter((object) => !String(object.userData.type).startsWith('spawn')).every(isBackdropObject));
+    const copy = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
+    for (const key of ['obstacles', 'portals', 'items', 'gates']) assert.equal(copy[key], undefined, `${key} copied along`);
+    const ownBlock = mapManager.createMesh('hard', null, 350, 700, -1050, 70, { sizeX: 70, sizeY: 70, sizeZ: 70 });
+    const withOwnBlock = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
+    assert.equal(withOwnBlock.obstacles.length, 1);
+    near(withOwnBlock.obstacles[0].pos[0], 10, 'own block x in map units');
+
+    mapManager.removeObject(ownBlock, { updateUi: false });
+    const exported = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE, includeBackdrop: true });
     const signature = (obstacle) => JSON.stringify({
         kind: obstacle.kind || 'hard',
         shape: obstacle.shape || '',
