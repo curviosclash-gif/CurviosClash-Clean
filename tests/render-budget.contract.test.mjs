@@ -24,13 +24,17 @@ test('every pickable map has a complete render budget and no stale entry remains
 
 function probe({ spawnCalls = 10, calls = 100, triangles = 50_000, point = 1 } = {}) {
     return {
-        frames: [{ id: 'spawn', calls: spawnCalls, triangles: 1 }, { id: 'north', calls, triangles }],
+        frames: [
+            { id: 'game', calls: spawnCalls, triangles: 1 },
+            { id: 'spawn', calls: spawnCalls, triangles: 1 },
+            { id: 'north', calls, triangles },
+        ],
         lights: { point },
         meshes: { shadowCasters: 10, transparent: 20 },
     };
 }
 
-test('the budget check ignores the rolled spawn station and allows only the stated tolerance', () => {
+test('the budget check ignores the rolled spawn and game stations and allows only the stated tolerance', () => {
     const entry = { maxCalls: 100, maxTriangles: 50_000, pointLights: 1, shadowCasters: 10 };
     assert.deepEqual(checkRenderBudget(probe({ spawnCalls: 999 }), entry), { exceeded: [], lowerable: [] });
     assert.deepEqual(checkRenderBudget(probe({ calls: 115 }), entry).exceeded, []);

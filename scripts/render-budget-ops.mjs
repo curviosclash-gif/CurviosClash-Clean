@@ -1,8 +1,9 @@
 // Pure render budget rules shared by tests/map-render-budget.desktop.spec.js, its contract test
 // and scripts/summarize-render-budget.mjs. Budget file: scripts/architecture/map-render-budgets.json.
 
-// The player spawn is rolled per round, so its station is recorded but never budgeted.
-const UNBUDGETED_STATIONS = new Set(['spawn']);
+// The player spawn is rolled per round, so its stations (spawn view and round-start chase
+// camera) are recorded but never budgeted.
+const UNBUDGETED_STATIONS = new Set(['spawn', 'game']);
 
 // Two identical runs on 12.10.2026 matched exactly on 15 of 69 maps only: animated and siege
 // maps are counted at whatever moment loading finished (storm_bridge_siege 84k vs 108k
