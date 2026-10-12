@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "modes": {
+    "normal": {
+      "values": {
+        "speed": 18,
+        "turnSensitivity": 2.2,
+        "gravityStrength": 20,
+        "planeScale": 1,
+        "trailWidth": 0.6,
+        "trailLength": 5000,
+        "gapSize": 0.3,
+        "gapFrequency": 0.02,
+        "itemAmount": 8,
+        "fireRate": 0.45,
+        "lockOnAngle": 11,
+        "mgTrailAimRadius": 0.78,
+        "fightPlayerHp": 100,
+        "fightMgDamage": 7.75,
+        "portalsEnabled": true,
+        "planarLevelCount": 5,
+        "botCountMin": 0,
+        "botCountMax": 8
+      }
+    },
+    "fight": {
+      "values": {
+        "speed": 20,
+        "turnSensitivity": 2.4,
+        "gravityStrength": 20,
+        "planeScale": 1,
+        "trailWidth": 0.6,
+        "trailLength": 5000,
+        "gapSize": 0.3,
+        "gapFrequency": 0.02,
+        "itemAmount": 10,
+        "fireRate": 0.35,
+        "lockOnAngle": 11,
+        "mgTrailAimRadius": 0.78,
+        "fightPlayerHp": 100,
+        "fightMgDamage": 7.75,
+        "portalsEnabled": true,
+        "planarLevelCount": 5,
+        "botCountMin": 0,
+        "botCountMax": 8
+      }
+    },
+    "arcade": {
+      "values": {
+        "speed": 18,
+        "turnSensitivity": 2.2,
+        "gravityStrength": 20,
+        "planeScale": 1,
+        "trailWidth": 0.6,
+        "trailLength": 5000,
+        "gapSize": 0.3,
+        "gapFrequency": 0.02,
+        "itemAmount": 8,
+        "fireRate": 0.45,
+        "lockOnAngle": 11,
+        "mgTrailAimRadius": 0.78,
+        "fightPlayerHp": 100,
+        "fightMgDamage": 7.75,
+        "portalsEnabled": true,
+        "planarLevelCount": 5,
+        "botCountMin": 0,
+        "botCountMax": 8,
+        "sectorCount": 5,
+        "comboWindowMs": 5000,
+        "maxMultiplier": 8,
+        "intermissionSeconds": 10,
+        "comboDecayPerSecond": 1
+      }
+    }
+  }
+}
