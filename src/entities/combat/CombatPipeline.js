@@ -111,6 +111,10 @@ export function applyHit(world, input) {
     ) {
         return makeBlockedResult(target, 'TEAM');
     }
+    // Spawn protection comes before every effect, including the shield contact below.
+    if ((Number(target.spawnProtectionTimer) || 0) > 0) {
+        return makeBlockedResult(target, 'SPAWN_PROTECTION');
+    }
     // Exclusion-zone rockets consume one complete shield contact, matching the
     // authored hazard rule while keeping damage/death effects inside this pipeline.
     if (causeKey === 'EXCLUSION_ZONE'
@@ -126,9 +130,6 @@ export function applyHit(world, input) {
             remainingHp: Math.max(0, Number(target.hp) || 0),
             isDead: false,
         };
-    }
-    if ((Number(target.spawnProtectionTimer) || 0) > 0) {
-        return makeBlockedResult(target, 'SPAWN_PROTECTION');
     }
     if (isDead(target)) return makeBlockedResult(target, 'DEAD');
     if (isInvulnerable(target)) return makeBlockedResult(target, 'INVULNERABLE');

@@ -88,7 +88,8 @@ export function applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityM
         killOnDeath: false,
     });
 
-    if (otherDamageResult.isDead) {
+    // _applyModeDamage answers null for a target the pipeline rejects outright (e.g. already dead).
+    if (otherDamageResult?.isDead) {
         finalizeHitDeath(entityManager, {
             target: otherPlayer,
             amount: damage,
@@ -98,7 +99,7 @@ export function applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityM
             impactPoint: otherPlayer.position,
         }, otherDamageResult);
     }
-    if (damageResult.isDead) {
+    if (damageResult?.isDead) {
         finalizeHitDeath(entityManager, {
             target: player,
             amount: damage,
