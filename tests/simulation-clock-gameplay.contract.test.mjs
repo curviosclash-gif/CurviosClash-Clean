@@ -55,16 +55,18 @@ test('strategy regeneration without a manager config waits for match time, even 
     assert.equal(player.hp, 72.5);
 });
 
-test('a clockless Hunt strategy uses zero for damage and regeneration time', (t) => {
+// Clockless callers keep the wall clock fallback of HealthSystem (8a2a3b8d); freezing them at zero
+// (c2a8bf19) was rejected because regeneration would then never start without a match clock.
+test('a clockless Hunt strategy shares the health wall clock fallback', (t) => {
     const wall = useWallClock(t, 100_000);
     const config = createHuntConfig();
     const strategy = new HuntModeStrategy({ entityRuntimeConfig: config });
     const player = createPlayer(undefined);
     strategy.applyDamage(player, 30, undefined, config);
-    assert.equal(player.lastDamageTimestamp, 0);
-    wall.ms += 60_000;
+    assert.equal(player.lastDamageTimestamp, 100);
+    wall.ms += 4_000;
     strategy.updateHealthRegen(player, 1, config);
-    assert.equal(player.hp, 70, 'wall time cannot expire the delay without a match clock');
+    assert.equal(player.hp, 72.5, 'without a match clock the regeneration delay runs on the wall clock');
 });
 
 test('health fallback stamps implicit damage and regeneration on the same match clock', (t) => {
