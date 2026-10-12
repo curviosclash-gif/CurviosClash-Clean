@@ -130,12 +130,19 @@ test('single-model maps shrink to authored units and collision-only obstacles fo
     assert.ok(Math.abs(outcome.scene.scale.x - 1 / 3) < 1e-9, 'world-scale model is not divided by MAP_SCALE');
 
     const collection = createMapPreviewGlbLayer({
-        loadCollection: async () => ({ scene: fakeScene('c'), warnings: [] }),
+        loadCollection: async () => ({ scene: fakeScene('c'), warnings: [], requiredWorldComplete: true }),
     });
     const hides = await collection.load({ glbModels: ['a.glb'], glbAuthoredObstaclesCollisionOnly: true });
     assert.equal(hides.hideAuthoredObstacles, true);
     const keeps = await collection.load({ glbModels: ['a.glb'] });
     assert.equal(keeps.hideAuthoredObstacles, false);
+    const incomplete = createMapPreviewGlbLayer({
+        loadCollection: async () => ({ scene: fakeScene('partial'), warnings: ['world missing'], requiredWorldComplete: false }),
+    });
+    const partial = await incomplete.load({ glbModels: ['world.glb'], glbAuthoredObstaclesCollisionOnly: true });
+    assert.equal(partial.requiredWorldComplete, false);
+    assert.deepEqual(partial.warnings, ['world missing']);
+    assert.equal(partial.hideAuthoredObstacles, false, 'incomplete required world keeps preview fallback visuals');
 });
 
 test('camera fit keeps flat, tall and narrow views fully in frame', () => {

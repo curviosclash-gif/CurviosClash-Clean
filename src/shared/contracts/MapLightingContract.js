@@ -152,6 +152,35 @@ export function normalizeMapLighting(value, fallback = DEFAULT_MAP_LIGHTING) {
     };
 }
 
+const AUTHORED_SECTIONS = Object.freeze(['key', 'fill', 'rim', 'hemisphere', 'fog', 'skyDome']);
+
+/**
+ * Stored form of a map's own lighting (editor map files): only the fields the author stated,
+ * each clamped by the same rules as normalizeMapLighting. Keeping the gaps matters: at runtime
+ * resolveMapLighting fills them from the active graphics style, as it does for built-in maps,
+ * so a saved map looks like its source under every style.
+ *
+ * @param {unknown} value
+ * @returns {Record<string, any>|undefined} undefined when nothing usable was stated
+ */
+export function normalizeAuthoredMapLighting(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const authored = /** @type {Record<string, any>} */ (value);
+    const full = /** @type {Record<string, any>} */ (normalizeMapLighting(authored));
+    /** @type {Record<string, any>} */
+    const result = {};
+    for (const section of AUTHORED_SECTIONS) {
+        const stated = asObject(authored[section]);
+        const fields = Object.keys(full[section]).filter((field) => stated[field] !== undefined);
+        if (fields.length > 0) {
+            result[section] = Object.fromEntries(fields.map((field) => [field, full[section][field]]));
+        }
+    }
+    if (typeof authored.starsVisible === 'boolean') result.starsVisible = authored.starsVisible;
+    if (authored.exposureOffset !== undefined) result.exposureOffset = full.exposureOffset;
+    return Object.keys(result).length > 0 ? result : undefined;
+}
+
 export function resolveMapLighting(value, baseLighting = DEFAULT_MAP_LIGHTING) {
     const normalizedBase = normalizeMapLighting(baseLighting, DEFAULT_MAP_LIGHTING);
     return normalizeMapLighting(value, normalizedBase);

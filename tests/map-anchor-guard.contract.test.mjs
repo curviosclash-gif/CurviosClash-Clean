@@ -6,6 +6,7 @@ import { CONFIG } from '../src/core/Config.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { listCompiledBoxObstacles } from '../scripts/parcours-ring-clearance.mjs';
 import { analyzeMapAnchors, CHECKS, violationKey } from './helpers/map-anchor-guard.mjs';
+import { buildRouteFromParcours } from '../src/entities/systems/ParcoursProgressUtils.js';
 
 // Every catalog map, every placed point: spawns, items, portals, gates and lights must lie inside
 // the arena, outside solid boxes, with room to fly, and make sense (known pickup type, no stacked
@@ -138,4 +139,109 @@ test('the map scale applies to anchors only when the map says so', () => {
     // unscaled it is still inside.
     assert.deepEqual(analyzeMapAnchors('probe', { ...base, scaleAuthoredAnchors: true }, MAP_SCALE).map((v) => v.check), ['bounds']);
     assert.deepEqual(analyzeMapAnchors('probe', base, MAP_SCALE).map((v) => v.check), []);
+});
+
+test('obstacle bounds: boxes (rotated), tubes and tall boxes must stay inside the arena, a sunk base may not', () => {
+    const room = (obstacles) => ({ size: [60, 40, 60], obstacles });
+    const pointsOf = (obstacles) => analyzeMapAnchors('probe', room(obstacles), MAP_SCALE)
+        .filter((violation) => violation.check === 'obstacle-bounds').map((violation) => violation.point);
+    assert.deepEqual(pointsOf([
+        { id: 'flush', pos: [20, 10, 0], size: [20, 4, 10] },
+        { id: 'sunk', pos: [0, 0, 0], size: [10, 6, 10] },
+        { id: 'through_x', pos: [26, 10, 0], size: [10, 4, 10] },
+        { id: 'through_z_rotated', pos: [0, 10, -22], size: [30, 4, 4], rotateY: Math.PI / 2 },
+        { id: 'beam', shape: 'tube', start: [0, 10, 0], end: [0, 10, 31], radius: 1 },
+        { id: 'too_tall', pos: [0, 38, 0], size: [4, 8, 4] },
+    ]), ['obstacles[through_x]', 'obstacles[through_z_rotated]', 'obstacles[beam]', 'obstacles[too_tall]']);
+});
+
+test('a placed point inside a playable volume below the floor is inside the arena', () => {
+    const map = {
+        size: [60, 40, 60],
+        scaleAuthoredAnchors: true,
+        obstacles: [],
+        playableVolumes: [{ shape: 'cylinder', center: [0, 0], radius: 5, minY: -20, maxY: 2 }],
+        lights: [
+            { id: 'shaft_light', x: 0, y: -10, z: 0, distance: 30 },
+            { id: 'rock_light', x: 30, y: -10, z: 0, distance: 30 },
+        ],
+    };
+    const bounds = analyzeMapAnchors('probe', map, MAP_SCALE).filter((violation) => violation.check === 'bounds');
+    assert.deepEqual(bounds.map((violation) => violation.point), ['lights[rock_light]']);
+});
+
+test('enabled parcours checkpoint IDs are unique while distinct lane aliases remain valid', () => {
+    const map = {
+        size: [100, 60, 100],
+        obstacles: [],
+        parcours: {
+            enabled: true,
+            rules: { allowLaneAliases: true },
+            checkpoints: [
+                { id: 'CP01', pos: [0, 20, 0], radius: 5 },
+                { id: 'CP_DUP', pos: [12, 20, 0], radius: 5 },
+                { id: 'CP_DUP', pos: [24, 20, 0], radius: 5 },
+            ],
+        },
+    };
+    const duplicates = analyzeMapAnchors('checkpoint_probe', map, MAP_SCALE)
+        .filter((violation) => violation.check === 'checkpoint-duplicate-id');
+    assert.deepEqual(duplicates.map((violation) => violation.point), ['parcours.checkpoints[2]']);
+
+    const malformedEntryMap = {
+        ...map,
+        parcours: { enabled: true, checkpoints: [null, { id: 'CP01', pos: [12, 20, 0] }] },
+    };
+    assert.deepEqual(
+        analyzeMapAnchors('checkpoint_probe', malformedEntryMap, MAP_SCALE)
+            .filter((violation) => violation.check === 'checkpoint-duplicate-id'),
+        [],
+        'the runtime skips non-object checkpoint entries before assigning fallback IDs',
+    );
+
+    const fallbackCollisionMap = {
+        ...map,
+        parcours: { enabled: true, checkpoints: [null, { pos: [12, 20, 0] }, { id: 'CP02', pos: [24, 20, 0] }] },
+    };
+    assert.deepEqual(
+        analyzeMapAnchors('checkpoint_probe', fallbackCollisionMap, MAP_SCALE)
+            .filter((violation) => violation.check === 'checkpoint-duplicate-id')
+            .map((violation) => violation.point),
+        ['parcours.checkpoints[2]'],
+        'duplicate detection includes the runtime-generated fallback IDs at original array indices',
+    );
+
+    const laneMap = {
+        ...map,
+        parcours: {
+            enabled: true,
+            rules: { allowLaneAliases: true },
+            checkpoints: [
+                { id: 'CP01', pos: [0, 20, 0], nextIds: ['CP02_SAFE', 'CP02_FAST'] },
+                { id: 'CP02_SAFE', pos: [12, 20, 0], nextIds: ['CP03'] },
+                { id: 'CP02_FAST', pos: [12, 20, 12], nextIds: ['CP03'] },
+                { id: 'CP03', pos: [24, 20, 0] },
+                { id: 'CP04', pos: [36, 20, 0] },
+                { id: 'CP04_R', aliasOf: 'CP04', pos: [36, 20, 12] },
+            ],
+        },
+    };
+    assert.ok(buildRouteFromParcours(laneMap.parcours)?.branches.length > 0, 'the synthetic route has an active branch');
+    assert.deepEqual(
+        analyzeMapAnchors('checkpoint_probe', laneMap, MAP_SCALE)
+            .filter((violation) => violation.check === 'checkpoint-duplicate-id'),
+        [],
+        'different authored IDs for canonical checkpoints and lane aliases are valid',
+    );
+
+    for (const parcours of [undefined, { enabled: false, checkpoints: map.parcours.checkpoints }]) {
+        assert.equal(buildRouteFromParcours(parcours), null, 'the runtime has no route when parcours is absent or disabled');
+        const inactive = { ...map, parcours };
+        assert.deepEqual(
+            analyzeMapAnchors('checkpoint_probe', inactive, MAP_SCALE)
+                .filter((violation) => violation.check === 'checkpoint-duplicate-id'),
+            [],
+            'inactive or absent parcours does not produce runtime checkpoints',
+        );
+    }
 });

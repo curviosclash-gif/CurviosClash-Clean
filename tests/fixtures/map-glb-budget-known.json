@@ -1,0 +1,10 @@
+{
+  "count": 3,
+  "files": [
+    { "path": "assets/models/downloaded_cc0/pm-avatar-show/Arm_Chair.glb", "mb": 8.9, "reason": "glb_gallery showcase model, third-party CC0; gallery only, never in a match" },
+    { "path": "assets/models/downloaded_cc0/pm-avatar-show/Camera.glb", "mb": 8.4, "reason": "glb_gallery showcase model, third-party CC0; gallery only, never in a match" }
+  ],
+  "maps": [
+    { "map": "glb_gallery", "mb": 128.9, "reason": "gallery of 120 third-party CC0 models by design; the editor reads the same models, so the map stays a viewing room" }
+  ]
+}

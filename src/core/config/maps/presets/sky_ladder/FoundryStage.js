@@ -121,7 +121,7 @@ export const SKY_LADDER_FOUNDRY_MAP = {
         { id: 'clockshaft_shield_dial', type: 'item_shield', pickupType: 'SHIELD', x: 10, y: 192, z: 6, weight: 1.0 },
     ],
     missions: [
-        { type: 'TIME_TRIAL', params: { target: 72 }, weight: 1.4 },
+        { type: 'TIME_TRIAL', params: { target: 55 }, weight: 1.4 },
         { type: 'TRAIL_MASTER', params: { target: 160 }, weight: 0.8 },
     ],
     parcours: {

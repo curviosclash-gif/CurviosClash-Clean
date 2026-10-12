@@ -224,6 +224,7 @@ test('map picker exposes organized filters, readable quick picks, and omits hidd
             'large',
             'parcours',
             'glb',
+            'destructible',
         ]);
         assert.ok(mapSelect.options.length > 0);
         assert.equal(mapSelect.options.some((option) => option.value === 'tutorial_classic'), false);

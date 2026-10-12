@@ -122,9 +122,11 @@ export class SpawnPlacementSystem {
         for (let i = 0; i < preferredPositions.length; i++) {
             const candidate = preferredPositions[i];
             if (!candidate) continue;
-            const y = isFiniteNumber(candidate.y)
-                ? Number(candidate.y)
-                : (Number.isFinite(options.planarLevel) ? options.planarLevel : ((arena.bounds.minY + arena.bounds.maxY) * 0.5));
+            // Planar mode flies on the portal levels; an authored height between them leaves the
+            // ship out of reach of every portal, so the level wins over the start point's own y.
+            const y = Number.isFinite(options.planarLevel)
+                ? options.planarLevel
+                : (isFiniteNumber(candidate.y) ? Number(candidate.y) : ((arena.bounds.minY + arena.bounds.maxY) * 0.5));
             this._tmpSpawnProbe.set(Number(candidate.x) || 0, y, Number(candidate.z) || 0);
             if (this._isSpawnPositionSafe(this._tmpSpawnProbe, preferredRadius, minDistanceSq, players, options.player)) {
                 return this._rememberSpawn(this._tmpSpawnProbe.clone());

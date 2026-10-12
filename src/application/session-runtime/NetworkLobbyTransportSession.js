@@ -92,6 +92,10 @@ export class NetworkLobbyTransportSession {
         return this._lobby.setLobbyName?.(lobbyName);
     }
 
+    setVehicle(vehicleId, options) {
+        return this._lobby.setVehicle?.(vehicleId, options);
+    }
+
     invalidateReadyForAll() {
         return this._lobby.invalidateReadyForAll();
     }

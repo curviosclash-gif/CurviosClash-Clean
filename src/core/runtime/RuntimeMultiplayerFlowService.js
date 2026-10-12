@@ -2,6 +2,7 @@ import {
     RUNTIME_SESSION_TYPES,
     resolveRuntimeSessionContract,
 } from '../../shared/contracts/RuntimeSessionContract.js';
+import { syncLocalLobbyVehicle } from './NetworkVehicleSelectionOps.js';
 
 function buildTelemetryPayload(game) {
     return {
@@ -42,6 +43,8 @@ export function syncRuntimeMultiplayerContext({
     if (Array.isArray(changedKeys) && changedKeys.length > 0) {
         menuMultiplayerBridge?.publishHostSettings?.(captureSettingsSnapshot?.());
     }
+    // Host and guests alike: every member flies its own ship and tells the lobby about it.
+    syncLocalLobbyVehicle({ settings: game?.settings, menuMultiplayerBridge });
     syncUiState?.();
     return true;
 }

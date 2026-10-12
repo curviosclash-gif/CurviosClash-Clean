@@ -193,6 +193,11 @@ function createMapDestructibleProjection(value = null) {
         breakingSecondsRemaining: active
             ? Math.max(0, normalizeNumber(source.breakingSecondsRemaining, 0))
             : 0,
+        // Overall progress next to the segment under fire; both stay 0 while the HUD is quiet.
+        totalSegments: active ? Math.min(999, normalizeNonNegativeInt(source.totalSegments, 0)) : 0,
+        destroyedSegments: active
+            ? Math.min(999, normalizeNonNegativeInt(source.destroyedSegments, 0), normalizeNonNegativeInt(source.totalSegments, 0))
+            : 0,
     };
 }
 

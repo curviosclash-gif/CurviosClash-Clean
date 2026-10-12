@@ -7,6 +7,7 @@ import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeCon
 import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
 import { applyAdditiveFogFade } from '../shared/rendering/AdditiveFogDefines.js';
 import { resolveArcadeTrailColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 const TRAIL_SEGMENT_GEOMETRY = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
@@ -27,6 +28,7 @@ export class Trail {
         this.color = color;
         this.playerIndex = playerIndex;
         this.entityManager = entityManager;
+        this._fallbackRuntimeRng = createRuntimeRng({});
         this.modernGraphics = isModernGraphicsStyle(renderer?.getGraphicsStyle?.());
         this.trailSpatialIndex = entityManager
             ? (typeof entityManager.getTrailSpatialIndex === 'function' ? entityManager.getTrailSpatialIndex() : entityManager)
@@ -246,7 +248,7 @@ export class Trail {
             // EntityManager nach der Trail-Erzeugung, ein Cache im Konstruktor
             // wuerde also immer den ungesetzten Fallback festhalten.
             const roll = this.entityManager?.runtimeRng?.next;
-            const gapRoll = typeof roll === 'function' ? roll() : Math.random();
+            const gapRoll = typeof roll === 'function' ? roll() : this._fallbackRuntimeRng.next();
             if (gapRoll < config.TRAIL.GAP_CHANCE) {
                 this.inGap = true;
                 this.gapTimer = config.TRAIL.GAP_DURATION;
@@ -502,9 +504,7 @@ export class Trail {
         }
 
         const ref = this.segmentRefs[segmentIdx];
-        if (!ref || ref.entry !== entry) {
-            return false;
-        }
+        if (!ref || ref.entry !== entry) return false;
 
         DUMMY.scale.set(0, 0, 0);
         DUMMY.updateMatrix();

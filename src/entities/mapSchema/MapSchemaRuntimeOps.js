@@ -300,6 +300,8 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
         rotation: [...entry.rotation],
         scale: asPositiveNumber(entry.scale, 1, 0.0001) * invScale,
         targetSize: Number(entry.targetSize) > 0 ? entry.targetSize * invScale : 0,
+        ...(entry.collision === false ? { collision: false } : {}),
+        ...(entry.role === undefined ? {} : { role: entry.role }),
     }));
 
     const playerSpawn = normalized.playerSpawn
@@ -382,6 +384,9 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             ...(waterZone ? { waterZone } : null),
             ...(flagObjectives.length > 0 ? { flagObjectives } : null),
             ...(playableVolumes.length > 0 ? { playableVolumes } : null),
+            // Fog distances are world units and its height terms anchor units, which this map
+            // scales (scaleAuthoredAnchors), so the stored form passes through unchanged.
+            ...(normalized.lighting ? { lighting: normalized.lighting } : null),
         },
         warnings,
         mapDocument: normalized,

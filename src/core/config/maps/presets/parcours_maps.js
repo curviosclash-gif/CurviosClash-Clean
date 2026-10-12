@@ -1,4 +1,5 @@
 import { authoredWorld } from './world_appearance.js';
+import { DESERT_AFTERNOON_LIGHTING, SUNRISE_LIGHTING, deriveMapLighting } from './map_lighting_profiles.js';
 
 const RIFT_OBSTACLES = Object.freeze([
     // The entry wall leaves a gap on the line from CP01 to CP02: a ship that follows the first
@@ -17,7 +18,9 @@ const RIFT_OBSTACLES = Object.freeze([
 ]);
 
 const RIFT_PORTALS = Object.freeze([
-    { a: [-14, 30, -70], b: [30, 40, 66], color: 0x00ffcc },
+    // Side exit of the tunnel branch: the portal sits beside the ring that ends the tunnel, so the
+    // long way round pays off as a jump to the merge ring (tunnel + jump ~81 against 75 for the boost lane).
+    { a: [12, 31, -62], b: [30, 40, 66], color: 0x00ffcc },
     { a: [42, 38, -60], b: [86, 28, 58], color: 0xff88cc },
 ]);
 
@@ -55,6 +58,8 @@ const RIFT_BOT_SPAWNS = Object.freeze([
 
 const RIFT_ITEMS = Object.freeze([
     { id: 'rift_item_speed_1', type: 'item_battery', pickupType: 'SPEED_UP', x: -36, y: 20, z: -48, weight: 1.4 },
+    // On the line from the branch ring into the tunnel ring: a reason to take the long branch.
+    { id: 'rift_item_tunnel_speed', type: 'item_battery', pickupType: 'SPEED_UP', x: 4, y: 30, z: -48, weight: 1.4 },
     { id: 'rift_item_speed_2', type: 'item_battery', pickupType: 'SPEED_UP', x: 30, y: 40, z: 52, weight: 1.2 },
     { id: 'rift_item_shield', type: 'item_shield', pickupType: 'SHIELD', x: 58, y: 32, z: -30, weight: 0.8 },
     { id: 'rift_item_rocket', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 78, y: 28, z: 24, weight: 0.9 },
@@ -79,6 +84,45 @@ const RIFT_VISUAL_LANDMARKS = Object.freeze([
     riftLandmark('rift-airship', 'pm-aero-system', 'Aero_Airship_01', [8, 54, -58], 22, 2.1),
     riftLandmark('rift-finish-ring', 'pm-aero-system', 'Aero_Station_Ring_Art', [116, 0, 0], 30, Math.PI / 2),
 ]);
+
+const RIFT_CHECKPOINTS = [
+    { id: 'CP01', type: 'entry', pos: [-108, 18, 0], radius: 6.2, forward: [1, 0, 0] },
+    { id: 'CP02', type: 'gate', pos: [-72, 18, 14], radius: 5.6, forward: [1, 0, 0] },
+    { id: 'CP03', type: 'tunnel', pos: [-24, 24, -18], radius: 4.8, forward: [1, 0, 0] },
+    {
+        id: 'CP04',
+        type: 'branch_entry',
+        pos: [-10, 30, -8],
+        radius: 5.3,
+        forward: [1, 0, 0],
+        nextIds: ['CP04A_TUNNEL', 'CP04B_BOOST'],
+    },
+    {
+        id: 'CP04A_TUNNEL',
+        type: 'branch_tunnel',
+        pos: [6, 30, -54],
+        radius: 4.9,
+        forward: [1, 0, 0],
+        nextIds: ['CP05'],
+    },
+    {
+        id: 'CP04B_BOOST',
+        type: 'branch_boost',
+        pos: [18, 34, 0],
+        radius: 5.0,
+        forward: [1, 0, 0],
+        nextIds: ['CP05'],
+    },
+    { id: 'CP05', type: 'gate', pos: [30, 40, 44], radius: 5.1, forward: [1, 0, 0] },
+    { id: 'CP06', type: 'split', pos: [52, 38, -16], radius: 5.5, forward: [1, 0, 0] },
+    { id: 'CP06_R', type: 'split', aliasOf: 'CP06', pos: [52, 38, 16], radius: 5.5, forward: [1, 0, 0] },
+    { id: 'CP07', type: 'precision', pos: [70, 34, 0], radius: 4.8, forward: [1, 0, 0] },
+    { id: 'CP08', type: 'finish_pre', pos: [96, 28, 0], radius: 5.2, forward: [1, 0, 0] },
+];
+const RIFT_FINISH = Object.freeze({ id: 'FINISH', type: 'finish', pos: [106, 24, 0], radius: 6.4, forward: [1, 0, 0] });
+
+// Precision flies the same line through rings at 70 percent of the Rift radius.
+const narrowRing = (ring) => ({ ...ring, radius: Math.round(ring.radius * 0.7 * 10) / 10 });
 
 const ASSAULT_OBSTACLES = Object.freeze([
     // MG approach: alternating cover forces short, readable firing windows.
@@ -187,7 +231,7 @@ export const PARCOURS_MAPS = Object.freeze({
             routeId: 'classic_tutorial_v1',
             rules: {
                 ordered: true,
-                resetOnDeath: true,
+                resetOnDeath: false,
                 resetToLastValid: true,
                 maxSegmentTimeMs: 0,
                 cooldownMs: 400,
@@ -212,6 +256,7 @@ export const PARCOURS_MAPS = Object.freeze({
     parcours_assault: {
         ...authoredWorld('parcours_assault'),
         name: 'Angriffsparcours: MG & Raketen',
+        lighting: deriveMapLighting(DESERT_AFTERNOON_LIGHTING, { fog: { near: 140, far: 340, height: 2.5 } }),
         size: [340, 90, 190],
         scaleAuthoredAnchors: true,
         singlePlayerScenario: {
@@ -239,7 +284,7 @@ export const PARCOURS_MAPS = Object.freeze({
         missions: [
             { type: 'KILL_COUNT', params: { target: 4 }, weight: 1.5 },
             { type: 'MULTI_KILL', params: { target: 2, windowSec: 12 }, weight: 1.0 },
-            { type: 'TIME_TRIAL', params: { target: 70 }, weight: 0.8 },
+            { type: 'TIME_TRIAL', params: { target: 52 }, weight: 0.8 },
         ],
         parcours: {
             enabled: true,
@@ -289,7 +334,7 @@ export const PARCOURS_MAPS = Object.freeze({
         glbColliderMode: 'fallbackOnly',
         glbLoadConcurrency: 3,
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 52 }, weight: 1.5 },
+            { type: 'TIME_TRIAL', params: { target: 64 }, weight: 1.5 },
             { type: 'NO_DAMAGE', params: {}, weight: 1.0 },
             { type: 'ITEM_CHAIN', params: { target: 3 }, weight: 0.8 },
         ],
@@ -308,45 +353,13 @@ export const PARCOURS_MAPS = Object.freeze({
                 allowLaneAliases: true,
                 winnerByParcoursComplete: true,
             },
-            checkpoints: [
-                { id: 'CP01', type: 'entry', pos: [-108, 18, 0], radius: 6.2, forward: [1, 0, 0] },
-                { id: 'CP02', type: 'gate', pos: [-72, 18, 14], radius: 5.6, forward: [1, 0, 0] },
-                { id: 'CP03', type: 'tunnel', pos: [-24, 24, -18], radius: 4.8, forward: [1, 0, 0] },
-                {
-                    id: 'CP04',
-                    type: 'branch_entry',
-                    pos: [-10, 30, -8],
-                    radius: 5.3,
-                    forward: [1, 0, 0],
-                    nextIds: ['CP04A_TUNNEL', 'CP04B_BOOST'],
-                },
-                {
-                    id: 'CP04A_TUNNEL',
-                    type: 'branch_tunnel',
-                    pos: [6, 30, -54],
-                    radius: 4.9,
-                    forward: [1, 0, 0],
-                    nextIds: ['CP05'],
-                },
-                {
-                    id: 'CP04B_BOOST',
-                    type: 'branch_boost',
-                    pos: [18, 34, 0],
-                    radius: 5.0,
-                    forward: [1, 0, 0],
-                    nextIds: ['CP05'],
-                },
-                { id: 'CP05', type: 'gate', pos: [30, 40, 44], radius: 5.1, forward: [1, 0, 0] },
-                { id: 'CP06', type: 'split', pos: [52, 38, -16], radius: 5.5, forward: [1, 0, 0] },
-                { id: 'CP06_R', type: 'split', aliasOf: 'CP06', pos: [52, 38, 16], radius: 5.5, forward: [1, 0, 0] },
-                { id: 'CP07', type: 'precision', pos: [70, 34, 0], radius: 4.8, forward: [1, 0, 0] },
-                { id: 'CP08', type: 'finish_pre', pos: [96, 28, 0], radius: 5.2, forward: [1, 0, 0] },
-            ],
-            finish: { id: 'FINISH', type: 'finish', pos: [106, 24, 0], radius: 6.4, forward: [1, 0, 0] },
+            checkpoints: RIFT_CHECKPOINTS,
+            finish: RIFT_FINISH,
         },
     },
     parcours_rift_sprint: {
         name: 'Parcours Rift Sprint',
+        lighting: SUNRISE_LIGHTING,
         size: [260, 84, 180],
         scaleAuthoredAnchors: true,
         obstacles: RIFT_OBSTACLES,
@@ -359,7 +372,7 @@ export const PARCOURS_MAPS = Object.freeze({
         glbColliderMode: 'fallbackOnly',
         glbLoadConcurrency: 3,
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 38 }, weight: 2.0 },
+            { type: 'TIME_TRIAL', params: { target: 48 }, weight: 2.0 },
             { type: 'TRAIL_MASTER', params: { target: 90 }, weight: 0.9 },
         ],
         parcours: {
@@ -403,58 +416,27 @@ export const PARCOURS_MAPS = Object.freeze({
         missions: [
             { type: 'NO_DAMAGE', params: {}, weight: 1.5 },
             { type: 'CLOSE_CALL', params: { target: 2 }, weight: 0.8 },
-            { type: 'TIME_TRIAL', params: { target: 46 }, weight: 1.2 },
+            { type: 'TIME_TRIAL', params: { target: 53 }, weight: 1.2 },
         ],
         parcours: {
             enabled: true,
             routeId: 'rift_precision_v1',
             rules: {
                 ordered: true,
-                resetOnDeath: false,
-                resetToLastValid: true,
-                maxSegmentTimeMs: 16000,
+                // Harder than Rift: a death wipes the run like there, but the clock per ring is
+                // 12 s instead of 18 s and a wrong ring costs 3.5 s instead of 2 s.
+                resetOnDeath: true,
+                resetToLastValid: false,
+                maxSegmentTimeMs: 12000,
                 cooldownMs: 450,
                 wrongOrderCooldownMs: 650,
-                wrongOrderPenaltyMs: 2500,
+                wrongOrderPenaltyMs: 3500,
                 errorIndicatorMs: 1500,
                 allowLaneAliases: true,
                 winnerByParcoursComplete: true,
             },
-            checkpoints: [
-                { id: 'CP01', type: 'entry', pos: [-108, 18, 0], radius: 5.6, forward: [1, 0, 0] },
-                { id: 'CP02', type: 'gate', pos: [-72, 18, 14], radius: 5.0, forward: [1, 0, 0] },
-                { id: 'CP03', type: 'tunnel', pos: [-24, 24, -18], radius: 4.5, forward: [1, 0, 0] },
-                {
-                    id: 'CP04',
-                    type: 'branch_entry',
-                    pos: [-10, 30, -8],
-                    radius: 4.8,
-                    forward: [1, 0, 0],
-                    nextIds: ['CP04A_TUNNEL', 'CP04B_BOOST'],
-                },
-                {
-                    id: 'CP04A_TUNNEL',
-                    type: 'branch_tunnel',
-                    pos: [6, 30, -54],
-                    radius: 4.5,
-                    forward: [1, 0, 0],
-                    nextIds: ['CP05'],
-                },
-                {
-                    id: 'CP04B_BOOST',
-                    type: 'branch_boost',
-                    pos: [18, 34, 0],
-                    radius: 4.6,
-                    forward: [1, 0, 0],
-                    nextIds: ['CP05'],
-                },
-                { id: 'CP05', type: 'gate', pos: [30, 40, 44], radius: 4.7, forward: [1, 0, 0] },
-                { id: 'CP06', type: 'split', pos: [52, 38, -16], radius: 4.9, forward: [1, 0, 0] },
-                { id: 'CP06_R', type: 'split', aliasOf: 'CP06', pos: [52, 38, 16], radius: 4.9, forward: [1, 0, 0] },
-                { id: 'CP07', type: 'precision', pos: [70, 34, 0], radius: 4.4, forward: [1, 0, 0] },
-                { id: 'CP08', type: 'finish_pre', pos: [96, 28, 0], radius: 4.8, forward: [1, 0, 0] },
-            ],
-            finish: { id: 'FINISH', type: 'finish', pos: [106, 24, 0], radius: 5.8, forward: [1, 0, 0] },
+            checkpoints: RIFT_CHECKPOINTS.map(narrowRing),
+            finish: narrowRing(RIFT_FINISH),
         },
     },
 });

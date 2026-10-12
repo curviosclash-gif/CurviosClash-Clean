@@ -1,7 +1,8 @@
 // Node has no browser: this small document stand-in records what the hangar panels build.
 // Enter on a button clicks like in Chromium unless a keydown listener prevented it, and a
 // button inside a disabled <fieldset> ignores clicks like a disabled form control does.
-// Importing the module installs it as globalThis.document.
+// Selectors cover what the menu focus helpers ask for: lists, tags, classes, [attr="value"],
+// :not(...) and :disabled. Importing the module installs it as globalThis.document.
 
 class FakeClassList {
     constructor() { this.values = new Set(); }
@@ -15,12 +16,40 @@ class FakeClassList {
     contains(name) { return this.values.has(name); }
 }
 
+function readAttribute(node, name) {
+    if (name.startsWith('data-')) {
+        const key = name.slice(5).replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+        return node.dataset[key] ?? null;
+    }
+    if (node.attributes.has(name)) return node.attributes.get(name);
+    if (name === 'disabled') return node.disabled ? '' : null;
+    if (name === 'type') return node.type || null;
+    return null;
+}
+
+/** One compound selector: optional tag, classes, [attr] / [attr="value"], :not(...), :disabled. */
+function matchesCompound(node, selector) {
+    const negations = [];
+    let rest = selector.trim().replace(/:not\(([^)]*)\)/g, (_, inner) => { negations.push(inner); return ''; });
+    if (rest.includes(':disabled')) {
+        if (!isDisabledControl(node)) return false;
+        rest = rest.replace(':disabled', '');
+    }
+    const tag = /^[a-z]+/i.exec(rest)?.[0] || '';
+    if (tag && node.tagName !== tag.toUpperCase()) return false;
+    rest = rest.slice(tag.length);
+    if (/[^\w\s.[\]="'-]/.test(rest)) throw new Error(`selector not supported: ${selector}`);
+    for (const [, name] of rest.matchAll(/\.([\w-]+)/g)) if (!node.classList.contains(name)) return false;
+    for (const [, name, value] of rest.matchAll(/\[([\w-]+)(?:="([^"]*)")?\]/g)) {
+        const actual = readAttribute(node, name);
+        if (actual === null || (value !== undefined && actual !== value)) return false;
+    }
+    return negations.every((inner) => !matchesCompound(node, inner));
+}
+
+/** Selector lists ("a, b") of compound selectors; enough for the hangar and the menu focus helpers. */
 function matches(node, selector) {
-    if (selector.startsWith('.')) return node.classList.contains(selector.slice(1));
-    const data = /^\[data-([a-z-]+)\]$/.exec(selector);
-    if (!data) throw new Error(`selector not supported: ${selector}`);
-    const key = data[1].replace(/-([a-z])/g, (_, char) => char.toUpperCase());
-    return node.dataset[key] !== undefined;
+    return selector.split(',').some((part) => matchesCompound(node, part));
 }
 
 /** A form control is disabled by its own flag or by a disabled <fieldset> around it. */
@@ -72,9 +101,11 @@ export class FakeElement {
         this.append(...nodes);
     }
     addEventListener(type, handler) { (this.listeners[type] ||= []).push(handler); }
-    removeEventListener() {}
+    removeEventListener(type, handler) { this.listeners[type] = (this.listeners[type] || []).filter((entry) => entry !== handler); }
+    matches(selector) { return matches(this, selector); }
     dispatchEvent(event) {
-        event.target ||= this;
+        // A real Event (new Event('input')) keeps target read-only; the plain test events get it here.
+        if (!event.target) try { event.target = this; } catch { /* read-only on real events */ }
         for (let node = this; node && !event.stopped; node = node.parentElement) {
             (node.listeners[event.type] || []).forEach((handler) => handler(event));
         }

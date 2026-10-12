@@ -32,6 +32,10 @@ WIDTH_TARGET = 10.2
 BLOOM_PREVIEW_SAMPLE = None
 PREVIEW_ONLY = os.environ.get("SAKURA_AKEBONO_PREVIEW_ONLY") == "1"
 SKIP_PREVIEW_RENDER = os.environ.get("SAKURA_AKEBONO_SKIP_PREVIEWS") == "1"
+# Lean blossoms (grove variant 01): a blossom is one five-petal rosette (a fan of 10 triangles). The
+# pedicel, calyx, receptacle and stamens inside it are far below a pixel at any distance the game
+# flies at, and their 45 triangles per blossom made the file 39 MB. Read when a variant is built.
+LEAN_RADIUS = 1.2
 
 
 def material(name, color, roughness=0.8, subsurface=0.0):
@@ -126,6 +130,7 @@ def add_surface(vertices, faces, material_indices, points, new_faces, material_i
 
 def blossom_geometry(rng, sites, scale, mats, collection, profile):
     global BLOOM_PREVIEW_SAMPLE
+    lean = os.environ.get("SAKURA_AKEBONO_LEAN") == "1"
     petals_v, petals_f, petals_i = [], [], []
     centers_v, centers_f, centers_i = [], [], []
     foliage_v, foliage_f = [], []
@@ -177,6 +182,23 @@ def blossom_geometry(rng, sites, scale, mats, collection, profile):
             bu, bv, bn = basis(axis)
             radius = (rng.uniform(.037, .046) if dense_cluster else
                       rng.uniform(0.032, 0.043)) * scale
+            if lean:
+                radius *= LEAN_RADIUS
+                tips = [2 * pi * k / 5 + rng.uniform(-0.07, 0.07) for k in range(5)]
+                ring = []
+                for k, angle in enumerate(tips):
+                    for a, r, h in ((angle, 1.03, 0.012), (angle + pi / 5, 0.58, 0.006)):
+                        ring.append(c + (bu * cos(a) + bv * sin(a)) * radius * r + bn * h * scale)
+                base = len(petals_v)
+                petals_v.append(c + bn * 0.001 * scale)
+                petals_v.extend(ring)
+                for k in range(10):
+                    petals_f.append((base, base + 1 + k, base + 1 + (k + 1) % 10))
+                # The petal around tip p owns the triangle before its tip and the one after it.
+                petal_material = [rng.choices((0, 1), (0.66, 0.34))[0] for _ in range(5)]
+                petals_i.extend(petal_material[((k + 1) // 2) % 5] for k in range(10))
+                flower_count += 1
+                continue
             # A slim, tapered pedicel connects every flower back to its twig-borne cluster site.
             stem_axis = c - center
             if stem_axis.length > 0.004:
@@ -288,9 +310,11 @@ def blossom_geometry(rng, sites, scale, mats, collection, profile):
                              (mats["petal"], mats["light"]), petals_i, collection)
     petal_obj["role"] = "blossoms"
     # split centers into calyx/gold by polygon index, preserving consolidated batches
-    center_obj = new_mesh_obj("Akebono_Calyx_and_Stamens", centers_v, centers_f,
-                              (mats["sepal"], mats["gold"]), centers_i, collection)
-    center_obj["role"] = "blossom_details"
+    center_obj = None
+    if centers_f:
+        center_obj = new_mesh_obj("Akebono_Calyx_and_Stamens", centers_v, centers_f,
+                                  (mats["sepal"], mats["gold"]), centers_i, collection)
+        center_obj["role"] = "blossom_details"
     leaf_obj = new_mesh_obj("Akebono_Sparse_Young_Leaves", foliage_v, foliage_f,
                             (mats["leaf"],), collection=collection)
     leaf_obj["role"] = "foliage"
@@ -776,7 +800,8 @@ def main():
             variant_name = f"akebono_{variant_index:02d}.glb"
             os.environ["SAKURA_AKEBONO_EXPORT_NAME"] = variant_name
             os.environ["SAKURA_AKEBONO_DECIMATE_RATIO"] = "1" if variant_index == 1 else "0.22"
-            os.environ["SAKURA_AKEBONO_FLOWER_SCALE"] = "1" if variant_index == 1 else "0.22"
+            os.environ["SAKURA_AKEBONO_FLOWER_SCALE"] = "0.6" if variant_index == 1 else "0.22"
+            os.environ["SAKURA_AKEBONO_LEAN"] = "1" if variant_index == 1 else "0"
             print(f"[sakura] building stable variant {variant_name} seed={seed}", flush=True)
             report["variant_profiles"][variant_name] = build_scene("grove")
     if PREVIEW_ONLY:

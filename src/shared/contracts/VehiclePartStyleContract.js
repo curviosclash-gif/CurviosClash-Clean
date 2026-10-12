@@ -1,6 +1,8 @@
 // Per-vehicle look a player sets in the arcade hangar: keyed by the name of a top-level
 // part, each entry may recolor it, scale it within limits or swap its shape for the part
 // with the same role from another ship. Hitboxes never follow these changes.
+import { normalizeVehiclePartMount, VEHICLE_PART_MOUNT_HULL } from './VehiclePartMountContract.js';
+
 export const VEHICLE_PART_STYLE_SCALE_RANGE = Object.freeze({ min: 0.8, max: 1.25 });
 const MAX_STYLED_PARTS = 48;
 const MAX_KEY_LENGTH = 80;
@@ -209,6 +211,9 @@ function swapShape(part, donorPart) {
     };
     delete swapped.mirror;
     delete swapped.mirrorAxis;
+    // The new shape hangs where the old part did, not where the donor part hung on its own ship.
+    if (part.mount) swapped.mount = part.mount;
+    else delete swapped.mount;
     if (donor.children) swapped.children = prefixChildNames(donor.children, part.name);
     return swapped;
 }
@@ -240,6 +245,95 @@ export function resolveHullMountedPivot(part, core, coreScale) {
     });
 }
 
+const pointOf = (/** @type {any} */ value) => [0, 1, 2].map((axis) => Number(value?.[axis]) || 0);
+
+/**
+ * @typedef {object} VehiclePartPlacement
+ * Moves a top-level part: every point p of it is drawn at target + factor * (p - origin).
+ * @property {number[]} origin
+ * @property {number[]} target
+ * @property {number} factor
+ * @property {boolean} mounted  true when the part follows its mount from the ship data
+ */
+
+/**
+ * Where each top-level part is drawn once each is scaled by its factor (`factors` by part name,
+ * missing = 1). A part with a mount (VehiclePartMountContract) grows away from its anchor, and the
+ * anchor moves with its carrier: the hull (role 'core') grows around its own pivot, a carrier part
+ * moves the way its own placement says. A mirrored carrier carries an anchor on its other side with
+ * its mirrored half. A part without a usable mount (unknown carrier, mount loop, no mount at all)
+ * grows around its pivot as before; a utility part built into the hull still rides on it
+ * (resolveHullMountedPivot). Drawn ship and arcade hit zone both read this.
+ * @param {ReadonlyArray<any>} parts
+ * @param {Record<string, number>} factors
+ * @returns {VehiclePartPlacement[]}
+ */
+export function resolveVehiclePartPlacements(parts, factors) {
+    const list = Array.isArray(parts) ? parts : [];
+    const factorOf = (/** @type {any} */ part) => {
+        const factor = Number(factors?.[String(part?.name || '')]);
+        return Number.isFinite(factor) && factor > 0 ? factor : 1;
+    };
+    const coreIndex = list.findIndex((part) => part?.role === 'core');
+    const core = coreIndex >= 0 ? list[coreIndex] : null;
+    /** @type {Array<VehiclePartPlacement|undefined>} */
+    const placements = list.map(() => undefined);
+    const visiting = new Set();
+    const legacy = (/** @type {number} */ index) => {
+        const part = list[index];
+        const origin = pointOf(part?.pos);
+        const pivot = resolveHullMountedPivot(part, core, factorOf(core));
+        return { origin, target: pivot || origin, factor: factorOf(part), mounted: false };
+    };
+    /** @param {number} index @returns {VehiclePartPlacement} */
+    const resolve = (index) => {
+        const known = placements[index];
+        if (known) return known;
+        if (visiting.has(index)) return (placements[index] = legacy(index));
+        const part = list[index];
+        const mount = index === coreIndex ? null : normalizeVehiclePartMount(part?.mount);
+        const carrierIndex = !mount ? -1 : mount.carrier === VEHICLE_PART_MOUNT_HULL
+            ? coreIndex
+            : list.findIndex((entry) => entry?.name === mount.carrier);
+        if (!mount || carrierIndex < 0 || carrierIndex === index) return (placements[index] = legacy(index));
+        visiting.add(index);
+        let carrier = resolve(carrierIndex);
+        visiting.delete(index);
+        if (placements[index]) return /** @type {VehiclePartPlacement} */ (placements[index]);
+        const carrierPart = list[carrierIndex];
+        const axis = resolveVehiclePartMirrorAxis(carrierPart);
+        if (axis) {
+            const k = 'xyz'.indexOf(axis);
+            if (mount.anchor[k] * (Number(carrierPart.pos?.[k]) || 0) < 0) {
+                const reflect = (/** @type {number[]} */ point) => point.map((value, i) => (i === k ? -value : value));
+                carrier = { ...carrier, origin: reflect(carrier.origin), target: reflect(carrier.target) };
+            }
+        }
+        const target = mount.anchor.map((value, i) => carrier.target[i] + (value - carrier.origin[i]) * carrier.factor);
+        return (placements[index] = { origin: mount.anchor, target, factor: factorOf(part), mounted: true });
+    };
+    return list.map((_, index) => resolve(index));
+}
+
+/**
+ * The part moved and scaled by its placement (the same object when nothing changes).
+ * @template {Record<string, any>} T
+ * @param {T} part
+ * @param {VehiclePartPlacement} placement
+ * @returns {T}
+ */
+export function placeVehiclePart(part, placement) {
+    const { origin, target, factor } = placement;
+    const pos = pointOf(part?.pos).map((value, axis) => target[axis] + (value - origin[axis]) * factor);
+    const moved = pos.some((value, axis) => Math.abs(value - (Number(part?.pos?.[axis]) || 0)) > 1e-12);
+    if (factor === 1 && !moved) return part;
+    return {
+        ...part,
+        ...(moved ? { pos } : {}),
+        ...(factor === 1 ? {} : { scale: [0, 1, 2].map((axis) => (Array.isArray(part.scale) ? Number(part.scale[axis]) || 1 : 1) * factor) }),
+    };
+}
+
 /**
  * Returns a styled copy of a Vehicle Lab config; the input stays untouched.
  * @param {{parts?: object[]}} config
@@ -249,19 +343,27 @@ export function resolveHullMountedPivot(part, core, coreScale) {
 export function applyVehiclePartStyle(config, style, donors = []) {
     const styled = clone(config || {});
     const entries = normalizeVehiclePartStyle(style);
-    const core = (styled.parts || []).find((part) => part?.role === 'core');
-    const coreScale = core ? entries[core.name]?.scale : undefined;
-    styled.parts = (styled.parts || []).map((part) => {
-        const pivot = resolveHullMountedPivot(part, core, coreScale);
-        let next = pivot ? { ...part, pos: pivot } : part;
+    /** @type {Record<string, number>} */
+    const factors = {};
+    for (const [name, entry] of Object.entries(entries)) if (entry.scale) factors[name] = entry.scale;
+    const placements = resolveVehiclePartPlacements(styled.parts, factors);
+    styled.parts = (styled.parts || []).map((part, index) => {
+        const placement = placements[index];
         const entry = entries[part?.name];
-        if (!entry) return next;
-        if (entry.variant && part.role && !NON_SWAPPABLE_ROLES.has(part.role)) {
-            const donorPart = findDonorPart(donors, entry.variant, part.role);
-            if (donorPart) next = swapShape(next, donorPart);
+        const donorPart = entry?.variant && part?.role && !NON_SWAPPABLE_ROLES.has(part.role)
+            ? findDonorPart(donors, entry.variant, part.role)
+            : null;
+        let next = part;
+        if (placement.mounted) {
+            // The donor shape takes the factory place first, then follows the mount like the old part.
+            next = placeVehiclePart(donorPart ? swapShape(part, donorPart) : part, placement);
+        } else if (donorPart) {
+            next = swapShape({ ...part, pos: placement.target }, donorPart);
+            if (entry?.scale) next = { ...next, scale: (next.scale || [1, 1, 1]).map((value) => value * entry.scale) };
+        } else {
+            next = placeVehiclePart(part, placement);
         }
-        if (entry.scale) next = { ...next, scale: (next.scale || [1, 1, 1]).map((value) => value * entry.scale) };
-        if (entry.color !== undefined) next = { ...next, color: entry.color };
+        if (entry?.color !== undefined) next = { ...next, color: entry.color };
         return next;
     });
     return styled;
