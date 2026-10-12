@@ -1,3 +1,5 @@
+import { normalizeVehiclePartMount } from './VehiclePartMountContract.js';
+
 export const VEHICLE_LAB_CONFIG_LIMITS = Object.freeze({
     maxParts: 128,
     maxDepth: 8,
@@ -158,6 +160,10 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
             delete normalized.mirrorAxis;
             delete normalized.mirror;
         }
+
+        const mount = normalizeVehiclePartMount(part.mount);
+        if (mount) normalized.mount = mount;
+        else delete normalized.mount;
 
         const animation = normalizeAnimation(part.anim);
         if (animation) normalized.anim = animation;

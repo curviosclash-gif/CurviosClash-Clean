@@ -163,7 +163,7 @@ export const NEON_CARNIVAL_MAP = {
             rim: { direction: [-30, 14, -45], color: 0x35e0ff, intensity: 0.9 },
             hemisphere: { skyColor: 0x3a2c6a, groundColor: 0x1a0b24 },
             fog: {
-                color: 0x140a28, near: 60, far: 240, height: 20, heightFalloff: 0.012, turbulence: 0.15,
+                color: 0x140a28, near: 60, far: 255, height: 20, heightFalloff: 0.012, turbulence: 0.15,
                 skyBlend: 1, colorHigh: 0x0d0820, colorLow: 0x1c0d2e, clipClosureStart: 0.8,
             },
             skyDome: { zenithColor: 0x03020c, horizonColor: 0x2c1250, nadirColor: 0x07040f },
@@ -202,7 +202,7 @@ export const NEON_CARNIVAL_MAP = {
             { id: 'carnival_finale_guard', jetId: 'ship6', x: -60, y: 76, z: 110, scale: 1.0, rotateY: 2.2 },
         ],
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 210 }, weight: 1.8 },
+            { type: 'TIME_TRIAL', params: { target: 75 }, weight: 1.8 },
             { type: 'NO_DAMAGE', params: {}, weight: 0.7 },
             { type: 'ITEM_CHAIN', params: { target: 5 }, weight: 0.8 },
         ],

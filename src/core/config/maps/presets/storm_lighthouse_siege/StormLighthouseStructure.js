@@ -74,8 +74,12 @@ export const STORM_LIGHTHOUSE_ITEMS = Object.freeze([
 
 export const STORM_LIGHTHOUSE_LIGHTS = Object.freeze([
     Object.freeze({
-        id: 'lighthouse_lantern', x: 0, y: 174, z: 0,
-        color: 0xffcf66, intensity: 3200, distance: 340,
+        // Inside the arena height (100 units, 300 world) instead of at the lantern room, which
+        // stands above it; the intensity is scaled by the square of the shorter drop to the island
+        // so the light on the ground stays what it was. Dark once the tower is down.
+        id: 'lighthouse_lantern', x: 0, y: 99, z: 0,
+        color: 0xffcf66, intensity: 1040, distance: 340,
+        offWhenDestroyed: 'lighthouse_tower',
     }),
     Object.freeze({
         id: 'lighthouse_keeper_house', x: -31, y: 8, z: 24,

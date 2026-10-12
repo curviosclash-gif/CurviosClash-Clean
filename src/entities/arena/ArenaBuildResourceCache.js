@@ -229,6 +229,7 @@ export function createArenaBuildSignature({
     planarLevelCount = 0,
     graphicsStyle = 'modern',
     runVariant = '',
+    breakSceneLoad = '',
 }) {
     return [
         String(mapKey || 'standard'),
@@ -243,6 +244,7 @@ export function createArenaBuildSignature({
         Math.max(0, Math.round(Number(planarLevelCount) || 0)),
         String(graphicsStyle || 'modern'),
         String(runVariant || ''),
+        String(breakSceneLoad || ''),
     ].join('|');
 }
 

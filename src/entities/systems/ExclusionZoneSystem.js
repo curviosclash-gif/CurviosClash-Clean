@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { PLAYABLE_VOLUME_INSIDE, probeArenaPlayableVolumes } from '../arena/ArenaPlayableVolumes.js';
+import {
+    DEFAULT_ENTITY_RUNTIME_CONFIG,
+    resolveEntityRuntimeConfig,
+} from '../../shared/contracts/EntityRuntimeConfig.js';
 
 export const EXCLUSION_ZONE_PHASES = Object.freeze({
     SAFE: 'SAFE',
@@ -9,7 +13,6 @@ export const EXCLUSION_ZONE_PHASES = Object.freeze({
 
 export const EXCLUSION_ZONE_GRACE_SECONDS = 5;
 export const EXCLUSION_ZONE_HYSTERESIS = 0.35;
-export const EXCLUSION_ZONE_MAX_PLAYER_ROCKETS = 12;
 export const EXCLUSION_ZONE_MAX_GLOBAL_ROCKETS = 64;
 
 const ENVIRONMENT_OWNER = Object.freeze({
@@ -18,14 +21,82 @@ const ENVIRONMENT_OWNER = Object.freeze({
     name: 'Exclusion Zone',
 });
 
+// pursuitSpeedFactor scales the top level-flight speed of a boosting ship: a runaway can dodge
+// the slow-turning salvo, but can no longer simply outfly it.
 const SALVO_STAGES = Object.freeze([
-    Object.freeze({ key: 'WEAK', from: 5, until: 15, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 96, speedMultiplier: 0.55, turnRateMultiplier: 0.35, minimumLifetimeSeconds: 24 }),
-    Object.freeze({ key: 'MEDIUM', from: 15, until: 25, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 120, speedMultiplier: 0.65, turnRateMultiplier: 0.4, minimumLifetimeSeconds: 20 }),
-    Object.freeze({ key: 'HEAVY', from: 25, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 144, speedMultiplier: 0.75, turnRateMultiplier: 0.45, minimumLifetimeSeconds: 18 }),
+    Object.freeze({ key: 'WEAK', from: 5, until: 15, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 96, pursuitSpeedFactor: 1, turnRateMultiplier: 0.35, minimumLifetimeSeconds: 24 }),
+    Object.freeze({ key: 'MEDIUM', from: 15, until: 25, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 120, pursuitSpeedFactor: 1.1, turnRateMultiplier: 0.4, minimumLifetimeSeconds: 20 }),
+    Object.freeze({ key: 'HEAVY', from: 25, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 144, pursuitSpeedFactor: 1.2, turnRateMultiplier: 0.45, minimumLifetimeSeconds: 18 }),
 ]);
 
+// ProjectileSystem.spawnExternalProjectile falls back to this launch speed as well.
+const FALLBACK_PROJECTILE_SPEED = 45;
+const MINIMUM_TRAVEL_DISTANCE = 720;
+
+function positiveOr(value, fallback) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+}
+
+/**
+ * Longest straight chase of a ship that flees at cruise speed and boosts whenever its reserve
+ * allows. The worst launch moment is the start of a boost, when the gap closes slowest.
+ */
+function resolveWorstPursuitSeconds(distance, rocketSpeed, ship) {
+    const boostClosing = Math.max(0, rocketSpeed - ship.boostedSpeed);
+    const cruiseClosing = Math.max(1e-6, rocketSpeed - ship.speed);
+    const boostReach = boostClosing * ship.boostSeconds;
+    const cycleReach = boostReach + cruiseClosing * ship.rechargeSeconds;
+    const cycles = Math.floor(distance / cycleReach);
+    const remaining = distance - cycles * cycleReach;
+    const seconds = cycles * (ship.boostSeconds + ship.rechargeSeconds);
+    if (remaining <= boostReach) return seconds + (remaining > 0 ? remaining / boostClosing : 0);
+    return seconds + ship.boostSeconds + (remaining - boostReach) / cruiseClosing;
+}
+
+/**
+ * Salvo tuning derived from the ship physics instead of fixed numbers.
+ *
+ * Every rocket flies at least as fast as a boosting ship in level flight. The per-target cap
+ * keeps every rocket launched within the longest chase of a fleeing, boosting ship, so no
+ * rocket is deleted before it can arrive; it never exceeds the global cap.
+ *
+ * @param {object|null} config Entity runtime config with PLAYER and PROJECTILE sections.
+ */
+export function resolveExclusionZoneRocketTuning(config) {
+    const defaults = DEFAULT_ENTITY_RUNTIME_CONFIG.PLAYER;
+    const playerConfig = config?.PLAYER || defaults;
+    const speed = positiveOr(playerConfig.SPEED, defaults.SPEED);
+    const ship = {
+        speed,
+        boostedSpeed: speed * Math.max(1, positiveOr(playerConfig.BOOST_MULTIPLIER, defaults.BOOST_MULTIPLIER)),
+        boostSeconds: positiveOr(playerConfig.BOOST_DURATION, defaults.BOOST_DURATION),
+        rechargeSeconds: positiveOr(playerConfig.BOOST_COOLDOWN, defaults.BOOST_COOLDOWN),
+    };
+    const projectileSpeed = positiveOr(config?.PROJECTILE?.SPEED, FALLBACK_PROJECTILE_SPEED);
+    let maxPlayerRockets = 0;
+    const stages = SALVO_STAGES.map((stage) => {
+        const rocketSpeed = ship.boostedSpeed * stage.pursuitSpeedFactor;
+        const flightSeconds = resolveWorstPursuitSeconds(stage.spawnDistance, rocketSpeed, ship);
+        maxPlayerRockets = Math.max(maxPlayerRockets, stage.count * (Math.floor(flightSeconds / stage.interval) + 1));
+        return Object.freeze({
+            key: stage.key,
+            rocketSpeed,
+            speedMultiplier: rocketSpeed / projectileSpeed,
+            flightSeconds,
+            // The lifetime stays the pursuit limit; a faster rocket must not run out of range first.
+            minimumTravelDistance: Math.max(MINIMUM_TRAVEL_DISTANCE, Math.ceil(rocketSpeed * stage.minimumLifetimeSeconds)),
+        });
+    });
+    return Object.freeze({
+        boostedShipSpeed: ship.boostedSpeed,
+        maxPlayerRockets: Math.min(EXCLUSION_ZONE_MAX_GLOBAL_ROCKETS, maxPlayerRockets),
+        maxGlobalRockets: EXCLUSION_ZONE_MAX_GLOBAL_ROCKETS,
+        stages: Object.freeze(Object.fromEntries(stages.map((stage) => [stage.key, stage]))),
+    });
+}
+
 const DIRECTION_COUNT = 32;
-const ZONE_PROJECTILE_MINIMUM_TRAVEL_DISTANCE = 720;
 const PRECOMPUTED_DIRECTIONS = Object.freeze(Array.from({ length: DIRECTION_COUNT }, (_, index) => {
     const y = 1 - (2 * (index + 0.5)) / DIRECTION_COUNT;
     const radius = Math.sqrt(Math.max(0, 1 - y * y));
@@ -210,6 +281,8 @@ export class ExclusionZoneSystem {
     _spawnSalvo(player, state, stage) {
         const arena = this.entityManager?.arena;
         if (!this.projectileSystem || !arena) return;
+        const tuning = resolveExclusionZoneRocketTuning(resolveEntityRuntimeConfig(this.entityManager));
+        const launch = tuning.stages[stage.key];
         const offset = (Number(player.index) * 11 + state.salvoSequence * 7) % DIRECTION_COUNT;
         let spawned = 0;
         for (let attempt = 0; attempt < DIRECTION_COUNT && spawned < stage.count; attempt += 1) {
@@ -234,18 +307,18 @@ export class ExclusionZoneSystem {
                 environmentProjectile: true,
                 zoneProjectile: true,
                 zoneSequence: ++this._projectileSequence,
-                speedMultiplier: stage.speedMultiplier,
+                speedMultiplier: launch.speedMultiplier,
                 homingTurnRateMultiplier: stage.turnRateMultiplier,
                 minimumLifetimeSeconds: stage.minimumLifetimeSeconds,
-                minimumTravelDistance: ZONE_PROJECTILE_MINIMUM_TRAVEL_DISTANCE,
+                minimumTravelDistance: launch.minimumTravelDistance,
             });
             if (projectile) spawned += 1;
         }
         state.salvoSequence += 1;
         this.projectileSystem.trimZoneProjectiles(
             player.index,
-            EXCLUSION_ZONE_MAX_PLAYER_ROCKETS,
-            EXCLUSION_ZONE_MAX_GLOBAL_ROCKETS,
+            tuning.maxPlayerRockets,
+            tuning.maxGlobalRockets,
         );
         if (spawned > 0) this.entityManager?.audio?.play?.('EXCLUSION_WARNING', { intensity: 0.28 });
     }

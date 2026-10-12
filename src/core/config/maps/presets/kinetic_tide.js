@@ -1,3 +1,4 @@
+import { TIDE_MORNING_LIGHTING } from './map_lighting_profiles.js';
 // Kinetic Tide runs on one four second beat. Every moving setpiece loops on a whole
 // multiple of it and states how far it runs ahead, so the obstacles form a rhythm a player
 // can learn instead of a set of independent surprises. The offsets below are the level
@@ -318,6 +319,7 @@ const KINETIC_TIDE_CHECKPOINTS = [
 export const KINETIC_TIDE_MAP = {
     kinetic_tide: {
         name: 'Kinetic Tide',
+        lighting: TIDE_MORNING_LIGHTING,
         size: [460, 150, 320],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

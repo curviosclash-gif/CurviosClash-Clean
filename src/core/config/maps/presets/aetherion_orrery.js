@@ -1,3 +1,4 @@
+import { ORRERY_COSMOS_LIGHTING } from './map_lighting_profiles.js';
 const BEAT_SECONDS = 12;
 const LEVELS = Object.freeze([24, 84, 144]);
 
@@ -181,6 +182,7 @@ const AETHERION_CHECKPOINTS = [
 export const AETHERION_ORRERY_MAP = {
     aetherion_orrery: {
         name: 'Aetherion Orrery',
+        lighting: ORRERY_COSMOS_LIGHTING,
         exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [320, 210, 320],
         scaleAuthoredAnchors: true,

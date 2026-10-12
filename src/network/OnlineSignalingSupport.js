@@ -74,6 +74,7 @@ export function createOnlineLobbyCreateEnvelope(options = {}) {
         maxPlayers: options.maxPlayers || 10,
         actorId: options.actorId,
         name: options.name || options.actorId,
+        vehicleId: options.vehicleId,
         metadata: options.metadata,
     });
 }
@@ -83,6 +84,18 @@ export function createOnlineLobbyJoinEnvelope(lobbyCode, options = {}) {
         lobbyCode,
         actorId: options.actorId,
         name: options.name || options.actorId,
+        vehicleId: options.vehicleId,
+    });
+}
+
+// Announces the local ship; the server answers every member with the new member list.
+export function setOnlineLobbyVehicle(lobby, vehicleId) {
+    const localPeerId = normalizeString(lobby?._playerId, '');
+    return lobby._sendMutationWithAck({
+        commandType: SIGNALING_COMMAND_TYPES.SET_VEHICLE,
+        payload: { vehicleId: String(vehicleId ?? '') },
+        ackMatcher: (msg) => msg?.type === SIGNALING_EVENT_TYPES.PLAYER_VEHICLE_CHANGED
+            && normalizeString(msg?.peerId, '') === localPeerId,
     });
 }
 

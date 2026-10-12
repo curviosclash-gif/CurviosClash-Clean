@@ -137,8 +137,10 @@ function validateRawDimensions(parts, errors) {
     return valid;
 }
 
+// Parts arrive normalized by normalizeVehicleLabConfig: `mount` has passed normalizeVehiclePartMount,
+// so a broken mount is already gone and a ship saved without mounts keeps growing around its pivots.
 function cleanPart(part) {
-    const allowed = ['name', 'geo', 'size', 'pos', 'rot', 'scale', 'material', 'role', 'mirrorAxis', 'color', 'opacity', 'emissive', 'emissiveIntensity', 'anim'];
+    const allowed = ['name', 'geo', 'size', 'pos', 'rot', 'scale', 'material', 'role', 'mirrorAxis', 'color', 'opacity', 'emissive', 'emissiveIntensity', 'anim', 'mount'];
     const cleaned = Object.fromEntries(allowed.filter((key) => part[key] !== undefined).map((key) => [key, part[key]]));
     if (part.children?.length) cleaned.children = part.children.map(cleanPart);
     return cleaned;

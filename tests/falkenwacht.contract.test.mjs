@@ -137,6 +137,30 @@ test('closed gate bars leave no aircraft-sized holes across the direct flight la
     for (let x = -15; x <= 15; x += .25) assert.equal(hit([x,30,0]), false, `open gate at ${x}`);
 });
 
+// The portcullis bars end at y 42.6, the stone arch rises to about 66. What lies between is part
+// of the arch opening, and with the bars down it was a free corridor right through the wall (11
+// units high at 44-54.5 and 4.5 at 61.5-66), so the direct gate could be flown over its closed
+// bars. The GLB cannot be changed without Blender, so the preset fills it with a collision box
+// (compileWithGlb keeps it active next to the scene collision). Nothing may be flown through the
+// wall from the south courtyard to the core courtyard while the bars are down.
+test('a closed portcullis leaves no flight line through the gate wall, above the bars either', () => {
+    const lunette = createSolidProbe(map.obstacles.filter((obstacle) => obstacle.compileWithGlb === true));
+    pose(7);
+    const holes = [];
+    for (let x = -20; x <= 20; x += 1) {
+        for (let y = 18; y <= 70; y += 1) {
+            let solid = false;
+            for (let z = -14; z <= 14 && !solid; z += 0.5) solid = hit([x, y, z]) || lunette([x, y, z]);
+            if (!solid) holes.push(`${x},${y}`);
+        }
+    }
+    assert.deepEqual(holes, [], `free lines through the closed gate wall at x,y: ${holes.join(" ")}`);
+    pose(0);
+    for (const p of [[0, 30, 0], [0, 40, 0], [-12, 30, 0], [12, 40, 0]]) {
+        assert.equal(hit(p) || lunette(p), false, `the open gate stays flyable at ${p}`);
+    }
+});
+
 test('all four branch combinations finish eighteen stages and produce safe death respawns at every stage', () => {
     for (let choice = 0; choice < 4; choice++) {
         const clean = harness();

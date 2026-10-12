@@ -166,6 +166,18 @@ export function normalizeArcadeRunSettingsFromSetup(source, startSetup) {
     );
 }
 
+// Settings the gauntlet score reads directly (sector plan, combo and multiplier rules). The other
+// ranked run types score survival, waves or time and never read them.
+const SCORE_SETTING_KEYS = Object.freeze(['sectorCount', 'comboWindowMs', 'comboDecayPerSecond', 'maxMultiplier']);
+const SCORE_SETTING_RUN_TYPES = new Set(['gauntlet']);
+
+/** True when a run of this type would score with values other than the contract defaults. */
+export function hasCustomArcadeScoreSettings(runType, source) {
+    if (!SCORE_SETTING_RUN_TYPES.has(runType)) return false;
+    const settings = normalizeArcadeRunSettings(source);
+    return SCORE_SETTING_KEYS.some((key) => settings[key] !== DEFAULTS[key]);
+}
+
 /** True when the block carries an explicit seed the runtime must not overwrite. */
 export function hasExplicitArcadeSeed(source) {
     if (!source || typeof source !== 'object' || Array.isArray(source)) return false;

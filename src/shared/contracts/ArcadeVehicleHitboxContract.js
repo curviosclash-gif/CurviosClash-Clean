@@ -7,7 +7,7 @@
 // queries. Pure data + math, no Three.js, no imports from core/ui/state.
 // ============================================
 
-import { measureVehiclePartBounds, resolveHullMountedPivot, resolveVehiclePartMirrorAxis } from './VehiclePartStyleContract.js';
+import { measureVehiclePartBounds, placeVehiclePart, resolveVehiclePartMirrorAxis, resolveVehiclePartPlacements } from './VehiclePartStyleContract.js';
 import { resolveArcadePartSizeFactors } from './ArcadeVehicleSizeContract.js';
 import { ALTITUDE_SPEED_MAX_MULTIPLIER } from './AltitudeSpeedContract.js';
 
@@ -202,21 +202,12 @@ export function buildArcadeHitboxShape(parts, partSizes, options = {}) {
     const list = Array.isArray(parts) ? parts : [];
     const factors = resolveArcadePartSizeFactors(list, partSizes);
     const originScale = Number(options.originScale) > 0 ? Number(options.originScale) : 1;
-    // The drawn utility part rides on the hull (applyVehiclePartStyle); its box does the same.
-    const hull = list.find((part) => part?.role === 'core');
-    const hullFactor = hull ? factors[String(hull.name || '')] : 1;
+    // Each box sits where applyVehiclePartStyle draws its part: grown from its mount, carried by its carrier.
+    const placements = resolveVehiclePartPlacements(list, factors);
     /** @type {Array<{name: string, role: string, center: number[], half: number[]}>} */
     const boxes = [];
     for (const part of pickParts(list)) {
-        const factor = factors[String(part.name || '')] || 1;
-        const pivot = resolveHullMountedPivot(part, hull, hullFactor);
-        const scaled = factor === 1 && !pivot
-            ? part
-            : {
-                ...part,
-                ...(pivot ? { pos: pivot } : {}),
-                scale: [0, 1, 2].map((a) => (Array.isArray(part.scale) ? Number(part.scale[a]) || 1 : 1) * factor),
-            };
+        const scaled = placeVehiclePart(part, placements[list.indexOf(part)]);
         for (const measure of measuresOf(part)) {
             const bounds = measureVehiclePartBounds(scaled, measure);
             const center = bounds.center.slice();

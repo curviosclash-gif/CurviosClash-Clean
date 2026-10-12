@@ -1,4 +1,4 @@
-﻿// Verdant Aperture is the hunt counterpart to Kinetic Tide. There the obstacles move and the way
+// Verdant Aperture is the hunt counterpart to Kinetic Tide. There the obstacles move and the way
 // through stays put; here the barrier stays put and the opening travels along it. The map is a
 // greenhouse ruin on three stacked levels, and the setpieces that join those levels are the whole
 // point: whoever reads where the hole currently is changes level, whoever does not waits or takes
@@ -17,6 +17,7 @@
 // slightly tighter than the setpiece that fills them. Deck and setpiece together form the barrier.
 
 import { mushroomPatch } from './glowing_mushrooms.js';
+import { GARDEN_MIDDAY_LIGHTING } from './map_lighting_profiles.js';
 
 const BEAT_SECONDS = 6;
 
@@ -378,13 +379,14 @@ const VERDANT_APERTURE_GATES = [
     { id: 'verdant_west_lift', type: 'slingshot', pos: [-45, 44, -45], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.4, forwardImpulse: 26, liftImpulse: 18, cooldown: 1.2 } },
     { id: 'verdant_east_lift', type: 'slingshot', pos: [45, 44, 45], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.4, forwardImpulse: 26, liftImpulse: 18, cooldown: 1.2 } },
     { id: 'verdant_crown_boost', type: 'boost', pos: [0, 80, -70], forward: [0, 0, 1], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
-    { id: 'verdant_bloom_lift', type: 'slingshot', pos: [-45, 100, 45], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 24, liftImpulse: 20, cooldown: 1.3 } },
+    { id: 'verdant_bloom_lift', type: 'slingshot', pos: [-45, 104, 45], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 24, liftImpulse: 20, cooldown: 1.3 } },
     { id: 'verdant_roof_boost', type: 'boost', pos: [0, 132, 0], forward: [1, 0, 0], params: { duration: 0.9, forwardImpulse: 38, bonusSpeed: 46, cooldown: 0.7 } },
 ];
 
 export const VERDANT_APERTURE_MAP = {
     verdant_aperture: {
         name: 'Verdant Aperture',
+        lighting: GARDEN_MIDDAY_LIGHTING,
         exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [300, 200, 300],
         scaleAuthoredAnchors: true,

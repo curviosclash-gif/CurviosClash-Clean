@@ -1,3 +1,4 @@
+import { FORGE_AMBER_LIGHTING } from './map_lighting_profiles.js';
 function landmark(id, pack, model, position, targetSize, rotateY = 0) {
     return {
         id: `chrono-forge-${id}`,
@@ -174,6 +175,7 @@ const CHRONO_FORGE_CHECKPOINTS = [
 export const CHRONO_FORGE_NEXUS_MAP = {
     chrono_forge_nexus: {
         name: 'Chrono-Forge Nexus',
+        lighting: FORGE_AMBER_LIGHTING,
         size: [380, 120, 260],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

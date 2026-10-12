@@ -15,6 +15,7 @@ Quelle dafuer ist `.env.app` plus explizite Shell-Overrides.
 | --- | --- | --- | --- |
 | `VITE_SIGNALING_URL` | ja fuer `online` | WebSocket-Endpoint des Online-Signaling-Servers | leer |
 | `CURVIOS_SIGNALING_ALLOWED_ORIGINS` | fuer Browser-Clients | Kommaseparierte Origin-Allowlist des Signaling-Servers; Loopback und native Clients bleiben erlaubt | leer |
+| `CURVIOS_SIGNALING_TRUSTED_PROXY_IPS` | optional fuer Reverse-Proxies | Kommaseparierte Allowlist direkter Proxy-Peer als IPv4-/IPv6-Literale; nur diese Peers duerfen `X-Forwarded-For` liefern | leer |
 | `VITE_TURN_URL` | optional | TURN-Server fuer NAT-Traversal | leer |
 | `VITE_TURN_USER` | optional | bevorzugter TURN-Benutzername | leer |
 | `VITE_TURN_USERNAME` | optional | Legacy-Alias fuer `VITE_TURN_USER` | leer |
@@ -25,6 +26,8 @@ Verbindliche Regeln:
 - `online` ist nur dann produktiv konfiguriert, wenn `VITE_SIGNALING_URL` auf einen erreichbaren `ws://`- oder `wss://`-Endpoint zeigt.
 - Fuer verteilte Desktop-Builds und Installer ist `wss://` der erwartete Standard. `ws://localhost:9090` bleibt auf lokale Dev-/Smoke-Sessions beschraenkt.
 - Der Desktop-Build uebernimmt den Origin aus `VITE_SIGNALING_URL` in seine CSP. Der Server akzeptiert Browser-Verbindungen nur von Loopback oder einer explizit in `CURVIOS_SIGNALING_ALLOWED_ORIGINS` genannten Game-Origin.
+- Ohne `CURVIOS_SIGNALING_TRUSTED_PROXY_IPS` verwendet der Signaling-Server die Socket-Peer-IP und ignoriert `X-Forwarded-For`. Fuer einen Reverse-Proxy duerfen ausschliesslich dessen direkte IP-Literale kommasepariert eingetragen werden; `1`, CIDR-Netze und pauschales Headervertrauen sind keine gueltigen Eintraege.
+- Ein `X-Forwarded-For`-Wert wird nur von einem direkt verbundenen, freigegebenen Proxy ausgewertet. Der Proxy muss die tatsaechlich beobachtete Peer-IP rechts anhaengen oder einen eingehenden Header damit ersetzen; unveraendertes Durchreichen eines Client-Headers ist unsicher. Der Server validiert die komplette begrenzte Kette und laeuft von rechts ueber freigegebene Proxyhops bis zur ersten nicht freigegebenen Adresse. Fehlende, ungueltige, zu lange oder zu grosse Header fallen auf die Socket-Peer-IP zurueck. Verbindungs-, Lobby- und IP-Nachrichtenquoten bleiben aktiv; die Socket-Nachrichtenquote bleibt davon getrennt.
 - Wenn `VITE_TURN_URL` gesetzt wird, muessen Benutzername und Credential zusammen gepflegt werden.
 - Ohne TURN bleibt der Desktop-Client auf die eingebauten STUN-Defaults begrenzt; das ist kein Garant fuer Internet-NAT-Kompatibilitaet.
 

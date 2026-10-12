@@ -5,7 +5,7 @@ import { AudioManager } from '../src/core/Audio.js';
 import { ProceduralMusicDirector } from '../src/core/audio/ProceduralMusicDirector.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
-import { NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
+import { NOTRE_DAME_EVOLUTION_MAPS } from '../src/core/config/maps/presets/notre_dame/NotreDameEvolution.js';
 
 function createMockWindow() {
     const listeners = new Map();
@@ -439,7 +439,7 @@ test('Notre-Dame fire ambience uses deterministic fire and wind layers without t
     await withMockWindow(async (mockWindow) => {
         mockWindow.AudioContext = createMockAudioContext();
         const audio = new AudioManager();
-        const map = NOTRE_DAME_FIRE_MAPS.notre_dame_fire;
+        const map = NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire;
         const mapScale = 3;
         const player = {
             index: 0,
@@ -451,6 +451,7 @@ test('Notre-Dame fire ambience uses deterministic fire and wind layers without t
             mockWindow.dispatchEvent({ type: 'click' });
             assert.equal(audio.syncMapAmbienceFromPlayers([player], {
                 mapDefinition: map,
+                fireProgress: 1,
                 mapScale,
                 elapsedSeconds: 10,
             }), 'interior');
@@ -462,6 +463,7 @@ test('Notre-Dame fire ambience uses deterministic fire and wind layers without t
             const voicesBeforeCollapse = audio._activeVoices;
             audio.syncMapAmbienceFromPlayers([player], {
                 mapDefinition: map,
+                fireProgress: 1,
                 mapScale,
                 elapsedSeconds: 11.1,
             });
@@ -477,6 +479,7 @@ test('Notre-Dame fire ambience uses deterministic fire and wind layers without t
 
             audio.syncMapAmbienceFromPlayers([player], {
                 mapDefinition: map,
+                fireProgress: 1,
                 mapScale,
                 elapsedSeconds: 2,
             });

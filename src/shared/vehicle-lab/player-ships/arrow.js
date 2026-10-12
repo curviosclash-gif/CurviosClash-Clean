@@ -9,15 +9,19 @@
 // The utility part (not in the old model) is an equipment sleeve around the middle of the shaft:
 // octagonal and tapered like the shaft, light grey with a dark band like the engines. It encloses
 // the shaft at every size (80-125 %) and keeps clear of the arrowhead and the fins.
+// Every part names its mount (VehiclePartMountContract) on the shaft: the arrowhead its base at the
+// shaft's front end, fins and engines their root at the shaft's tail. The arcade size workshop grows
+// a part away from that point and moves it with the shaft, so a shorter shaft keeps its arrowhead.
 const FIN_THICKNESS = 0.125;
 const FIN_SWEEP = -30.96;
 
-function fin(name, pos, angle, extra = {}) {
+function fin(name, pos, angle, anchor, extra = {}) {
     const plate = (suffix, size, childPos, rot) => ({
         name: `${name} ${suffix}`, geo: 'box', size: [size[0], FIN_THICKNESS, size[1]], pos: childPos, rot, material: 'primary',
     });
     return {
         name, geo: 'box', size: [1.0, FIN_THICKNESS, 1.25], pos, rot: [0, 0, angle], material: 'primary', ...extra,
+        mount: { anchor, carrier: 'hull' },
         children: [
             plate('Wurzelkante', [0.33, 1.26], [0.683, 0, 0], [0, FIN_SWEEP, 0]),
             plate('Wurzelfüllung', [0.365, 0.609], [0.6825, 0, -0.3205], [0, 0, 0]),
@@ -34,6 +38,7 @@ function engine(side) {
     const r = side === 'left' ? 'Linker' : 'Rechter';
     return {
         name: `${q} Triebwerk`, geo: 'cylinder', size: [0.25, 0.2, 0.8], pos: [s * 0.45, 0, 3.2], rot: [90, 0, 0], material: 'secondary', color: 0xc8ccd2, role: `engine_${side}`,
+        mount: { anchor: [s * 0.225, 0, 2.9], carrier: 'hull' },
         // Children live in the rotated cylinder frame: local +y points to world +z (rear).
         children: [
             { name: `${p} Schubdüse`, geo: 'pylon', size: [0.15, 0.2, 0.25], pos: [0, 0.4, 0], material: 'secondary', color: 0x111111 },
@@ -52,15 +57,17 @@ export default {
     baseTransform: { pos: [0, 0, 0], rot: [0, 0, 0], scale: [1, 1, 1] },
     parts: [
         { name: 'Pfeilschaft', geo: 'pylon', size: [0.1, 0.25, 4], pos: [0, 0, 1], rot: [90, 0, 0], material: 'primary', role: 'core' },
-        { name: 'Pfeilspitze', geo: 'cone', size: [0.4, 1.2], pos: [0, 0, -1.6], rot: [-90, 0, 0], material: 'primary', role: 'nose' },
+        { name: 'Pfeilspitze', geo: 'cone', size: [0.4, 1.2], pos: [0, 0, -1.6], rot: [-90, 0, 0], material: 'primary', role: 'nose',
+            mount: { anchor: [0, 0, -1], carrier: 'hull' } },
         // Pylon turned like the shaft: local +y points to the rear, so the thinner end sits behind.
-        { name: 'Ausrüstungsmanschette', geo: 'pylon', size: [0.3, 0.34, 1.3], pos: [0, 0, 0.55], rot: [90, 0, 0], material: 'secondary', color: 0xc8ccd2, role: 'utility', children: [
+        { name: 'Ausrüstungsmanschette', geo: 'pylon', size: [0.3, 0.34, 1.3], pos: [0, 0, 0.55], rot: [90, 0, 0], material: 'secondary', color: 0xc8ccd2, role: 'utility',
+            mount: { anchor: [0, 0, 0.55], carrier: 'hull' }, children: [
             { name: 'Manschettenband', geo: 'pylon', size: [0.335, 0.335, 0.16], material: 'secondary', color: 0x111111 },
         ] },
-        fin('Linke Heckfinne', [-1.25, 0.3125, 3.125], 0, { role: 'wing_left' }),
-        fin('Rechte Heckfinne', [1.25, -0.3125, 3.125], 180, { role: 'wing_right' }),
-        fin('Untere Heckfinne', [-0.3125, -1.25, 3.125], 90),
-        fin('Obere Heckfinne', [0.3125, 1.25, 3.125], -90),
+        fin('Linke Heckfinne', [-1.25, 0.3125, 3.125], 0, [-0.175, 0.25, 2.75], { role: 'wing_left' }),
+        fin('Rechte Heckfinne', [1.25, -0.3125, 3.125], 180, [0.175, -0.25, 2.75], { role: 'wing_right' }),
+        fin('Untere Heckfinne', [-0.3125, -1.25, 3.125], 90, [-0.25, -0.175, 2.75]),
+        fin('Obere Heckfinne', [0.3125, 1.25, 3.125], -90, [0.25, 0.175, 2.75]),
         engine('left'),
         engine('right'),
     ],

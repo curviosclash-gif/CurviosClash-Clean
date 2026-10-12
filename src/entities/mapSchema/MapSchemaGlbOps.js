@@ -27,6 +27,16 @@ export const MAX_EMBEDDED_GLB_URL_CHARS = 512 * 1024;
  */
 export const DEFAULT_GLB_COLLIDER_MODE = 'scene';
 
+export const GLB_MODEL_ROLES = Object.freeze(['primaryWorld', 'required', 'optionalProp']);
+
+export function isValidGLBModelRole(value) {
+    return typeof value === 'string' && GLB_MODEL_ROLES.includes(value);
+}
+
+export function normalizeGLBModelRole(value) {
+    return isValidGLBModelRole(value) ? value : 'required';
+}
+
 /**
  * @param {unknown} value collider mode as a map states it, if it states one
  * @returns {string} the stated mode, or the shared default
@@ -68,6 +78,8 @@ export function sanitizeGLBModels(value) {
             rotation: vector3(source.rotation),
             scale: positiveNumber(source.scale, 1),
             targetSize: positiveNumber(source.targetSize, 0),
+            ...(source.collision === false ? { collision: false } : {}),
+            ...(source.role === undefined ? {} : { role: normalizeGLBModelRole(source.role) }),
         }];
     });
 }

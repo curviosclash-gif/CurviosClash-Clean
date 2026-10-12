@@ -1,22 +1,12 @@
-export const STORM_DAM_DESTRUCTIBLES = Object.freeze({
-    gameModes: Object.freeze(['HUNT']),
-    hudNoun: 'Staudamm',
-    segments: Object.freeze([Object.freeze({
-        id: 'dam_wall',
-        label: 'Staudamm',
-        kind: 'landmark',
-        hp: 1400,
-        meshPrefixes: Object.freeze(['dam_wall']),
-        anchor: Object.freeze([0, 92, 82]),
-    })]),
-    pieces: Object.freeze(['landmark']),
-    breakScenes: Object.freeze([Object.freeze({
-        id: 'collapse_dam',
-        trigger: Object.freeze({ segmentId: 'dam_wall' }),
-        modelId: 'storm-dam-collapse',
-        pieces: Object.freeze(['landmark']),
-        hideModelIds: Object.freeze(['storm-dam-intact', 'storm-dam-gate']),
-        yawFromEvent: false,
-        blast: Object.freeze({ radius: 48, damage: 50, delaySeconds: 1.4 }),
-    })]),
+import { createLandmarkDestructibles } from '../siege_shared/LandmarkSiege.js';
+
+export const STORM_DAM_DESTRUCTIBLES = createLandmarkDestructibles({
+    segmentId: 'dam_wall',
+    label: 'Staudamm',
+    hp: 1400,
+    anchor: [0, 92, 82],
+    sceneId: 'collapse_dam',
+    collapseModelId: 'storm-dam-collapse',
+    hideModelIds: ['storm-dam-intact', 'storm-dam-gate'],
+    blast: { radius: 48, damage: 50, delaySeconds: 1.4 },
 });

@@ -13,9 +13,19 @@ test('BotAI binds the seeded runtime rng handed in through its options', () => {
     assert.equal(bot._random, runtimeRng.next);
 });
 
-test('BotAI falls back to the global rng when no seeded one is supplied', () => {
-    assert.equal(new BotAI({})._random, Math.random);
-    assert.equal(new BotAI({ runtimeRng: { next: 'not-a-function' } })._random, Math.random);
+test('BotAI wraps the current global rng through the runtime rng contract when standalone', () => {
+    const originalRandom = Math.random;
+    Math.random = () => 0.375;
+    try {
+        const bot = new BotAI({});
+        const invalidRngBot = new BotAI({ runtimeRng: { next: 'not-a-function' } });
+
+        assert.notEqual(bot._random, Math.random);
+        assert.equal(bot._random(), 0.375);
+        assert.equal(invalidRngBot._random(), 0.375);
+    } finally {
+        Math.random = originalRandom;
+    }
 });
 
 test('RuleBasedBotPolicy passes the seeded rng down to its BotAI', () => {

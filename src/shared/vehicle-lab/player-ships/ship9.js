@@ -3,6 +3,9 @@
 // cockpit hump and wedge nose, one flat wing plate per side that runs forward into a long prong
 // (fork silhouette) and back into a swept delta tip, two guns under the wing roots and two detached
 // engines far behind the wingtips.
+// Every part names its mount (VehiclePartMountContract): the point where it meets its carrier. The
+// arcade size workshop grows a part away from that point and moves it with its carrier: the wings
+// from their root inside the hull side, the nose from the hull front, the engines from the wing tip.
 const FLAME = { geo: 'flame', size: [0.2, 0.01, 1.0], pos: [0, 0, 1.0], color: 0x4488ff, material: 'glow', opacity: 0.6, anim: { type: 'pulse', speed: 6, amount: 0.4 } };
 
 // Wing root centre for the right side; the left side mirrors every x value and y rotation.
@@ -17,6 +20,7 @@ function wing(side) {
     const at = (x, y, z) => [+(s * (x - WING_ROOT[0])).toFixed(3), +(y - WING_ROOT[1]).toFixed(3), +(z - WING_ROOT[2]).toFixed(3)];
     return {
         name: `${q} Flügel`, geo: 'box', size: [0.6, 0.14, 0.9], pos: [s * WING_ROOT[0], WING_ROOT[1], WING_ROOT[2]], material: 'primary', role: `wing_${side}`,
+        mount: { anchor: [s * 0.3, -0.05, 0.441], carrier: 'hull' },
         children: [
             // Prong: its outer edge is the single straight leading edge from the fork tip to the wingtip.
             { name: `${p} Flügelzinke`, geo: 'box', size: [0.55, 0.12, 3.73], pos: at(1.349, -0.05, -1.206), rot: [0, s * 14.45, 0], material: 'primary' },
@@ -34,8 +38,10 @@ function engine(side) {
     const s = side === 'left' ? -1 : 1;
     const q = side === 'left' ? 'Linkes' : 'Rechtes';
     const f = side === 'left' ? 'Linke' : 'Rechte';
+    const w = side === 'left' ? 'Linker' : 'Rechter';
     return {
         name: `${q} Flügeltriebwerk`, geo: 'engine', size: [0.28, 0.24, 1.0], pos: [s * 1.969, 0, 2.025], role: `engine_${side}`,
+        mount: { anchor: [s * 1.884, -0.05, 1.397], carrier: `${w} Flügel` },
         children: [{ ...FLAME, name: `${f} Triebwerksflamme` }],
     };
 }
@@ -49,17 +55,25 @@ export default {
     baseTransform: { pos: [0, 0, 0], rot: [0, 0, 0], scale: [1, 1, 1] },
     parts: [
         { name: 'Rumpf', geo: 'box', size: [0.74, 0.295, 1.844], pos: [0, -0.055, 0.36], material: 'primary', role: 'core' },
-        { name: 'Rumpfseite', geo: 'box', size: [0.376, 0.295, 0.738], pos: [0.557, -0.055, 0.635], material: 'primary', mirror: true },
-        { name: 'Rumpfschräge vorn', geo: 'box', size: [0.3, 0.295, 0.91], pos: [0.42, -0.055, -0.086], rot: [0, 24.4, 0], material: 'primary', mirror: true },
-        { name: 'Rumpfschräge hinten', geo: 'box', size: [0.47, 0.295, 0.2], pos: [0.498, -0.055, 1.063], rot: [0, 36.5, 0], material: 'primary', mirror: true },
+        { name: 'Rumpfseite', geo: 'box', size: [0.376, 0.295, 0.738], pos: [0.557, -0.055, 0.635], material: 'primary', mirror: true,
+            mount: { anchor: [0.37, -0.055, 0.635], carrier: 'hull' } },
+        { name: 'Rumpfschräge vorn', geo: 'box', size: [0.3, 0.295, 0.91], pos: [0.42, -0.055, -0.086], rot: [0, 24.4, 0], material: 'primary', mirror: true,
+            mount: { anchor: [0.37, -0.055, -0.086], carrier: 'hull' } },
+        { name: 'Rumpfschräge hinten', geo: 'box', size: [0.47, 0.295, 0.2], pos: [0.498, -0.055, 1.063], rot: [0, 36.5, 0], material: 'primary', mirror: true,
+            mount: { anchor: [0.37, -0.055, 1.063], carrier: 'hull' } },
         // Cockpit hump: an octagonal frustum (flat top, sloped flanks, corner facets and rear slope in one mesh)
         // plus a solid wedge in front that carries the long, shallow slope down into the nose.
-        { name: 'Cockpitaufbau', geo: 'pylon', size: [0.399, 0.736, 0.41], pos: [0, 0.298, 0.635], rot: [0, 22.5, 0], material: 'primary', role: 'utility' },
-        { name: 'Cockpitschräge vorn', geo: 'box', size: [0.56, 0.34, 0.924], pos: [0, 0.12, -0.073], rot: [-26.3, 0, 0], material: 'primary' },
-        { name: 'Kielplatte', geo: 'box', size: [0.74, 0.14, 0.74], pos: [0, -0.271, 0.635], material: 'primary' },
-        { name: 'Kielschräge', geo: 'box', size: [0.401, 0.1, 0.74], pos: [0.54, -0.225, 0.635], rot: [0, 0, 20.3], material: 'primary', mirror: true },
+        { name: 'Cockpitaufbau', geo: 'pylon', size: [0.399, 0.736, 0.41], pos: [0, 0.298, 0.635], rot: [0, 22.5, 0], material: 'primary', role: 'utility',
+            mount: { anchor: [0, 0.092, 0.635], carrier: 'hull' } },
+        { name: 'Cockpitschräge vorn', geo: 'box', size: [0.56, 0.34, 0.924], pos: [0, 0.12, -0.073], rot: [-26.3, 0, 0], material: 'primary',
+            mount: { anchor: [0, 0.092, -0.073], carrier: 'hull' } },
+        { name: 'Kielplatte', geo: 'box', size: [0.74, 0.14, 0.74], pos: [0, -0.271, 0.635], material: 'primary',
+            mount: { anchor: [0, -0.202, 0.635], carrier: 'hull' } },
+        { name: 'Kielschräge', geo: 'box', size: [0.401, 0.1, 0.74], pos: [0.54, -0.225, 0.635], rot: [0, 0, 20.3], material: 'primary', mirror: true,
+            mount: { anchor: [0.37, -0.202, 0.635], carrier: 'hull' } },
         // Nose: flat base block, a sloped top plate that continues the cockpit's front slope, and a flat tip.
-        { name: 'Bug', geo: 'box', size: [0.74, 0.148, 0.407], pos: [0, -0.128, -0.766], material: 'primary', role: 'nose', children: [
+        { name: 'Bug', geo: 'box', size: [0.74, 0.148, 0.407], pos: [0, -0.128, -0.766], material: 'primary', role: 'nose',
+            mount: { anchor: [0, -0.128, -0.562], carrier: 'hull' }, children: [
             { name: 'Bugschräge', geo: 'box', size: [0.74, 0.15, 0.433], pos: [0, 0.077, 0.026], rot: [-20, 0, 0], material: 'primary' },
             { name: 'Bugspitze', geo: 'cone', size: [0.369, 0.223], pos: [0, 0, -0.314], rot: [-90, 0, 0], scale: [1, 1, 0.2], material: 'primary' },
         ] },
