@@ -2,7 +2,8 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test } from './helpers.desktop.js';
 import { loadGame } from './helpers.js';
-import { listRenderBudgetMapKeys } from './helpers/render-budget-maps.mjs';
+import { listRenderBudgetMapKeys, readRenderBudget } from './helpers/render-budget-maps.mjs';
+import { checkRenderBudget } from '../scripts/render-budget-ops.mjs';
 
 // Render budget probe for every map a player can pick. It counts what one frame asks of the GPU
 // at fixed camera stations (draw calls, triangles) and what the scene carries (lights by kind,
@@ -13,8 +14,13 @@ import { listRenderBudgetMapKeys } from './helpers/render-budget-maps.mjs';
 // PW_RENDER_BUDGET_CALIBRATE=1 additionally plays the map with four bots and records the real
 // frame rate. Only run that on the target PC with nothing else on the GPU; it feeds the budget.
 // PW_RENDER_BUDGET_OUT=<file> appends one JSON line per map.
+//
+// Without calibration each map is held to its entry in scripts/architecture/map-render-budgets.json
+// (a ratchet: values may go down, never up). Write that file from a calibration with
+// `node scripts/summarize-render-budget.mjs <calibration.ndjson> --write-budget <file>`.
 
 const calibrate = process.env.PW_RENDER_BUDGET_CALIBRATE === '1';
+const renderBudget = readRenderBudget();
 const RENDER_SIZE = Object.freeze({ width: 1920, height: 1080 });
 const CALIBRATION = Object.freeze({ bots: 4, warmupMs: 5000, windowMs: 20000 });
 
@@ -243,6 +249,15 @@ for (const mapKey of listRenderBudgetMapKeys()) {
         expect(counts.glbLoadError, `${mapKey}: the map world must load`).toBeNull();
         for (const frame of counts.frames) {
             expect(frame.calls, `${mapKey} ${frame.id}: a station must draw something`).toBeGreaterThan(0);
+        }
+        if (!calibrate) {
+            const entry = renderBudget.maps[mapKey];
+            expect(entry, `${mapKey}: no render budget yet; calibrate on the target PC (see this file's header)`).toBeTruthy();
+            const verdict = checkRenderBudget(counts, entry);
+            if (verdict.lowerable.length) {
+                console.log(`[render-budget] ${mapKey} got cheaper, lower its budget: ${JSON.stringify(verdict.lowerable)}`);
+            }
+            expect(verdict.exceeded, `${mapKey}: render budget exceeded (the target PC is GPU-bound at 1080p)`).toEqual([]);
         }
         if (record.play) {
             expect(record.play.dimensions).toEqual([RENDER_SIZE.width, RENDER_SIZE.height]);

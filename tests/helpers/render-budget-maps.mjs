@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
+
 import { MAP_PRESET_CATALOG } from '../../src/core/config/maps/MapPresetCatalog.js';
 import { getMapPickerMeta } from '../../src/shared/maps/MapPickerMeta.js';
+
+export const RENDER_BUDGET_URL = new URL('../../scripts/architecture/map-render-budgets.json', import.meta.url);
 
 /**
  * Maps a player can pick: everything in the catalog except development maps (tier "dev",
@@ -12,4 +16,8 @@ export function listRenderBudgetMapKeys() {
         .filter((key) => getMapPickerMeta(key)?.tier !== 'dev')
         .filter((key) => getMapPickerMeta(key)?.collection !== 'custom')
         .filter((key) => !MAP_PRESET_CATALOG[key]?.hiddenFromMapPicker);
+}
+
+export function readRenderBudget() {
+    return JSON.parse(readFileSync(RENDER_BUDGET_URL, 'utf8'));
 }
