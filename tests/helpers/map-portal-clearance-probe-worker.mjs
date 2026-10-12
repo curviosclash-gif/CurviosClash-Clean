@@ -361,7 +361,9 @@ export async function runPortalClearanceProbe(payload) {
                     const authoredHit = collision.getCollisionInfo(authoredWorld, portalConfig.RADIUS * 0.75);
                     assert.ok(actual.distanceTo(authoredWorld) < 1e-6,
                         `${mapKey}/${model.id || model.url} runtime portal[${portalIndex}].${end} moved from authored ${JSON.stringify(expectedWorld)} to ${JSON.stringify(actual.toArray())}; authoredCollider=${authoredHit?.sourceName || authoredHit?.obstacle?.sourceId || 'none'}; delta=${JSON.stringify(actual.clone().sub(authoredWorld).toArray())}`);
-                    assert.equal(collision.getCollisionInfo(actual, portalConfig.RADIUS * 0.75), null,
+                    // Compare the hit's absence, not the hit: a failing assert.equal would inspect the
+                    // collision record with its mesh collider and grow the worker past 4 GB.
+                    assert.ok(collision.getCollisionInfo(actual, portalConfig.RADIUS * 0.75) === null,
                         `${mapKey}/${model.id || model.url} resolved portal[${portalIndex}].${end} clears authored plus loaded GLB colliders`);
                 }
             }
@@ -413,7 +415,7 @@ export async function runPortalClearanceProbe(payload) {
                                     `${mapKey}/${model.id || model.url} sampled portal exit portal[${approach.portalIndex}].${approach.end}, conservative ${shape.id} envelope must clear at ${elapsedSeconds}s; broadHit=${JSON.stringify(diagnostic)}`);
                             } else {
                                 const exactHit = collision.getCollisionInfo(point, sphere.radius);
-                                assert.equal(exactHit, null,
+                                assert.ok(exactHit === null,
                                     `${mapKey}/${model.id || model.url} sampled portal exit portal[${approach.portalIndex}].${approach.end}, vehicle ${shape.id}, sphere probe must clear at ${elapsedSeconds}s (${exactHit?.sourceName || 'bounds'} / ${exactHit?.obstacle?.modelId || 'arena'})`);
                             }
                         }
