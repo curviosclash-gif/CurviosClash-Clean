@@ -466,6 +466,7 @@ export class LANMatchLobby extends MatchLobby {
         return data;
     }
 
+    /** @param {string} vehicleId @param {{ secondVehicleId?: string }} [options] */
     setVehicle(vehicleId, { secondVehicleId } = {}) {
         return publishLanLobbyVehicle({ signalingUrl: this._signalingUrl, playerId: this._localPeerId || 'host', isHost: this.isHost, token: this._localPeerToken, vehicleId, secondVehicleId })
             .then((data) => { this._processServerStatus(data); return data; });
