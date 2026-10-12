@@ -11,8 +11,8 @@ import { isVehicleLabBaseMeshReferenceOnly, loadVehicleLabCatalog } from '../sha
 import {
     BUILT_IN_COMPLEX_VEHICLE_CONFIGS,
     BUILT_IN_COMPLEX_VEHICLE_IDS,
-} from '../shared/vehicle-lab/VehiclePresetCatalogBridge.js';
-import { PLAYER_SHIP_PART_CATALOG } from '../shared/vehicle-lab/player-ships/index.js';
+} from '../shared/vehicles/VehiclePresetCatalogBridge.js';
+import { PLAYER_SHIP_PART_CATALOG } from '../shared/vehicles/player-ships/index.js';
 import { getRegisteredArcadeLabShip } from '../shared/contracts/ArcadeLabRegistryContract.js';
 import {
     CONTENT_DESCRIPTOR_TYPES,

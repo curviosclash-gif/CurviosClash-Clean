@@ -29,8 +29,8 @@ import { resolveArcadeVehicleBuildStats } from '../src/shared/contracts/ArcadeVe
 import { SETTINGS_LIMITS } from '../src/shared/contracts/SettingsRuntimeContract.js';
 import { PICKUP_REGISTRY } from '../src/shared/contracts/PickupRegistryContract.js';
 import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
-import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicle-lab/player-ships/index.js';
-import { VEHICLE_PRESETS } from '../src/shared/vehicle-lab/VehiclePresets.js';
+import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicles/player-ships/index.js';
+import { VEHICLE_PRESETS } from '../src/shared/vehicles/VehiclePresets.js';
 import { PlayerCollisionPhase } from '../src/entities/systems/lifecycle/PlayerCollisionPhase.js';
 import { applyArcadePartHitbox } from '../src/entities/player/ArcadePartHitboxOps.js';
 import { resolveArcadeArenaCollision, resolveArcadeTrailCollision } from '../src/entities/systems/lifecycle/ArcadePartCollisionOps.js';

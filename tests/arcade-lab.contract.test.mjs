@@ -17,7 +17,7 @@ import { ARCADE_ROLL_BASE_PCT, resolveArcadeStatCapPct } from '../src/shared/con
 import { SETTINGS_LIMITS } from '../src/shared/contracts/SettingsRuntimeContract.js';
 import { PICKUP_REGISTRY } from '../src/shared/contracts/PickupRegistryContract.js';
 import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
-import { getPlayerShipPartConfig } from '../src/shared/vehicle-lab/player-ships/index.js';
+import { getPlayerShipPartConfig } from '../src/shared/vehicles/player-ships/index.js';
 
 function store() {
     const values = new Map();

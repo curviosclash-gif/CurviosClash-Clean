@@ -53,7 +53,7 @@ import {
 } from '../src/shared/contracts/VehicleLabHangarPublishContract.js';
 import { listArcadeHitboxBoxes } from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
 import { resolveArcadeSizedPartStyle } from '../src/shared/contracts/ArcadeVehicleBuildContract.js';
-import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicle-lab/player-ships/index.js';
+import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicles/player-ships/index.js';
 
 const STONE_COLORS = ['blue', 'green', 'gold', 'cyan', 'violet'];
 

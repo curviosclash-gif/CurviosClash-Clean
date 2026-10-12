@@ -20,7 +20,7 @@ import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRun
 import { getArcadeRunVehicleBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { createArcadeVehicleUpgradeBonusMap } from '../src/core/arcade/ArcadeRunVehicleRewardOps.js';
 import { applyArcadeRuntimeCosmetics } from '../src/core/arcade/ArcadeRuntimeCosmeticOps.js';
-import { listPlayerShipPartDonors } from '../src/shared/vehicle-lab/player-ships/index.js';
+import { listPlayerShipPartDonors } from '../src/shared/vehicles/player-ships/index.js';
 import { RuntimeModularVehicleMesh } from '../src/entities/runtime-modular-vehicle-mesh.js';
 import { buildArcadeHitboxShape } from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
 import { applyPlayerPowerup } from '../src/entities/player/PlayerEffectOps.js';

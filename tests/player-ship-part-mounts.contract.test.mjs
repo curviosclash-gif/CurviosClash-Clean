@@ -4,8 +4,8 @@ import test from 'node:test';
 import { applyVehiclePartStyle, listVehiclePrimitiveBounds, measureVehiclePartBounds, resolveVehiclePartMirrorAxis } from '../src/shared/contracts/VehiclePartStyleContract.js';
 import { resolveArcadeSizedPartStyle } from '../src/shared/contracts/ArcadeVehicleBuildContract.js';
 import { buildArcadeHitboxShape } from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
-import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicle-lab/player-ships/index.js';
-import { VEHICLE_PRESETS } from '../src/shared/vehicle-lab/VehiclePresets.js';
+import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicles/player-ships/index.js';
+import { VEHICLE_PRESETS } from '../src/shared/vehicles/VehiclePresets.js';
 
 // Every ship a player can size in the arcade hangar: the part-built game vehicles and the Helix Interceptor.
 const FACTORY = [...PLAYER_SHIP_PART_CONFIGS, VEHICLE_PRESETS.find((preset) => preset.id === 'lab_helix_interceptor')];

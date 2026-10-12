@@ -1,13 +1,13 @@
 import { loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { loadArcadeColors, filterArcadePartColors } from '../../shared/contracts/ArcadeColorProgressContract.js';
-import { applyArcadeMilestonePattern } from '../../shared/vehicle-lab/ArcadeMilestoneAppearance.js';
+import { applyArcadeMilestonePattern } from '../../shared/vehicles/ArcadeMilestoneAppearance.js';
 import { resolveArcadeMilestoneCosmetics } from '../../shared/contracts/ArcadeMilestoneCosmeticContract.js';
 import { applyArcadeCosmeticLoadoutToPlayer } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 import { applyVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
 import { resolveArcadeSizedPartStyle } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
-import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
+import { listPlayerShipPartDonors } from '../../shared/vehicles/player-ships/index.js';
 import { createArcadePlayerUpgradeBonusMap, createArcadeVehicleUpgradeBonusMap } from './ArcadeRunVehicleRewardOps.js';
 import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
 import { resolveArcadeRuntimeKind } from '../../shared/contracts/ArcadeRunTypeDispatchContract.js';

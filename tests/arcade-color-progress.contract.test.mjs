@@ -10,7 +10,7 @@ import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import { arcadeMachineGunSelectionLabel, progressionDetailText } from '../src/ui/hangar/HangarWorkshopRenderText.js';
 import { MGTracerFx } from '../src/hunt/mg/MGTracerFx.js';
 import { ARCADE_MACHINE_GUN_IDS } from '../src/shared/contracts/ArcadeMachineGunContract.js';
-import { applyArcadeMilestonePattern } from '../src/shared/vehicle-lab/ArcadeMilestoneAppearance.js';
+import { applyArcadeMilestonePattern } from '../src/shared/vehicles/ArcadeMilestoneAppearance.js';
 import { readArcadeVehicleProfileRecord } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 
 function store(){const values=new Map();return {values,readJsonRecordResult:key=>values.has(key)?{status:'found',value:values.get(key)}:{status:'missing'},loadJsonRecord:(key,fallback)=>values.get(key)??fallback,saveJsonRecord:(key,value)=>{values.set(key,structuredClone(value));return true;}};}
