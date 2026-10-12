@@ -1,3 +1,4 @@
+import { arcadeRunUsesProfileBuild } from '../../shared/contracts/ArcadeDifficultyContract.js';
 import { loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
 import { syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
@@ -60,8 +61,10 @@ export function loadArcadeRunVehicleProfiles(runtime, runConfig, options) {
     runtime._vehicleProfiles = loadVehicleProfiles(store);
     const activeProfile = runtime.getVehicleProfile();
     syncArcadeMasteryPerks(runtime._state, activeProfile);
+    const usesProfileBuild = arcadeRunUsesProfileBuild(runConfig.runType || 'gauntlet',
+        { dailyChallenge: options.dailyChallenge === true || runConfig.dailyChallenge === true });
     runtime._notifyVehicleUpgradesChanged(resolveArcadeRunStrategyUpgradeBonuses(runtime,
         options.entityManager?.humanPlayers,
-        options.dailyChallenge || runConfig.dailyChallenge === true ? null : runtime._getVehicleBonuses(activeProfile),
-        options.dailyChallenge === true || runConfig.dailyChallenge === true));
+        usesProfileBuild ? runtime._getVehicleBonuses(activeProfile) : null,
+        !usesProfileBuild));
 }

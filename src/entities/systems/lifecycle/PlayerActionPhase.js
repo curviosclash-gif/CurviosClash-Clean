@@ -74,6 +74,8 @@ function resolvePendingShootType(player, input) {
 export class PlayerActionPhase {
     constructor(entityManager) {
         this.entityManager = entityManager;
+        // Last refusal code already shown per player while the machine gun key stays held.
+        this._mgRefusalShown = new Map();
     }
 
     run(player, input, strategy, dt = 0) {
@@ -160,9 +162,17 @@ export class PlayerActionPhase {
                     durationSeconds: Math.max(0, Number(dt) || 0),
                 }));
             }
-            if (!result.ok && !player.isBot) {
+            // The held key retries every tick: the gap between two shots is ordinary sustained
+            // fire, and a lockout is told once until the key is pressed anew or the gun fires.
+            if (!result.ok && !player.isBot && result.code !== GAMEPLAY_ACTION_RESULT_CODES.MG_SHOOT_COOLDOWN
+                && this._mgRefusalShown.get(player.index) !== result.code) {
                 entityManager._notifyPlayerFeedback(player, result.reason);
             }
+            if (result.code !== GAMEPLAY_ACTION_RESULT_CODES.MG_SHOOT_COOLDOWN) {
+                this._mgRefusalShown.set(player.index, result.ok ? null : result.code);
+            }
+        } else if (!input.shootMG) {
+            this._mgRefusalShown.delete(player.index);
         }
     }
 }

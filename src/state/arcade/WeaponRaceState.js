@@ -113,6 +113,21 @@ export function finishWeaponRaceRacer(state, playerId, finishedAtMs) {
     return { accepted: true, awardedXp: racer.finishXp, graceEndsAtMs: state.graceEndsAtMs };
 }
 
+/**
+ * Moves every race stamp by `deltaMs` when the simulation clock behind the race switches (round
+ * start reset or a new entity manager). Durations such as finishTimeMs stay as they are.
+ */
+export function shiftWeaponRaceClock(state, deltaMs) {
+    const delta = Number(deltaMs);
+    if (!state || !Number.isFinite(delta) || delta === 0) return;
+    state.startedAtMs += delta;
+    if (state.firstFinishAtMs !== null) state.firstFinishAtMs += delta;
+    if (state.graceEndsAtMs !== null) state.graceEndsAtMs += delta;
+    for (const racer of Object.values(state.racers || {})) {
+        if (racer.finishedAtMs !== null) racer.finishedAtMs += delta;
+    }
+}
+
 export function rankWeaponRaceRacers(state) {
     const racers = Object.values(state?.racers || {});
     racers.sort((left, right) => {

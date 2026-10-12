@@ -99,7 +99,9 @@ test('match replay is stable for one seed and changes for another seed', () => {
                 HEURISTIC_LOOP_STATE_PATH: path.join(os.tmpdir(), `heuristic-replay-test-${process.pid}.json`),
             },
             encoding: 'utf8',
-            timeout: 15000,
+            // The test checks equality, not speed: a replay child alone runs close to 15 s, and a fully
+            // loaded machine pushes it past that, so the kill limit leaves room for load.
+            timeout: 30000,
         });
         assert.equal(child.status, 0, child.stderr);
         return JSON.parse(child.stdout.trim());

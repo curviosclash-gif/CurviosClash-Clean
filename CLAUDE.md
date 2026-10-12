@@ -101,7 +101,7 @@ Paketprüfung im vollen Repo (weil `app:package` dort nicht läuft): `npm run bu
 
 Windows-Einstiege für den Nutzer (`START_CURVIOSCLASH.cmd`, `start_development.bat`, `start_editor.bat`, …) sind in `README.md` beschrieben.
 
-Bots und Performance laufen über `dev/training/scripts/`: `npm run bot:validate`, `npm run bot:analyze`, `npm run benchmark:lifecycle`, `npm run benchmark:jitter`.
+Bots und Performance laufen über `dev/training/scripts/`: `npm run bot:validate`, `npm run bot:analyze`, `npm run benchmark:lifecycle`, `npm run benchmark:jitter`. Optimierungen mit Qualitätsnachweis (Basis gegen Kandidat, pixelgleich) laufen über `npm run perf:loop` und den Skill `perf-loop`.
 
 ## Pflichtprüfung für Änderungen
 
