@@ -1,4 +1,5 @@
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
+import { createMapBalancingLiveApi, registerMapBalancingLiveSource } from './balancing/MapBalancingLive.js';
 
 export function createGameDebugRuntimeAccess(runtime) {
     return createRuntimeAccess(runtime, (game) => {
@@ -9,6 +10,7 @@ export function createGameDebugRuntimeAccess(runtime) {
             getRecorder: () => game?.recorder || null,
             getRuntimePerfProfiler: () => game?.runtimePerfProfiler || null,
             getMediaRecorderSystem: () => game?.mediaRecorderSystem || null,
+            getRuntimeFacade: () => game?.runtimeCoordinator?.getRuntimeFacade?.() || null,
             setRecorderFrameCaptureEnabled(enabled) {
                 if (!game) return;
                 game._recorderFrameCaptureEnabled = !!enabled;
@@ -25,6 +27,12 @@ export class GameDebugApi {
         this.runtimeAccess = runtimeAccess && typeof runtimeAccess === 'object'
             ? runtimeAccess
             : {};
+        registerMapBalancingLiveSource(() => this.runtimeAccess.getRuntimeFacade?.() || null);
+    }
+
+    /** Developer tools (F7 console, balancing MCP) read and tune the map balancing here. */
+    getMapBalancingLive() {
+        return createMapBalancingLiveApi();
     }
 
     getRuntimePerformanceSnapshot(options = {}) {
