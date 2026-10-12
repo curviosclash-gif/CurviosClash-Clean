@@ -2,6 +2,7 @@ import { createRoundEndRecorderAdapter, getLastRoundGhostClip } from './MatchFlo
 import { resolveLocalPlayerIndexes } from './postmatch/PostMatchStandingsBlock.js';
 import { WEAPON_RACE_GHOST_ROUTE_ID, isWeaponRaceConfig } from '../shared/contracts/WeaponRaceContract.js';
 import { SPLIT_SCREEN_VARIANTS } from '../four-player-planar/FourPlayerPlanarContract.js';
+import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 
 export class MatchFlowLifecycleController {
     constructor(deps = {}) {
@@ -142,10 +143,7 @@ export class MatchFlowLifecycleController {
         this.sessionOrchestrator?.resetRoundRuntime?.();
         this._requestGhostPlaybackForActiveRoute();
 
-        game.hudRuntimeSystem?.resetMatchScoreEvents?.();
-        game.huntHud?.resetMatchScoreEvents?.();
-        game.fourPlayerPlanar?.resetMatchScoreEvents?.();
-        game.threePlayerSplit?.resetMatchScoreEvents?.();
+        this._resetMatchScoreEvents();
 
         game.gameLoop.setTimeScale(1.0);
         controller.applyMatchUiState(roundStartTransition.uiState);
@@ -237,7 +235,20 @@ export class MatchFlowLifecycleController {
     applyRoundEndCoordinatorPlan(roundEndPlan) {
         this.applyRoundEndControllerTransitionState(roundEndPlan?.transition);
         this.applyRoundEndCoordinatorEffects(roundEndPlan?.effectsPlan);
+        // The final score update can raise "Pn übernimmt die Führung"; on the match-end
+        // board that banner would announce a lead in a match that is already decided.
+        if (roundEndPlan?.transition?.nextState === GAME_STATE_IDS.MATCH_END) {
+            this._resetMatchScoreEvents();
+        }
         this.applyRoundEndCoordinatorUiState(roundEndPlan?.uiState);
+    }
+
+    _resetMatchScoreEvents() {
+        const game = this.game;
+        game.hudRuntimeSystem?.resetMatchScoreEvents?.();
+        game.huntHud?.resetMatchScoreEvents?.();
+        game.fourPlayerPlanar?.resetMatchScoreEvents?.();
+        game.threePlayerSplit?.resetMatchScoreEvents?.();
     }
 
     applyRoundEndCoordinatorEffects(effectsPlan) {
