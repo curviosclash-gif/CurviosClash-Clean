@@ -10,10 +10,8 @@ import {
     ARCADE_GHOST_DUEL_MODES, isArcadeGhostDuelPlaybackEnabled,
     normalizeArcadeGhostDuelMode, normalizeArcadeGhostTrailCollisionEnabled,
 } from '../shared/contracts/ArcadeGhostDuelContract.js';
-import {
-    hasExplicitArcadeSeed,
-    normalizeArcadeRunSettingsFromSetup,
-} from '../shared/contracts/ArcadeRunSettingsContract.js';
+import { hasExplicitArcadeSeed, normalizeArcadeRunSettingsFromSetup } from '../shared/contracts/ArcadeRunSettingsContract.js';
+import { applyMapBalancingToRuntimeConfig } from './balancing/MapBalancingRuntime.js';
 import { ARCADE_RUN_KINDS, resolveArcadeInitialMapKey, resolveArcadeRunKind } from '../shared/contracts/ArcadeRunTypeDispatchContract.js';
 import {
     createDefaultRecordingCaptureSettings,
@@ -475,8 +473,8 @@ export function createRuntimeConfigSnapshot(settings, {
         ),
         settingsSnapshot: cloneJsonValue(source),
     };
-
-    return runtimeConfig;
+    // Map balancing replaces the player's gameplay values once the switch is on.
+    return applyMapBalancingToRuntimeConfig(runtimeConfig, { clampBots: true });
 }
 
 export function applyRuntimeConfigCompatibility(runtimeConfig, targetConfig = CONFIG_BASE) {

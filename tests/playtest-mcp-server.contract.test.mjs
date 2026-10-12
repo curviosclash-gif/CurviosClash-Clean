@@ -24,7 +24,7 @@ test('a real MCP client discovers exactly one tool and can call it without a ses
         const { tools } = await client.listTools();
         assert.deepEqual(tools.map((tool) => tool.name), ['curvios_playtest'], 'exactly one tool');
         const schema = tools[0].inputSchema;
-        assert.deepEqual(schema.properties.operation.enum, ['catalog', 'open', 'observe', 'act', 'pilot', 'scenario', 'job', 'close']);
+        assert.deepEqual(schema.properties.operation.enum, ['catalog', 'open', 'observe', 'act', 'pilot', 'scenario', 'job', 'balancing', 'close']);
         assert.equal('eval' in schema.properties, false, 'no free JavaScript execution');
         assert.equal('expression' in schema.properties, false);
 
@@ -44,6 +44,26 @@ test('a real MCP client discovers exactly one tool and can call it without a ses
 
         const invalid = await client.callTool({ name: 'curvios_playtest', arguments: { operation: 'pilot', turn: 3 } });
         assert.equal(invalid.isError, true, 'schema bounds are enforced');
+    } finally {
+        await client.close();
+    }
+});
+
+test('balancing reads map files without a session and asks for one only for live changes', { timeout: 60_000 }, async () => {
+    const client = await connect();
+    const call = (args) => client.callTool({ name: 'curvios_playtest', arguments: { operation: 'balancing', ...args } });
+    try {
+        const maps = parse(await call({ balancingAction: 'list_maps' }));
+        assert.ok(maps.maps.some((entry) => entry.mapKey === 'maze'));
+        const got = parse(await call({ balancingAction: 'get', map: 'maze' }));
+        const speed = got.description.fields.find((row) => row.key === 'speed');
+        assert.equal(got.description.modePath, 'fight');
+        assert.ok(['mode', 'map'].includes(speed.origin));
+        const live = await call({ balancingAction: 'set', scope: 'live', field: 'speed', value: 22 });
+        assert.equal(live.isError, true);
+        assert.equal(parse(live).status, 'blocked', 'live needs an open session');
+        const invalid = await call({ balancingAction: 'save', scope: 'file', map: 'maze' });
+        assert.equal(invalid.isError, true, 'save writes the live layer only');
     } finally {
         await client.close();
     }

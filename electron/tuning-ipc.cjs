@@ -4,6 +4,7 @@ const {
     assertTrustedWindowSender,
     isTrustedWindowSender,
 } = require('./ipc-sender-guard.cjs');
+const { createMapBalancingStore, resolveMapBalancingStoreRoot } = require('./map-balancing-store.cjs');
 
 const TUNING_IPC_CONTRACT_VERSION = 'tuning-ipc.v1';
 const TUNING_UPDATE_CONTRACT_VERSION = 'tuning-update.v1';
@@ -19,9 +20,21 @@ const TUNING_CHANNELS = Object.freeze({
     getCapability: 'tuning:get-capability',
     exportPresetJson: 'tuning:export-preset-json',
     importPresetJson: 'tuning:import-preset-json',
+    balancing: 'tuning:balancing',
 });
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 2000;
+
+// Map balancing files are only written from an unpacked repository. Outside Electron (tests)
+// there is no app, which counts as packaged: nothing is written.
+function resolveElectronIsPackaged() {
+    try {
+        const packaged = require('electron')?.app?.isPackaged;
+        return typeof packaged === 'boolean' ? packaged : true;
+    } catch {
+        return true;
+    }
+}
 
 function isWindowAlive(windowRef) {
     return !!windowRef && !windowRef.isDestroyed();
@@ -88,6 +101,8 @@ function registerTuningIpc({
     resolveTuningWindow = () => null,
     resolveCapabilityState = () => ({ available: true }),
     requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    isPackaged = resolveElectronIsPackaged(),
+    mapBalancingStore = createMapBalancingStore(resolveMapBalancingStoreRoot({ isPackaged })),
 } = {}) {
     if (!ipcMain || typeof ipcMain.handle !== 'function') {
         throw new TypeError('registerTuningIpc erwartet ipcMain mit handle().');
@@ -239,6 +254,51 @@ function registerTuningIpc({
             });
         }
         return result;
+    });
+
+    const describeStore = () => ({
+        writable: mapBalancingStore?.writable === true,
+        message: String(mapBalancingStore?.message || ''),
+    });
+
+    const withStoreStatus = (result, extra = null) => ({
+        ...result,
+        value: result.value && typeof result.value === 'object'
+            ? { ...result.value, ...(extra || {}), store: describeStore() }
+            : result.value,
+    });
+
+    // "Für diese Karte übernehmen": the game hands over its working layer, the store validates
+    // and writes it, and the game marks it saved so "ungespeichert" disappears.
+    async function saveBalancingLayer(request) {
+        const capability = resolveCapabilityStateSnapshot(resolveCapabilityState);
+        if (!mapBalancingStore || mapBalancingStore.writable !== true) {
+            return createForwardError(mapBalancingStore?.reason || 'store_unavailable', capability, describeStore().message);
+        }
+        const described = await forwardToGameWindow(TUNING_CHANNELS.balancing, { op: 'describe', mapKey: request.mapKey });
+        if (described.ok !== true || !described.value) return described;
+        const { mapKey, layer } = described.value;
+        let saved = null;
+        try {
+            saved = await mapBalancingStore.saveMapLayer(mapKey, layer);
+        } catch (error) {
+            return createForwardError(error?.reason || 'save_failed', capability, error instanceof Error ? error.message : String(error));
+        }
+        const marked = await forwardToGameWindow(TUNING_CHANNELS.balancing, { op: 'mark-saved', mapKey, layer: saved.layer });
+        return withStoreStatus(marked, { savedPath: saved.path, backupPath: saved.backupPath, removed: saved.removed });
+    }
+
+    registerTuningHandler(TUNING_CHANNELS.balancing, async (_event, payload = null) => {
+        const request = payload && typeof payload === 'object' ? payload : {};
+        if (String(request.op || '') === 'save') return saveBalancingLayer(request);
+        return withStoreStatus(await forwardToGameWindow(TUNING_CHANNELS.balancing, {
+            op: String(request.op || ''),
+            mapKey: typeof request.mapKey === 'string' ? request.mapKey : '',
+            modePath: typeof request.modePath === 'string' ? request.modePath : '',
+            key: typeof request.key === 'string' ? request.key : '',
+            value: request.value,
+            enabled: request.enabled,
+        }));
     });
 
     registerTuningHandler(TUNING_CHANNELS.exportPresetJson, async (_event, payload = null) => {

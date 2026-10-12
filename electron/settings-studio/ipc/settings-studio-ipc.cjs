@@ -5,6 +5,7 @@ const { SettingsPrefsService } = require('../services/SettingsPrefsService.cjs')
 const { SettingsBrowserDemoPolicyService } = require('../services/SettingsBrowserDemoPolicyService.cjs');
 const { SettingsMenuTextOverrideService } = require('../services/SettingsMenuTextOverrideService.cjs');
 const { assertTrustedWindowSender } = require('../../ipc-sender-guard.cjs');
+const { createMapBalancingStore, resolveMapBalancingStoreRoot } = require('../../map-balancing-store.cjs');
 
 const CHANNELS = Object.freeze({
     load: 'settings-studio:load',
@@ -18,6 +19,7 @@ const CHANNELS = Object.freeze({
     setMenuTextOverride: 'settings-studio:menu-text-overrides:set',
     clearMenuTextOverride: 'settings-studio:menu-text-overrides:clear',
     resetMenuTextOverrides: 'settings-studio:menu-text-overrides:reset',
+    mapBalancing: 'settings-studio:map-balancing',
 });
 
 const SUPPORTED_LANGUAGES = new Set(['de', 'en']);
@@ -36,7 +38,13 @@ function createValidationSnapshot(validationResult) {
     };
 }
 
-function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath, getWindow }) {
+function registerSettingsStudioIpc({
+    ipcMain,
+    app,
+    browserDemoProjectRootPath,
+    getWindow,
+    mapBalancingStore = createMapBalancingStore(resolveMapBalancingStoreRoot({ isPackaged: app?.isPackaged !== false })),
+}) {
     const fileService = new SettingsOverrideFileService({ app });
     const backupService = new SettingsBackupService({ app });
     const prefsService = new SettingsPrefsService({ app });
@@ -289,6 +297,27 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath, g
         ok: true,
         ...(await menuTextOverrideService.resetOverrides()),
     }));
+
+    // Karten-Balancing: files under data/balancing, written only from an unpacked repository.
+    registerTrustedHandler(CHANNELS.mapBalancing, async (payload = null) => {
+        const request = payload && typeof payload === 'object' ? payload : {};
+        const store = mapBalancingStore;
+        const status = { writable: store?.writable === true, message: String(store?.message || '') };
+        if (!status.writable) return { ok: false, reason: String(store?.reason || 'unavailable'), status };
+        const mapKey = typeof request.mapKey === 'string' ? request.mapKey : '';
+        const layer = request.layer && typeof request.layer === 'object' ? request.layer : null;
+        try {
+            switch (String(request.op || '')) {
+                case 'list-maps': return { ok: true, status, maps: await store.listMaps() };
+                case 'describe': return { ok: true, status, description: await store.describe({ mapKey, modePath: request.modePath, layer }) };
+                case 'validate': return { ok: true, status, validation: await store.validateMapLayer(mapKey, layer) };
+                case 'save': return { ok: true, status, saved: await store.saveMapLayer(mapKey, layer) };
+                default: return { ok: false, reason: 'unknown_op', status };
+            }
+        } catch (error) {
+            return { ok: false, reason: String(error?.reason || 'failed'), detail: error instanceof Error ? error.message : String(error), status };
+        }
+    });
 
     return () => {
         for (const channel of Object.values(CHANNELS)) {

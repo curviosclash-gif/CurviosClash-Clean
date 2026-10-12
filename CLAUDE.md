@@ -78,7 +78,7 @@ node scripts/run-playwright-targeted-clusters.mjs --print-clusters
 node scripts/run-playwright-targeted-clusters.mjs editor
 ```
 
-Cluster im Standardlauf: `core-shell`, `core-platform`, `core-surface`, `core-runtime`, `core-regressions`, `network` (läuft im Profil `browser-compat`), `desktop-flows`, `gameplay-smoke`, `editor`. Nur auf Anforderung: `physics-core`, `physics-hunt`, `physics-policy`, `gpu-stress`, `ghost-selfduel`.
+Cluster im Standardlauf: `core-shell`, `core-platform`, `core-surface`, `core-runtime`, `core-regressions`, `network` (läuft im Profil `browser-compat`), `desktop-flows`, `gameplay-smoke`, `editor`. Nur auf Anforderung: `physics-core`, `physics-hunt`, `physics-policy`, `gpu-stress`, `render-budget` (Zählsonde je spielbarer Karte; `PW_RENDER_BUDGET_CALIBRATE=1` misst zusätzlich echte FPS, nur auf dem Zielrechner), `ghost-selfduel`.
 
 Struktur- und Typprüfungen (Teil von `quality`, einzeln nützlich):
 
@@ -199,4 +199,4 @@ Diese Regeln brechen den Build, nicht nur das Review:
 
 Coverage-Gate gilt nur für `src/shared/contracts/**` (70 % Lines / 60 % Branches / 60 % Functions) über `npm run test:contract:coverage`.
 
-CI (`.github/workflows/`): `quality.yml` bei jedem Push/PR auf Windows, `desktop.yml` für Smoke und die neun Standard-Cluster bei Produktänderungen (die fünf Diagnose-Cluster nur nach Zeitplan oder von Hand), `package-check.yml` bei Electron-/Dependency-/Build-Änderungen, `security-audit.yml` wöchentlich.
+CI (`.github/workflows/`): `quality.yml` bei jedem Push/PR auf Windows, `desktop.yml` für Smoke und die neun Standard-Cluster bei Produktänderungen (die sechs Diagnose-Cluster nur nach Zeitplan oder von Hand), `package-check.yml` bei Electron-/Dependency-/Build-Änderungen, `security-audit.yml` wöchentlich.

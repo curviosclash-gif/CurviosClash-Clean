@@ -189,6 +189,7 @@ export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
             'tests/v28-regression.spec.js',
         ],
     },
+    { id: 'render-budget', specs: ['tests/map-render-budget.desktop.spec.js'] },
     {
         id: 'ghost-selfduel',
         specs: [

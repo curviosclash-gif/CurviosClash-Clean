@@ -16,6 +16,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { configurePilot, installControl, maneuver, observe, pilotStatus, readEvents, setPaused, step, stopPilot, updatePilot } from './playtest-control.mjs';
 import * as D from './playtest-driver.mjs';
+import { BALANCING_ACTIONS, BALANCING_MODES, createBalancingStoreForRepo, runBalancingOperation } from './playtest-balancing.mjs';
 import { buildCatalog, HELPERS, runHelper } from './playtest-helpers.mjs';
 import { createJobRegistry, JobBusyError } from './playtest-jobs.mjs';
 import {
@@ -330,6 +331,18 @@ async function opJob(args) {
     return snapshot || { status: 'unknown job', jobId: args.jobId };
 }
 
+let balancingStore = null;
+
+async function opBalancing(args) {
+    balancingStore ||= createBalancingStoreForRepo({ repoRoot: REPO_ROOT });
+    return runBalancingOperation({
+        args: args.modePath || args.scope === 'live' ? args : { ...args, modePath: 'fight' },
+        store: balancingStore,
+        getSession: () => sessionFor(args.role),
+        recordIntervention: (session, entry) => run?.interventions.push({ at: new Date().toISOString(), role: session.role, ...entry }),
+    });
+}
+
 async function opCatalog() {
     const session = run?.sessions.get('main') || run?.sessions.get('host') || null;
     const catalog = await buildCatalog(session, {
@@ -343,14 +356,19 @@ async function opCatalog() {
 
 const vec3 = z.array(z.number()).length(3);
 const inputShape = {
-    operation: z.enum(['catalog', 'open', 'observe', 'act', 'pilot', 'scenario', 'job', 'close'])
-        .describe('catalog: what exists. open: start an isolated test session (layout single|lan|with-settings-studio). observe: screen image, UI elements, game state, events, errors, windows, metrics. act: mouse, keyboard, forms, pause/step, windows, test helpers. pilot: direct maneuver or goal flight. scenario: start a fixed test as a job. job: progress or cancel. close: end the own session.'),
+    operation: z.enum(['catalog', 'open', 'observe', 'act', 'pilot', 'scenario', 'job', 'balancing', 'close'])
+        .describe('catalog: what exists. open: start an isolated test session (layout single|lan|with-settings-studio). observe: screen image, UI elements, game state, events, errors, windows, metrics. act: mouse, keyboard, forms, pause/step, windows, test helpers. pilot: direct maneuver or goal flight. scenario: start a fixed test as a job. job: progress or cancel. balancing: per-map balancing values (see balancingAction). close: end the own session.'),
+    // balancing
+    balancingAction: z.enum(BALANCING_ACTIONS).optional().describe('balancing: list_maps; get (values with origin mode/map and the inherited value); set field=value; reset field to the inherited value; save the live map layer to data/balancing; discard unsaved live changes; authoritative value=true|false plays the session with map values'),
+    scope: z.enum(['file', 'live']).optional().describe('balancing: file = data/balancing without a game (default for get/set/reset), live = the running match of the open session'),
+    modePath: z.enum(BALANCING_MODES).optional().describe('balancing get: mode whose defaults the map inherits (default fight for file, the running mode for live)'),
+    field: z.string().optional().describe('balancing set/reset: value key, e.g. speed, trailWidth, itemAmount, portalsEnabled, botCountMax'),
     role: z.enum(['main', 'host', 'guest', 'studio']).optional().describe('which app of the session (default main, or host in a LAN session)'),
     window: z.enum(['main', 'hangar', 'editor', 'vehicle-lab', 'editor-playtest', 'tuning', 'settings-studio']).optional().describe('window for observe/act (default main)'),
     // open
     layout: z.enum(['single', 'lan', 'with-settings-studio']).optional(),
     visible: z.boolean().optional().describe('open: start on screen instead of hidden; the tray icon can switch later'),
-    map: z.string().optional().describe('open lan: map the host selects'),
+    map: z.string().optional().describe('open lan: map the host selects; balancing: map key (live default: the running map)'),
     allowStaleBuild: z.boolean().optional().describe('open: run although dist-app-test is older than the sources (recorded)'),
     waitForLockMs: z.number().int().min(0).max(7_200_000).optional().describe('open: how long to wait for the machine lock'),
     queue: z.boolean().optional().describe('open: keep a place in the Playwright queue and open as a job when it is our turn (recommended when the machine is busy)'),
@@ -413,6 +431,7 @@ const server = new McpServer({ name: 'curvios-playtest', version: '2.0.0' }, {
         + 'Helpers (start_match, give_item, teleport, god_mode, set_setting, open_tuning) and dialog answers are interventions and are listed in results. '
         + 'Arcade: observe state.arcade shows phase, sector and objective; leave an intermission with act click on #btn-arcade-intermission-continue while the game is NOT paused. '
         + 'When open answers busy, open again with queue:true to keep a place in the machine queue. '
+        + 'Balancing: operation "balancing" reads and writes per-map values in data/balancing without a session (scope file); with an open session scope live changes the running match, then balancingAction save writes it. '
         + 'Report game bugs separately from tool problems. Call "close" when done; the session closes itself after 10 idle minutes.',
 });
 
@@ -432,6 +451,7 @@ server.registerTool('curvios_playtest', {
             case 'pilot': value = await opPilot(args); break;
             case 'scenario': value = await opScenario(args); break;
             case 'job': value = await opJob(args); break;
+            case 'balancing': value = await opBalancing(args); break;
             case 'close': value = await closeRun('closed by the agent'); break;
             default: throw new Error(`unknown operation ${args.operation}`);
         }
