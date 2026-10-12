@@ -67,6 +67,7 @@ export class DemolitionRuntime {
         this.rewardBinding = null;
         this.playerBindings = new Map();
         this.xpEarned = 0;
+        this.vehicleXpEarned = 0;
     }
 
     _human() {
@@ -81,11 +82,16 @@ export class DemolitionRuntime {
         const targets = playerIndex === null
             ? [...this.playerBindings.values()]
             : [this.playerBindings.get(Number(playerIndex))].filter(Boolean);
-        const results = targets.map((target) => awardBoundArcadeVehicleXpInStore(
-            target.store,
-            target.rewardBinding,
-            Math.floor(Math.max(0, Number(amount) || 0) * multiplier),
-        )).filter(Boolean);
+        const results = targets.map((target) => {
+            const result = awardBoundArcadeVehicleXpInStore(
+                target.store,
+                target.rewardBinding,
+                Math.floor(Math.max(0, Number(amount) || 0) * multiplier),
+            );
+            // Post-match progression reads player one's plane: only its share counts as run vehicle XP.
+            if (result && target.playerIndex === 0) this.vehicleXpEarned += result.earned;
+            return result;
+        }).filter(Boolean);
         for (const result of results) this.xpEarned += result.earned;
         return results[0] || null;
     }
@@ -269,6 +275,7 @@ export class DemolitionRuntime {
             runType: DEMOLITION_RUN_TYPE,
             vehicleId: this.rewardBinding?.vehicleId || '',
             xpEarned: this.xpEarned,
+            vehicleXpEarned: this.vehicleXpEarned,
             phase: this.phase,
             mapIndex: this.mapIndex,
             mapCount: this.plan.maps.length,
