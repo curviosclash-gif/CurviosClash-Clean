@@ -467,3 +467,32 @@ test('the victory panel keeps both action buttons and drops the pipe line', () =
         assert.ok(findFirst(root, (node) => node.id === 'btn-arcade-victory-continue'));
     });
 });
+
+// Playtest 06.10.2026: in a 655px window the route and reward buttons sat below the scrolled-out
+// score breakdown while the 10 s countdown ran. The decisions come first, the review after them.
+test('intermission panel puts route, reward and confirm before the score review', () => {
+    withDocument(() => {
+        const { controller, panel } = makeController();
+        assert.equal(controller._renderArcadeIntermissionPanel({
+            intermission: {
+                nextSectorIndex: 3,
+                lastSectorPoints: 845,
+                lastSectorXp: 180,
+                missionsCompleted: 0,
+                missionsTotal: 2,
+                choices: [{ id: 'a', mapKey: 'burg', modifierLabel: 'Tight Turns' }],
+                rewardChoices: [{ id: 'shield', label: 'Schild' }],
+                lastSectorScore: { breakdown: { base: 180 }, awardedPoints: 845, scoreFactor: 2.16 },
+            },
+        }), true);
+        const order = [];
+        walk(panel(), (node) => order.push(node));
+        const first = (predicate) => order.findIndex(predicate);
+        const review = first((node) => node.getAttribute('data-stats-row-key') === 'sector-score');
+        assert.ok(review > 0, 'the score review is still shown');
+        for (const id of ['arcade-choice-a', 'arcade-reward-shield', 'btn-arcade-intermission-continue']) {
+            const position = first((node) => node.id === id);
+            assert.ok(position >= 0 && position < review, `${id} comes before the score review`);
+        }
+    });
+});
