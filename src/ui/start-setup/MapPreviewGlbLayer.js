@@ -48,7 +48,7 @@ export function createMapPreviewGlbLayer({
         scene = null;
     }
 
-    /** @returns {Promise<{ status: 'none'|'stale'|'ready'|'failed', scene?: any, hideAuthoredObstacles?: boolean }>} */
+    /** @returns {Promise<{ status: 'none'|'stale'|'ready'|'failed', scene?: any, warnings?: string[], requiredWorldComplete?: boolean, hideAuthoredObstacles?: boolean }>} */
     async function load(definition) {
         release();
         const source = resolveMapPreviewGlbSource(definition);
@@ -76,9 +76,11 @@ export function createMapPreviewGlbLayer({
         return {
             status: 'ready',
             scene,
+            warnings: Array.isArray(result.warnings) ? result.warnings : [],
+            requiredWorldComplete: result.requiredWorldComplete === true,
             hideAuthoredObstacles: shouldDiscardAuthoredObstacleVisuals({
                 usedGlbModel: true,
-                loadWarnings: Array.isArray(result.warnings) ? result.warnings : [],
+                requiredWorldComplete: result.requiredWorldComplete === true,
                 map: definition,
             }),
         };

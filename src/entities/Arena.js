@@ -238,12 +238,12 @@ export class Arena {
         this._clearLoadedGlbScene();
 
         let usedGlbModel = false;
-        const finalizeBuild = () => {
+        const finalizeBuild = (requiredWorldComplete = false) => {
             // 'dynamic' only adds colliders for the moving GLB parts, so the authored box
             // obstacles stay responsible for the static set dressing. Exact scene collision can
             // still request a small supplemental set for things no GLB surface represents.
             const useFallbackObstacles = !usedGlbModel
-                || buildContext.glbColliderMode === 'fallbackOnly'
+                || !requiredWorldComplete || buildContext.glbColliderMode === 'fallbackOnly'
                 || buildContext.glbColliderMode === 'dynamic';
             const obstacleDefs = useFallbackObstacles
                 ? buildContext.obstacleDefs
@@ -255,7 +255,7 @@ export class Arena {
                 });
                 const collisionOnlyObstacleVisuals = shouldDiscardAuthoredObstacleVisuals({
                     usedGlbModel,
-                    loadWarnings: this._glbLoadWarnings,
+                    requiredWorldComplete,
                     map: buildContext.map,
                 });
                 if (collisionOnlyObstacleVisuals) {
@@ -315,7 +315,7 @@ export class Arena {
             const cherryLeaves = new CherryLeafController(glbResult.scene); this._cherryLeaves = cherryLeaves.count > 0 ? cherryLeaves : null;
             seeds.onRelease = (position, at) => this._shootableReleaseListener?.(position, at, 'dandelionSeeds');
             sunflowerKernels.onRelease = (position, at) => this._shootableReleaseListener?.(position, at, 'sunflowerKernels');
-            return finalizeBuild();
+            return finalizeBuild(glbResult.requiredWorldComplete === true);
         }).catch((error) => {
             this._glbLoadError = error?.message || 'Unknown GLB loading error';
             this._glbLoadWarnings = [`GLB fallback active: ${this._glbLoadError}`];

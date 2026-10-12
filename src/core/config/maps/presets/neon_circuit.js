@@ -20,7 +20,7 @@ const PYLON_SITES = [
 export const NEON_SIGNAL_PYLONS = Object.freeze(PYLON_SITES.map(([variant, x, z, targetSize, rotateY], index) => ({
     id: `neon-pylon-${String(index + 1).padStart(2, '0')}`,
     url: `assets/maps/neon_circuit/props/signal-pylons/neon-signal-pylon-v${String(variant).padStart(2, '0')}/runtime.glb`,
-    position: [x, 0, z], rotation: [0, rotateY, 0], targetSize, collision: false,
+    position: [x, 0, z], rotation: [0, rotateY, 0], targetSize, collision: false, role: 'optionalProp',
 })));
 
 export const NEON_CIRCUIT_MAP = {

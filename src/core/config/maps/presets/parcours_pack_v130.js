@@ -247,7 +247,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         playerSpawn: { x: -128, y: 20, z: -38 },
         botSpawns: V130_BOT_SPAWNS.glass_serpent,
         staticTurrets: [
-            { id: 'gs_rocket_balcony', weapon: 'rocket', pos: [76, 47, 24], range: 53, cooldown: 4.0, rocketType: 'ROCKET_MEDIUM', phase: 0.7, destructible: true, maxHp: 80, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'gs_rocket_balcony', weapon: 'rocket', pos: [76, 36, 24], range: 53, cooldown: 4.0, rocketType: 'ROCKET_MEDIUM', phase: 0.7, destructible: true, maxHp: 80, allowedModes: ['HUNT', 'ARCADE'] },
             { id: 'gs_mg_precision', weapon: 'mg', pos: [111, 44, -20], range: 35, cooldown: 1.6, damage: 2, phase: 1.3, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
         ],
         items: [

@@ -8,10 +8,12 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { getCustomMapConversionScale } from '../src/entities/CustomMapLoader.js';
 import {
+    createMapDocument,
     fromArenaMapDefinition,
     parseMapJSON,
     toArenaMapDefinition,
 } from '../src/entities/MapSchema.js';
+import { generateJSONExport, importFromJSON } from '../editor/js/EditorMapSerializer.js';
 import { DEFAULT_PORTAL_COLORS } from '../src/entities/mapSchema/MapSchemaConstants.js';
 
 const MAP_SCALE = CONFIG_SECTIONS.ARENA.MAP_SCALE;
@@ -262,6 +264,69 @@ test('content the editor format cannot carry is listed with counts, never droppe
     assert.equal(document.portals.length, 2);
     assert.ok(!('mapUnits' in document) && !('parcours' in document));
     assert.ok(DEFAULT_PORTAL_COLORS[0] !== 0x123456);
+});
+
+test('GLB roles survive schema normalization, runtime conversion, and editor import/export', () => {
+    const document = createMapDocument({
+        arenaSize: { width: 2800, height: 950, depth: 2400 },
+        glbModels: [
+            { id: 'world#1', url: 'assets/world.glb', position: [10, 20, 30], targetSize: 100, collision: false, role: 'primaryWorld' },
+            { id: 'pylon#1', url: 'assets/pylon.glb', position: [40, 0, 30], targetSize: 12, collision: false, role: 'optionalProp' },
+            { id: 'legacy#1', url: 'assets/legacy.glb', position: [0, 0, 0], role: 'unknown-role' },
+            { id: 'old#1', url: 'assets/old.glb', position: [0, 0, 0] },
+        ],
+    });
+    assert.deepEqual(document.glbModels.map((entry) => entry.role), ['primaryWorld', 'optionalProp', 'required', undefined],
+        'invalid explicit roles fail closed and absent legacy roles stay absent in storage');
+    const runtime = toArenaMapDefinition(document, { mapScale: 10 }).map;
+    assert.deepEqual(runtime.glbModels.map((entry) => entry.role), ['primaryWorld', 'optionalProp', 'required', undefined]);
+    assert.deepEqual(runtime.glbModels.map((entry) => entry.collision), [false, false, undefined, undefined],
+        'explicit collision=false is preserved without inferring any model role');
+
+    const sourceObjects = runtime.glbModels.map((entry, index) => ({
+        position: { x: index * 10, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        userData: {
+            id: `placement-${index}`,
+            type: 'glb',
+            subType: `asset-${index}`,
+            glbUrl: entry.url,
+            targetSize: 10,
+            collision: entry.collision,
+            role: entry.role,
+        },
+    }));
+    const exportManager = {
+        core: { objectsContainer: { children: sourceObjects } },
+        mapDocumentMeta: {},
+    };
+    const json = generateJSONExport(exportManager, { width: 2800, height: 950, depth: 2400 });
+    const exported = JSON.parse(json);
+    assert.deepEqual(exported.glbModels.map((entry) => entry.role), ['primaryWorld', 'optionalProp', 'required', undefined]);
+    assert.deepEqual(exported.glbModels.map((entry) => entry.collision), [false, false, undefined, undefined]);
+
+    const calls = [];
+    const importedObjects = [];
+    const importManager = {
+        core: { objectsContainer: { children: importedObjects } },
+        clearAllObjects() {},
+        withSceneMutation(callback) { callback(); },
+        queueSceneUiRefresh() {},
+        createMesh(type, subType, x, y, z, sizeInfo, props) {
+            calls.push({ type, subType, props });
+            if (type === 'glb') importedObjects.push({
+                position: { x, y, z },
+                rotation: { x: props.rotateX, y: props.rotateY, z: props.rotateZ },
+                userData: { type, subType, sizeInfo, ...props },
+            });
+        },
+    };
+    importFromJSON(importManager, json);
+    assert.deepEqual(calls.filter((entry) => entry.type === 'glb').map((entry) => entry.props.role),
+        ['primaryWorld', 'optionalProp', 'required', undefined]);
+    const reexported = JSON.parse(generateJSONExport(importManager, { width: 2800, height: 950, depth: 2400 }));
+    assert.deepEqual(reexported.glbModels.map((entry) => entry.role), ['primaryWorld', 'optionalProp', 'required', undefined]);
+    assert.deepEqual(reexported.glbModels.map((entry) => entry.collision), [false, false, undefined, undefined]);
 });
 
 test('a plain map reports nothing skipped', () => {

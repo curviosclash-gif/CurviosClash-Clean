@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createMapDocument, parseMapJSON } from '../../src/entities/MapSchema.js';
+import { isValidGLBModelRole, normalizeGLBModelRole } from '../../src/entities/mapSchema/MapSchemaGlbOps.js';
 import {
     deriveItemSpawnModeDefault,
     derivePortalModeDefault,
@@ -288,6 +289,8 @@ export function generateJSONExport(manager, arenaSize) {
                 url: u.glbUrl,
                 position: [p.x, p.y, p.z],
                 rotation: [obj.rotation.x || 0, ry, obj.rotation.z || 0],
+                ...(u.collision === false ? { collision: false } : {}),
+                ...(u.role === undefined ? {} : { role: normalizeGLBModelRole(u.role) }),
             };
             if (Number.isFinite(Number(u.targetSize)) && Number(u.targetSize) > 0) {
                 glbEntry.targetSize = Number(u.targetSize);
@@ -573,6 +576,8 @@ export function importFromJSON(manager, jsonString, options = {}) {
                         id: placementId || model.id,
                         glbUrl: model.url,
                         ...(targetSize ? { targetSize } : { glbScale: scale }),
+                        ...(model.collision === false ? { collision: false } : {}),
+                        ...(isValidGLBModelRole(model.role) ? { role: model.role } : {}),
                         rotateX: model.rotation?.[0] || 0,
                         rotateY: model.rotation?.[1] || 0,
                         rotateZ: model.rotation?.[2] || 0,
