@@ -111,17 +111,36 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         if (emit && eventTypes.SHOW_STATUS_TOAST) emit(eventTypes.SHOW_STATUS_TOAST, { message, tone, duration: 1600 });
     }
 
+    let unsavedProfileEdits = false;
+    let bankConflict = false;
     function persistProfiles() {
+        let saved = false;
+        let reason = '';
         try {
             const result = profilePort.save(profiles);
-            return result === true || result?.success === true || result?.ok === true;
+            saved = result === true || result?.success === true || result?.ok === true;
+            reason = String(result?.reason || '');
         } catch {
-            return false;
+            saved = false;
         }
+        // Another window spent the same bank XP: our copy is stale, so take the stored state.
+        bankConflict = !saved && reason === 'bank_conflict';
+        unsavedProfileEdits = !saved && !bankConflict;
+        // The save merged onto the stored record; reload so XP a run earned meanwhile shows here.
+        if (saved || bankConflict) profiles = profilePort.load();
+        return saved;
     }
 
+    // The hangar window stays open beside a run: pick up profile writes from the other window.
+    if (hangarMode === 'arcade') bind(globalThis, 'storage', (event) => {
+        if (disposed || unsavedProfileEdits) return;
+        if (event?.key && !/arcade-vehicle-profile\.v\d+$/.test(String(event.key))) return;
+        profiles = profilePort.load();
+        syncDisplay({ preserveCatalog: true });
+    });
+
     function reportProfileSaveFailure(message = 'Profil konnte nicht gespeichert werden. Änderungen bleiben nur bis zum Schließen dieses Hangars verfügbar.') {
-        toast(message, 'error');
+        toast(bankConflict ? 'Bank reicht nicht mehr – Stand neu geladen.' : message, 'error');
     }
 
     function entryFor(vehicleId) {
@@ -188,9 +207,11 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         const previous = profiles[vehicleId];
         profiles[vehicleId] = { ...next, updatedAt: new Date().toISOString() };
         const saved = persistProfiles();
+        // After a bank conflict the profiles were reloaded, so there is nothing to roll back.
         if (!saved) {
-            if (hadPrevious) profiles[vehicleId] = previous;
-            else delete profiles[vehicleId];
+            if (!bankConflict && hadPrevious) profiles[vehicleId] = previous;
+            else if (!bankConflict) delete profiles[vehicleId];
+            unsavedProfileEdits = false; // rolled back: the copy matches the stored state again
             reportProfileSaveFailure();
         }
         syncDisplay({ preserveCatalog: true });

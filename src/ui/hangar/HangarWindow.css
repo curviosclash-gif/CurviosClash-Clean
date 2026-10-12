@@ -75,8 +75,10 @@
     overflow: auto;
 }
 
+/* The last row belongs to the vehicle list (placed there below) and keeps about two cards; a short
+   window scrolls the panel (overflow auto from the shared panel rule) instead of squeezing the list. */
 .hangar-window-mount .hangar-catalog-panel {
-    grid-template-rows: repeat(8, auto) minmax(0, 1fr);
+    grid-template-rows: repeat(8, auto) minmax(200px, 1fr);
     overflow: hidden;
 }
 
@@ -123,7 +125,9 @@
     max-height: none;
 }
 
+/* Hidden filters take no grid row, so auto-placement would drop the list into an auto row. */
 .hangar-window-mount .hangar-catalog-list {
+    grid-row: -2 / -1;
     height: 100%;
     min-height: 0;
     overflow-x: hidden;

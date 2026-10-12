@@ -1,5 +1,6 @@
 import { saveLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
-import { addXp, loadVehicleProfiles, saveVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { saveVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { shareArcadeVehicleProfileBase } from '../../state/arcade/ArcadeVehicleProfileMerge.js';
 
 const SAVE_KINDS = Object.freeze({
     LEADERBOARD: 'leaderboard',
@@ -15,7 +16,11 @@ function normalizeThrottleMs(value, fallback = 0) {
 function clonePlainSnapshot(value) {
     if (!value || typeof value !== 'object') return value;
     try {
-        return JSON.parse(JSON.stringify(value));
+        const snapshot = JSON.parse(JSON.stringify(value));
+        // A vehicle profile snapshot shares the live map's merge base, so a deferred save applies
+        // only this run's own changes and advances the base the live map sees.
+        shareArcadeVehicleProfileBase(snapshot, value);
+        return snapshot;
     } catch {
         return value;
     }
@@ -33,6 +38,8 @@ export class ArcadeRunPersistenceScheduler {
         this._clearTimeout = typeof options.clearTimeout === 'function' ? options.clearTimeout : clearTimeout.bind(globalThis);
         this._pendingSaves = new Map();
         this._timers = new Map();
+        this._failedKinds = new Set();
+        this._onFlushResult = typeof options.onFlushResult === 'function' ? options.onFlushResult : null;
     }
 
     _clearTimer(kind) {
@@ -40,6 +47,16 @@ export class ArcadeRunPersistenceScheduler {
         if (timer == null) return;
         this._clearTimeout(timer);
         this._timers.delete(kind);
+    }
+
+    /** Kinds whose last save the store rejected; they stay pending and retry on the next flush. */
+    getFailedKinds() {
+        return Array.from(this._failedKinds);
+    }
+
+    /** Called after every flush attempt with { kind, ok }, also for throttled timer flushes. */
+    setFlushResultListener(listener) {
+        this._onFlushResult = typeof listener === 'function' ? listener : null;
     }
 
     _schedule(kind, task) {
@@ -63,18 +80,21 @@ export class ArcadeRunPersistenceScheduler {
         this._clearTimer(kind);
         const task = this._pendingSaves.get(kind);
         if (typeof task !== 'function') return false;
+        let saved = false;
         try {
-            const saveResult = task();
-            if (!isPersisted(saveResult)) {
-                this.logger?.warn?.('[ArcadeRunPersistenceScheduler] save was not acknowledged', { kind });
-                return false;
-            }
-            this._pendingSaves.delete(kind);
-            return true;
+            saved = isPersisted(task());
+            if (!saved) this.logger?.warn?.('[ArcadeRunPersistenceScheduler] save was not acknowledged', { kind });
         } catch (error) {
             this.logger?.warn?.('[ArcadeRunPersistenceScheduler] save failed:', error);
-            return false;
         }
+        if (saved) {
+            this._pendingSaves.delete(kind);
+            this._failedKinds.delete(kind);
+        } else {
+            this._failedKinds.add(kind);
+        }
+        this._onFlushResult?.({ kind, ok: saved });
+        return saved;
     }
 
     flushAll() {
@@ -107,26 +127,15 @@ export class ArcadeRunPersistenceScheduler {
         this._pendingSaves.clear();
     }
 
-    scheduleVehicleProfiles(store, profiles) {
+    // slot: own pending save per store, so a split-screen partner's profiles never replace player one's.
+    scheduleVehicleProfiles(store, profiles, slot = '') {
         if (!store || typeof store.saveJsonRecord !== 'function') return false;
         const snapshot = clonePlainSnapshot(profiles);
-        const baseline = typeof store.loadJsonRecord === 'function'
-            ? clonePlainSnapshot(loadVehicleProfiles(store))
-            : {};
-        return this._schedule(SAVE_KINDS.VEHICLE_PROFILES, () => {
-            const profilesToPersist = clonePlainSnapshot(snapshot) || {};
-            if (typeof store.loadJsonRecord === 'function') {
-                const latest = loadVehicleProfiles(store);
-                for (const [vehicleId, profile] of Object.entries(profilesToPersist)) {
-                    const baselineXp = Math.max(0, Number(baseline?.[vehicleId]?.totalXpEarned) || 0);
-                    const latestXp = Math.max(0, Number(latest?.[vehicleId]?.totalXpEarned) || 0);
-                    const concurrentXp = Math.max(0, latestXp - baselineXp);
-                    if (concurrentXp > 0) {
-                        profilesToPersist[vehicleId] = addXp(profile, concurrentXp).profile;
-                    }
-                }
-            }
-            return saveVehicleProfiles(store, profilesToPersist);
+        const kind = slot ? `${SAVE_KINDS.VEHICLE_PROFILES}:${slot}` : SAVE_KINDS.VEHICLE_PROFILES;
+        // XP that another writer (hangar, weapon-race prize) stored meanwhile is kept by the
+        // three-way merge in saveVehicleProfiles; adding it here as well would count it twice.
+        return this._schedule(kind, () => {
+            return saveVehicleProfiles(store, snapshot);
         });
     }
 

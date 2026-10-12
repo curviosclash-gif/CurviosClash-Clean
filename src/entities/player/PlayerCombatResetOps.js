@@ -27,6 +27,21 @@ export function resetPlayerCombatState(player) {
 }
 
 /**
+ * What a kill has to switch off at once, because a dead player stops updating: a clock effect
+ * would freeze the whole match in slow motion until the next spawn, and FlamethrowerSystem skips
+ * dead players, so a burning jet would stay in the snapshot.
+ * @param {object} player
+ */
+export function clearDeadPlayerEffects(player) {
+    if (!player) return;
+    player.manualSlowMoActive = false;
+    player.isSlowMoActive = false;
+    player.hasSlowTime = false;
+    player.slowTimeScale = 1;
+    player.flameActive = false;
+}
+
+/**
  * Fight bookkeeping of a fresh life: nobody attacked it, it targets nobody, its weapon is ready.
  * @param {object} player
  * @param {number} nowSeconds simulation time of the spawn

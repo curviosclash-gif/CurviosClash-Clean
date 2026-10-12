@@ -90,9 +90,9 @@ const OUTER_ITEMS = [
     id: `et_siege_${id}`,
     type,
     pickupType,
-    x: Math.round(Math.cos((degrees * Math.PI) / 180) * OUTER_RING_RADIUS),
+    x: Math.round(Math.cos((Number(degrees) * Math.PI) / 180) * OUTER_RING_RADIUS),
     y,
-    z: Math.round(Math.sin((degrees * Math.PI) / 180) * OUTER_RING_RADIUS),
+    z: Math.round(Math.sin((Number(degrees) * Math.PI) / 180) * OUTER_RING_RADIUS),
     weight: 1.0,
 }));
 const EIFFEL_SIEGE_ITEMS = [...EIFFEL_TOWER_ARENA_ITEMS, ...OUTER_ITEMS];

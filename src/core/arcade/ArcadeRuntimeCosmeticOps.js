@@ -10,7 +10,8 @@ import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.
 import { listPlayerShipPartDonors } from '../../shared/vehicles/player-ships/index.js';
 import { createArcadePlayerUpgradeBonusMap, createArcadeVehicleUpgradeBonusMap } from './ArcadeRunVehicleRewardOps.js';
 import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
-import { ARCADE_RUN_KINDS, resolveArcadeRuntimeKind } from '../../shared/contracts/ArcadeRunTypeDispatchContract.js';
+import { resolveArcadeRuntimeKind } from '../../shared/contracts/ArcadeRunTypeDispatchContract.js';
+import { arcadeRunUsesProfileBuild } from '../../shared/contracts/ArcadeDifficultyContract.js';
 
 // Five portals and arena waves have no run runtime that hands the size build to the strategy
 // (gauntlet: ArcadeRunRuntime.setStrategy, endless: setEndlessRunProfile). The profile that sizes
@@ -154,7 +155,7 @@ export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig
     let playerBuildBonuses = null;
     if (!isDemolitionConfig(runtimeConfig)) {
         if (localArcadeRuntime) {
-            const supportsProfileBuild = !dailyChallenge && localRunKind !== ARCADE_RUN_KINDS.WEAPON_RACE;
+            const supportsProfileBuild = arcadeRunUsesProfileBuild(localRunKind, { dailyChallenge });
             if (supportsProfileBuild) {
                 playerBuildBonuses = createArcadePlayerUpgradeBonusMap(
                     localArcadeRuntime._playerProfilesByIndex,

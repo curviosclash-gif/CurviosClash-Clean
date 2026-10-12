@@ -9,6 +9,7 @@ import {
     finishWeaponRaceRacer,
     rankWeaponRaceRacers,
     recordWeaponRaceCheckpoint,
+    shiftWeaponRaceClock,
     updateWeaponRaceProgress,
 } from '../../state/arcade/WeaponRaceState.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
@@ -49,6 +50,8 @@ export class WeaponRaceRuntime {
         this.roundOutcome = null;
         this.presentation = null;
         this.route = null;
+        this._clockOwner = null;
+        this._lastRaceNowMs = null;
     }
 
     start({ entityManager = null, vehicleId = 'ship1' } = {}) {
@@ -63,6 +66,8 @@ export class WeaponRaceRuntime {
             racerIds: players.map(playerId),
         });
         this.phase = 'racing';
+        this._clockOwner = entityManager;
+        this._lastRaceNowMs = this.state.startedAtMs;
         this.rewardBinding = bindArcadeVehicleRewards({ runType: WEAPON_RACE_RUN_TYPE, vehicleId });
         this.xpEarned = 0;
         this.bestXpAwarded = false;
@@ -89,7 +94,9 @@ export class WeaponRaceRuntime {
         for (const player of this.entityManager?.players || []) {
             clearWeaponRaceLoadout(player, { projectileSystem: this.entityManager?._projectileSystem });
         }
+        this._followRaceClock(); // last reading of the old clock, so the switch below is exact
         this.entityManager = entityManager;
+        this._followRaceClock();
         const players = Array.isArray(entityManager?.players) ? entityManager.players.filter(Boolean) : [];
         for (const player of players) {
             clearWeaponRaceLoadout(player, { projectileSystem: entityManager?._projectileSystem });
@@ -119,6 +126,18 @@ export class WeaponRaceRuntime {
     _raceNow(entityManager = this.entityManager) {
         const simulationNow = Number(entityManager?._simulationClockMs);
         return Number.isFinite(simulationNow) && simulationNow >= 0 ? simulationNow : this._now();
+    }
+
+    // The run is armed before spawnAll restarts the round clock, and a sector rebuild hands the race
+    // a new entity manager with its own clock (rebind). Shift the race stamps by the jump so played
+    // time carries over instead of every finish being clamped to the start.
+    _followRaceClock() {
+        if (this.phase !== 'racing' && this.phase !== 'grace') return;
+        const nowMs = this._raceNow();
+        const switched = this._clockOwner !== this.entityManager || nowMs < this._lastRaceNowMs;
+        if (switched && Number.isFinite(this._lastRaceNowMs)) shiftWeaponRaceClock(this.state, nowMs - this._lastRaceNowMs);
+        this._clockOwner = this.entityManager;
+        this._lastRaceNowMs = nowMs;
     }
 
     _archivePendingRewards() {
@@ -319,6 +338,7 @@ export class WeaponRaceRuntime {
     }
 
     handleFinish({ playerIndex, finishedAtMs = this._raceNow() } = {}) {
+        this._followRaceClock(); // a finish can arrive in the simulation tick before update()
         const result = finishWeaponRaceRacer(this.state, playerIndex, finishedAtMs);
         if (result.accepted) {
             this.phase = 'grace';
@@ -340,6 +360,7 @@ export class WeaponRaceRuntime {
     }
 
     update(now = this._now()) {
+        this._followRaceClock();
         const canRetryRewards = this._beginRewardRetryWindow();
         if (canRetryRewards) {
             this._settleArchivedRewards(true);
@@ -446,6 +467,7 @@ export class WeaponRaceRuntime {
     }
 
     getRoundOutcome(now = this._raceNow()) {
+        this._followRaceClock();
         if (this.roundOutcome) return this.roundOutcome;
         if (this.state.firstFinishAtMs === null || Number(now) < this.state.graceEndsAtMs) return null;
         let rewardsPending = false;
@@ -490,6 +512,7 @@ export class WeaponRaceRuntime {
     }
 
     getHudState(now = this._raceNow()) {
+        this._followRaceClock();
         const standings = rankWeaponRaceRacers(this.state);
         const human = this.state?.racers?.[this.state.humanPlayerId] || null;
         return {
