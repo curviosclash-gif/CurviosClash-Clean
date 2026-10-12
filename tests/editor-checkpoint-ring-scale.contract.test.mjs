@@ -8,7 +8,13 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { EditorMapManager } from '../editor/js/EditorMapManager.js';
+import { bindEditorPropertyControls } from '../editor/js/ui/EditorPropertyControls.js';
 import { getCustomMapConversionScale } from '../src/entities/CustomMapLoader.js';
+import {
+    CHECKPOINT_RING_MIN_RADIUS,
+    CHECKPOINT_RING_RADIUS_FACTOR,
+    FINISH_RING_MIN_RADIUS,
+} from '../src/entities/arena/CheckpointRingVisualRadius.js';
 import { parseMapJSON, toArenaMapDefinition } from '../src/entities/MapSchema.js';
 import { PortalLayoutBuilder } from '../src/entities/arena/portal/PortalLayoutBuilder.js';
 import { getRuntimeMapScale } from '../src/shared/contracts/RuntimeMapCatalogContract.js';
@@ -77,3 +83,87 @@ test('scaling a checkpoint with the gizmo stores the radius whose ring it shows'
     mapManager.syncObjectScaleMetadata(gate);
     assertClose(gate.userData.cpRadius, 60, 'the radius behind the dragged ring');
 });
+
+/**
+ * Stands for the editor UI around the size field: one input, history mutations run at once and
+ * nothing is locked, so a change event goes through the real property control.
+ */
+function bindSizeField(mapManager, selectedObject) {
+    const propSize = Object.assign(new EventTarget(), { value: '' });
+    bindEditorPropertyControls({
+        dom: { propSize },
+        mapManager,
+        selectedObject,
+        isObjectLocked: () => false,
+        isManagedObjectAlive: () => true,
+        executeHistoryMutation: (_label, mutate) => mutate(),
+        showPropPanel() {},
+    });
+    return (value) => {
+        propSize.value = String(value);
+        propSize.dispatchEvent(new Event('change'));
+    };
+}
+
+function exportedRadius(mapManager, arenaSize, id) {
+    const exported = JSON.parse(mapManager.generateJSONExport(arenaSize));
+    return exported.parcours.checkpoints.find((entry) => entry.id === id)?.radius;
+}
+
+/** Scales the ring like the gizmo does: the mesh first, then the editor reads the radius back. */
+function dragRing(mapManager, object, factor) {
+    object.scale.setScalar(object.scale.x * factor);
+    mapManager.notifyObjectMutated(object);
+}
+
+test('a radius typed into the size field is the radius the map exports, even below the minimum ring', () => {
+    const mapManager = createEditor(LEGACY_ARENA);
+    const gate = mapManager.createMesh('checkpoint', 'gate', 0, 250, 0, 0, { id: 'cp_a' });
+    const typeSize = bindSizeField(mapManager, gate);
+
+    typeSize(9);
+    assert.equal(exportedRadius(mapManager, LEGACY_ARENA, 'cp_a'), 9, 'the typed radius reaches the export');
+    assertClose(gate.scale.x, mapManager.getCheckpointRingScale(9, false), 'the ring follows the shared ring rule');
+
+    // Moving or turning the gate runs the same metadata sync; the radius must not drift with it.
+    gate.position.x += 25;
+    gate.rotation.y = Math.PI / 3;
+    mapManager.notifyObjectMutated(gate);
+    assert.equal(exportedRadius(mapManager, LEGACY_ARENA, 'cp_a'), 9, 'a move keeps the typed radius');
+});
+
+for (const [label, arenaSize, radius] of [['a small arena', SMALL_ARENA, 40], ['the legacy default arena', LEGACY_ARENA, 400]]) {
+    test(`a gizmo round trip changes the radius only in proportion in ${label}`, () => {
+        const mapManager = createEditor(arenaSize);
+        const gate = mapManager.createMesh('checkpoint', 'gate', 0, 100, 0, 0, { id: 'cp_a', cpRadius: radius });
+
+        dragRing(mapManager, gate, 1.5);
+        assertClose(gate.userData.cpRadius, radius * 1.5, 'a ring half again as large');
+        dragRing(mapManager, gate, 1 / 1.5);
+        assertClose(gate.userData.cpRadius, radius, 'the ring dragged back');
+    });
+}
+
+for (const finish of [false, true]) {
+    test(`shrinking a ${finish ? 'finish' : 'gate'} into the minimum ring settles on a stable radius`, () => {
+        const mapManager = createEditor(LEGACY_ARENA);
+        const subType = finish ? 'finish' : 'gate';
+        const conversion = getCustomMapConversionScale({ arenaSize: LEGACY_ARENA }).scale;
+        const minimumRing = finish ? FINISH_RING_MIN_RADIUS : CHECKPOINT_RING_MIN_RADIUS;
+        const smallestRadiusOfMinimumRing = minimumRing / CHECKPOINT_RING_RADIUS_FACTOR * conversion;
+
+        const tight = mapManager.createMesh('checkpoint', subType, 0, 100, 0, 0, { id: 'cp_tight', cpRadius: 9 });
+        const ringScale = tight.scale.x;
+        dragRing(mapManager, tight, 0.5);
+        assert.equal(tight.userData.cpRadius, 9, 'a radius already inside the minimum ring stays where it was');
+        assertClose(tight.scale.x, ringScale, 'the ring stays at the minimum');
+
+        // A map holds one finish, so the wide ring gets an editor of its own.
+        const wideEditor = createEditor(LEGACY_ARENA);
+        const wide = wideEditor.createMesh('checkpoint', subType, 0, 100, 0, 0, { id: 'cp_wide', cpRadius: 400 });
+        dragRing(wideEditor, wide, 0.01);
+        assertClose(wide.userData.cpRadius, smallestRadiusOfMinimumRing, 'a large ring shrunk below the minimum');
+        dragRing(wideEditor, wide, 0.5);
+        assertClose(wide.userData.cpRadius, smallestRadiusOfMinimumRing, 'shrinking again keeps that radius');
+    });
+}

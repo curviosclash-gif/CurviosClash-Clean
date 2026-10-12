@@ -174,12 +174,14 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
 export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
     { id: 'physics-core', specs: ['tests/physics-core.spec.js'] },
     { id: 'physics-hunt', specs: ['tests/physics-hunt.spec.js'] },
-    { id: 'physics-policy', specs: ['tests/physics-policy.spec.js'] },
+    // Bot policy diagnostics; bot-flight-safety drives ~20 bot scenarios for about three minutes.
+    { id: 'physics-policy', specs: ['tests/physics-policy.spec.js', 'tests/bot-flight-safety.desktop.spec.js'] },
     {
         id: 'gpu-stress',
         specs: [
             'tests/gpu.spec.js',
             'tests/map-performance.desktop.spec.js',
+            'tests/perf-loop-probe.desktop.spec.js',
             'tests/perf-match-ab.desktop.spec.js',
             'tests/perf-quality-audit.desktop.spec.js',
             'tests/perf-quality-implementation.desktop.spec.js',
@@ -187,6 +189,7 @@ export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
             'tests/v28-regression.spec.js',
         ],
     },
+    { id: 'render-budget', specs: ['tests/map-render-budget.desktop.spec.js'] },
     {
         id: 'ghost-selfduel',
         specs: [

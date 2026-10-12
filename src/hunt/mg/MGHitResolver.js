@@ -14,6 +14,10 @@ import { clamp } from '../../shared/utils/MathOps.js';
 import { applyFightHumanAimAssist } from '../FightAimAssist.js';
 import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
 import { isArcadeCompanionTeamPair } from '../../shared/contracts/ArcadeCompanionContract.js';
+import {
+    isMapStructureClosedToBots,
+    resolveBotStructureFocusRatio,
+} from '../../shared/contracts/MapDestructibleBotTargetContract.js';
 
 function canHitTargetable(target, attacker) {
     return isDestructibleTurret(target)
@@ -219,7 +223,8 @@ export class MGHitResolver {
             }
         }
         for (const turret of targetables) {
-            if (!canAimAtTargetable(turret, player)) continue;
+            // Structure segments come last, below every player, tank and turret.
+            if (turret?.mapStructure === true || !canAimAtTargetable(turret, player)) continue;
             this._tmpHit.subVectors(turret.position, player.position);
             const distanceSq = this._tmpHit.lengthSq();
             if (distanceSq <= 0.000001 || distanceSq > maxRangeSq) continue;
@@ -233,8 +238,36 @@ export class MGHitResolver {
                 found = true;
             }
         }
+        if (!found) found = this._aimAtStructureFocus(player, targetables, out, maxRangeSq, aimDotMin);
         if (found) out.copy(this._tmpTargetAim);
         return out;
+    }
+
+    /**
+     * A bot with nothing better in its cone works on a structure the round opened to bots, and
+     * among its segments on the one the HUD focuses: the least health left, then the straighter one.
+     */
+    _aimAtStructureFocus(player, targetables, aim, maxRangeSq, aimDotMin) {
+        let bestRatio = Infinity;
+        let bestDot = aimDotMin;
+        let found = false;
+        for (const target of targetables) {
+            if (target?.mapStructure !== true || isMapStructureClosedToBots(target)
+                || !canAimAtTargetable(target, player)) continue;
+            this._tmpHit.subVectors(target.position, player.position);
+            const distanceSq = this._tmpHit.lengthSq();
+            if (distanceSq <= 0.000001 || distanceSq > maxRangeSq) continue;
+            this._tmpHit.multiplyScalar(1 / Math.sqrt(distanceSq));
+            const aimDot = aim.dot(this._tmpHit);
+            if (aimDot < aimDotMin) continue;
+            const ratio = resolveBotStructureFocusRatio(target);
+            if (ratio > bestRatio || (ratio === bestRatio && aimDot <= bestDot)) continue;
+            bestRatio = ratio;
+            bestDot = aimDot;
+            this._tmpTargetAim.copy(this._tmpHit);
+            found = true;
+        }
+        return found;
     }
 
     applyTrailHit(attacker, trailHit, mg) {

@@ -361,6 +361,9 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
 
 test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung', async ({ page }, testInfo) => {
     test.setTimeout(300_000);
+    // The hangar window opens at 1600x1000 and never below 1100x700; on a 1024x768 test screen the
+    // main window shrank to 1008x655 and the wing hardpoint raycast missed (12.10.2026).
+    await page.setViewportSize({ width: 1600, height: 1000 });
     await loadGame(page);
     await seedUnlockedProfiles(page);
     await page.reload();
