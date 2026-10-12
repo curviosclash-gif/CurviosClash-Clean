@@ -12,10 +12,11 @@ import { isFivePortalsConfig } from '../../shared/contracts/PortalChainContract.
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveArcadeP1RecordStore, resolveArcadeSectorTransition, resolveActiveArcadeVehicleId, resolveArenaStartMachineGunId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities, withArcadeCompanions } from './GameRuntimeArcadeSupportOps.js';
+import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveArcadeP1RecordStore, resolveArcadeSectorTransition, resolveActiveArcadeVehicleId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities, withArcadeCompanions } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 import { resolveDedicatedArcadeMatchStart } from './GameRuntimeArcadeRunDispatch.js';
 import { GameRuntimeDemolitionSupport } from './GameRuntimeDemolitionSupport.js';
+import { startArenaWavesRun, startFivePortalsRun, startWeaponRaceRun } from './GameRuntimeDedicatedRunStartOps.js';
 import { createPlayerRecordStorePortResolver } from './PlayerProfileRuntimeAccess.js';
 import { clearArcadePlayerProfileBindings } from '../arcade/ArcadePlayerProfileBindings.js';
 
@@ -311,65 +312,9 @@ export class GameRuntimeArcadeSupport {
             this._sectorRebuildInFlight = false;
             return demolitionStart.state;
         }
-        if (isFivePortalsConfig(runtimeConfig)) {
-            this._bindGameplayCallback(runtimeState);
-            const started = this.fivePortalsRuntime.start(runtimeState?.entityManager || null,
-                { vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings), chainId: runtimeConfig?.arcade?.portalChainId });
-            this._sectorRebuildInFlight = false;
-            return started;
-        }
-        if (isArenaWavesConfig(runtimeConfig)) {
-            this._bindGameplayCallback(runtimeState);
-            const existing = this.arenaWavesRuntime.getHudState();
-            if (existing.phase !== 'idle' && existing.phase !== 'finished') {
-                const rebound = this.arenaWavesRuntime.start({
-                    entityManager: runtimeState?.entityManager || null,
-                    strategy: runtimeState?.entityManager?.gameModeStrategy || null,
-                });
-                this._sectorRebuildInFlight = false;
-                return rebound;
-            }
-            const started = this.arenaWavesRuntime.start({
-                entityManager: runtimeState?.entityManager || null,
-                strategy: runtimeState?.entityManager?.gameModeStrategy || null,
-                seed: runtimeConfig?.arcade?.seed,
-                vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
-                selectedMachineGunId: resolveArenaStartMachineGunId(localProfileContext, runtimeState),
-            });
-            this._sectorRebuildInFlight = false;
-            return started;
-        }
-        if (isWeaponRaceConfig(runtimeConfig)) {
-            this._bindGameplayCallback(runtimeState);
-            this.arcadeRunRuntime.setActiveVehicle(resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings));
-            const strategy = runtimeState?.entityManager?.gameModeStrategy || null;
-            this.arcadeRunRuntime.setStrategy(strategy, runtimeState?.entityManager?.humanPlayers);
-            this._sectorRebuildInFlight = false;
-            const existing = this.arcadeRunRuntime.getStateSnapshot?.();
-            if (!existing || String(existing.phase || '').toLowerCase() === 'finished') {
-                const encounterPlan = this._preparedEncounterPlan || buildArcadeEncounterPlan(
-                    runtimeConfig,
-                    resolveArcadeP1RecordStore(this, runtimeConfig),
-                );
-                this._preparedEncounterPlan = null;
-                const startOptions = {
-                    entityManager: runtimeState?.entityManager || null,
-                    roundStateController: runtimeState?.roundStateController || null,
-                    playerCount: Math.max(1, Number(runtimeState?.numHumans) || 1),
-                    encounterPlan,
-                    strategy,
-                };
-                if (runtimeConfig?.arcade?.dailyChallenge === true) this.arcadeRunRuntime.startDailyChallenge(startOptions);
-                else this.arcadeRunRuntime.startRun(startOptions);
-            }
-            const raceStartOptions = {
-                entityManager: runtimeState?.entityManager || null,
-                vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
-            };
-            return this.weaponRaceRuntime.phase === 'idle' || this.weaponRaceRuntime.phase === 'finished'
-                ? this.weaponRaceRuntime.start(raceStartOptions)
-                : this.weaponRaceRuntime.rebind(raceStartOptions);
-        }
+        if (isFivePortalsConfig(runtimeConfig)) return startFivePortalsRun(this, runtimeState, runtimeConfig);
+        if (isArenaWavesConfig(runtimeConfig)) return startArenaWavesRun(this, runtimeState, runtimeConfig, localProfileContext);
+        if (isWeaponRaceConfig(runtimeConfig)) return startWeaponRaceRun(this, runtimeState, runtimeConfig);
         if (isEndlessParcoursConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
             const runtime = this._getEndlessRuntime(runtimeState);
@@ -522,10 +467,6 @@ export class GameRuntimeArcadeSupport {
     tickPendingArcadeRewards() {
         if (!this.weaponRaceRuntime.hasPendingSettlement?.()) return false;
         return this.weaponRaceRuntime.maintainPendingSettlements?.() || false;
-    }
-
-    tickWeaponRaceRewardMaintenance() {
-        return this.tickPendingArcadeRewards();
     }
 
     selectIntermissionChoice(choiceId) {
