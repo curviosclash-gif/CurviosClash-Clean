@@ -41,17 +41,17 @@ test('shared flight safety runs on real desktop maps in 2D, 3D and combat', asyn
             game.runtimeCoordinator.onSettingsChanged();
             await Promise.resolve(game.startMatch());
             const manager = game.entityManager;
+            const debug = game.debugApi;
             const bots = manager.bots.map(({ player }) => player);
-            const originalResolve = manager._roundOutcomeSystem.resolve;
-            const originalKill = manager._killPlayer;
+            const originalOnPlayerDied = manager.onPlayerDied;
             const deaths = [];
-            manager._roundOutcomeSystem.resolve = () => ({ shouldEnd: false });
-            manager._killPlayer = function (victim, cause, options) {
-                if (victim?.isBot) deaths.push({ cause, at: manager._simulationClockMs / 1000,
+            debug.setRoundEndHold(true);
+            manager.onPlayerDied = function (victim, cause) {
+                if (victim?.isBot) deaths.push({ cause, at: debug.getSimulationClockMs() / 1000,
                     position: victim.position.toArray() });
-                return originalKill.call(this, victim, cause, options);
+                return originalOnPlayerDied?.call(this, victim, cause);
             };
-            const safety = manager._playerInputSystem._flightSafety;
+            const safety = debug.getBotFlightSafety();
             const originalSafetyApply = safety.apply;
             let flightSafetyMs = 0;
             safety.apply = function (...args) {
@@ -63,7 +63,7 @@ test('shared flight safety runs on real desktop maps in 2D, 3D and combat', asyn
                 }
             };
             if (scenario.solo) manager.humanPlayers[0].alive = false;
-            const initialSimulationMs = manager._simulationClockMs;
+            const initialSimulationMs = debug.getSimulationClockMs();
             const positions = bots.map((bot) => bot.position.clone());
             let distance = 0;
             let finite = true;
@@ -80,15 +80,15 @@ test('shared flight safety runs on real desktop maps in 2D, 3D and combat', asyn
                     }
                     if (tick % hz !== 0) continue;
                     finite &&= bots.every((bot) => Number.isFinite(bot.position.x + bot.position.y + bot.position.z));
-                    controlled ||= manager._playerInputSystem._flightSafety.byPlayer.size > 0;
+                    controlled ||= safety.byPlayer.size > 0;
                     bots.forEach((bot, index) => {
                         distance += positions[index].distanceTo(bot.position);
                         positions[index].copy(bot.position);
                     });
                 }
             } finally {
-                manager._roundOutcomeSystem.resolve = originalResolve;
-                manager._killPlayer = originalKill;
+                debug.setRoundEndHold(false);
+                manager.onPlayerDied = originalOnPlayerDied;
                 safety.apply = originalSafetyApply;
             }
             results.push({
@@ -99,7 +99,7 @@ test('shared flight safety runs on real desktop maps in 2D, 3D and combat', asyn
                 botCount: bots.length,
                 finite,
                 controlled,
-                simulationSeconds: (manager._simulationClockMs - initialSimulationMs) / 1000,
+                simulationSeconds: (debug.getSimulationClockMs() - initialSimulationMs) / 1000,
                 distance: Math.round(distance),
                 alive: bots.filter((bot) => bot.alive).length,
                 firstDeathSeconds,
@@ -108,7 +108,7 @@ test('shared flight safety runs on real desktop maps in 2D, 3D and combat', asyn
                 flightSafetyMsPerTick: flightSafetyMs / (scenario.ticks || 900),
                 elapsedMs: performance.now() - startedAt,
             });
-            await Promise.resolve(game._returnToMenu());
+            await Promise.resolve(game.runtimeCoordinator.returnToMenu());
         }
         return results;
     });
