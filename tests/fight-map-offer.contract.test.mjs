@@ -32,9 +32,32 @@ test('Fight keeps arenas, adventures and the courses built for combat', () => {
     }
 });
 
-test('the other mode paths keep every map in the picker', () => {
+test('the other mode paths keep every public map in the picker', () => {
     for (const modePath of ['normal', 'arcade', 'quick_action']) {
         assert.equal(offered('parcours_rift', modePath), true);
-        assert.equal(offered('glb_gallery', modePath), true);
+        assert.equal(offered('standard', modePath), true);
     }
+});
+
+// E8: tier "dev" maps stay out of every picker; only the Showcase filter lists them.
+test('development maps are hidden on every mode path unless the Showcase filter is on', () => {
+    for (const mapKey of ['empty', 'glb_hangar', 'glb_gallery', 'item_showcase', 'upgrade_showcase', 'showcase_nexus']) {
+        const entry = resolveMapPreview(mapKey);
+        assert.equal(entry.tier, 'dev', mapKey);
+        assert.ok(entry.filterTags.includes('showcase'), `${mapKey} is reachable through the Showcase filter`);
+        for (const modePath of ['normal', 'fight', 'arcade', 'quick_action']) {
+            assert.equal(isMapOfferedForModePath(entry, CONFIG.MAPS[mapKey], modePath, 'all'), false, `${mapKey} in ${modePath}`);
+            assert.equal(isMapOfferedForModePath(entry, CONFIG.MAPS[mapKey], modePath, 'showcase'), true, `${mapKey} in ${modePath} with filter`);
+        }
+    }
+});
+
+test('the preview entry carries the description, tier and destructible filter tag', () => {
+    const entry = resolveMapPreview('storm_dam_siege');
+    assert.equal(entry.tier, 'public');
+    assert.ok(entry.description.length > 20);
+    assert.ok(entry.filterTags.includes('destructible'));
+    assert.ok(!resolveMapPreview('standard').filterTags.includes('destructible'));
+    assert.equal(resolveMapPreview('not_a_map').tier, 'public');
+    assert.equal(resolveMapPreview('not_a_map').description, '');
 });

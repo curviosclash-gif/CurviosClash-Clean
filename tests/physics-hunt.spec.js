@@ -1,6 +1,10 @@
 import { test, expect } from './helpers.desktop.js';
 import { loadGame, openCustomSubmenu, startHuntGame, startHuntGameWithBots } from './helpers.js';
 
+// The teleport scenarios below assume open air around the origin. The fight preset loads maze,
+// whose walls reach up to the ceiling, so these tests run on the open standard arena.
+const OPEN_ARENA = { mapKey: 'standard' };
+
 test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     test.describe.configure({ timeout: 120000 });
 
@@ -104,7 +108,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T62a: Hunt-Rakete verfolgt Spuren wie MG (Trail-Targeting)', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -207,7 +211,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T62: Hunt-Rakete ist groesser und sucht Ziele nach', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -298,7 +302,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T63: MG Trail-Zielsuchradius ist konfigurierbar und wirkt auf Treffer', async ({ page }) => {
-        await startHuntGame(page);
+        await startHuntGame(page, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -393,7 +397,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T64: Hunt-MG priorisiert gegnerische Spur auf Schusslinie vor Off-Axis Spieler', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -477,7 +481,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T83: Hunt-MG priorisiert gegnerische Spur vor eigener Spur auf Schusslinie', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -580,7 +584,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T84: Hunt-Trail-Kollision trifft gegnerische Spur auch bei grossem Frame-Schritt', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -664,7 +668,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T85: Hunt-Trail-Kollision trifft gegnerische Spur auch bei kleinen Frames (Enemy-Offset)', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -756,7 +760,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T86: Hunt-MG zerstoert gegnerisches echtes Trail-Segment (ownerTrail) sofort', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -818,7 +822,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T87: Hunt-MG entfernt Trail-Visual auch bei totem Gegner sofort', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -893,7 +897,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T88: Hunt-MG nutzt differenzierte Audio-/VFX-Signale fuer Treffer und Schildabsorption', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -981,7 +985,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T89: Hunt-Raketen liefern eigenes Start-/Impact-Feedback', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -1048,7 +1052,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T89d: Hunt-Raketen erfassen gegnerische Trail-Ziele und triggern Trail-Zerstörungs-VFX', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -1167,7 +1171,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T89e: Rocket-Trail-Blasts zerstoeren meter-basiert und staerkere Raketen zerstoeren mehr', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(async () => {
             const api = window.CURVIOS_TEST_API;
             if (!api?.applyTrailDamageFromProjectile) {
@@ -1252,7 +1256,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T89a: Hunt-MG braucht jetzt einen Lockout, bevor ein Full-HP-Ziel faellt', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -1321,7 +1325,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T89i: Hunt-MG Midrange-TTK bleibt ueber Nahdistanz und respektiert Falloff/Lockout', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;
@@ -1530,7 +1534,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T89k: Shield-Treffer setzen Regen-Timestamp und blocken fruehe HP-Regeneration', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(async () => {
             const api = window.CURVIOS_TEST_API;
             if (!api?.updatePlayerHealthRegen) {
@@ -1673,7 +1677,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     });
 
     test('T89c: Hunt-Respawn resettet Snowball-Zustaende und gibt Recovery-Fenster', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const entityManager = game?.entityManager;

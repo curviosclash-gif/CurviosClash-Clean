@@ -1,3 +1,5 @@
+import { normalizeMapLightSource } from './MapLightSourcesContract.js';
+
 const MAX_EMITTERS = 8;
 const MAX_FLICKER_LIGHTS = 8;
 const MAX_PARTICLES_PER_LAYER = 128;
@@ -75,6 +77,14 @@ export function normalizeMapFireFx(source) {
         .map(normalizeFlicker)
         .filter((entry) => entry.lightId && entry.amplitude > 0);
 
+    // The look a light has before anything burns. The map's own light entry is the full-fire look; the
+    // controller blends from this one to it, so a map keeps one light slot per lamp (the light count is
+    // capped) and still shows its intact lamps at fire progress 0.
+    const dayLights = (Array.isArray(source.dayLights) ? source.dayLights : [])
+        .filter((entry) => entry && typeof entry === 'object' && typeof entry.lightId === 'string' && entry.lightId.trim())
+        .slice(0, MAX_FLICKER_LIGHTS)
+        .map((entry) => normalizeMapLightSource({ ...entry, id: entry.lightId }));
+
     return Object.freeze({
         emitters: Object.freeze(emitters),
         smoke: normalizeLayer(source.smoke, {
@@ -90,6 +100,7 @@ export function normalizeMapFireFx(source) {
         ashVolumeMin: normalizeVector(source.ashVolumeMin, [-110, 4, -75]),
         ashVolumeMax: normalizeVector(source.ashVolumeMax, [105, 105, 75]),
         flicker: Object.freeze(flicker),
+        dayLights: Object.freeze(dayLights),
     });
 }
 

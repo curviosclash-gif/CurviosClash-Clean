@@ -4,6 +4,7 @@
 // ============================================================
 
 import { authoredWorld } from './world_appearance.js';
+import { NEON_CITY_NIGHT_LIGHTING } from './map_lighting_profiles.js';
 
 const NEON_WORLD = authoredWorld('neon_circuit');
 
@@ -27,6 +28,7 @@ export const NEON_CIRCUIT_MAP = {
         ...NEON_WORLD,
         glbModels: [...NEON_WORLD.glbModels, ...NEON_SIGNAL_PYLONS],
         name: 'Neon Circuit',
+        lighting: NEON_CITY_NIGHT_LIGHTING,
         size: [200, 60, 160],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
@@ -138,6 +140,13 @@ export const NEON_CIRCUIT_MAP = {
             { x: -80, y: 14, z: -8 },
             { x: -75, y: 14, z: 8 },
             { x: -75, y: 14, z: -8 },
+            // More levels for a ten player HUNT round; the first entries stay at the start line.
+            { x: 66, y: 24, z: -50 },
+            { x: 26, y: 32, z: 46 },
+            { x: -14, y: 40, z: -50 },
+            { x: 10, y: 8, z: -10 },
+            { x: -30, y: 40, z: 14 },
+            { x: 66, y: 40, z: 6 },
         ],
         items: [
             { id: 'nc_speed_n', type: 'item_battery', pickupType: 'SPEED_UP', x: 30, y: 12, z: -50, weight: 1.5 },

@@ -8,11 +8,14 @@
 // ============================================================
 
 import { authoredWorld } from './world_appearance.js';
+import { deriveMapLighting } from './map_lighting_profiles.js';
+import { MAGMA_MAZE_MAP } from './magma_maze.js';
 
 export const VULKAN_ODYSSEY_MAP = {
     vulkan_odyssey: {
         ...authoredWorld('vulkan_odyssey'),
         name: 'Vulkan Odyssey',
+        lighting: deriveMapLighting(MAGMA_MAZE_MAP.magma_maze.lighting, { fog: { near: 90, far: 360 } }),
         size: [380, 114, 200],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
@@ -175,14 +178,14 @@ export const VULKAN_ODYSSEY_MAP = {
             // P5 Fehlschuss → zurueck zu CP10
             { a: [175, 92, 12], b: [150, 86, 0], color: 0xffaa00 },
             // Notfall: Krater → Start
-            { a: [124, 68, 16], b: [-140, 10, 0], color: 0xff0044 },
+            { a: [124, 68, 16], b: [-130, 10, 0], color: 0xff0044 },
         ],
         gates: [
             // P1: Einstiegs-Boost (Sprint durch Slalom)
             {
                 id: 'vod_boost_start',
                 type: 'boost',
-                pos: [-140, 10, 0],
+                pos: [-130, 10, 0],
                 forward: [1, 0, 0],
                 params: { duration: 1.8, forwardImpulse: 48, bonusSpeed: 58, cooldown: 1.2 },
             },
@@ -235,6 +238,12 @@ export const VULKAN_ODYSSEY_MAP = {
             { x: -157, y: 10, z: 10 },
             { x: -157, y: 10, z: -22 },
             { x: -157, y: 10, z: 22 },
+            // More levels for a ten player HUNT round; the first entries stay at the start line.
+            { x: 120, y: 104, z: 58 },
+            { x: 8, y: 48, z: -46 },
+            { x: 120, y: 32, z: 10 },
+            { x: -48, y: 16, z: 34 },
+            { x: -96, y: 64, z: -46 },
         ],
         items: [
             // P1: Lava-Sprint

@@ -16,6 +16,7 @@ const KEYS = [
     'standard',
     'wind_cathedral',
     'chrono_forge_nexus',
+    'eclipse_foundry',
     'maze',
     'complex',
     'vertical_maze',
@@ -185,7 +186,7 @@ test('pyramid: all monuments reach the required measured storm-dam height ratio'
 test('pyramid: spawn and item anchors stay distributed and inside the arena', () => {
     const map = MAP_PRESET_CATALOG.pyramid;
     const spawns = [map.playerSpawn, ...map.botSpawns];
-    assert.equal(spawns.length, 8);
+    assert.equal(spawns.length, 10, 'one spawn per ship of a full round of ten');
     assert.equal(map.items.length, 8);
     for (const anchor of [...spawns, ...map.items.map((entry) => ({
         x: entry.pos[0], y: entry.pos[1], z: entry.pos[2],

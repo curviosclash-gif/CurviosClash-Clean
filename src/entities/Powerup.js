@@ -7,7 +7,7 @@ import { PowerupModelFactory } from './PowerupModelFactory.js';
 import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
 import { applyBlenderPickupModel } from './powerup/PowerupVisualCatalog.js';
 import { findSafePowerupPosition } from './powerup/PowerupSpawnSafetyOps.js';
-import { resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
+import { isAnchorInSealedRing, resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
 import { isSharedPowerupMaterial } from './powerup/PowerupSharedMaterials.js';
 import {
     isPickupTypeAllowedForMode,
@@ -139,7 +139,7 @@ export class PowerupManager {
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
         const spawnRateMul = (strategy && typeof strategy.getSpawnRateMultiplier === 'function')
             ? strategy.getSpawnRateMultiplier() : 1.0;
-        const fieldLimit = resolvePowerupFieldLimit(config.POWERUP.MAX_ON_FIELD, this.arena?.bounds, config.GAMEPLAY.PLANAR_MODE);
+        const fieldLimit = resolvePowerupFieldLimit(config.POWERUP.MAX_ON_FIELD, this.arena?.bounds, config.GAMEPLAY.PLANAR_MODE, config.ARENA?.MAP_SCALE);
         const effectiveInterval = resolvePowerupSpawnInterval(config.POWERUP, fieldLimit, spawnRateMul);
         const authoredItemTarget = this.arena?.currentMapDefinition?.keepAuthoredItemsAvailable === true
             ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
@@ -438,7 +438,7 @@ export class PowerupManager {
         const availableAnchors = [];
         for (let i = 0; i < anchors.length; i += 1) {
             const anchor = anchors[i];
-            if (!anchor || !Number.isFinite(Number(anchor.x)) || !Number.isFinite(Number(anchor.z))) continue;
+            if (!anchor || !Number.isFinite(Number(anchor.x)) || !Number.isFinite(Number(anchor.z)) || isAnchorInSealedRing(this.arena, anchor)) continue;
             const key = buildAnchorKey(anchor, i);
             if (this._occupiedAnchorKeys.has(key)) continue;
             availableAnchors.push({

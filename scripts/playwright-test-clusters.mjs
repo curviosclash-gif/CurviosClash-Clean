@@ -73,6 +73,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/giant-forest.desktop.spec.js',
             'tests/hydra-temple.desktop.spec.js',
             'tests/toybox-titan.desktop.spec.js',
+            'tests/cherry-grove.desktop.spec.js',
             'tests/storm-dam.desktop.spec.js',
             'tests/falkenwacht.desktop.spec.js',
             'tests/falkenwacht-grain-proof.desktop.spec.js',
@@ -159,6 +160,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/giant-forest.desktop.spec.js': ['giant_forest'],
     'tests/hydra-temple.desktop.spec.js': ['hydra_temple'],
     'tests/toybox-titan.desktop.spec.js': ['toybox_titan'],
+    'tests/cherry-grove.desktop.spec.js': ['cherry_grove'],
     'tests/storm-dam.desktop.spec.js': ['storm_dam_siege'],
     'tests/falkenwacht.desktop.spec.js': ['burg_falkenwacht', 'notre_dame'],
     'tests/falkenwacht-grain-proof.desktop.spec.js': ['burg_falkenwacht'],
@@ -166,6 +168,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/sky-dome-gradient.desktop.spec.js': ['eiffel_tower'],
     'tests/canyon-sandstorm.desktop.spec.js': ['clockwork_canyon'],
     'tests/sky-ladder.desktop.spec.js': ['sky_ladder', 'standard'],
+    'tests/arcade-wave-three.desktop.spec.js': ['storm_bridge_siege', 'eiffel_tower_siege', 'bloom_core', 'standard'],
 });
 
 export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([

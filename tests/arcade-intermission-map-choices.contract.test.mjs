@@ -13,6 +13,9 @@ registerMapCatalogConfigSource({
         burg: { name: 'Burghof', size: [80, 30, 80] },
         secret_scenario: { name: 'Szenario', size: [80, 30, 80], hiddenFromMapPicker: true },
         canyon: { name: 'Canyon', size: [80, 30, 80] },
+        empty: { name: 'Leer', size: [50, 25, 50] },
+        glb_hangar: { name: 'GLB Test Hangar', size: [60, 25, 60] },
+        glb_gallery: { name: 'GLB Gallery', size: [270, 38, 230] },
     },
 });
 
@@ -43,5 +46,20 @@ test('the route choice never offers the custom slot or maps hidden from the map 
         assert.ok(offered.length >= 2, `sector ${sector}: alternatives remain, got ${offered.join(',')}`);
         assert.ok(!offered.includes('custom'), `sector ${sector}: ${offered.join(',')}`);
         assert.ok(!offered.includes('secret_scenario'), `sector ${sector}: ${offered.join(',')}`);
+    }
+});
+
+// E8: development maps (empty box, model galleries, showcases) are not for a run's route choice.
+test('the route choice never offers development maps', () => {
+    for (let sector = 2; sector <= 12; sector += 1) {
+        const runtime = {
+            _state: { mapSequence: ['standard', 'standard', 'standard', 'standard', 'standard', 'standard'] },
+            _activeModifierId: '',
+            _getEncounterSectorEntry: () => ({ parcoursEnabled: false, modifierId: '' }),
+        };
+        const offered = buildArcadeIntermissionChoices(runtime, sector).map((choice) => choice.mapKey);
+        for (const devMap of ['empty', 'glb_hangar', 'glb_gallery']) {
+            assert.ok(!offered.includes(devMap), `sector ${sector}: ${offered.join(',')}`);
+        }
     }
 });
