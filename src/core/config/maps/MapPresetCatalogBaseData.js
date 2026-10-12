@@ -78,7 +78,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     empty: {
         name: 'Leer',
-        size: [50, 25, 50],
+        size: [80, 30, 80],
         obstacles: [],
         portals: []
     },
