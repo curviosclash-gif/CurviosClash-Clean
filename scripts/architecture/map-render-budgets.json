@@ -1,0 +1,559 @@
+{
+  "targetFps": 30,
+  "measuredOn": "ANGLE (Intel, Intel(R) UHD Graphics 630 (0x00003E92) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "measuredAt": "2026-10-12",
+  "maps": {
+    "abyssal_descent": {
+      "maxCalls": 78,
+      "maxTriangles": 42374,
+      "pointLights": 1,
+      "shadowCasters": 6,
+      "referenceFps": 38.1,
+      "belowTargetFps": false
+    },
+    "aether_relay": {
+      "maxCalls": 109,
+      "maxTriangles": 63565,
+      "pointLights": 1,
+      "shadowCasters": 26,
+      "referenceFps": 42.1,
+      "belowTargetFps": false
+    },
+    "aetherion_orrery": {
+      "maxCalls": 485,
+      "maxTriangles": 107492,
+      "pointLights": 1,
+      "shadowCasters": 26,
+      "referenceFps": 43.3,
+      "belowTargetFps": false
+    },
+    "bloom_core": {
+      "maxCalls": 74,
+      "maxTriangles": 49834,
+      "pointLights": 1,
+      "shadowCasters": 2,
+      "referenceFps": 33.8,
+      "belowTargetFps": false
+    },
+    "burg_falkenwacht": {
+      "maxCalls": 143,
+      "maxTriangles": 134058,
+      "pointLights": 6,
+      "shadowCasters": 24,
+      "referenceFps": 35.2,
+      "belowTargetFps": false
+    },
+    "burg_falkenwacht_arena": {
+      "maxCalls": 146,
+      "maxTriangles": 134106,
+      "pointLights": 6,
+      "shadowCasters": 24,
+      "referenceFps": 44.5,
+      "belowTargetFps": false
+    },
+    "checkerboard": {
+      "maxCalls": 69,
+      "maxTriangles": 49586,
+      "pointLights": 1,
+      "shadowCasters": 2,
+      "referenceFps": 47.8,
+      "belowTargetFps": false
+    },
+    "cherry_grove": {
+      "maxCalls": 203,
+      "maxTriangles": 730400,
+      "pointLights": 1,
+      "shadowCasters": 0,
+      "referenceFps": 51.5,
+      "belowTargetFps": false
+    },
+    "chrono_forge_nexus": {
+      "maxCalls": 242,
+      "maxTriangles": 126826,
+      "pointLights": 3,
+      "shadowCasters": 25,
+      "referenceFps": 29.9,
+      "belowTargetFps": true
+    },
+    "chrono_spillway": {
+      "maxCalls": 30,
+      "maxTriangles": 35810,
+      "pointLights": 1,
+      "shadowCasters": 3,
+      "referenceFps": 56.2,
+      "belowTargetFps": false
+    },
+    "clockwork_canyon": {
+      "maxCalls": 67,
+      "maxTriangles": 104694,
+      "pointLights": 1,
+      "shadowCasters": 3,
+      "referenceFps": 47.8,
+      "belowTargetFps": false
+    },
+    "complex": {
+      "maxCalls": 87,
+      "maxTriangles": 32762,
+      "pointLights": 1,
+      "shadowCasters": 5,
+      "referenceFps": 45.6,
+      "belowTargetFps": false
+    },
+    "core_fusion": {
+      "maxCalls": 66,
+      "maxTriangles": 30114,
+      "pointLights": 1,
+      "shadowCasters": 2,
+      "referenceFps": 48.1,
+      "belowTargetFps": false
+    },
+    "crossfire": {
+      "maxCalls": 65,
+      "maxTriangles": 29986,
+      "pointLights": 1,
+      "shadowCasters": 2,
+      "referenceFps": 46.3,
+      "belowTargetFps": false
+    },
+    "crystal_ruins": {
+      "maxCalls": 464,
+      "maxTriangles": 138552,
+      "pointLights": 1,
+      "shadowCasters": 15,
+      "referenceFps": 35.1,
+      "belowTargetFps": false
+    },
+    "dandelion_sky": {
+      "maxCalls": 280,
+      "maxTriangles": 150762,
+      "pointLights": 1,
+      "shadowCasters": 7,
+      "referenceFps": 58.2,
+      "belowTargetFps": false
+    },
+    "eclipse_foundry": {
+      "maxCalls": 253,
+      "maxTriangles": 165130,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 39.6,
+      "belowTargetFps": false
+    },
+    "eiffel_tower": {
+      "maxCalls": 106,
+      "maxTriangles": 221772,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 54.9,
+      "belowTargetFps": false
+    },
+    "eiffel_tower_arena": {
+      "maxCalls": 105,
+      "maxTriangles": 184268,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 26,
+      "belowTargetFps": true
+    },
+    "eiffel_tower_siege": {
+      "maxCalls": 323,
+      "maxTriangles": 189819,
+      "pointLights": 1,
+      "shadowCasters": 14,
+      "referenceFps": 25.7,
+      "belowTargetFps": true
+    },
+    "expert_gauntlet": {
+      "maxCalls": 95,
+      "maxTriangles": 143602,
+      "pointLights": 1,
+      "shadowCasters": 3,
+      "referenceFps": 45.4,
+      "belowTargetFps": false
+    },
+    "foam_forest": {
+      "maxCalls": 90,
+      "maxTriangles": 51922,
+      "pointLights": 1,
+      "shadowCasters": 5,
+      "referenceFps": 39.5,
+      "belowTargetFps": false
+    },
+    "frozen_helix": {
+      "maxCalls": 120,
+      "maxTriangles": 66012,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 44.4,
+      "belowTargetFps": false
+    },
+    "giant_forest": {
+      "maxCalls": 160,
+      "maxTriangles": 383264,
+      "pointLights": 1,
+      "shadowCasters": 7,
+      "referenceFps": 23,
+      "belowTargetFps": true
+    },
+    "glass_serpent": {
+      "maxCalls": 53,
+      "maxTriangles": 40966,
+      "pointLights": 1,
+      "shadowCasters": 3,
+      "referenceFps": 57.1,
+      "belowTargetFps": false
+    },
+    "hydra_temple": {
+      "maxCalls": 229,
+      "maxTriangles": 66690,
+      "pointLights": 1,
+      "shadowCasters": 23,
+      "referenceFps": 36.5,
+      "belowTargetFps": false
+    },
+    "kinetic_tide": {
+      "maxCalls": 453,
+      "maxTriangles": 190722,
+      "pointLights": 1,
+      "shadowCasters": 27,
+      "referenceFps": 32.3,
+      "belowTargetFps": false
+    },
+    "magma_maze": {
+      "maxCalls": 64,
+      "maxTriangles": 64164,
+      "pointLights": 1,
+      "shadowCasters": 19,
+      "referenceFps": 37.5,
+      "belowTargetFps": false
+    },
+    "maze": {
+      "maxCalls": 84,
+      "maxTriangles": 31362,
+      "pointLights": 1,
+      "shadowCasters": 5,
+      "referenceFps": 46.5,
+      "belowTargetFps": false
+    },
+    "mega_maze": {
+      "maxCalls": 86,
+      "maxTriangles": 57004,
+      "pointLights": 1,
+      "shadowCasters": 5,
+      "referenceFps": 41.1,
+      "belowTargetFps": false
+    },
+    "mega_maze_xl": {
+      "maxCalls": 85,
+      "maxTriangles": 82894,
+      "pointLights": 1,
+      "shadowCasters": 5,
+      "referenceFps": 45.7,
+      "belowTargetFps": false
+    },
+    "micro_maw": {
+      "maxCalls": 31,
+      "maxTriangles": 10586,
+      "pointLights": 1,
+      "shadowCasters": 3,
+      "referenceFps": 52.9,
+      "belowTargetFps": false
+    },
+    "mirror_docks": {
+      "maxCalls": 120,
+      "maxTriangles": 41866,
+      "pointLights": 1,
+      "shadowCasters": 9,
+      "referenceFps": 42.1,
+      "belowTargetFps": false
+    },
+    "neon_abyss": {
+      "maxCalls": 123,
+      "maxTriangles": 144558,
+      "pointLights": 1,
+      "shadowCasters": 9,
+      "referenceFps": 42.8,
+      "belowTargetFps": false
+    },
+    "neon_carnival": {
+      "maxCalls": 132,
+      "maxTriangles": 103066,
+      "pointLights": 1,
+      "shadowCasters": 27,
+      "referenceFps": 48,
+      "belowTargetFps": false
+    },
+    "neon_circuit": {
+      "maxCalls": 175,
+      "maxTriangles": 69294,
+      "pointLights": 1,
+      "shadowCasters": 21,
+      "referenceFps": 36.8,
+      "belowTargetFps": false
+    },
+    "notre_dame": {
+      "maxCalls": 111,
+      "maxTriangles": 281655,
+      "pointLights": 9,
+      "shadowCasters": 19,
+      "referenceFps": 47.4,
+      "belowTargetFps": false
+    },
+    "notre_dame_arena": {
+      "maxCalls": 111,
+      "maxTriangles": 272279,
+      "pointLights": 9,
+      "shadowCasters": 19,
+      "referenceFps": 41.3,
+      "belowTargetFps": false
+    },
+    "orbital_shipyard": {
+      "maxCalls": 122,
+      "maxTriangles": 98020,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 28.4,
+      "belowTargetFps": true
+    },
+    "parcours_assault": {
+      "maxCalls": 209,
+      "maxTriangles": 88314,
+      "pointLights": 1,
+      "shadowCasters": 8,
+      "referenceFps": 44.4,
+      "belowTargetFps": false
+    },
+    "parcours_rift": {
+      "maxCalls": 73,
+      "maxTriangles": 66230,
+      "pointLights": 1,
+      "shadowCasters": 27,
+      "referenceFps": 55.2,
+      "belowTargetFps": false
+    },
+    "parcours_rift_precision": {
+      "maxCalls": 70,
+      "maxTriangles": 66182,
+      "pointLights": 1,
+      "shadowCasters": 27,
+      "referenceFps": 56.4,
+      "belowTargetFps": false
+    },
+    "parcours_rift_sprint": {
+      "maxCalls": 101,
+      "maxTriangles": 79130,
+      "pointLights": 1,
+      "shadowCasters": 27,
+      "referenceFps": 43.9,
+      "belowTargetFps": false
+    },
+    "pillar_hall": {
+      "maxCalls": 66,
+      "maxTriangles": 49658,
+      "pointLights": 1,
+      "shadowCasters": 2,
+      "referenceFps": 46.9,
+      "belowTargetFps": false
+    },
+    "portal_madness": {
+      "maxCalls": 74,
+      "maxTriangles": 69210,
+      "pointLights": 1,
+      "shadowCasters": 2,
+      "referenceFps": 50,
+      "belowTargetFps": false
+    },
+    "pyramid": {
+      "maxCalls": 143,
+      "maxTriangles": 48264,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 30.7,
+      "belowTargetFps": false
+    },
+    "reactor_site": {
+      "maxCalls": 1253,
+      "maxTriangles": 439426,
+      "pointLights": 2,
+      "shadowCasters": 19,
+      "referenceFps": 32.4,
+      "belowTargetFps": false
+    },
+    "rift_bazaar": {
+      "maxCalls": 144,
+      "maxTriangles": 114195,
+      "pointLights": 1,
+      "shadowCasters": 27,
+      "referenceFps": 40.9,
+      "belowTargetFps": false
+    },
+    "sky_islands": {
+      "maxCalls": 107,
+      "maxTriangles": 71346,
+      "pointLights": 1,
+      "shadowCasters": 8,
+      "referenceFps": 55.2,
+      "belowTargetFps": false
+    },
+    "sky_ladder_abyss": {
+      "maxCalls": 40,
+      "maxTriangles": 37730,
+      "pointLights": 1,
+      "shadowCasters": 3,
+      "referenceFps": 53.1,
+      "belowTargetFps": false
+    },
+    "sky_ladder_foundry": {
+      "maxCalls": 54,
+      "maxTriangles": 48132,
+      "pointLights": 1,
+      "shadowCasters": 4,
+      "referenceFps": 43.9,
+      "belowTargetFps": false
+    },
+    "sky_ladder_star": {
+      "maxCalls": 78,
+      "maxTriangles": 50674,
+      "pointLights": 1,
+      "shadowCasters": 3,
+      "referenceFps": 56,
+      "belowTargetFps": false
+    },
+    "sky_ladder_storm": {
+      "maxCalls": 79,
+      "maxTriangles": 55926,
+      "pointLights": 1,
+      "shadowCasters": 3,
+      "referenceFps": 40.7,
+      "belowTargetFps": false
+    },
+    "skyline_siege": {
+      "maxCalls": 294,
+      "maxTriangles": 58334,
+      "pointLights": 4,
+      "shadowCasters": 13,
+      "referenceFps": 49.4,
+      "belowTargetFps": false
+    },
+    "spiral_tower": {
+      "maxCalls": 75,
+      "maxTriangles": 20962,
+      "pointLights": 1,
+      "shadowCasters": 4,
+      "referenceFps": 39.2,
+      "belowTargetFps": false
+    },
+    "standard": {
+      "maxCalls": 102,
+      "maxTriangles": 29306,
+      "pointLights": 1,
+      "shadowCasters": 5,
+      "referenceFps": 47.8,
+      "belowTargetFps": false
+    },
+    "storm_bridge_siege": {
+      "maxCalls": 376,
+      "maxTriangles": 108446,
+      "pointLights": 1,
+      "shadowCasters": 15,
+      "referenceFps": 54.9,
+      "belowTargetFps": false
+    },
+    "storm_dam_siege": {
+      "maxCalls": 806,
+      "maxTriangles": 149582,
+      "pointLights": 1,
+      "shadowCasters": 14,
+      "referenceFps": 38.1,
+      "belowTargetFps": false
+    },
+    "storm_lighthouse_siege": {
+      "maxCalls": 366,
+      "maxTriangles": 133510,
+      "pointLights": 4,
+      "shadowCasters": 17,
+      "referenceFps": 43,
+      "belowTargetFps": false
+    },
+    "storm_switchyard": {
+      "maxCalls": 111,
+      "maxTriangles": 48102,
+      "pointLights": 1,
+      "shadowCasters": 7,
+      "referenceFps": 39.7,
+      "belowTargetFps": false
+    },
+    "sunflower_meadow": {
+      "maxCalls": 338,
+      "maxTriangles": 348794,
+      "pointLights": 1,
+      "shadowCasters": 22,
+      "referenceFps": 46.7,
+      "belowTargetFps": false
+    },
+    "the_loop": {
+      "maxCalls": 79,
+      "maxTriangles": 40358,
+      "pointLights": 1,
+      "shadowCasters": 4,
+      "referenceFps": 39.9,
+      "belowTargetFps": false
+    },
+    "the_pit": {
+      "maxCalls": 63,
+      "maxTriangles": 29914,
+      "pointLights": 1,
+      "shadowCasters": 2,
+      "referenceFps": 50.5,
+      "belowTargetFps": false
+    },
+    "toybox_titan": {
+      "maxCalls": 174,
+      "maxTriangles": 59998,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 25.9,
+      "belowTargetFps": true
+    },
+    "trench": {
+      "maxCalls": 78,
+      "maxTriangles": 49998,
+      "pointLights": 1,
+      "shadowCasters": 4,
+      "referenceFps": 46.8,
+      "belowTargetFps": false
+    },
+    "verdant_aperture": {
+      "maxCalls": 547,
+      "maxTriangles": 282479,
+      "pointLights": 1,
+      "shadowCasters": 26,
+      "referenceFps": 48.9,
+      "belowTargetFps": false
+    },
+    "vertical_maze": {
+      "maxCalls": 85,
+      "maxTriangles": 31530,
+      "pointLights": 1,
+      "shadowCasters": 5,
+      "referenceFps": 41.3,
+      "belowTargetFps": false
+    },
+    "vulkan_odyssey": {
+      "maxCalls": 99,
+      "maxTriangles": 98534,
+      "pointLights": 1,
+      "shadowCasters": 9,
+      "referenceFps": 32.7,
+      "belowTargetFps": false
+    },
+    "wind_cathedral": {
+      "maxCalls": 75,
+      "maxTriangles": 61050,
+      "pointLights": 5,
+      "shadowCasters": 9,
+      "referenceFps": 42.9,
+      "belowTargetFps": false
+    }
+  }
+}
