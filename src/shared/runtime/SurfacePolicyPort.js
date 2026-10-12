@@ -31,8 +31,7 @@ export function createSurfacePolicyPort(deps = {}) {
         
         // Fallback to reading from settings -> surfacePolicy if no explicit id is provided
         const settings = getSettings();
-        const settingsSurfaceId = settings?.localSettings?.toolsState?.surfacePolicy?.productSurfaceId 
-            || settings?.localSettings?.runtimeFeatureFlags?.surfacePolicy?.productSurfaceId;
+        const settingsSurfaceId = settings?.localSettings?.toolsState?.surfacePolicy?.productSurfaceId;
         
         return { productSurfaceId: settingsSurfaceId || '' };
     }

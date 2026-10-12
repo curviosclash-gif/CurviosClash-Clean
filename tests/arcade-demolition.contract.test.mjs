@@ -361,14 +361,13 @@ test('demolition profile selectors refresh on focus and preserve or report saved
     }
 });
 
-test('explicit network sessions count local slots, while splitscreen keeps its selected count', () => {
+test('network sessions count one local profile, while splitscreen keeps its selected count', () => {
     assert.equal(resolveDemolitionLocalPlayerCount({
         mode: '3p',
         localSettings: {
             sessionType: 'multiplayer',
             multiplayerTransport: 'lan',
             humanEntityCount: 4,
-            localHumanCount: 1,
             threePlayerSplit: { enabled: true },
         },
     }), 1, 'network entity totals and stale splits do not count as local profiles');
@@ -376,11 +375,10 @@ test('explicit network sessions count local slots, while splitscreen keeps its s
         mode: '3p',
         localSettings: {
             sessionType: 'lan',
-            humanEntityCount: 4,
-            localHumanCount: 2,
+            lanHostLocalPlayerCount: 2,
             threePlayerSplit: { enabled: true },
         },
-    }), 2, 'a LAN host may own two local slots');
+    }), 1, 'arcade has no network play yet, so a stored host slot count does not add local profiles');
     assert.equal(resolveDemolitionLocalPlayerCount({
         localSettings: { sessionType: 'splitscreen', threePlayerSplit: { enabled: true } },
     }), 3);

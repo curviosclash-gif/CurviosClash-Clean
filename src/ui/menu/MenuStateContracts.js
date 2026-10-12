@@ -261,6 +261,9 @@ function normalizeLocalSettingsState(localSettings = null) {
             ? { fightHangar: normalizeFightHangarState(source.fightHangar) } : {}),
         ...(source.classicTutorial && typeof source.classicTutorial === 'object'
             ? { classicTutorial: normalizeClassicTutorialState(source.classicTutorial) } : {}),
+        // Raw value on purpose: the preview helpers normalize number and string colors when they read it.
+        ...(typeof source.playerColorP1 === 'string' || Number.isFinite(source.playerColorP1)
+            ? { playerColorP1: source.playerColorP1 } : {}),
     };
 }
 
