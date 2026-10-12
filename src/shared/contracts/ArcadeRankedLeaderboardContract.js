@@ -16,7 +16,9 @@ export function resolveArcadeRankKey(context) {
 
 export function resolveArcadeParcoursRankKey(routeId, context) {
     const route = String(routeId || '').trim();
-    if (!context?.ranked) return route;
+    // Custom score settings change points, not course times: such runs still race on the level board.
+    // Companions (help in flight), the Daily and unscaled runs keep the shared route board.
+    if (!context?.strengthScaled || context.companions) return route;
     const range = resolveArcadeLevelRange(context.vehicleLevel);
     return `${route}:level:${range.min}-${range.max}`;
 }
