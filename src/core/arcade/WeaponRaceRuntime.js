@@ -9,6 +9,7 @@ import {
     finishWeaponRaceRacer,
     rankWeaponRaceRacers,
     recordWeaponRaceCheckpoint,
+    shiftWeaponRaceClock,
     updateWeaponRaceProgress,
 } from '../../state/arcade/WeaponRaceState.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
@@ -49,6 +50,8 @@ export class WeaponRaceRuntime {
         this.roundOutcome = null;
         this.presentation = null;
         this.route = null;
+        this._clockOwner = null;
+        this._lastRaceNowMs = null;
     }
 
     start({ entityManager = null, vehicleId = 'ship1' } = {}) {
@@ -63,6 +66,8 @@ export class WeaponRaceRuntime {
             racerIds: players.map(playerId),
         });
         this.phase = 'racing';
+        this._clockOwner = entityManager;
+        this._lastRaceNowMs = this.state.startedAtMs;
         this.rewardBinding = bindArcadeVehicleRewards({ runType: WEAPON_RACE_RUN_TYPE, vehicleId });
         this.xpEarned = 0;
         this.bestXpAwarded = false;
@@ -119,6 +124,18 @@ export class WeaponRaceRuntime {
     _raceNow(entityManager = this.entityManager) {
         const simulationNow = Number(entityManager?._simulationClockMs);
         return Number.isFinite(simulationNow) && simulationNow >= 0 ? simulationNow : this._now();
+    }
+
+    // The run is armed before spawnAll restarts the round clock, and a sector rebuild hands the race
+    // a new entity manager with its own clock (rebind). Shift the race stamps by the jump so played
+    // time carries over instead of every finish being clamped to the start.
+    _followRaceClock() {
+        if (this.phase !== 'racing' && this.phase !== 'grace') return;
+        const nowMs = this._raceNow();
+        const switched = this._clockOwner !== this.entityManager || nowMs < this._lastRaceNowMs;
+        if (switched && Number.isFinite(this._lastRaceNowMs)) shiftWeaponRaceClock(this.state, nowMs - this._lastRaceNowMs);
+        this._clockOwner = this.entityManager;
+        this._lastRaceNowMs = nowMs;
     }
 
     _archivePendingRewards() {
@@ -340,6 +357,7 @@ export class WeaponRaceRuntime {
     }
 
     update(now = this._now()) {
+        this._followRaceClock();
         const canRetryRewards = this._beginRewardRetryWindow();
         if (canRetryRewards) {
             this._settleArchivedRewards(true);
