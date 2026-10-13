@@ -106,10 +106,12 @@ test('the fire opens the roof and puts the spire on the floor', async ({ page },
         }
         return {
             debrisSolidCount: debrisRing.filter(([x, y, z]) => solid(x, y, z)).length,
-            // The crossing checkpoint of the parcours route sits here. The pile is 13 units tall
-            // and must stay well clear of it.
+            // The crossing checkpoint of the parcours route sits here (CP09, y 38). Since the arena
+            // became the evolution (c67ae11b) the burnt spire lies in the crossing as the
+            // evolution_fleche_lower collider, solid up to y 28 at 310 s and still at 700 s, so the
+            // clearance is checked just above that pile instead of above the old 13-unit heap.
             routeHeightClear: !solid(crossingX, 38, 0),
-            aboveDebrisClear: !solid(crossingX, 26, 0),
+            aboveDebrisClear: !solid(crossingX, 30, 0),
         };
     }, { scale: MAP_SCALE, crossingX: CROSSING_X });
 
