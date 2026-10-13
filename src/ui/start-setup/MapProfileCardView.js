@@ -12,6 +12,7 @@ const SIZE_LABELS = Object.freeze({
     [MAP_PROFILE_SIZE_CLASSES.LARGE]: 'groß',
 });
 
+/** @type {Readonly<Record<string, string>>} */
 const SYMBOLS = Object.freeze({
     size: '⤢',
     bots: '⚙',

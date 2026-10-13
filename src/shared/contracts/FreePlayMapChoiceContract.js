@@ -97,7 +97,7 @@ export function pickRandomFreePlayMapKey({
 } = {}) {
     /** @type {string[]} */
     const unique = Array.from(new Set((Array.isArray(candidates) ? candidates : [])
-        .filter((mapKey) => typeof mapKey === 'string' && mapKey.trim() !== '')));
+        .filter(/** @returns {mapKey is string} */ (mapKey) => typeof mapKey === 'string' && mapKey.trim() !== '')));
     if (unique.length === 0) return '';
     const recent = new Set((Array.isArray(recentKeys) ? recentKeys : []).slice(0, Math.max(0, exclude)));
     const fresh = unique.filter((mapKey) => !recent.has(mapKey));
