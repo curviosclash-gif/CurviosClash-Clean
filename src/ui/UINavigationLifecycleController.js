@@ -10,6 +10,7 @@ import {
     resolveDeveloperAccessPolicy,
 } from './menu/MenuAccessPolicy.js';
 import { LEVEL4_SECTION_IDS, MENU_SESSION_TYPES } from './menu/MenuStateContracts.js';
+import { syncLevel4ResetButton } from './menu/Level4ResetButton.js';
 import { MenuNavigationRuntime } from './menu/MenuNavigationRuntime.js';
 import { resolveMapPreview } from './menu/MenuPreviewCatalog.js';
 import { resolveMenuCatalogText } from './menu/MenuTextCatalog.js';
@@ -158,14 +159,7 @@ export class UINavigationLifecycleController {
             panel.classList.toggle('is-active', isActive);
             panel.setAttribute('aria-hidden', String(!isActive));
         });
-        if (this.ui.level4ResetButton) {
-            const resetVisible = resolvedSectionId === LEVEL4_SECTION_IDS.GRAPHICS;
-            this.ui.level4ResetButton.classList.toggle('hidden', !resetVisible);
-            this.ui.level4ResetButton.setAttribute('aria-hidden', String(!resetVisible));
-            this.ui.level4ResetButton.disabled = !resetVisible;
-        }
-        const scopeHint = this.ui.level4Drawer?.querySelector?.('#level4-reset-scope');
-        scopeHint?.classList.toggle('hidden', resolvedSectionId !== LEVEL4_SECTION_IDS.GRAPHICS);
+        syncLevel4ResetButton(this.ui.level4ResetButton, resolvedSectionId);
         if (options.focus) {
             const focusTarget = tabs.find((button) => this._resolveLevel4Section(button?.dataset?.level4SectionTarget, '') === resolvedSectionId);
             focusWithoutScroll(focusTarget);

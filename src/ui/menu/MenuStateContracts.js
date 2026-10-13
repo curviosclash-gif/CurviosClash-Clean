@@ -15,6 +15,7 @@ import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleCont
 import { normalizeGraphicsQualitySetting } from '../../shared/contracts/GraphicsQualityContract.js';
 import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessContract.js';
 import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContract.js';
+import { normalizeMenuScale } from '../../shared/contracts/MenuScaleContract.js';
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
@@ -86,7 +87,6 @@ export const LEVEL4_SECTION_IDS = Object.freeze({
     GRAPHICS: 'graphics',
     RECORDING: 'recording',
     HUD: 'hud',
-    ADVANCED_MAP: 'advanced_map',
     TOOLS: 'tools',
     UTILITIES: 'utilities',
 });
@@ -244,6 +244,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
         mapBrightness: normalizeMapBrightness(source.mapBrightness, defaults.mapBrightness),
         viewDistance: normalizeViewDistance(source.viewDistance, defaults.viewDistance),
+        menuScale: normalizeMenuScale(source.menuScale, defaults.menuScale),
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
         bloomQuality: normalizeBloomQuality(source.bloomQuality, defaults.bloomQuality ?? DEFAULT_BLOOM_QUALITY),
         bloomQualityUserSet: normalizeBoolean(source.bloomQualityUserSet, false),

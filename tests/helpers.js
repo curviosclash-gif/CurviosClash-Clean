@@ -501,6 +501,11 @@ export async function openLevel4Drawer(page, options = {}) {
     }
     await page.click('#btn-open-level4');
     await page.waitForSelector('#submenu-level4:not(.hidden)', { timeout: 4000 });
+    if (options.backups) {
+        // Saved settings sit in the drawer footer behind "Sichern / Laden".
+        await page.click('#btn-level4-backups');
+        await page.waitForSelector('#level4-backups:not([hidden])', { timeout: 4000 });
+    }
     if (options.section) {
         const sectionId = String(options.section).trim();
         await page.click(`#submenu-level4 [data-level4-section-target="${sectionId}"]`);

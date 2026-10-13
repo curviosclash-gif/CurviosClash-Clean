@@ -76,7 +76,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         await loadGame(page);
         const dialogs = [];
         page.on('dialog', d => { dialogs.push(d.message()); d.dismiss(); });
-        await openLevel4Drawer(page, { section: 'tools' });
+        await openLevel4Drawer(page, { backups: true });
         await page.fill('#profile-name', '<img src=x onerror=alert(1)>');
         const isDisabled = await page.isDisabled('#btn-profile-save');
         if (!isDisabled) {

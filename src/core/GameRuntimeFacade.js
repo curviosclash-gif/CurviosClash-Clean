@@ -442,8 +442,8 @@ export class GameRuntimeFacade {
         return this.menuActionHandler.handleLevel4Close();
     }
 
-    handleLevel4Reset() {
-        return this.menuActionHandler.handleLevel4Reset();
+    handleLevel4Reset(event) {
+        return this.menuActionHandler.handleLevel4Reset(event);
     }
 
     handleConfigExportCode() {

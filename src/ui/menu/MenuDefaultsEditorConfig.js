@@ -9,6 +9,7 @@ import { DEFAULT_MOBILE_CLASSIC_CONTROLS } from '../../shared/contracts/MobileCl
 import { GRAPHICS_STYLES } from '../../shared/contracts/GraphicsStyleContract.js';
 import { DEFAULT_MAP_BRIGHTNESS } from '../../shared/contracts/MapBrightnessContract.js';
 import { DEFAULT_VIEW_DISTANCE } from '../../shared/contracts/ViewDistanceContract.js';
+import { DEFAULT_MENU_SCALE, normalizeMenuScale } from '../../shared/contracts/MenuScaleContract.js';
 import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { createDefaultAudioSettings, normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
@@ -131,6 +132,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         graphicsStyle: GRAPHICS_STYLES.MODERN,
         mapBrightness: DEFAULT_MAP_BRIGHTNESS,
         viewDistance: DEFAULT_VIEW_DISTANCE,
+        menuScale: DEFAULT_MENU_SCALE,
         shadowQuality: DEFAULT_SHADOW_QUALITY,
         bloomQuality: DEFAULT_BLOOM_QUALITY,
         bloomQualityUserSet: false,
@@ -433,6 +435,7 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
             graphicsStyle: String(localSettings.graphicsStyle || MENU_DEFAULT_EDITOR_CONFIG.localSettings.graphicsStyle),
             mapBrightness: String(localSettings.mapBrightness || MENU_DEFAULT_EDITOR_CONFIG.localSettings.mapBrightness),
             viewDistance: Number(localSettings.viewDistance ?? MENU_DEFAULT_EDITOR_CONFIG.localSettings.viewDistance),
+            menuScale: normalizeMenuScale(localSettings.menuScale, MENU_DEFAULT_EDITOR_CONFIG.localSettings.menuScale),
             shadowQuality: String(localSettings.shadowQuality || MENU_DEFAULT_EDITOR_CONFIG.localSettings.shadowQuality),
             bloomQuality: String(localSettings.bloomQuality ?? MENU_DEFAULT_EDITOR_CONFIG.localSettings.bloomQuality),
             mouseSteering: localSettings.mouseSteering === true,

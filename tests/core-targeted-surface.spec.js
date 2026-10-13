@@ -1530,8 +1530,6 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             return {
                 level3MapKey: level3Reset.mapKey,
                 level3VehicleP1: level3Reset.vehicles.PLAYER_1,
-                level4Speed: String(baseSettings.gameplay.speed),
-                level4PerspectiveNormal: String(baseSettings.cameraPerspective?.normal || 'classic'),
                 level4PerspectiveReduceMotion: !!baseSettings.cameraPerspective?.reduceMotion,
             };
         });
@@ -1558,25 +1556,21 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.runtimeFacade.onSettingsChanged({ changedKeys: ['gameplay.speed'] });
         });
         expect(await page.evaluate(() => window.GAME_INSTANCE.settings.gameplay.speed)).toBe(33);
-        // Reset = defaults plus the style preset of the current game style (fresh profile values).
-        expectedDefaults.level4Speed = await page.evaluate(async () => {
-            const mod = await window.__curviosImport('/src/ui/menu/MenuDefaultsEditorConfig.js');
-            const modePath = window.GAME_INSTANCE.settings.localSettings.modePath;
-            const presetId = { fight: 'fight-standard', arcade: 'arcade', normal: 'normal-standard' }[modePath];
-            const presetSpeed = mod.findFixedMenuPresetSeedById(presetId)?.values?.['gameplay.speed'];
-            return String(presetSpeed ?? mod.createMenuBaseSettingsDefaults().gameplay.speed);
-        });
         // The video perspective lives with the recording options; calmer camera stays in graphics.
         await page.click('#level4-tab-recording');
         await page.selectOption('#normal-camera-perspective-select', 'cinematic_action');
         await page.click('#level4-tab-graphics');
         await page.uncheck('#normal-camera-reduce-motion-toggle');
+        // The reset button is labelled for the open tab and resets that tab only.
+        await expect(page.locator('#btn-level4-reset')).toHaveText('Grafik & Kamera zurücksetzen');
         await page.click('#btn-level4-reset');
         await expect(page.locator('#btn-level4-reset')).toHaveAttribute('data-reset-armed', 'true');
         await page.click('#btn-level4-reset');
         await waitForRenderFrames(page, 2);
-        expect(String(await page.evaluate(() => window.GAME_INSTANCE.settings.gameplay.speed))).toBe(expectedDefaults.level4Speed);
-        expect(await page.inputValue('#normal-camera-perspective-select')).toBe(expectedDefaults.level4PerspectiveNormal);
+        // The game rules are not part of any settings tab, so the reset leaves them alone.
+        expect(await page.evaluate(() => window.GAME_INSTANCE.settings.gameplay.speed)).toBe(33);
+        // The video perspective belongs to the recording tab and stays after a graphics reset.
+        expect(await page.inputValue('#normal-camera-perspective-select')).toBe('cinematic_action');
         await expect(page.locator('#normal-camera-reduce-motion-toggle')).toHaveJSProperty(
             'checked',
             expectedDefaults.level4PerspectiveReduceMotion
@@ -1864,7 +1858,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await expect(page.locator('.start-vehicle-preview-hint')).toHaveAttribute('title', 'Ziehen: drehen · Mausrad: zoomen');
 
         await openLevel4Drawer(page, { section: 'tools' });
-        await expect(page.locator('#level4-section-tools .section-title .menu-info-hint')).toHaveAttribute(
+        await expect(page.locator('#level4-backups .section-title .menu-info-hint')).toHaveAttribute(
             'title',
             'Speichere den aktuellen Stand aller Einstellungen unter einem Namen.'
         );
@@ -3465,7 +3459,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(Math.abs(state.drawerOffsetTop)).toBeLessThanOrEqual(2);
         expect(state.backgroundInert).toBeTruthy();
         expect(state.backgroundAriaHidden).toBe('true');
-        // The reset button lives in the graphics tab.
+        // The reset button sits in the drawer footer and follows the open tab.
         await page.click('#submenu-level4 [data-level4-section-target="graphics"]');
         await page.locator('#btn-level4-reset').focus();
         await page.keyboard.press('Shift+Tab');
@@ -3516,7 +3510,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             };
         });
 
-        expect(level4State.tabCount).toBe(9);
+        expect(level4State.tabCount).toBe(8);
         expect(level4State.activeSection).toBe('tools');
         expect(level4State.profileContainsPresetActions).toBeFalsy();
         expect(level4State.profileContainsEditorActions).toBeFalsy();
