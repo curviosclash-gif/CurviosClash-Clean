@@ -7460,6 +7460,50 @@ body:has(#hunt-hud:not(.hidden) #hunt-target-progress:not(.hidden)) #hud-notice-
     min-height: 36px;
 }
 
+.start-map-profile {
+    display: grid;
+    gap: 5px;
+    padding: 8px 10px;
+    border: 1px solid rgba(115, 187, 245, 0.18);
+    border-radius: 10px;
+    background: rgba(7, 19, 34, 0.42);
+}
+
+.start-map-profile.hidden {
+    display: none;
+}
+
+.start-map-profile-heading {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgba(224, 239, 252, 0.92);
+}
+
+.start-map-profile-list {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: rgba(224, 239, 252, 0.82);
+}
+
+.start-map-profile-list li {
+    display: grid;
+    grid-template-columns: 1.3em 1fr;
+    gap: 6px;
+    align-items: baseline;
+}
+
+.start-map-profile-symbol {
+    text-align: center;
+    color: rgba(115, 187, 245, 0.9);
+}
+
 .start-map-choice-strip {
     display: grid;
     gap: 10px;

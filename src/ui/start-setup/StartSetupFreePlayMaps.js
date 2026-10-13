@@ -4,13 +4,16 @@
 // Pure helpers over settings, so the sync code stays short and the rules stay testable.
 // ============================================
 
-import { isMapEligibleForFreePlayVariant } from '../../shared/contracts/FreePlayVariantContract.js';
+import { isMapEligibleForFreePlayVariant, resolveFreePlayVariantSettings } from '../../shared/contracts/FreePlayVariantContract.js';
 import {
     describeFreePlayMapCount,
     rememberFreePlayMap,
     resolveFreePlayVariantMapKey,
 } from '../../shared/contracts/FreePlayMapChoiceContract.js';
+import { resolveMapProfile } from '../../shared/contracts/MapProfileContract.js';
+import { resolveBundledMapBalancing } from '../../shared/maps/MapBalancingBundledData.js';
 import { writeHangarMapSelection } from '../hangar/HangarSelectionWritebackContract.js';
+import { renderMapProfileCard } from './MapProfileCardView.js';
 
 /** Runtime-only memory of the variant the last sync saw (undefined before the first sync). */
 export function createFreePlayVariantTracker() {
@@ -53,6 +56,23 @@ export function rememberFreePlayVariantMap({ settings, variant, maps, mapKey, is
     if (localSettings.freePlayMapByVariant?.[variant] === mapKey) return false;
     localSettings.freePlayMapByVariant = { ...rememberFreePlayMap(localSettings.freePlayMapByVariant, variant, mapKey) };
     return true;
+}
+
+/**
+ * Steckbrief of the chosen map (K4): size, bot limit, recommended pilots, features. Shown in free
+ * play only. The bot limit is read from the shipped map balancing for display; it is not enforced
+ * here (MAP_BALANCING_AUTHORITATIVE decides that in the runtime).
+ * @param {{ node: HTMLElement|null|undefined, variant: string|null, mapKey: string, mapDefinition?: unknown, mapName?: string }} options
+ */
+export function syncMapProfileCard({ node, variant, mapKey, mapDefinition, mapName = '' }) {
+    if (!node) return;
+    if (!variant || !mapDefinition) {
+        renderMapProfileCard(node, null);
+        return;
+    }
+    const { modePath, gameMode } = resolveFreePlayVariantSettings(variant);
+    const balancing = resolveBundledMapBalancing({ modePath, mapKey });
+    renderMapProfileCard(node, { profile: resolveMapProfile(mapDefinition, balancing, { gameMode }), mapName });
 }
 
 /**
