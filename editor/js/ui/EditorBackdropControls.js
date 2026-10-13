@@ -43,7 +43,11 @@ export function bindEditorBackdropControls(editor) {
         const key = editor.mapManager?.mapDocumentMeta?.editorBackdrop;
         if (!key) return null;
         const presets = catalog || await catalogReady;
-        return presets?.[key] || null;
+        const preset = presets?.[key] || null;
+        if (!preset) {
+            editor.notify?.(`Spielkarte „${key}“ nicht gefunden: Platzierungen ohne ihre Ankerregel (Welteinheiten) kopiert.`, 'warn');
+        }
+        return preset;
     };
 
     // Like a pilot at the start: in the player spawn, looking level towards the map centre.

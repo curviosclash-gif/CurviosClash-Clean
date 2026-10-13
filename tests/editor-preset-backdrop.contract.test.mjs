@@ -257,6 +257,28 @@ test('a copy warns where a map without scaled anchors would cut a value to its w
     assert.deepEqual(scaledWarnings, []);
 });
 
+test('a copy says so when the saved backdrop map is no longer in the catalog', async () => {
+    const reopened = createEditor();
+    const arenaSize = reopened.load({ arenaSize: { width: 4200, height: 1400, depth: 4200 }, editorBackdrop: 'gone_map' });
+    const previousDocument = globalThis.document;
+    globalThis.document = { createElement: () => ({}) };
+    try {
+        const notes = [];
+        const editor = {
+            core: reopened.mapManager.core,
+            dom: { jsonOutput: { value: '' } },
+            mapManager: reopened.mapManager,
+            getArenaSizeForExport: () => arenaSize,
+            notify: (message, type) => notes.push({ message, type }),
+        };
+        bindEditorBackdropControls(editor);
+        await editor.copyPlacementsInPresetFormat();
+        assert.ok(notes.some((note) => note.type === 'warn' && note.message.includes('gone_map')), JSON.stringify(notes));
+    } finally {
+        globalThis.document = previousDocument;
+    }
+});
+
 /** Lighting of the map the match builds from an editor export. */
 function exportedMatchLighting(mapManager, arenaSize) {
     const parsed = parseMapJSON(mapManager.generateJSONExport(arenaSize));
