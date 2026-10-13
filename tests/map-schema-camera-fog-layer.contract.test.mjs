@@ -99,6 +99,23 @@ test('a game map used as backdrop hands its view distance and fog layer to the e
     assert.deepEqual(normalizeMapFogLayer(forest.fogLayer), normalizeMapFogLayer(FOG_LAYER));
 });
 
+test('a fog layer edge too sharp for the editor map is reported, not cut silently', () => {
+    // 0.3 per world unit becomes 0.9 per map unit, above the layer's 0.5 ceiling.
+    const preset = {
+        size: [100, 40, 100],
+        glbModels: [{ id: 'w', url: 'assets/maps/w/glb/w.glb', position: [0, 0, 0] }],
+        fogLayer: { stages: [
+            { atSeconds: 0, ceiling: 60, ceilingFalloff: 0.3, floor: -30, floorFalloff: 0 },
+            { atSeconds: 90, ceiling: 120, ceilingFalloff: 0.05, floor: 0, floorFalloff: 0 },
+        ] },
+    };
+    const { warnings } = convertPresetToEditorDocument('plain', preset, { mapScale: MAP_SCALE });
+    assert.equal(warnings.length, 1, JSON.stringify(warnings));
+    assert.match(warnings[0], /fogLayer/);
+    const forest = convertPresetToEditorDocument('giant_forest', MAP_PRESET_CATALOG.giant_forest, { mapScale: MAP_SCALE });
+    assert.deepEqual(forest.warnings, []);
+});
+
 test('fog layer heights of a map without scaled anchors stay at the same world height', () => {
     const stages = [
         { atSeconds: 0, ceiling: 60, ceilingFalloff: 0.03, floor: -30, floorFalloff: 0 },

@@ -2,6 +2,7 @@ import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.
 import { fromArenaMapDefinition, parseMapJSON, toArenaMapDefinition } from '../../src/entities/MapSchema.js';
 import { resolveMapStaticTurretDefinitions } from '../../src/shared/contracts/MapSinglePlayerScenarioContract.js';
 import { resolveMapUnitDefinitions } from '../../src/shared/contracts/MapUnitContract.js';
+import { MAP_FOG_LAYER_RANGES } from '../../src/shared/contracts/MapFogLayerContract.js';
 
 // A built-in map as backdrop: its world model, spawns and lighting become an editor map (saved
 // with it, so the match lights it the same), and
@@ -74,13 +75,19 @@ function adaptLightingToScaledAnchors(lighting, preset, mapScale) {
  * heights follow the anchors like the static fog height, so a preset without
  * scaleAuthoredAnchors gets them converted the same way.
  */
-function presetViewFields(preset, mapScale) {
+function presetViewFields(preset, mapScale, warnings) {
     const fields = {};
     const cameraFar = finiteOr(preset?.cameraFar, 0);
     if (cameraFar > 0) fields.cameraFar = cameraFar;
     const stages = preset?.fogLayer?.stages;
     if (Array.isArray(stages)) {
         const scale = preset.scaleAuthoredAnchors === true ? 1 : Math.max(0.001, finiteOr(mapScale, 3));
+        // The layer caps its falloff per map unit; a sharp world edge can end up above that cap.
+        const tooSharp = stages.some((stage) => ['ceilingFalloff', 'floorFalloff']
+            .some((field) => finiteOr(stage?.[field], 0) * scale > MAP_FOG_LAYER_RANGES.falloff.max));
+        if (tooSharp) {
+            warnings.push(`fogLayer: ein Übergang ist schärfer, als die Editor-Karte speichern kann; er wird auf ${MAP_FOG_LAYER_RANGES.falloff.max / scale} pro Welteinheit gekappt.`);
+        }
         fields.fogLayer = {
             stages: stages.map((stage) => ({
                 ...stage,
@@ -103,6 +110,7 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
     if (!Array.isArray(preset?.size) || preset.size.length !== 3) {
         throw new Error('Preset needs a size of three numbers.');
     }
+    const warnings = [];
     if ((!Array.isArray(preset?.glbModels) || preset.glbModels.length === 0)
         && Array.isArray(preset?.obstacles) && preset.obstacles.length > 0) {
         const document = fromArenaMapDefinition(preset, { mapScale }).document;
@@ -112,7 +120,7 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
                 id: `${BACKDROP_ID_PREFIX}${entry.id || `${listKey}_${index + 1}`}`,
             }));
         }
-        return { document: { ...document, ...presetViewFields(preset, mapScale), editorBackdrop: key } };
+        return { document: { ...document, ...presetViewFields(preset, mapScale, warnings), editorBackdrop: key }, warnings };
     }
     const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
     const anchorUnits = preset?.scaleAuthoredAnchors === true ? units : units / Math.max(0.001, finiteOr(mapScale, 3));
@@ -140,11 +148,12 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
             arenaSize: { width, height, depth },
             glbModels,
             ...(lighting ? { lighting } : {}),
-            ...presetViewFields(preset, mapScale),
+            ...presetViewFields(preset, mapScale, warnings),
             ...(preset.glbColliderMode ? { glbColliderMode: preset.glbColliderMode } : {}),
             ...(preset.playerSpawn ? { playerSpawn: toAnchor(preset.playerSpawn, 'spawn_player') } : {}),
             botSpawns: (preset.botSpawns || []).map((spawn, index) => toAnchor(spawn, `spawn_bot_${index + 1}`)),
         },
+        warnings,
     };
 }
 

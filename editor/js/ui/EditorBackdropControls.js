@@ -78,7 +78,7 @@ export function bindEditorBackdropControls(editor) {
             // The editor dialog resolves null on Cancel, Escape or a click beside it.
             if (!confirmed) return false;
         }
-        const { document: mapDocument } = convertPresetToEditorDocument(key, preset, { mapScale: getRuntimeMapScale(1) });
+        const { document: mapDocument, warnings } = convertPresetToEditorDocument(key, preset, { mapScale: getRuntimeMapScale(1) });
         editor.executeHistoryMutation('Load map backdrop', () => {
             editor.mapManager.importFromJSON(JSON.stringify(mapDocument), {
                 onArenaSize: (arenaSize) => {
@@ -96,6 +96,7 @@ export function bindEditorBackdropControls(editor) {
         editor.selectObject(null);
         lookFromPlayerSpawn();
         editor.notify?.(`${preset.name || key} geladen. Abflug mit G.`, 'success');
+        for (const warning of warnings || []) editor.notify?.(warning, 'warn');
         return true;
     };
 
