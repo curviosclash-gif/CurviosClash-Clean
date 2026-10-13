@@ -9,6 +9,31 @@ import {
     resolveFreePlayVariantSettings,
 } from '../../shared/contracts/FreePlayVariantContract.js';
 import { handleModePathChangeAction } from './MenuRuntimeSessionService.js';
+import { CONFIG } from '../Config.js';
+import { writeHangarMapSelection } from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { isMapEligibleForModePath } from '../../shared/contracts/MapModeContract.js';
+import { resolveFreePlayVariantMapKey } from '../../shared/contracts/FreePlayMapChoiceContract.js';
+import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
+
+// V7: the map this variant remembers comes back when the player switches to it, if it fits.
+function restoreRememberedMap(game, variant, modePath) {
+    const settings = game.settings;
+    const surface = createSurfacePolicyPort({
+        getProductSurfaceId: () => String(game?.uiManager?._runtimeFeatureFlags?.surfacePolicy?.productSurfaceId || '').trim().toLowerCase(),
+        getSettings: () => settings,
+    });
+    const maps = CONFIG?.MAPS || {};
+    const target = resolveFreePlayVariantMapKey({
+        variant,
+        memory: settings.localSettings?.freePlayMapByVariant,
+        maps,
+        currentMapKey: settings.mapKey,
+        isOffered: (mapKey) => isMapEligibleForModePath(maps[mapKey], modePath) && surface.isMapAllowed(mapKey, modePath),
+    });
+    if (!target || target === settings.mapKey) return false;
+    writeHangarMapSelection(settings, target, target, { modePath });
+    return true;
+}
 
 const TEAM_CHANGED_KEYS = Object.freeze([
     SETTINGS_CHANGE_KEYS.HUNT_TEAM_MODE,
@@ -30,6 +55,7 @@ export function handleFreePlayVariantChangeAction(ctx) {
     const remembered = normalizeFreePlayVariant(game.settings.localSettings.freePlayVariant);
     const pinned = resolveFreePlayVariantSettings(normalizeFreePlayVariant(event?.variant, remembered));
     const stayOnPanel = event?.stayOnPanel === true;
+    let mapChanged = false;
 
     handleModePathChangeAction({
         ...ctx,
@@ -43,9 +69,11 @@ export function handleFreePlayVariantChangeAction(ctx) {
                 settings.hunt.teamMode = pinned.teamMode;
                 settings.hunt.teamObjective = pinned.teamObjective;
                 if (pinned.forcesRespawn) settings.hunt.respawnEnabled = true;
+                if (restoreRememberedMap(game, pinned.variant, pinned.modePath)) mapChanged = true;
             }
             settings.localSettings.freePlayVariant = deriveFreePlayVariant(settings) || remembered;
             const changedKeys = [...(payload?.changedKeys || []), ...TEAM_CHANGED_KEYS];
+            if (mapChanged) changedKeys.push(SETTINGS_CHANGE_KEYS.MAP_KEY);
             ctx.onSettingsChanged?.({ ...payload, changedKeys: Array.from(new Set(changedKeys)) });
         },
     });

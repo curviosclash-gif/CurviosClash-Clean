@@ -8,39 +8,10 @@ import { isMapEligibleForFreePlayVariant, resolveFreePlayVariantSettings } from 
 import {
     describeFreePlayMapCount,
     rememberFreePlayMap,
-    resolveFreePlayVariantMapKey,
 } from '../../shared/contracts/FreePlayMapChoiceContract.js';
 import { resolveMapProfile } from '../../shared/contracts/MapProfileContract.js';
 import { resolveBundledMapBalancing } from '../../shared/maps/MapBalancingBundledData.js';
-import { writeHangarMapSelection } from '../hangar/HangarSelectionWritebackContract.js';
 import { renderMapProfileCard } from './MapProfileCardView.js';
-
-/** Runtime-only memory of the variant the last sync saw (undefined before the first sync). */
-export function createFreePlayVariantTracker() {
-    return { variant: /** @type {string|null|undefined} */ (undefined) };
-}
-
-/**
- * Before the map list is built: when the variant changed since the last sync, bring back the
- * map this variant remembered, if it still exists and fits. Returns the map key to start from.
- * @param {{ settings: any, variant: string|null, tracker: { variant: string|null|undefined }, maps: any,
- *   mapKey: string, isOffered?: ((mapKey: string) => boolean)|null, hangarSelectionModePath?: string }} options
- */
-export function restoreFreePlayVariantMap({ settings, variant, tracker, maps, mapKey, isOffered = null, hangarSelectionModePath }) {
-    const changed = tracker.variant !== undefined && tracker.variant !== variant;
-    tracker.variant = variant;
-    if (!changed || !variant) return mapKey;
-    const target = resolveFreePlayVariantMapKey({
-        variant,
-        memory: settings?.localSettings?.freePlayMapByVariant,
-        maps,
-        currentMapKey: mapKey,
-        isOffered,
-    });
-    if (!target || target === mapKey) return mapKey;
-    writeHangarMapSelection(settings, target, target, { modePath: hangarSelectionModePath });
-    return target;
-}
 
 /**
  * After the map list is built: the map on screen becomes the one this variant remembers.

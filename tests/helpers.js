@@ -302,6 +302,16 @@ export async function selectSessionType(page, sessionType = 'single') {
 
 const FREE_PLAY_VARIANT_BY_MODE_PATH = Object.freeze({ normal: 'classic', fight: 'ffa' });
 
+// Picks a mode path from the hub: arcade is a hub card, normal and fight are free play variants.
+export async function chooseMenuModePath(page, modePath) {
+    const variant = FREE_PLAY_VARIANT_BY_MODE_PATH[modePath];
+    if (variant) {
+        await chooseFreePlayVariant(page, variant);
+        return;
+    }
+    await page.locator(`#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]`).click({ force: true });
+}
+
 // Opens free play from the hub (single player or shared screen) and picks a variant:
 // ffa, team, flags, escort or classic.
 export async function chooseFreePlayVariant(page, variant = 'ffa') {

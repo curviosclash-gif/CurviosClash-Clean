@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openStartSetupSection, returnToMenu, waitForLoadedGame } from './helpers.js';
+import { collectErrors, openStartSetupSection, returnToMenu, waitForLoadedGame, chooseMenuModePath } from './helpers.js';
 import { ARCADE_FACTORY_VEHICLE_IDS } from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
 
 // All desktop tests of a run share one profile, and the menu remembers the player count.
@@ -14,7 +14,7 @@ async function openSharedSplitMenu(page, modePath = 'normal') {
     await waitForLoadedGame(page);
     await page.evaluate(() => window.GAME_INSTANCE?.runtimeCoordinator?.getUiManager?.()?.showMainNav?.());
     await page.locator('[data-session-type="splitscreen"]').click();
-    await page.locator(`#submenu-custom [data-mode-path="${modePath}"]`).click();
+    await chooseMenuModePath(page, modePath);
     await expect(page.locator('#submenu-game')).toBeVisible();
     // The wide desktop layout shows one section at a time; the rail tab is the user's way in.
     const railTab = page.locator('#btn-start-step-players');

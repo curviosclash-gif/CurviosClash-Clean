@@ -9,10 +9,8 @@ import test from 'node:test';
 import { ensureMenuContractState } from '../src/ui/menu/MenuStateContracts.js';
 import { GAMEPAD_MENU_BUTTONS, createGamepadMenuPoller } from '../src/ui/menu/GamepadMenuPoller.js';
 import {
-    createFreePlayVariantTracker,
     renderFreePlayMapCount,
     rememberFreePlayVariantMap,
-    restoreFreePlayVariantMap,
 } from '../src/ui/start-setup/StartSetupFreePlayMaps.js';
 import {
     createMapPickerShortcuts,
@@ -38,27 +36,6 @@ test('the memory field survives the save normalizer and drops unknown variants',
     ensureMenuContractState(fresh);
     assert.deepEqual(fresh.localSettings.freePlayMapByVariant, {});
     assert.equal(Object.isFrozen(fresh.localSettings.freePlayMapByVariant), false, 'a plain object, so the menu can edit it');
-});
-
-test('the first sync restores nothing; a later variant change brings back the remembered map', () => {
-    const settings = createSettings({ freePlayMapByVariant: { classic: 'race', escort: 'open' } });
-    const tracker = createFreePlayVariantTracker();
-    const common = { settings, tracker, maps: MAPS, hangarSelectionModePath: 'fight' };
-    assert.equal(restoreFreePlayVariantMap({ ...common, variant: 'ffa', mapKey: 'duel' }), 'duel', 'first sync');
-    assert.equal(restoreFreePlayVariantMap({ ...common, variant: 'ffa', mapKey: 'duel' }), 'duel', 'same variant');
-    assert.equal(restoreFreePlayVariantMap({ ...common, variant: 'escort', mapKey: 'duel' }), 'open', 'variant changed');
-    assert.equal(settings.mapKey, 'open', 'the restored map is written to the selection');
-    assert.equal(restoreFreePlayVariantMap({ ...common, variant: 'escort', mapKey: 'open' }), 'open');
-});
-
-test('an unfit or unknown memory leaves the map alone, and arcade never restores', () => {
-    const settings = createSettings({ freePlayMapByVariant: { escort: 'duel' } });
-    const tracker = createFreePlayVariantTracker();
-    const common = { settings, tracker, maps: MAPS, hangarSelectionModePath: 'fight' };
-    restoreFreePlayVariantMap({ ...common, variant: 'ffa', mapKey: 'open' });
-    assert.equal(restoreFreePlayVariantMap({ ...common, variant: 'escort', mapKey: 'open' }), 'open', 'duel excludes Escort');
-    assert.equal(restoreFreePlayVariantMap({ ...common, variant: null, mapKey: 'race' }), 'race');
-    assert.equal(settings.mapKey, 'open', 'nothing was written');
 });
 
 test('the map on screen is remembered for its variant, but only if the variant can host it', () => {

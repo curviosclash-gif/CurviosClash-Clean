@@ -180,3 +180,18 @@ test('variant buttons emit the variant and stay on the screen; the hub card emit
         { type: 'free_play_variant_change', payload: { variant: 'team', stayOnPanel: true } },
     ]);
 });
+
+test('switching to a variant brings back the map it remembered (V7)', () => {
+    const { game, calls } = createGame({ modePath: 'fight', freePlayVariant: 'ffa', freePlayMapByVariant: { classic: 'maze' } });
+    game.settings.mapKey = 'standard';
+    choose(game, calls, { variant: 'classic', stayOnPanel: true });
+    assert.equal(game.settings.mapKey, 'maze');
+    assert.ok(calls.settingsChanged.at(-1).changedKeys.includes(SETTINGS_CHANGE_KEYS.MAP_KEY));
+});
+
+test('an unknown remembered map leaves the current one in place', () => {
+    const { game, calls } = createGame({ modePath: 'fight', freePlayMapByVariant: { classic: 'no_such_map' } });
+    game.settings.mapKey = 'standard';
+    choose(game, calls, { variant: 'classic', stayOnPanel: true });
+    assert.equal(game.settings.mapKey, 'standard');
+});

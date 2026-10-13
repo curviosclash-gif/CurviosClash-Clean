@@ -23,7 +23,6 @@ import {
     ensureStartSetupLocalState,
 } from './start-setup/StartSetupUiOps.js';
 import { bindStartSetupControls } from './start-setup/StartSetupControlBindings.js';
-import { createFreePlayVariantTracker } from './start-setup/StartSetupFreePlayMaps.js';
 import { createStartSetupMapPicker3d } from './start-setup/StartSetupMapPicker3d.js';
 import { createStartSetupVehiclePicker3d } from './start-setup/StartSetupVehiclePicker3d.js';
 import { syncSplitPlayersSection } from './start-setup/StartSetupSplitPlayersSection.js';
@@ -69,7 +68,6 @@ export class UIStartSyncController {
         this._mapPicker3d = null;
         this._lobbyMapPicker3d = null;
         this._vehiclePicker3d = null;
-        this._freePlayVariantTracker = createFreePlayVariantTracker();
         /** @type {{ handleButton: (button: string) => boolean }|null} */
         this.mapPickerShortcuts = null;
         /** Replaceable in tests; the random map button draws from it. */
@@ -416,7 +414,6 @@ export class UIStartSyncController {
                 resolveSurfaceFallbackMapKey: (maps, nextModePath, currentMapKey) => this._resolveSurfaceFallbackMapKey(maps, nextModePath, currentMapKey),
                 hasStoredCustomMap: () => this._hasStoredCustomMap(),
                 ghostDuelState,
-                freePlayTracker: this._freePlayVariantTracker,
             });
             this._mapPicker3d?.sync({ mapKey: effectiveMapKey, maps: runtimeMaps });
             const lobbyMapKey = resolvedMultiplayerSessionState?.metadata?.mapKey;

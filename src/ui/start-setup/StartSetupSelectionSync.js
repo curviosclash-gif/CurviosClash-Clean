@@ -13,7 +13,7 @@ import { isArcadeSelectableVehicleId } from '../../shared/contracts/ArcadeVehicl
 import { ARCADE_GHOST_DUEL_MODES } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { renderQuickList } from './StartSetupUiOps.js';
 import { isMapOfferedForModePath } from './StartSetupMapOffer.js';
-import { renderFreePlayMapCount, restoreFreePlayVariantMap, rememberFreePlayVariantMap, syncMapProfileCard } from './StartSetupFreePlayMaps.js';
+import { renderFreePlayMapCount, rememberFreePlayVariantMap, syncMapProfileCard } from './StartSetupFreePlayMaps.js';
 
 const MAP_FILTER_OPTIONS = Object.freeze([
     ['arena', 'Sammlung: Arenen'],
@@ -142,7 +142,6 @@ function syncMapSelect({
     resolveSurfaceFallbackMapKey,
     hasStoredCustomMap,
     freePlayVariant = null,
-    freePlayTracker = null,
     favoriteMaps = [],
 }) {
     if (!ui.mapSelect) {
@@ -160,13 +159,9 @@ function syncMapSelect({
             && isMapOfferedForModePath(entry, runtimeMaps?.[mapKey], modePath, 'all')
             && surfacePolicyPort.isMapAllowed(mapKey, modePath);
     };
-    let previousValue = String(mapSelection.value || surfaceMenuState.mapKey || settings.mapKey || ui.mapSelect.value || 'standard');
-    if (freePlayTracker) {
-        previousValue = restoreFreePlayVariantMap({
-            settings, variant: freePlayVariant, tracker: freePlayTracker, maps: runtimeMaps,
-            mapKey: previousValue, isOffered: isOfferedInPicker, hangarSelectionModePath,
-        });
-    }
+    // The remembered map per variant comes back in the variant switch itself (MenuRuntimeFreePlayService),
+    // never here: a sync also runs after scenario start defaults moved the mode path on their own.
+    const previousValue = String(mapSelection.value || surfaceMenuState.mapKey || settings.mapKey || ui.mapSelect.value || 'standard');
     const fallbackMapKey = resolveSurfaceFallbackMapKey(runtimeMaps, modePath, previousValue);
     ui.mapSelect.replaceChildren();
     const matchingMapEntries = mapPreviewEntries.filter((entry) => {
@@ -322,7 +317,6 @@ export function syncStartSetupSelectionState({
     resolveSurfaceFallbackMapKey,
     hasStoredCustomMap,
     ghostDuelState,
-    freePlayTracker = null,
 }) {
     const startSetupFilters = {
         mapSearch: String(startSetup.mapSearch || '').trim().toLowerCase(),
@@ -349,7 +343,6 @@ export function syncStartSetupSelectionState({
         resolveSurfaceFallbackMapKey,
         hasStoredCustomMap,
         freePlayVariant,
-        freePlayTracker,
         favoriteMaps: startSetup.favoriteMaps,
     });
     syncMapProfileCard({
