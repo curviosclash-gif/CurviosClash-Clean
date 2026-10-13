@@ -51,7 +51,8 @@ test('the config code exchange is gone from the settings window', () => {
 
 test('the settings window lost its tools tab, the other tabs stay', () => {
     assert.doesNotMatch(html, /level4-tab-utilities|level4-section-utilities/);
-    for (const tab of ['controls', 'audio', 'graphics', 'recording', 'hud', 'advanced-map', 'tools']) {
+    // Karten-Details left with the drawer package; the remaining tabs stay.
+    for (const tab of ['controls', 'audio', 'graphics', 'recording', 'hud', 'tools']) {
         assert.match(html, new RegExp(`id="level4-tab-${tab}"`), tab);
     }
 });

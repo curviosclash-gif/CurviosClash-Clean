@@ -156,12 +156,13 @@ test('the Karten-Details tab is gone and a stored one falls back to the controls
 test('the drawer shows the tabs in the agreed order and no Karten-Details', () => {
     const nav = /<div class="level4-section-nav"[\s\S]*?<div class="level4-section-stack">/u.exec(html)?.[0] || '';
     const order = [...nav.matchAll(/data-level4-section-target="([a-z_]+)"/gu)].map((match) => match[1]);
-    assert.deepEqual(order, ['controls', 'mobile_controls', 'graphics', 'audio', 'hud', 'recording', 'tools', 'utilities']);
+    assert.deepEqual(order, ['controls', 'mobile_controls', 'graphics', 'audio', 'hud', 'recording', 'tools']);
     assert.doesNotMatch(html, /advanced[_-]map/u);
 });
 
 test('saved settings sit in the drawer footer, the player tab keeps only the player profiles', () => {
-    const footer = /<div class="level4-footer[\s\S]*?<!-- ======= SUBMENU: EXPERT/u.exec(html)?.[0] || '';
+    // The drawer ends where the next screen (Werkzeuge) begins.
+    const footer = /<div class="level4-footer[\s\S]*?<!-- ======= SUBMENU: WERKZEUGE/u.exec(html)?.[0] || '';
     const backups = /<div id="level4-backups"[\s\S]*?<div class="level4-footer-actions">/u.exec(footer)?.[0] || '';
     for (const id of ['profile-name', 'btn-profile-save', 'profile-select', 'btn-profile-load', 'btn-profile-delete',
         'btn-profile-duplicate', 'btn-profile-set-default', 'profile-transfer-input', 'btn-profile-export',
