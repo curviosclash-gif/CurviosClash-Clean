@@ -20,6 +20,7 @@ function prop(family, variant, suffix, position, rotationY = 0) {
         targetSize: FAMILY_SIZE[family],
         maxRenderDistance: 180,
         collision: false,
+        role: 'optionalProp',
     });
 }
 
@@ -33,6 +34,7 @@ function tree(variant, suffix, position, targetSize = 10.8) {
         targetSize,
         maxRenderDistance: 200,
         collision: false,
+        role: 'optionalProp',
     });
 }
 
@@ -45,6 +47,7 @@ function dandelion(suffix, position, rotationY = 0) {
         targetSize: 2.6,
         maxRenderDistance: 180,
         collision: false,
+        role: 'optionalProp',
     });
 }
 
