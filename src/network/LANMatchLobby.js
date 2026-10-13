@@ -54,6 +54,7 @@ export class LANMatchLobby extends MatchLobby {
         this._reconnectPromise = null;
         this._cancelReconnect = false;
         this._joinGeneration = 0;
+        this._createGeneration = 0;
     }
 
     _applySessionState(nextState) {
@@ -65,6 +66,8 @@ export class LANMatchLobby extends MatchLobby {
     }
 
     async create(options = {}) {
+        const createGeneration = this._createGeneration + 1;
+        this._createGeneration = createGeneration;
         this._joinGeneration += 1;
         this.isHost = true;
         this.settings = { ...options };
@@ -74,7 +77,8 @@ export class LANMatchLobby extends MatchLobby {
         this._consecutivePollFailures = 0;
         this._cancelReconnect = false;
 
-        const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_CREATE}`, {
+        const createSignalingUrl = this._signalingUrl;
+        const res = await fetch(`${createSignalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_CREATE}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -95,7 +99,28 @@ export class LANMatchLobby extends MatchLobby {
             });
         }
         const data = await res.json();
-        this._localPeerToken = String(data.hostToken || '').trim();
+        const hostToken = String(data.hostToken || '').trim();
+        if (createGeneration !== this._createGeneration || this._cancelReconnect) {
+            if (hostToken) {
+                try {
+                    const cleanup = await fetch(`${createSignalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_LEAVE}`, {
+                        signal: AbortSignal.timeout(this._pollTimeoutMs * 2),
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ playerId: 'host', hostToken }),
+                    });
+                    if (cleanup?.ok === false) {
+                        logger.warn('Cancelled lobby creation cleanup failed:', cleanup.status || 'unknown');
+                    }
+                } catch (cleanupError) {
+                    logger.warn('Cancelled lobby creation cleanup failed:', cleanupError);
+                }
+            }
+            const error = new Error('Lobby creation was cancelled.');
+            error.code = 'host_cancelled';
+            throw error;
+        }
+        this._localPeerToken = hostToken;
         this._processServerStatus(data);
         this._startPolling();
         if (!this.sessionState.lobbyCode) {
@@ -425,6 +450,7 @@ export class LANMatchLobby extends MatchLobby {
 
     leave() {
         this._joinGeneration += 1;
+        this._createGeneration += 1;
         this._cancelReconnect = true;
         this._stopPolling();
         this._consecutivePollFailures = 0;
