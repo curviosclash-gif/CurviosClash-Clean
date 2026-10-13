@@ -1,3 +1,5 @@
+import { armConfirmButton } from '../../src/ui/ConfirmButtonArming.js';
+
 function normalizeMessage(result, fallbackMessage) {
     if (result?.detail) {
         return String(result.detail);
@@ -194,8 +196,10 @@ export function createTuningPresetUi({
         });
     }
     if (resetAllButton) {
-        resetAllButton.addEventListener('click', () => {
-            void resetAll();
+        // Resetting every live value asks with a second click, never with a Windows dialog.
+        armConfirmButton(resetAllButton, {
+            confirmLabel: 'Wirklich alle zurücksetzen?',
+            onConfirm: () => void resetAll(),
         });
     }
 

@@ -106,30 +106,20 @@ test('SettingsManager player record port falls back when the profile manager has
     assert.equal(port, manager.getSettingsRecordStorePort());
 });
 
-test('SettingsManager telemetry preferences default to enabled collection and persist a change', () => {
+// Decision 12.10.2026: until release telemetry is always on; a stored "off" is saved but not read.
+test('SettingsManager telemetry stays enabled even after an old switch turned it off', () => {
     const manager = createManager();
 
     const initialPreferences = manager.getTelemetryPreferences();
     const disableResult = manager.setTelemetryCollectionEnabled(false);
     const disabledPreferences = manager.getTelemetryPreferences();
-    const enableResult = manager.setTelemetryCollectionEnabled(true);
 
     assert.equal(initialPreferences.collectionEnabled, true);
-    assert.equal(disableResult.collectionEnabled, false);
     assert.equal(disableResult.saved, true);
-    assert.equal(disabledPreferences.collectionEnabled, false);
+    assert.equal(disableResult.collectionEnabled, true);
+    assert.equal(disabledPreferences.collectionEnabled, true);
     assert.equal(typeof disabledPreferences.updatedAt, 'string');
-    assert.equal(enableResult.collectionEnabled, true);
-    assert.equal(manager.getTelemetryPreferences().collectionEnabled, true);
-});
-
-test('SettingsManager telemetry collection treats non-boolean input as disabled', () => {
-    const manager = createManager();
-
-    const result = manager.setTelemetryCollectionEnabled('yes');
-
-    assert.equal(result.collectionEnabled, false);
-    assert.equal(manager.getTelemetryPreferences().collectionEnabled, false);
+    assert.equal(manager.setTelemetryCollectionEnabled('yes').collectionEnabled, true);
 });
 
 test('SettingsManager telemetry history summary is delegated to the history store', () => {
@@ -166,7 +156,7 @@ test('SettingsManager telemetry export bundles preferences, history and authorin
     assert.equal(snapshot.schemaVersion, 'curviosclash-telemetry-export.v1');
     assert.equal(typeof snapshot.exportedAt, 'string');
     assert.deepEqual(snapshot.filters, { mapKey: 'maze' });
-    assert.equal(snapshot.preferences.collectionEnabled, false);
+    assert.equal(snapshot.preferences.collectionEnabled, true, 'collection is always on until release');
     assert.deepEqual(snapshot.historyEntries, historyEntries);
     assert.deepEqual(snapshot.historySummary, { count: 1 });
     assert.equal(typeof snapshot.gameplay.quickStartCount, 'number');
