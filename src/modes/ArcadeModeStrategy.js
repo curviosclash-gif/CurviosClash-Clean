@@ -383,13 +383,14 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     _applyModifierDamage(player, amount, cause, entityManager = null) {
+        const ignoreShield = cause !== 'HEAT_STRESS';
         if (typeof entityManager?._applyModeDamage === 'function') {
             return entityManager._applyModeDamage(player, amount, cause, {
-                ignoreShield: true,
+                ignoreShield,
                 emitDamageEvent: false,
             });
         }
-        return this.applyDamage(player, amount, { ignoreShield: true });
+        return this.applyDamage(player, amount, { ignoreShield });
     }
 
     // 61.4.1: heat_stress drains HP over time (61.6.2: plus SD stacks). Paket 1: normal runs get the

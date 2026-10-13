@@ -62,12 +62,15 @@ test('Arcade modifier drain uses the entity damage lifecycle and eliminates exac
         throw new Error('passive modifier damage must not emit hit feedback every frame');
     };
 
-    const result = strategy.updateHealthRegen(player, 1, entityManager);
-    strategy.updateHealthRegen(player, 1, entityManager);
+    let result;
+    for (let tick = 0; tick < 17; tick += 1) {
+        result = strategy.updateHealthRegen(player, 1, entityManager);
+        if (result?.isDead) break;
+    }
 
     assert.equal(result?.isDead, true);
     assert.equal(player.hp, 0);
-    assert.equal(player.shieldHP, 40, 'passive HP drain intentionally bypasses shields');
+    assert.equal(player.shieldHP, 0, 'Heat Stress consumes the shield before draining HP');
     assert.equal(player.alive, false);
     assert.deepEqual(kills, ['HEAT_STRESS']);
 });
