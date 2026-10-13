@@ -195,7 +195,8 @@ test('the pause markup carries the new buttons and the stylesheet only uses menu
     }
     assert.match(html, /id="pause-notice"[^>]*role="status"/);
     assert.match(html, /id="btn-pause-controls"[^>]*aria-expanded="false"/);
-    assert.match(html, /MenuTokens\.css">\s*<link rel="stylesheet" href="src\/ui\/menu\/MenuPause\.css"/);
+    // The pause sheet loads after the tokens it reads; other menu sheets may sit in between.
+    assert.match(html, /MenuTokens\.css">[\s\S]*?<link rel="stylesheet" href="src\/ui\/menu\/MenuPause\.css"/);
     const css = fs.readFileSync(new URL('../src/ui/menu/MenuPause.css', import.meta.url), 'utf8');
     assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ''), /#[0-9a-fA-F]{3,8}\b/, 'no literal colours, only --menu-* tokens');
     assert.match(css, /\[class\*="menu-q-"\]\[hidden\]\s*\{\s*display: none;/);
