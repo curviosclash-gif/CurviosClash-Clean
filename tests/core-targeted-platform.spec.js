@@ -534,7 +534,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
 
     test('T20confirm: Gespeicherte Einstellungen brauchen zwei Löschklicks', async ({ page }) => {
         await loadGame(page);
-        await openLevel4Drawer(page, { section: 'tools' });
+        await openLevel4Drawer(page, { backups: true });
         await page.fill('#profile-name', 'Delete QA');
         await page.click('#btn-profile-save');
         await expect(page.locator('#profile-select')).toHaveValue('Delete QA');
@@ -710,7 +710,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_PROFILES_STORAGE_KEY);
         await page.reload();
         await page.waitForSelector('#main-menu', { state: 'visible', timeout: 15000 });
-        await openLevel4Drawer(page, { section: 'tools' });
+        await openLevel4Drawer(page, { backups: true });
 
         await page.fill('#profile-name', 'QA Profil');
         await expect(page.locator('#btn-profile-save')).toBeEnabled();

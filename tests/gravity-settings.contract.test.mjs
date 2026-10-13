@@ -4,7 +4,6 @@ import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createRuntimeConfigSnapshot, applyRuntimeConfigCompatibility } from '../src/core/RuntimeConfig.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
-import { handleLevel4ResetAction } from '../src/core/runtime/MenuRuntimeSessionService.js';
 import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
 import * as THREE from 'three';
 import { PlayerCollisionPhase } from '../src/entities/systems/lifecycle/PlayerCollisionPhase.js';
@@ -22,17 +21,6 @@ test('gravity settings default to 20 and clamp saved values to 0..50', () => {
         manager.saveSettings(settings);
         assert.equal(manager.loadSettings().gameplay.gravityStrength, expected);
     }
-});
-
-test('fine settings reset restores gravity 20 and publishes its change key', () => {
-    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
-    const settings = manager.createDefaultSettings();
-    settings.gameplay.gravityStrength = 50;
-    let changedKeys;
-    const game = { settings, settingsManager: manager, _showStatusToast() {} };
-    handleLevel4ResetAction({ game, onSettingsChanged: (event) => { changedKeys = event.changedKeys; } });
-    assert.equal(settings.gameplay.gravityStrength, 20);
-    assert.ok(changedKeys.includes(SETTINGS_CHANGE_KEYS.GAMEPLAY_GRAVITY_STRENGTH));
 });
 
 test('maximum dive speed still detects a thin wall with the smallest non-Arcade vehicle', () => {

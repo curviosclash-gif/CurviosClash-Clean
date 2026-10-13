@@ -83,6 +83,7 @@ const ALTERNATIVE_NUMBERS = new Map([
     ['cameraPerspective.speedFovIntensity', 1.25],
     ['cameraPerspective.thrusterExhaustIntensity', 1.25],
     ['localSettings.viewDistance', 50],
+    ['localSettings.menuScale', 130],
     ['localSettings.shadowQuality', 1],
     ['localSettings.hud.scale', 1.2],
     ['localSettings.hud.opacity', 0.8],

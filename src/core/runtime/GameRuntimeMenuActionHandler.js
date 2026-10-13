@@ -123,8 +123,8 @@ export class GameRuntimeMenuActionHandler {
         handleLevel4CloseAction(this._createSessionContext());
     }
 
-    handleLevel4Reset() {
-        handleLevel4ResetAction(this._createSessionContext());
+    handleLevel4Reset(event) {
+        handleLevel4ResetAction(this._createSessionContext(event));
     }
 
     handleConfigExportCode() {

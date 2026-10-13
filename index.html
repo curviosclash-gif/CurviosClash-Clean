@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="src/ui/menu/Leuchtspuren.css">
     <link rel="stylesheet" href="src/ui/menu/MenuTokens.css">
+    <link rel="stylesheet" href="src/ui/menu/MenuDrawer.css">
     <script type="importmap">
     {
         "imports": {
@@ -584,16 +585,11 @@
                             <p class="menu-hint menu-copy-secondary">Änderungen werden automatisch gespeichert.</p>
                         </div>
                         <div class="btn-group">
-                            <button type="button" id="btn-level4-reset" class="secondary-btn"
-                                data-menu-text-id="menu.level4.reset.label"
-                                data-reset-label="Grafik- &amp; Aufnahmeoptionen zurücksetzen"
-                                data-reset-confirm-label="Zum Bestätigen erneut klicken" aria-describedby="level4-reset-scope">Grafik- &amp; Aufnahmeoptionen zurücksetzen</button>
                             <button type="button" id="btn-close-level4" class="secondary-btn" data-back
                                 data-back-target="submenu-game" data-menu-action="back"
                                 data-menu-text-id="menu.level4.close.label">Schließen</button>
                         </div>
                     </div>
-                    <p id="level4-reset-scope" class="menu-reset-scope">Zurücksetzen betrifft Grafik-, Kamera- und Aufnahmeoptionen sowie Auto-Roll und Höhenumkehr. Audio, HUD und Tastenbelegung bleiben erhalten.</p>
                     <div class="submenu-body level4-body">
                         <div class="level4-layout">
                             <div class="level4-section-nav" role="tablist" aria-label="Bereiche der Einstellungen">
@@ -603,13 +599,10 @@
                                 <button type="button" id="level4-tab-mobile-controls" class="level4-section-tab"
                                     data-level4-section-target="mobile_controls" role="tab" aria-controls="level4-section-mobile-controls"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.mobile_controls.label">Mobile</button>
-                                <button type="button" id="level4-tab-audio" class="level4-section-tab" data-level4-section-target="audio" role="tab" aria-controls="level4-section-audio" aria-selected="false" data-menu-text-id="menu.level4.tabs.audio.label">Audio</button>
                                 <button type="button" id="level4-tab-graphics" class="level4-section-tab" data-level4-section-target="graphics" role="tab" aria-controls="level4-section-graphics" aria-selected="false" data-menu-text-id="menu.level4.tabs.graphics.label">Grafik &amp; Kamera</button>
-                                <button type="button" id="level4-tab-recording" class="level4-section-tab" data-level4-section-target="recording" role="tab" aria-controls="level4-section-recording" aria-selected="false" data-menu-text-id="menu.level4.tabs.recording.label">Aufnahme</button>
+                                <button type="button" id="level4-tab-audio" class="level4-section-tab" data-level4-section-target="audio" role="tab" aria-controls="level4-section-audio" aria-selected="false" data-menu-text-id="menu.level4.tabs.audio.label">Audio</button>
                                 <button type="button" id="level4-tab-hud" class="level4-section-tab" data-level4-section-target="hud" role="tab" aria-controls="level4-section-hud" aria-selected="false" data-menu-text-id="menu.level4.tabs.hud.label">HUD</button>
-                                <button type="button" id="level4-tab-advanced-map" class="level4-section-tab"
-                                    data-level4-section-target="advanced_map" role="tab" aria-controls="level4-section-advanced-map"
-                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.advanced_map.label">Karten-Details</button>
+                                <button type="button" id="level4-tab-recording" class="level4-section-tab" data-level4-section-target="recording" role="tab" aria-controls="level4-section-recording" aria-selected="false" data-menu-text-id="menu.level4.tabs.recording.label">Aufnahme</button>
                                 <button type="button" id="level4-tab-tools" class="level4-section-tab"
                                     data-level4-section-target="tools" role="tab" aria-controls="level4-section-tools"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.tools.label">Spieler</button>
@@ -747,6 +740,8 @@
                                     </select>
                                     <label for="view-distance-slider"><span data-menu-text-id="menu.level4.graphics.view_distance.label">Sichtweite:</span> <span id="view-distance-label">Automatisch</span></label>
                                     <input type="range" id="view-distance-slider" min="0" max="190" step="10" value="0">
+                                    <label for="menu-scale-slider"><span>Menügröße:</span> <span id="menu-scale-label">100%</span></label>
+                                    <input type="range" id="menu-scale-slider" min="100" max="150" step="10" value="100">
                                     <label for="graphics-quality-select" data-menu-text-id="menu.level4.graphics.quality.label">Grafikstufe</label>
                                     <select id="graphics-quality-select">
                                         <option value="auto" selected>Automatisch</option>
@@ -847,14 +842,6 @@
                             </details>
 </div></section>
 
-                        <section id="level4-section-advanced-map" class="level4-section-panel" data-level4-section="advanced_map"
-                            role="tabpanel" aria-labelledby="level4-tab-advanced-map" aria-hidden="true">
-                        <div class="menu-section">
-                            <h2 class="section-title" data-menu-text-id="menu.level4.advanced_map.title">Karten-Details</h2>
-                            <p class="menu-hint menu-copy-secondary">Kartenwerte wie Tempo, Waffen und Portale stellt der Entwickler je Karte ein.</p>
-                        </div>
-                        </section>
-
                         <section id="level4-section-tools" class="level4-section-panel" data-level4-section="tools"
                             role="tabpanel" aria-labelledby="level4-tab-tools" aria-hidden="true">
                         <div class="menu-section">
@@ -882,58 +869,6 @@
                                 <button type="button" id="btn-player-profile-import" class="secondary-btn">Importieren</button>
                             </div>
                             <p id="player-profile-status" class="menu-hint" role="status" aria-live="polite">Bereit.</p>
-                        </div>
-                        <div class="menu-section">
-                            <h2 class="section-title section-title-with-info"
-                                aria-description="Speichere den aktuellen Stand aller Einstellungen unter einem Namen.">
-                                <span data-menu-text-id="menu.level4.tools.title">Gespeicherte Einstellungen</span>
-                                <button type="button" class="menu-info-hint"
-                                    aria-label="Hinweis: Speichere den aktuellen Stand aller Einstellungen unter einem Namen."
-                                    title="Speichere den aktuellen Stand aller Einstellungen unter einem Namen.">i</button>
-                            </h2>
-                            <p class="menu-hint">Speichere den aktuellen Stand aller Einstellungen unter einem Namen und lade ihn später wieder, zum Beispiel für ein Turnier oder ein anderes Gerät.</p>
-                            <label for="profile-name" data-menu-text-id="menu.level4.tools.profile_name.label">Name</label>
-                            <input type="text" id="profile-name" maxlength="32" placeholder="z. B. Turnier">
-                            <button type="button" id="btn-profile-save" class="secondary-btn secondary-btn-spaced"
-                                data-menu-action="profile-save" data-menu-text-id="menu.level4.tools.profile_save.label">
-                                Einstellungen speichern
-                            </button>
-                            <label for="profile-select" data-menu-text-id="menu.level4.tools.profile_list.label">Gespeicherte Einstellungen</label>
-                            <select id="profile-select">
-                                <option value="">Nichts gewählt</option>
-                            </select>
-                            <button type="button" id="btn-profile-load" class="secondary-btn secondary-btn-spaced"
-                                data-menu-action="profile-load" data-menu-text-id="menu.level4.tools.profile_load.label">
-                                Laden
-                            </button>
-                            <button type="button" id="btn-profile-delete" class="secondary-btn secondary-btn-spaced"
-                                data-menu-action="profile-delete" data-menu-text-id="menu.level4.tools.profile_delete.label">
-                                Löschen
-                            </button>
-                            <div class="btn-group secondary-btn-spaced">
-                                <button type="button" id="btn-profile-duplicate" class="secondary-btn"
-                                    data-menu-action="profile-duplicate" data-menu-text-id="menu.level4.tools.profile_duplicate.label">
-                                    Duplizieren
-                                </button>
-                                <button type="button" id="btn-profile-set-default" class="secondary-btn"
-                                    data-menu-action="profile-default" data-menu-text-id="menu.level4.tools.profile_default.label">
-                                    Als Standard markieren
-                                </button>
-                            </div>
-                            <label for="profile-transfer-input" class="secondary-btn-spaced"
-                                data-menu-text-id="menu.level4.tools.profile_transfer.label">Einstellungen übertragen</label>
-                            <textarea id="profile-transfer-input" rows="4" placeholder="Exportierte Einstellungen hier einfügen"></textarea>
-                            <div class="btn-group secondary-btn-spaced">
-                                <button type="button" id="btn-profile-export" class="secondary-btn"
-                                    data-menu-action="profile-export" data-menu-text-id="menu.level4.tools.profile_export.label">
-                                    Exportieren
-                                </button>
-                                <button type="button" id="btn-profile-import" class="secondary-btn"
-                                    data-menu-action="profile-import" data-menu-text-id="menu.level4.tools.profile_import.label">
-                                    Importieren
-                                </button>
-                            </div>
-                            <p id="profile-transfer-status" class="menu-hint" role="status" aria-live="polite">Noch nichts übertragen.</p>
                         </div>
                         </section>
 
@@ -970,6 +905,68 @@
                         </div>
                         </section>
                             </div>
+                        </div>
+                    </div>
+                    <div class="level4-footer menu-q-drawer__foot">
+                        <div id="level4-backups" class="level4-backups menu-q-drawer__backups" role="region" aria-label="Sichern und Laden" hidden>
+                            <div class="menu-section">
+                                <h2 class="section-title section-title-with-info"
+                                    aria-description="Speichere den aktuellen Stand aller Einstellungen unter einem Namen.">
+                                    <span data-menu-text-id="menu.level4.tools.title">Gespeicherte Einstellungen</span>
+                                    <button type="button" class="menu-info-hint"
+                                        aria-label="Hinweis: Speichere den aktuellen Stand aller Einstellungen unter einem Namen."
+                                        title="Speichere den aktuellen Stand aller Einstellungen unter einem Namen.">i</button>
+                                </h2>
+                                <p class="menu-hint">Speichere den aktuellen Stand aller Einstellungen unter einem Namen und lade ihn später wieder, zum Beispiel für ein Turnier oder ein anderes Gerät.</p>
+                                <label for="profile-name" data-menu-text-id="menu.level4.tools.profile_name.label">Name</label>
+                                <input type="text" id="profile-name" maxlength="32" placeholder="z. B. Turnier">
+                                <button type="button" id="btn-profile-save" class="secondary-btn secondary-btn-spaced"
+                                    data-menu-action="profile-save" data-menu-text-id="menu.level4.tools.profile_save.label">
+                                    Einstellungen speichern
+                                </button>
+                                <label for="profile-select" data-menu-text-id="menu.level4.tools.profile_list.label">Gespeicherte Einstellungen</label>
+                                <select id="profile-select">
+                                    <option value="">Nichts gewählt</option>
+                                </select>
+                                <button type="button" id="btn-profile-load" class="secondary-btn secondary-btn-spaced"
+                                    data-menu-action="profile-load" data-menu-text-id="menu.level4.tools.profile_load.label">
+                                    Laden
+                                </button>
+                                <button type="button" id="btn-profile-delete" class="secondary-btn secondary-btn-spaced"
+                                    data-menu-action="profile-delete" data-menu-text-id="menu.level4.tools.profile_delete.label">
+                                    Löschen
+                                </button>
+                                <div class="btn-group secondary-btn-spaced">
+                                    <button type="button" id="btn-profile-duplicate" class="secondary-btn"
+                                        data-menu-action="profile-duplicate" data-menu-text-id="menu.level4.tools.profile_duplicate.label">
+                                        Duplizieren
+                                    </button>
+                                    <button type="button" id="btn-profile-set-default" class="secondary-btn"
+                                        data-menu-action="profile-default" data-menu-text-id="menu.level4.tools.profile_default.label">
+                                        Als Standard markieren
+                                    </button>
+                                </div>
+                                <label for="profile-transfer-input" class="secondary-btn-spaced"
+                                    data-menu-text-id="menu.level4.tools.profile_transfer.label">Einstellungen übertragen</label>
+                                <textarea id="profile-transfer-input" rows="4" placeholder="Exportierte Einstellungen hier einfügen"></textarea>
+                                <div class="btn-group secondary-btn-spaced">
+                                    <button type="button" id="btn-profile-export" class="secondary-btn"
+                                        data-menu-action="profile-export" data-menu-text-id="menu.level4.tools.profile_export.label">
+                                        Exportieren
+                                    </button>
+                                    <button type="button" id="btn-profile-import" class="secondary-btn"
+                                        data-menu-action="profile-import" data-menu-text-id="menu.level4.tools.profile_import.label">
+                                        Importieren
+                                    </button>
+                                </div>
+                                <p id="profile-transfer-status" class="menu-hint" role="status" aria-live="polite">Noch nichts übertragen.</p>
+                            </div>
+                        </div>
+                        <div class="level4-footer-actions">
+                            <button type="button" id="btn-level4-reset" class="secondary-btn level4-footer-btn"
+                                data-reset-confirm-label="Zum Bestätigen erneut klicken">Zurücksetzen</button>
+                            <button type="button" id="btn-level4-backups" class="secondary-btn level4-footer-btn"
+                                aria-controls="level4-backups" aria-pressed="false" aria-expanded="false">Sichern / Laden</button>
                         </div>
                     </div>
                 </div>
@@ -1278,10 +1275,8 @@
                     <div class="submenu-body">
                         <div class="menu-section">
                             <p class="menu-hint menu-copy-secondary">
-                                Erweiterte Map-Optionen liegen jetzt in Ebene 4 im Bereich `Erweiterte Map-Einstellungen`.
+                                Kartenwerte wie Tempo, Waffen und Portale stellt der Entwickler je Karte ein.
                             </p>
-                            <button type="button" class="secondary-btn" data-menu-action="level4-open"
-                                data-level4-section="advanced_map" data-menu-text-id="menu.panels.portals.open.label">Karten-Details öffnen</button>
                         </div>
                     </div>
                 </div>

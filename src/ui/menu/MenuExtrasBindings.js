@@ -46,15 +46,25 @@ export function bindMenuExtrasButtons(ctx) {
     }
 
     if (ui.level4ResetButton) {
-        const resetLabel = String(ui.level4ResetButton.dataset?.resetLabel || 'Spieloptionen zurücksetzen');
         const resetConfirmLabel = String(ui.level4ResetButton.dataset?.resetConfirmLabel || 'Zum Bestätigen erneut klicken');
+        // No fixed label: the drawer relabels the button per tab ("<Tab> zurücksetzen").
         const confirmation = armConfirmButton(ui.level4ResetButton, {
-            label: resetLabel,
             confirmLabel: resetConfirmLabel,
             armedAttribute: 'data-reset-armed',
-            onConfirm: () => emit(eventTypes.LEVEL4_RESET),
+            onConfirm: () => emit(eventTypes.LEVEL4_RESET, {
+                sectionId: String(ui.level4ResetButton.dataset?.level4ResetSection || '').trim(),
+            }),
         });
         ctx.registerDisposer?.(() => confirmation.dispose());
+    }
+
+    if (ui.level4BackupsButton && ui.level4BackupsPanel) {
+        bind(ui.level4BackupsButton, 'click', () => {
+            const show = ui.level4BackupsPanel.hidden;
+            ui.level4BackupsPanel.hidden = !show;
+            ui.level4BackupsButton.setAttribute('aria-pressed', String(show));
+            ui.level4BackupsButton.setAttribute('aria-expanded', String(show));
+        });
     }
 
     if (ui.exportConfigCodeButton) {

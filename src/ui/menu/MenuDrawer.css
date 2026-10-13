@@ -1,0 +1,111 @@
+/*
+ * Settings drawer (#submenu-level4), style Q "Schachbrett-Tunnel": footer with the per-tab reset and
+ * "Sichern / Laden", tab marks that do not rely on colour, 44 px targets and a 16 px text floor.
+ * Only --menu-* tokens from MenuTokens.css are used; no colour of its own. Load it after MenuTokens.css.
+ */
+
+/* hidden has to win against the display values of the menu-q-* blocks, or hidden parts stay visible. */
+[class*="menu-q-"][hidden] {
+    display: none;
+}
+
+/* --menu-scale is set on #main-menu by the menu size slider. The size tokens in MenuTokens.css are
+   computed on :root and would not see it, so the menu root computes them again. */
+#main-menu {
+    --menu-font-size-body: max(16px, calc(16px * var(--menu-scale)));
+    --menu-font-size-button: max(16px, calc(17px * var(--menu-scale)));
+}
+
+#submenu-level4 :is(label, .menu-hint, summary, select, input[type="text"], textarea) {
+    font-size: var(--menu-font-size-body);
+}
+
+#submenu-level4 :is(.level4-section-tab, .secondary-btn) {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: var(--menu-font-size-button);
+}
+
+#submenu-level4 :is(select, input[type="text"]) {
+    min-height: 44px;
+}
+
+#submenu-level4 input[type="range"] {
+    min-height: 44px;
+    accent-color: var(--menu-accent);
+}
+
+#submenu-level4 :is(button, select, input, textarea, summary):focus-visible {
+    outline: var(--menu-focus-width) solid var(--menu-focus);
+    outline-offset: var(--menu-focus-offset);
+}
+
+/* Selected tab: bar on the left, bold text and aria-selected, so the mark is not colour only. */
+#submenu-level4 .level4-section-tab[aria-selected="true"] {
+    font-weight: var(--menu-display-weight);
+    box-shadow: inset 4px 0 0 var(--menu-accent);
+}
+
+/* Footer */
+.level4-footer {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 20px;
+    border-top: var(--menu-border) solid var(--menu-line);
+    background: var(--menu-bg-2);
+}
+
+.level4-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px 12px;
+}
+
+.level4-footer-btn {
+    max-width: none;
+    white-space: normal;
+    text-align: left;
+}
+
+.level4-footer-btn[hidden] {
+    display: none;
+}
+
+/* Toggle button on: border and underline, not colour alone. */
+.level4-footer-btn[aria-pressed="true"] {
+    border-color: var(--menu-accent);
+    box-shadow: inset 0 -4px 0 var(--menu-accent);
+}
+
+/* Two-step confirmation: other text, a warning mark and a dashed border. */
+.level4-footer-btn[data-reset-armed="true"] {
+    border: 2px dashed var(--menu-danger);
+    background: var(--menu-surface);
+}
+
+.level4-footer-btn[data-reset-armed="true"]::before {
+    content: '!';
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.level4-backups {
+    max-height: 40vh;
+    overflow: auto;
+}
+
+/* The pause menu borrows the drawer for in-match options; saved settings stay in the main menu. */
+#main-menu[data-pause-settings="true"] :is(#btn-level4-backups, #level4-backups) {
+    display: none;
+}

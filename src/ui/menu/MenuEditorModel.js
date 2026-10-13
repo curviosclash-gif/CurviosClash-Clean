@@ -76,7 +76,7 @@ function resolveTextPanelId(textId, schema) {
     if (textId.startsWith('menu.level4.tools.')) {
         return findPanelIdBySemanticId(schema, 'profiles', 'submenu-profiles');
     }
-    if (textId.startsWith('menu.level4.advanced_map.') || textId.startsWith('menu.tools.')) {
+    if (textId.startsWith('menu.tools.')) {
         return findPanelIdBySemanticId(schema, 'portals', 'submenu-portals');
     }
     if (textId.startsWith('menu.developer.') || textId.startsWith('menu.debug.')
