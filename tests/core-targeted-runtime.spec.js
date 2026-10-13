@@ -1854,7 +1854,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             controller.setupListeners();
 
             ui.pauseResumeButton.click();
-            // "Hauptmenü" ends the match only on the confirming second click.
+            // "Match verlassen" ends the match only on the confirming second click.
             ui.pauseMenuButton.click();
             ui.pauseMenuButton.click();
             ui.pauseSettingsButton.click();
@@ -1867,7 +1867,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
             controller.dispose();
             ui.pauseResumeButton.click();
-            // "Hauptmenü" ends the match only on the confirming second click.
+            // "Match verlassen" ends the match only on the confirming second click.
             ui.pauseMenuButton.click();
             ui.pauseMenuButton.click();
             ui.pauseSettingsButton.click();
@@ -1880,7 +1880,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
             controller.setupListeners();
             ui.pauseResumeButton.click();
-            // "Hauptmenü" ends the match only on the confirming second click.
+            // "Match verlassen" ends the match only on the confirming second click.
             ui.pauseMenuButton.click();
             ui.pauseMenuButton.click();
             ui.pauseSettingsButton.click();

@@ -268,6 +268,9 @@ export function createPauseOverlayControllerPort(ports = null) {
     } else if (typeof lifecyclePort?.returnToMenu === 'function') {
         controllerPort.returnToMenu = (options = undefined) => lifecyclePort.returnToMenu(options);
     }
+    if (typeof runtimeIntentPort?.startMatch === 'function') {
+        controllerPort.startMatch = (options = undefined) => runtimeIntentPort.startMatch(options);
+    }
     if (typeof settingsPort?.applyAutoRoll === 'function') {
         controllerPort.applyAutoRoll = (checked) => settingsPort.applyAutoRoll(checked);
     }

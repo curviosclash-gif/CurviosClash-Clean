@@ -32,7 +32,7 @@ export function isPauseOverlayOpen(overlay) {
 }
 
 function listPauseButtons(overlay) {
-    return Array.from(overlay.querySelectorAll?.(PAUSE_BUTTON_SELECTOR) || []).filter((button) => !button.disabled);
+    return Array.from(overlay.querySelectorAll?.(PAUSE_BUTTON_SELECTOR) || []).filter((button) => !button.disabled && button.hidden !== true);
 }
 
 export function movePauseFocus(overlay, step) {
