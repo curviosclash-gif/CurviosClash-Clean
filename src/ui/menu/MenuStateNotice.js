@@ -29,9 +29,7 @@ function createPart(doc, tag, part, text = '') {
 
 /** @param {any} element @param {string} name */
 function findPart(element, name) {
-    return element.find
-        ? element.find((node) => node?.dataset?.part === name)
-        : element.querySelector?.(`[data-part="${name}"]`) ?? null;
+    return element.querySelector(`[data-part="${name}"]`);
 }
 
 /** @param {any} element @param {string} kind */
@@ -60,7 +58,10 @@ export function createMenuStateNotice(doc, { kind, title = '', text = '', action
     element.className = 'menu-state-notice';
 
     const head = createPart(doc, 'div', 'head');
-    head.append(createPart(doc, 'span', 'symbol'), createPart(doc, 'span', 'label'));
+    const symbol = createPart(doc, 'span', 'symbol');
+    // The label carries the meaning; the symbol is decoration for screen readers.
+    symbol.setAttribute('aria-hidden', 'true');
+    head.append(symbol, createPart(doc, 'span', 'label'));
     const action = createPart(doc, 'button', 'action');
     action.type = 'button';
     element.append(head, createPart(doc, 'p', 'title', String(title)), createPart(doc, 'p', 'text', String(text)), action);

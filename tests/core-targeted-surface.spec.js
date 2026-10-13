@@ -1846,7 +1846,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await loadGame(page);
         await openCustomSubmenu(page);
 
-        const modeInfos = page.locator('#submenu-custom .level2-mode-grid .menu-choice-copy');
+        // The four-player card joins the grid hidden and only shows for four shared-screen players.
+        const modeInfos = page.locator('#submenu-custom .level2-mode-grid .menu-choice-card:not(.hidden) .menu-choice-copy');
         await expect(modeInfos).toHaveCount(2);
         await expect(modeInfos).toContainText([
             'Fliege von Etappe zu Etappe',
@@ -3442,8 +3443,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
 
     test('T20z2b: Erweiterte Optionen starten oben, sperren den Hintergrund und fokussieren Schliessen', async ({ page }) => {
         await loadGame(page);
-        // The reset button lives in the graphics tab.
-        await openLevel4Drawer(page, { section: 'graphics' });
+        await openLevel4Drawer(page);
 
         const state = await page.evaluate(() => {
             const menu = document.querySelector('.menu-content');
@@ -3465,6 +3465,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(Math.abs(state.drawerOffsetTop)).toBeLessThanOrEqual(2);
         expect(state.backgroundInert).toBeTruthy();
         expect(state.backgroundAriaHidden).toBe('true');
+        // The reset button lives in the graphics tab.
+        await page.click('#submenu-level4 [data-level4-section-target="graphics"]');
         await page.locator('#btn-level4-reset').focus();
         await page.keyboard.press('Shift+Tab');
         const wrappedFocus = await page.evaluate(() => {
