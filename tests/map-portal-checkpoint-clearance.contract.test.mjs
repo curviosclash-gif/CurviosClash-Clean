@@ -68,7 +68,7 @@ const PORTAL_CLEARANCE_BASELINE = Object.freeze({
         pairs: Object.freeze([1, 2, 3]),
         endpoints: Object.freeze({
             1: Object.freeze({ a: Object.freeze([17.15, 83, -52]), b: Object.freeze([47.95, 28, 0]) }),
-            2: Object.freeze({ a: Object.freeze([79, 83, 0]), b: Object.freeze([-40, 62.2, 0]) }),
+            2: Object.freeze({ a: Object.freeze([79, 83, 0]), b: Object.freeze([-52, 62.2, 0]) }),
             3: Object.freeze({ a: Object.freeze([136, 24, 0]), b: Object.freeze([-159, 24, -4]) }),
         }),
     }),
