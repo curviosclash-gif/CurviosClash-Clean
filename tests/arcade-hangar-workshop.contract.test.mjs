@@ -370,6 +370,44 @@ test('hangar legacy migration reports a rejected canonical write', async () => {
     assert.equal(result.record.builds[0]?.buildId, 'legacy-retry');
 });
 
+test('future hangar schemas stay untouched and reject reads that could overwrite them', () => {
+    const futureRecord = {
+        schemaVersion: 'hangar-build-store.v99',
+        mode: 'arcade',
+        builds: [{ buildId: 'future-build', vehicleId: 'ship5', name: 'Future', slots: { core: 'new-part' } }],
+        activeBuildByVehicle: { ship5: 'future-build' },
+        futureOnlyData: { keep: true },
+    };
+    const store = createStore({ [HANGAR_BUILD_STORAGE_KEYS.arcade]: futureRecord });
+    const capability = createSettingsRecordHangarCapability({ store, mode: 'arcade' });
+    const loaded = capability(HANGAR_CAPABILITY_IDS.LOAD_CUSTOM_BLUEPRINT);
+
+    assert.equal(loaded.ok, false);
+    assert.equal(loaded.code, 'unsupported_schema_version');
+    assert.equal(readActiveHangarBuildFromStore({ store, mode: 'arcade', vehicleId: 'ship5' }), null);
+    for (const capabilityId of [
+        HANGAR_CAPABILITY_IDS.SAVE_CUSTOM_BLUEPRINT,
+        HANGAR_CAPABILITY_IDS.RENAME_CUSTOM_BLUEPRINT,
+        HANGAR_CAPABILITY_IDS.DELETE_CUSTOM_BLUEPRINT,
+    ]) {
+        const result = capability(capabilityId, {
+            build: createDefaultHangarBuild('ship5', { buildId: 'replacement-build', nowMs: 99 }),
+            buildId: 'future-build',
+            name: 'Overwrite attempt',
+        });
+        assert.equal(result.ok, false, capabilityId);
+        assert.equal(result.code, 'unsupported_schema_version', capabilityId);
+    }
+    assert.deepEqual(store.records.get(HANGAR_BUILD_STORAGE_KEYS.arcade), futureRecord);
+
+    const legacyStore = createStore({ [LEGACY_ARCADE_LOADOUT_STORAGE_KEY]: futureRecord });
+    const legacyLoaded = createSettingsRecordHangarCapability({ store: legacyStore, mode: 'arcade' })(HANGAR_CAPABILITY_IDS.LOAD_CUSTOM_BLUEPRINT);
+    assert.equal(legacyLoaded.ok, false);
+    assert.equal(legacyLoaded.code, 'unsupported_schema_version');
+    assert.equal(legacyStore.records.has(HANGAR_BUILD_STORAGE_KEYS.arcade), false);
+    assert.deepEqual(legacyStore.records.get(LEGACY_ARCADE_LOADOUT_STORAGE_KEY), futureRecord);
+});
+
 test('hangar selection merges into the newest settings record before saving', () => {
     const localSettings = {
         audioVolume: 0.1,

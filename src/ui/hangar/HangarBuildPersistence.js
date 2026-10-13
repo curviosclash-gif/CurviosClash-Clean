@@ -48,6 +48,12 @@ function normalizeRecord(source, mode = 'arcade') {
     return { schemaVersion: HANGAR_BUILD_STORE_SCHEMA_VERSION, mode: normalizedMode, builds, activeBuildByVehicle };
 }
 
+function hasUnsupportedSchemaVersion(record, supportedVersion) {
+    return Boolean(record && typeof record === 'object'
+        && Object.hasOwn(record, 'schemaVersion')
+        && record.schemaVersion !== supportedVersion);
+}
+
 function isPersistenceSuccess(result) {
     return result === undefined || result === true || result?.success === true;
 }
@@ -65,7 +71,9 @@ export function readActiveHangarBuildFromStore({ store, mode = 'arcade', vehicle
     const normalizedMode = normalizeMode(mode);
     const normalizedVehicleId = String(vehicleId || 'ship5').trim().toLowerCase() || 'ship5';
     if (!store || typeof store.loadJsonRecord !== 'function') return null;
-    const record = normalizeRecord(store.loadJsonRecord(HANGAR_BUILD_STORAGE_KEYS[normalizedMode], null), normalizedMode);
+    const raw = store.loadJsonRecord(HANGAR_BUILD_STORAGE_KEYS[normalizedMode], null);
+    if (hasUnsupportedSchemaVersion(raw, HANGAR_BUILD_STORE_SCHEMA_VERSION)) return null;
+    const record = normalizeRecord(raw, normalizedMode);
     const buildId = record.activeBuildByVehicle[normalizedVehicleId];
     return cloneHangarBuild(record.builds.find((build) => build.buildId === buildId && build.vehicleId === normalizedVehicleId));
 }
@@ -81,11 +89,25 @@ export function createSettingsRecordHangarCapability({ store, mode = 'arcade' } 
         }
         const raw = store.loadJsonRecord(storageKey, null);
         if (raw && typeof raw === 'object') {
+            if (hasUnsupportedSchemaVersion(raw, HANGAR_BUILD_STORE_SCHEMA_VERSION)) {
+                return {
+                    record: normalizeRecord(null, normalizedMode),
+                    migration: null,
+                    unsupportedSchemaVersion: true,
+                };
+            }
             return { record: normalizeRecord(raw, normalizedMode), migration: null };
         }
         if (normalizedMode === 'arcade') {
             const legacy = store.loadJsonRecord(LEGACY_ARCADE_LOADOUT_STORAGE_KEY, null);
             if (legacy && typeof legacy === 'object') {
+                if (hasUnsupportedSchemaVersion(legacy, 'arcade-vehicle-loadouts.v1')) {
+                    return {
+                        record: normalizeRecord(null, normalizedMode),
+                        migration: null,
+                        unsupportedSchemaVersion: true,
+                    };
+                }
                 const migrated = normalizeRecord(legacy, normalizedMode);
                 const persistence = saveRecord(store, storageKey, migrated);
                 return {
@@ -106,6 +128,13 @@ export function createSettingsRecordHangarCapability({ store, mode = 'arcade' } 
     return (capabilityId, payload = {}) => {
         const loaded = loadRecord();
         const record = loaded.record;
+        if (loaded.unsupportedSchemaVersion) {
+            return {
+                ok: false,
+                code: 'unsupported_schema_version',
+                record: cloneRecord(record),
+            };
+        }
         if (capabilityId === HANGAR_CAPABILITY_IDS.LOAD_CUSTOM_BLUEPRINT) {
             return {
                 ok: loaded.migration?.ok !== false,
