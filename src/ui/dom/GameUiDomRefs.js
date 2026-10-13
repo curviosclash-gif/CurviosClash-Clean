@@ -117,6 +117,7 @@ export function createGameUiRefs(doc = document) {
         mapFavoriteToggleButton: doc.getElementById('btn-map-favorite-toggle'),
         mapRandomButton: doc.getElementById('btn-map-random'),
         mapVariantCount: doc.getElementById('map-variant-count'),
+        mapProfileCard: doc.getElementById('map-profile-card'),
         mapChoiceStatus: doc.getElementById('map-choice-status'),
         mapShortcutHints: doc.getElementById('map-shortcut-hints'),
         mapFavoritesList: doc.getElementById('map-favorites-list'),

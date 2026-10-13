@@ -13,7 +13,7 @@ import { isArcadeSelectableVehicleId } from '../../shared/contracts/ArcadeVehicl
 import { ARCADE_GHOST_DUEL_MODES } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { renderQuickList } from './StartSetupUiOps.js';
 import { isMapOfferedForModePath } from './StartSetupMapOffer.js';
-import { renderFreePlayMapCount, restoreFreePlayVariantMap, rememberFreePlayVariantMap } from './StartSetupFreePlayMaps.js';
+import { renderFreePlayMapCount, restoreFreePlayVariantMap, rememberFreePlayVariantMap, syncMapProfileCard } from './StartSetupFreePlayMaps.js';
 
 const MAP_FILTER_OPTIONS = Object.freeze([
     ['arena', 'Sammlung: Arenen'],
@@ -351,6 +351,14 @@ export function syncStartSetupSelectionState({
         freePlayVariant,
         freePlayTracker,
         favoriteMaps: startSetup.favoriteMaps,
+    });
+    syncMapProfileCard({
+        node: ui.mapProfileCard,
+        variant: freePlayVariant,
+        mapKey: effectiveMapKey,
+        mapDefinition: runtimeMaps?.[effectiveMapKey],
+        mapName: mapPreviewEntries.find((entry) => entry.key === effectiveMapKey)?.name
+            || runtimeMaps?.[effectiveMapKey]?.name || effectiveMapKey,
     });
 
     // Arcade flies only the factory ships; a stored Lab build stays saved (Classic keeps it) and shows as the fallback.
