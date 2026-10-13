@@ -346,7 +346,7 @@ export class ParcoursProgressSystem {
         this._setErrorState(state, 'Falsche Reihenfolge', now);
         if (player?.isArcadeParcoursCompetitor !== true) {
             if (penaltyMs > 0) {
-                this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id} (+${(penaltyMs / 1000).toFixed(1)}s Penalty)`);
+                this._notifyPlayer(player, `Falsche Reihenfolge (+${(penaltyMs / 1000).toFixed(1)} s Strafzeit)`);
                 this._leaderboardCallback?.({
                     type: 'wrong_order',
                     playerIndex: player.index,
@@ -355,7 +355,7 @@ export class ParcoursProgressSystem {
                     totalPenaltyMs: state.penaltyTimeMs,
                 });
             } else {
-                this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id}`);
+                this._notifyPlayer(player, 'Falsche Reihenfolge');
             }
         }
         this._logRecorderEvent(
