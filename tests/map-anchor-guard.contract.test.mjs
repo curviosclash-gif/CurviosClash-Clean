@@ -155,6 +155,30 @@ test('obstacle bounds: boxes (rotated), tubes and tall boxes must stay inside th
     ]), ['obstacles[through_x]', 'obstacles[through_z_rotated]', 'obstacles[beam]', 'obstacles[too_tall]']);
 });
 
+test('static turrets follow the anchor rule: inside the arena, outside solid boxes, readable', () => {
+    const map = {
+        size: [60, 40, 60],
+        scaleAuthoredAnchors: true,
+        obstacles: [{ pos: [10, 10, 0], size: [6, 6, 6] }],
+        staticTurrets: [
+            { id: 'ok_turret', pos: [-10, 10, 0] },
+            { id: 'walled_turret', pos: [10, 10, 0] },
+            { id: 'outside_turret', pos: [0, 10, 40] },
+            { id: 'broken_turret', pos: [0, 10] },
+        ],
+    };
+    const found = analyzeMapAnchors('probe', map, MAP_SCALE).map(violationKey).sort();
+    assert.deepEqual(found, [
+        'probe | anchor-format | staticTurrets[broken_turret]',
+        'probe | bounds | staticTurrets[outside_turret]',
+        'probe | in-solid | staticTurrets[walled_turret]',
+    ]);
+    // Without the flag the same numbers are world units: 40 is then inside the 90-unit half-width.
+    const unscaled = analyzeMapAnchors('probe', { ...map, scaleAuthoredAnchors: false, obstacles: [] }, MAP_SCALE)
+        .map(violationKey);
+    assert.ok(!unscaled.includes('probe | bounds | staticTurrets[outside_turret]'));
+});
+
 test('a placed point inside a playable volume below the floor is inside the arena', () => {
     const map = {
         size: [60, 40, 60],
