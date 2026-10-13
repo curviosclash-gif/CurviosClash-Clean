@@ -10,6 +10,8 @@ import { computeCollectionPlacement } from './GLBCollectionPlacement.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader();
 const DEFAULT_GLB_SHADOW_CASTER_BUDGET = 24;
+// Generous next to a healthy load (a few seconds on the UHD 630 for the largest world).
+const DEFAULT_OPTIONAL_PROP_TIMEOUT_MS = 20_000;
 // Only transform tracks move a collider. Morph and material tracks deform or restyle a
 // mesh without displacing it, so they keep the cheaper static collider.
 const TRANSFORM_TRACK_PROPERTIES = new Set(['position', 'quaternion', 'rotation', 'scale']);
@@ -518,13 +520,32 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
         };
     };
 
+    // A decorative prop may fail on its own, so a file that never finishes must not hold the map;
+    // required worlds keep waiting. A prop arriving after its limit is released, not leaked.
+    const propTimeoutMs = normalizePositiveNumber(options.optionalPropTimeoutMs, DEFAULT_OPTIONAL_PROP_TIMEOUT_MS);
+    const loadWithinLimit = (descriptor) => {
+        if (descriptor.role !== 'optionalProp') return loadDescriptor(descriptor);
+        const pending = loadDescriptor(descriptor);
+        let timer = null;
+        const limit = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`exceeded its ${propTimeoutMs} ms time limit`)), propTimeoutMs);
+        });
+        return Promise.race([pending, limit]).finally(() => clearTimeout(timer)).catch((error) => {
+            pending.then((late) => {
+                for (const mixer of late.animationMixers) mixer.stopAllAction();
+                disposeObject3DResources(late.scene);
+            }, () => {});
+            throw error;
+        });
+    };
+
     const loadNext = async () => {
         while (nextIndex < models.length) {
             const modelIndex = nextIndex;
             nextIndex += 1;
             const descriptor = models[modelIndex];
             try {
-                const result = await loadDescriptor(descriptor);
+                const result = await loadWithinLimit(descriptor);
                 loadedModels[modelIndex] = { descriptor, result };
             } catch (error) {
                 warnings[modelIndex] = `GLB model "${descriptor.id}" failed: ${error?.message || 'Unknown loading error'}`;
