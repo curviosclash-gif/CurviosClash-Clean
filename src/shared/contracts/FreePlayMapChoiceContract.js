@@ -37,17 +37,21 @@ export function listFreePlayEligibleMapKeys({ maps, variant = null, isOffered = 
 }
 
 /**
- * Text for the counter beside the map list, e.g. "24 Karten passen zu Flaggen".
+ * Text for the counter beside the map list, e.g. "24 Karten passen zu Flaggen"; with a search or
+ * filter narrowing the list it reads "3 von 24 Karten passen zu Flaggen".
  * @param {string|null|undefined} variant
  * @param {number} count
+ * @param {number} [total] all maps of the variant when a search or filter is active
  * @returns {string}
  */
-export function describeFreePlayMapCount(variant, count) {
+export function describeFreePlayMapCount(variant, count, total = Number.NaN) {
     if (!isFreePlayVariant(variant)) return '';
     const label = FREE_PLAY_VARIANT_LABELS[/** @type {keyof typeof FREE_PLAY_VARIANT_LABELS} */ (variant)];
-    const total = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
-    if (total === 0) return `Keine Karte passt zu ${label}`;
-    return total === 1 ? `1 Karte passt zu ${label}` : `${total} Karten passen zu ${label}`;
+    const shown = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+    const all = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : shown;
+    if (all > shown) return `${shown} von ${all} Karten passen zu ${label}`;
+    if (shown === 0) return `Keine Karte passt zu ${label}`;
+    return shown === 1 ? `1 Karte passt zu ${label}` : `${shown} Karten passen zu ${label}`;
 }
 
 /**

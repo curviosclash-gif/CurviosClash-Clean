@@ -52,9 +52,9 @@ export function syncMapProfileCard({ node, variant, mapKey, mapDefinition, mapNa
  * @param {string|null} variant
  * @param {number} count
  */
-export function renderFreePlayMapCount(node, variant, count) {
+export function renderFreePlayMapCount(node, variant, count, total = Number.NaN) {
     if (!node) return;
-    const text = describeFreePlayMapCount(variant, count);
+    const text = describeFreePlayMapCount(variant, count, total);
     node.textContent = text;
     node.classList.toggle('hidden', text === '');
     node.setAttribute('aria-hidden', String(text === ''));

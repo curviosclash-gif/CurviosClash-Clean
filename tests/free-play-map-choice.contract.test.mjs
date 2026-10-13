@@ -130,3 +130,10 @@ test('the random pick ignores duplicates and blanks and answers an empty list wi
     assert.equal(pickRandomFreePlayMapKey({ candidates: ['', null, 'a', 'a'], rng: () => 0.9 }), 'a');
     assert.equal(pickRandomFreePlayMapKey({ candidates: ['a', 'b'], recentKeys: undefined, rng: () => 0 }), 'a');
 });
+
+test('a search or filter makes the counter say how many of the variant maps are left', () => {
+    assert.equal(describeFreePlayMapCount('flags', 3, 24), '3 von 24 Karten passen zu Flaggen');
+    assert.equal(describeFreePlayMapCount('flags', 0, 24), '0 von 24 Karten passen zu Flaggen');
+    assert.equal(describeFreePlayMapCount('flags', 24, 24), '24 Karten passen zu Flaggen');
+    assert.equal(describeFreePlayMapCount('flags', 24), '24 Karten passen zu Flaggen');
+});

@@ -262,10 +262,14 @@ function syncMapSelect({
         });
     }
     const variantMaps = Object.fromEntries(mapPreviewEntries.map((entry) => [entry.key, runtimeMaps?.[entry.key]]));
+    const variantMapTotal = listFreePlayEligibleMapKeys({ maps: variantMaps, variant: freePlayVariant, isOffered: isOfferedInPicker }).length;
+    // A search or filter narrows the list; the counter then says how many of the variant's maps are left.
+    const narrowed = startSetupFilters.mapSearch !== '' || startSetupFilters.mapFilter !== 'all';
     renderFreePlayMapCount(
         ui.mapVariantCount,
         freePlayVariant,
-        listFreePlayEligibleMapKeys({ maps: variantMaps, variant: freePlayVariant, isOffered: isOfferedInPicker }).length
+        narrowed ? matchingMapEntries.length : variantMapTotal,
+        narrowed ? variantMapTotal : Number.NaN
     );
     rememberFreePlayVariantMap({
         settings, variant: freePlayVariant, maps: runtimeMaps, mapKey: resolvedMapKey, isOffered: isOfferedInPicker,

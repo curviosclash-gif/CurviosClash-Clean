@@ -292,7 +292,9 @@ export class MenuNavigationRuntime {
         if (returnFocus && isAvailable(returnFocus)) {
             focusWithoutScroll(returnFocus);
         } else if (!targetPanel.contains?.(callbackFocusTarget)) {
-            const [focusTarget] = getFocusableElements(targetPanel);
+            // A screen can name its natural start (e.g. the chosen free play variant) instead of "Zurück".
+            const preferred = targetPanel.querySelector?.('[data-menu-focus-preferred="true"]:not([disabled]):not(.hidden)');
+            const [focusTarget] = isAvailable(preferred) ? [preferred] : getFocusableElements(targetPanel);
             focusWithoutScroll(focusTarget);
         }
         resetMobileMenuScroll(targetPanel);

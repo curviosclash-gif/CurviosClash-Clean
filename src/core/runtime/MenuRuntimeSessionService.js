@@ -156,8 +156,8 @@ export function handleSessionTypeChangeAction(ctx) {
             ? 'Splitscreen'
             : (result.targetSessionType === 'multiplayer' ? 'Multiplayer' : 'Single Player'));
     const transportLabel = selectedMultiplayerTransport === MULTIPLAYER_TRANSPORTS.ONLINE
-        ? ' | Transport: Online'
-        : (result.targetSessionType === 'multiplayer' ? ' | Transport: LAN' : '');
+        ? ' · Verbindung: Online'
+        : (result.targetSessionType === 'multiplayer' ? ' · Verbindung: LAN' : '');
     if (!requestedAllowed && requestedSessionType !== targetSessionType) {
         const blockedLabel = requestedSessionType === 'splitscreen'
             ? 'Splitscreen'
@@ -168,8 +168,8 @@ export function handleSessionTypeChangeAction(ctx) {
     }
     game._showStatusToast(
         result.loadedDraft
-            ? `Session gewechselt: ${label}${transportLabel} (Draft geladen)`
-            : `Session gewechselt: ${label}${transportLabel}`,
+            ? `Gewählt: ${label}${transportLabel} (letzte Auswahl geladen)`
+            : `Gewählt: ${label}${transportLabel}`,
         1200,
         'info'
     );
@@ -265,7 +265,7 @@ export function handleModePathChangeAction(ctx) {
     } else if (requestedModePath === 'fight' && !huntFeatureEnabled) {
         game._showStatusToast('Kampf ist deaktiviert. Klassisch wurde gesetzt.', 1500, 'warning');
     } else {
-        game._showStatusToast(`Modus gewählt: ${label}`, 1200, 'info');
+        game._showStatusToast(`Gewählt: ${event?.label || label}`, 1200, 'info');
     }
 }
 

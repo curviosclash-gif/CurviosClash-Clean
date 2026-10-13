@@ -24,6 +24,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.context.section.utilities': 'Werkzeuge',
     'menu.context.level4.title': 'Einstellungen',
     'menu.context.game.step': 'Match vorbereiten',
+    'menu.context.free_play.step': 'Freies Spiel',
     'menu.context.custom.step': 'Spielauswahl',
     'menu.context.custom.summary': 'Sofortstart oder Setup',
     'menu.context.dirty': 'ungespeicherte Änderungen',

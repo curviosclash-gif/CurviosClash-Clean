@@ -17,6 +17,7 @@ import { resolveDeveloperReleaseState } from './menu/MenuUiSyncContext.js';
 import { applyMenuChromeState } from './menu/MenuChromeStateOps.js';
 import { leaveLevel4PauseHost, PAUSE_LEVEL4_RETURN_TARGET } from './menu/Level4PauseHost.js';
 import { showStatusToast } from './menu/StatusToastOps.js';
+import { resolveContextModeLabel, resolveSetupBreadcrumb } from './start-setup/StartSetupSummaryLabels.js';
 
 function focusWithoutScroll(element) {
     if (!element || typeof element.focus !== 'function') return;
@@ -510,8 +511,7 @@ export class UINavigationLifecycleController {
             || settings?.localSettings?.modePath
             || 'normal'
         ).toLowerCase();
-        const modeLabel = resolveMenuCatalogText(`menu.context.mode.${modePath}`, '')
-            || resolveMenuCatalogText('menu.context.mode.normal', 'Klassisch');
+        const modeLabel = resolveContextModeLabel(modePath, settings, resolveMenuCatalogText);
         const mapLabel = resolveMapPreview(settings?.mapKey).name;
         const activeSection = this._resolveLevel4Section(settings?.localSettings?.toolsState?.activeSection);
         const activeSectionLabel = resolveMenuCatalogText(`menu.context.section.${activeSection}`, '')
@@ -525,7 +525,7 @@ export class UINavigationLifecycleController {
             breadcrumbText = `${sessionLabel} › ${modeLabel} › ${level4Title} › ${activeSectionLabel}`;
         } else if (activeSubmenu === 'submenu-game') {
             contextText = `${section} | ${sessionLabel} | ${modeLabel} | ${mapLabel}`;
-            breadcrumbText = `${sessionLabel} › ${modeLabel} › ${resolveMenuCatalogText('menu.context.game.step', 'Match vorbereiten')}`;
+            breadcrumbText = resolveSetupBreadcrumb({ sessionLabel, modeLabel, settings, resolveText: resolveMenuCatalogText });
         } else if (activeSubmenu === 'submenu-custom') {
             contextText = `${section} | ${sessionLabel} | ${resolveMenuCatalogText('menu.context.custom.summary', 'Sofortstart oder Setup')} | ${dirtyState}`;
             breadcrumbText = `${sessionLabel} › ${resolveMenuCatalogText('menu.context.custom.step', 'Spielstil wählen')}`;

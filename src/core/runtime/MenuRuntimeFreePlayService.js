@@ -12,7 +12,7 @@ import { handleModePathChangeAction } from './MenuRuntimeSessionService.js';
 import { CONFIG } from '../Config.js';
 import { writeHangarMapSelection } from '../../composition/core-ui/CoreUiMenuPorts.js';
 import { isMapEligibleForModePath } from '../../shared/contracts/MapModeContract.js';
-import { resolveFreePlayVariantMapKey } from '../../shared/contracts/FreePlayMapChoiceContract.js';
+import { FREE_PLAY_VARIANT_LABELS, resolveFreePlayVariantMapKey } from '../../shared/contracts/FreePlayMapChoiceContract.js';
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
 
 // V7: the map this variant remembers comes back when the player switches to it, if it fits.
@@ -59,7 +59,7 @@ export function handleFreePlayVariantChangeAction(ctx) {
 
     handleModePathChangeAction({
         ...ctx,
-        event: { modePath: pinned.modePath, stayOnPanel },
+        event: { modePath: pinned.modePath, stayOnPanel, label: FREE_PLAY_VARIANT_LABELS[pinned.variant] },
         onSettingsChanged: (payload) => {
             const settings = game.settings;
             // A surface or feature flag may have refused the fight path; then the variant

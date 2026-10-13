@@ -18,3 +18,18 @@ export function resolveModeLabel(modePath, settings) {
     if (modePath === 'quick_action') return 'Schnellstart';
     return 'Klassisch';
 }
+
+/** Mode label of the menu context line: the free play variant, else the catalog text of the path. */
+export function resolveContextModeLabel(modePath, settings, resolveText) {
+    const variant = deriveFreePlayVariant(settings);
+    if (variant) return FREE_PLAY_VARIANT_LABELS[variant];
+    return resolveText(`menu.context.mode.${modePath}`, '') || resolveText('menu.context.mode.normal', 'Klassisch');
+}
+
+/** Breadcrumb of the setup screen: "Einzelspieler › Freies Spiel › Flaggen" or "… › Arcade › Match vorbereiten". */
+export function resolveSetupBreadcrumb({ sessionLabel, modeLabel, settings, resolveText }) {
+    if (deriveFreePlayVariant(settings)) {
+        return `${sessionLabel} › ${resolveText('menu.context.free_play.step', 'Freies Spiel')} › ${modeLabel}`;
+    }
+    return `${sessionLabel} › ${modeLabel} › ${resolveText('menu.context.game.step', 'Match vorbereiten')}`;
+}

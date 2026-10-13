@@ -61,6 +61,7 @@ export function syncFreePlayUi({ ui, settings, sessionType, isModePathAllowed = 
         const isActive = buttonVariant === variant;
         button.classList.toggle('active', isActive);
         button.setAttribute('aria-pressed', String(isActive));
+        button.setAttribute('data-menu-focus-preferred', String(isActive));
     });
     if (ui.freePlayVariantHint) {
         ui.freePlayVariantHint.textContent = hint;
