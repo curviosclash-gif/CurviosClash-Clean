@@ -351,6 +351,7 @@ export class UINavigationLifecycleController {
             accessContext: manager._accessContext,
             getControls: () => this._getSettings()?.controls,
             onLevel4CloseRequested: () => this._requestLevel4Close(),
+            onGamepadShortcut: (button) => manager._startSync?.handleMapPickerGamepadButton?.(button) === true,
             onPanelChanged: (panelId, _panelConfig, _transition, transitionMetadata) => {
                 const previousPanelId = this._getActiveSubmenu() || null;
                 this._setActiveSubmenu(panelId || null);

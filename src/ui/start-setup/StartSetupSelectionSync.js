@@ -7,10 +7,13 @@ import {
 } from '../hangar/HangarSelectionWritebackContract.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { isMapEligibleForModePath } from '../../shared/contracts/MapModeContract.js';
+import { deriveFreePlayVariant, isMapEligibleForFreePlayVariant } from '../../shared/contracts/FreePlayVariantContract.js';
+import { listFreePlayEligibleMapKeys } from '../../shared/contracts/FreePlayMapChoiceContract.js';
 import { isArcadeSelectableVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { ARCADE_GHOST_DUEL_MODES } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { renderQuickList } from './StartSetupUiOps.js';
 import { isMapOfferedForModePath } from './StartSetupMapOffer.js';
+import { renderFreePlayMapCount, restoreFreePlayVariantMap, rememberFreePlayVariantMap } from './StartSetupFreePlayMaps.js';
 
 const MAP_FILTER_OPTIONS = Object.freeze([
     ['arena', 'Sammlung: Arenen'],
@@ -20,6 +23,7 @@ const MAP_FILTER_OPTIONS = Object.freeze([
     ['expert', 'Sammlung: Expertenkarten'],
     ['showcase', 'Sammlung: Showcase & Tests'],
     ['custom', 'Sammlung: Eigene Karten'],
+    ['favorites', 'Nur Favoriten'],
     ['small', 'Größe: Klein'],
     ['medium', 'Größe: Mittel'],
     ['large', 'Größe: Groß'],
@@ -137,6 +141,9 @@ function syncMapSelect({
     formatMapLabel,
     resolveSurfaceFallbackMapKey,
     hasStoredCustomMap,
+    freePlayVariant = null,
+    freePlayTracker = null,
+    favoriteMaps = [],
 }) {
     if (!ui.mapSelect) {
         return String(surfaceMenuState.mapKey || settings.mapKey || 'standard');
@@ -144,7 +151,22 @@ function syncMapSelect({
     const mapSelection = readHangarMapSelection(settings, 'standard', {
         modePath: hangarSelectionModePath,
     });
-    const previousValue = String(mapSelection.value || surfaceMenuState.mapKey || settings.mapKey || ui.mapSelect.value || 'standard');
+    const mapPreviewByKey = new Map(mapPreviewEntries.map((entry) => [entry.key, entry]));
+    // Picker rules without search or filter: what the free play variant may offer at all.
+    const isOfferedInPicker = (mapKey) => {
+        const entry = mapPreviewByKey.get(mapKey);
+        return !!entry && entry.hiddenFromMapPicker !== true
+            && isMapEligibleForModePath(runtimeMaps?.[mapKey], modePath)
+            && isMapOfferedForModePath(entry, runtimeMaps?.[mapKey], modePath, 'all')
+            && surfacePolicyPort.isMapAllowed(mapKey, modePath);
+    };
+    let previousValue = String(mapSelection.value || surfaceMenuState.mapKey || settings.mapKey || ui.mapSelect.value || 'standard');
+    if (freePlayTracker) {
+        previousValue = restoreFreePlayVariantMap({
+            settings, variant: freePlayVariant, tracker: freePlayTracker, maps: runtimeMaps,
+            mapKey: previousValue, isOffered: isOfferedInPicker, hangarSelectionModePath,
+        });
+    }
     const fallbackMapKey = resolveSurfaceFallbackMapKey(runtimeMaps, modePath, previousValue);
     ui.mapSelect.replaceChildren();
     const matchingMapEntries = mapPreviewEntries.filter((entry) => {
@@ -156,10 +178,12 @@ function syncMapSelect({
                 || entry.category === startSetupFilters.mapFilter
                 || entry.collection === startSetupFilters.mapFilter
                 || (startSetupFilters.mapFilter === 'parcours-collection' && entry.collection === 'parcours')
+                || (startSetupFilters.mapFilter === 'favorites' && favoriteMaps.includes(entry.key))
                 || entry.filterTags?.includes(startSetupFilters.mapFilter);
             const mapDefinition = runtimeMaps?.[entry.key];
             const matchesModePath = isMapEligibleForModePath(mapDefinition, modePath)
-                && isMapOfferedForModePath(entry, mapDefinition, modePath, startSetupFilters.mapFilter);
+                && isMapOfferedForModePath(entry, mapDefinition, modePath, startSetupFilters.mapFilter)
+                && (!freePlayVariant || isMapEligibleForFreePlayVariant(mapDefinition, freePlayVariant));
             const matchesSurfacePolicy = surfacePolicyPort.isMapAllowed(entry.key, modePath);
             return matchesSearch && matchesFilter && matchesModePath && matchesSurfacePolicy;
         });
@@ -206,6 +230,7 @@ function syncMapSelect({
         : !!previousMapDefinition
             && (previousMapDefinition.hiddenFromMapPicker !== true || isActiveScenario)
             && isMapEligibleForModePath(previousMapDefinition, modePath)
+            && (!freePlayVariant || isMapEligibleForFreePlayVariant(previousMapDefinition, freePlayVariant))
             && surfacePolicyPort.isMapAllowed(previousValue, modePath);
     if (!hasPreviousOption && canRetainPreviousMap) {
         const previousEntry = mapPreviewEntries.find((entry) => entry.key === previousValue)
@@ -228,15 +253,28 @@ function syncMapSelect({
         assignMapOptionCollection(option, fallbackEntry);
         ui.mapSelect.appendChild(option);
     }
-    const resolvedMapKey = hasPreviousOption
-        ? previousValue
+    // A map the variant cannot host gives way to the normal fallback, else to the first map listed.
+    const fallbackOptionKey = freePlayVariant
+        && Array.from(ui.mapSelect.options).some((option) => option.value === fallbackMapKey)
+        ? fallbackMapKey
         : ui.mapSelect.options[0].value;
+    const resolvedMapKey = hasPreviousOption ? previousValue : fallbackOptionKey;
     ui.mapSelect.value = resolvedMapKey;
-    if (previousMapDefinition?.hiddenFromMapPicker === true && previousValue !== resolvedMapKey) {
+    const gaveWayToVariant = !!freePlayVariant && !canRetainPreviousMap && previousValue !== resolvedMapKey;
+    if ((previousMapDefinition?.hiddenFromMapPicker === true || gaveWayToVariant) && previousValue !== resolvedMapKey) {
         writeHangarMapSelection(settings, resolvedMapKey, resolvedMapKey, {
             modePath: hangarSelectionModePath,
         });
     }
+    const variantMaps = Object.fromEntries(mapPreviewEntries.map((entry) => [entry.key, runtimeMaps?.[entry.key]]));
+    renderFreePlayMapCount(
+        ui.mapVariantCount,
+        freePlayVariant,
+        listFreePlayEligibleMapKeys({ maps: variantMaps, variant: freePlayVariant, isOffered: isOfferedInPicker }).length
+    );
+    rememberFreePlayVariantMap({
+        settings, variant: freePlayVariant, maps: runtimeMaps, mapKey: resolvedMapKey, isOffered: isOfferedInPicker,
+    });
     return resolvedMapKey;
 }
 
@@ -284,6 +322,7 @@ export function syncStartSetupSelectionState({
     resolveSurfaceFallbackMapKey,
     hasStoredCustomMap,
     ghostDuelState,
+    freePlayTracker = null,
 }) {
     const startSetupFilters = {
         mapSearch: String(startSetup.mapSearch || '').trim().toLowerCase(),
@@ -294,6 +333,8 @@ export function syncStartSetupSelectionState({
 
     syncFilterControls(ui, startSetup);
     syncGhostDuelControls(ui, ghostDuelState);
+    const freePlayVariant = deriveFreePlayVariant(settings);
+    for (const node of [ui.mapRandomButton, ui.mapShortcutHints]) node?.classList.toggle('hidden', !freePlayVariant);
     const effectiveMapKey = syncMapSelect({
         ui,
         settings,
@@ -307,6 +348,9 @@ export function syncStartSetupSelectionState({
         formatMapLabel,
         resolveSurfaceFallbackMapKey,
         hasStoredCustomMap,
+        freePlayVariant,
+        freePlayTracker,
+        favoriteMaps: startSetup.favoriteMaps,
     });
 
     // Arcade flies only the factory ships; a stored Lab build stays saved (Classic keeps it) and shows as the fallback.
