@@ -10,6 +10,15 @@ import { FIVE_PORTALS_COMBAT_PROFILE, FIVE_PORTALS_RUN_TYPE, isFivePortalsRunTyp
 import { WEAPON_RACE_RUN_TYPE, isWeaponRaceRunType } from './WeaponRaceContract.js';
 import { DEMOLITION_COMBAT_PROFILE, DEMOLITION_RUN_TYPE, isDemolitionRunType, normalizeDemolitionProfileIds } from './DemolitionContract.js';
 import { DEFAULT_PORTAL_CHAIN_ID, normalizePortalChainId } from './PortalChainContract.js';
+import { HUNT_PARCOURS_COMBAT_PROFILE, HUNT_PARCOURS_RUN_TYPE, isHuntParcoursRunType, normalizeHuntParcoursVariantId, resolveHuntParcoursVariant } from './HuntParcoursContract.js';
+
+const DEFAULT_HUNT_PARCOURS_VARIANT_ID = 'nemesis';
+
+/** Variant of a hunt_parcours run; '' for every other run type. */
+export function normalizeArcadeHuntParcoursVariantId(runType, value) {
+    if (runType !== HUNT_PARCOURS_RUN_TYPE) return '';
+    return normalizeHuntParcoursVariantId(value) || DEFAULT_HUNT_PARCOURS_VARIANT_ID;
+}
 
 // Persisted arcade run settings: the single source for the shape and the ranges.
 // Both the settings sanitizer (what survives a save) and the runtime config
@@ -49,6 +58,8 @@ const DEFAULTS = Object.freeze({
     // Which fixed map chain a "five_portals" run plays (Fünf Portale, Himmelsleiter, ...).
     // Only meaningful when runType is FIVE_PORTALS_RUN_TYPE; ignored otherwise.
     portalChainId: DEFAULT_PORTAL_CHAIN_ID,
+    // Which Jagdparcours variant a "hunt_parcours" run plays; '' for every other run type.
+    huntParcoursVariantId: '',
     demolitionProfileIds: Object.freeze(['', '', '']),
     playerProfileIds: Object.freeze(['', '', '']),
     // Allied bots next to a lone human in a normal gauntlet run (0-2).
@@ -58,7 +69,7 @@ const DEFAULTS = Object.freeze({
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
  * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
- * dailyChallenge: boolean, nightmare: boolean, difficultyTierId: string, portalChainId: string,
+ * dailyChallenge: boolean, nightmare: boolean, difficultyTierId: string, portalChainId: string, huntParcoursVariantId: string,
  * demolitionProfileIds?: readonly string[], playerProfileIds?: readonly string[], companionCount: number }} ArcadeRunSettings */
 
 function clampNumber(value, range, fallback) {
@@ -105,6 +116,8 @@ export function normalizeArcadeRunSettings(
         ? DEMOLITION_RUN_TYPE
         : isFivePortalsRunType(input.runType)
         ? FIVE_PORTALS_RUN_TYPE
+        : isHuntParcoursRunType(input.runType)
+        ? HUNT_PARCOURS_RUN_TYPE
         : (isArenaWavesRunType(input.runType)
             ? ARENA_WAVES_RUN_TYPE
             : (isWeaponRaceRunType(input.runType)
@@ -118,6 +131,8 @@ export function normalizeArcadeRunSettings(
             : runType === ENDLESS_PARCOURS_RUN_TYPE
             && normalizeArcadeCombatProfile(input.combatProfile, runType) === ENDLESS_PARCOURS_COMBAT_PROFILE
             ? ENDLESS_PARCOURS_COMBAT_PROFILE
+            : runType === HUNT_PARCOURS_RUN_TYPE
+            ? HUNT_PARCOURS_COMBAT_PROFILE
             : (runType === WEAPON_RACE_RUN_TYPE
                 ? 'hunt'
                 : (runType === FIVE_PORTALS_RUN_TYPE
@@ -126,7 +141,10 @@ export function normalizeArcadeRunSettings(
                 && normalizeArenaWavesCombatProfile(input.combatProfile, runType) === ARENA_WAVES_COMBAT_PROFILE
                     ? ARENA_WAVES_COMBAT_PROFILE : DEFAULTS.combatProfile))),
         scoreModel: normalizeArcadeScoreModel(input.scoreModel),
-        seed: clampInteger(input.seed, ARCADE_RUN_SETTINGS_RANGES.seed, DEFAULTS.seed),
+        // A hunt_parcours variant always flies its own fixed seed.
+        seed: runType === HUNT_PARCOURS_RUN_TYPE
+            ? resolveHuntParcoursVariant(normalizeArcadeHuntParcoursVariantId(runType, input.huntParcoursVariantId)).seed
+            : clampInteger(input.seed, ARCADE_RUN_SETTINGS_RANGES.seed, DEFAULTS.seed),
         sectorCount: clampInteger(input.sectorCount, ARCADE_RUN_SETTINGS_RANGES.sectorCount, DEFAULTS.sectorCount),
         intermissionSeconds: clampNumber(
             input.intermissionSeconds,
@@ -145,6 +163,7 @@ export function normalizeArcadeRunSettings(
         nightmare: input.nightmare === true,
         difficultyTierId: ['normal', 'hard', 'nightmare'].includes(input.difficultyTierId) ? input.difficultyTierId : 'normal',
         portalChainId: normalizePortalChainId(input.portalChainId),
+        huntParcoursVariantId: normalizeArcadeHuntParcoursVariantId(runType, input.huntParcoursVariantId),
         demolitionProfileIds: normalizeDemolitionProfileIds(demolitionProfileIds),
         playerProfileIds: normalizeDemolitionProfileIds(playerProfileIds),
         // Kept for every run type so a detour into a special run never loses the choice; only a
