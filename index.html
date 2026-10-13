@@ -285,6 +285,7 @@
                                         </optgroup>
                                     </select>
                                 </div>
+                                <p id="map-variant-count" class="menu-hint hidden"></p>
                                 <p id="map-search-empty" class="start-search-empty hidden" role="status" aria-live="polite">Keine Karte gefunden — Suche oder Filter ändern</p>
                                 <div class="start-map-picker">
                                     <div id="start-map-preview-stage" class="arcade-vehicle-preview-stage start-map-preview-stage">
@@ -315,6 +316,11 @@
                                         <button type="button" id="btn-map-favorite-toggle" class="secondary-btn">
                                             Kartenfavorit umschalten
                                         </button>
+                                        <button type="button" id="btn-map-random" class="secondary-btn hidden">
+                                            Zufällige Karte
+                                        </button>
+                                        <p id="map-choice-status" class="menu-field-hint" role="status" aria-live="polite"></p>
+                                        <p id="map-shortcut-hints" class="menu-hint hidden">Controller: LB/RB Filter wechseln · Y Favorit · X Zufallskarte</p>
                                     </div>
                                 </div>
                                 <div id="start-map-choice-strip" class="start-map-choice-strip" role="listbox"

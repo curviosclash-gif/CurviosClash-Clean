@@ -20,6 +20,7 @@ import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsCont
 import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import { normalizeFightHangarState } from '../../shared/contracts/FightHangarStateContract.js';
+import { normalizeFreePlayMapMemory } from '../../shared/contracts/FreePlayVariantContract.js';
 import { normalizeClassicTutorialState } from '../../shared/contracts/ClassicTutorialContract.js';
 import {
     normalizeFourPlayerPlanarSettings,
@@ -239,6 +240,8 @@ function normalizeLocalSettingsState(localSettings = null) {
         modePath,
         seededModePaths: normalizeSeededModePaths(source.seededModePaths),
         lastTeamObjective: normalizeTeamObjectiveType(source.lastTeamObjective),
+        // Free play remembers one map per variant; a plain copy, because settings are mutated and saved as JSON.
+        freePlayMapByVariant: { ...normalizeFreePlayMapMemory(source.freePlayMapByVariant) },
         graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
         mapBrightness: normalizeMapBrightness(source.mapBrightness, defaults.mapBrightness),
         viewDistance: normalizeViewDistance(source.viewDistance, defaults.viewDistance),

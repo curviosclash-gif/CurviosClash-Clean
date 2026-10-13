@@ -1,5 +1,6 @@
 import { HANGAR_SELECTION_PLAYER_SLOTS, writeHangarMapSelection, writeHangarVehicleSelection } from '../hangar/HangarSelectionWritebackContract.js';
 import { ensureStartSetupLocalState, pushRecentEntry, toggleFavoriteEntry } from './StartSetupUiOps.js';
+import { createMapPickerShortcuts } from './StartSetupMapShortcuts.js';
 
 function bindStartSetupInput(controller, listen, getSettings, input, eventType, stateKey, fallbackValue) {
     if (!input) return;
@@ -27,6 +28,8 @@ function bindMapAndVehicleRecents(controller, listen, getSettings) {
     const { ui } = controller;
     if (ui.mapSelect) {
         listen(ui.mapSelect, 'change', () => {
+            // A new choice makes an old announcement ("Zufällige Karte: …") stale.
+            if (ui.mapChoiceStatus) ui.mapChoiceStatus.textContent = '';
             const currentSettings = getSettings();
             if (!currentSettings) return;
             const currentStartSetup = ensureStartSetupLocalState(currentSettings);
@@ -161,6 +164,13 @@ export function bindStartSetupControls(controller, listen, getSettings) {
     bindMapAndVehicleRecents(controller, listen, getSettings);
     bindFavoriteToggles(controller, listen, getSettings);
     const { ui } = controller;
+    controller.mapPickerShortcuts = createMapPickerShortcuts({
+        ui,
+        getSettings,
+        sync: (settings) => controller.syncStartSetupState(settings),
+        rng: () => (controller.mapRandomSource || Math.random)(),
+    });
+    if (ui.mapRandomButton) listen(ui.mapRandomButton, 'click', () => controller.mapPickerShortcuts.pickRandom());
     bindQuickPickList(ui.mapFavoritesList, 'data-map-key', ui.mapSelect, listen);
     bindQuickPickList(ui.mapRecentList, 'data-map-key', ui.mapSelect, listen);
     bindQuickPickList(ui.vehicleFavoritesList, 'data-vehicle-id', ui.vehicleSelectP1, listen);

@@ -55,6 +55,9 @@ const UNCHANGED_LEAF_PATHS = Object.freeze([
     // An empty container for per-session drafts. Filling it adds leaf paths instead of
     // changing a value; the session draft tests cover its content.
     'localSettings.draftStateBySessionType',
+    // Another empty container: the map each free play variant remembers. Filling it adds leaf
+    // paths; free-play-map-shortcuts.contract.test.mjs covers that it survives the normalizer.
+    'localSettings.freePlayMapByVariant',
     // Only kept while the session type is multiplayer, which the sweep does not select.
     'localSettings.multiplayerTransport',
     // Contract version stamps the code writes on every sanitize.

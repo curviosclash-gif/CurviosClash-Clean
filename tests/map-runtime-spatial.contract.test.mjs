@@ -219,6 +219,7 @@ test('map picker exposes organized filters, readable quick picks, and omits hidd
             'expert',
             'showcase',
             'custom',
+            'favorites',
             'small',
             'medium',
             'large',

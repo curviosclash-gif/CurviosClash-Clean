@@ -23,11 +23,12 @@ export function resolveOpenPauseOverlay(ui) {
 
 /**
  * @param {{ ui?: any, getControls?: () => any, isMenuInteractive: () => boolean, onDirection: (direction: string) => void,
- *   onConfirm: () => void, onBack: () => void, onPreviousTab: () => void, onNextTab: () => void } & Record<string, any>} options
+ *   onConfirm: () => void, onBack: () => void, onPreviousTab: () => void, onNextTab: () => void,
+ *   onX?: () => void, onY?: () => void } & Record<string, any>} options
  *   The remaining options go to the poller unchanged.
  */
 export function createMenuGamepadPoller({
-    ui, getControls, isMenuInteractive, onDirection, onConfirm, onBack, onPreviousTab, onNextTab, ...pollerOptions
+    ui, getControls, isMenuInteractive, onDirection, onConfirm, onBack, onPreviousTab, onNextTab, onX, onY, ...pollerOptions
 }) {
     const openPause = () => resolveOpenPauseOverlay(ui);
     const unlessPaused = (action) => () => {
@@ -55,5 +56,7 @@ export function createMenuGamepadPoller({
         onBack: unlessPaused(onBack),
         onPreviousTab: unlessPaused(onPreviousTab),
         onNextTab: unlessPaused(onNextTab),
+        onX: onX ? unlessPaused(onX) : undefined,
+        onY: onY ? unlessPaused(onY) : undefined,
     });
 }
