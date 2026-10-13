@@ -2263,13 +2263,16 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             arcadeRuntime?.flushGhostLibrarySaves?.();
             const recordStore = game?.settingsManager?.getPlayerRecordStorePort?.() || null;
             const persistedLibrary = recordStore?.loadJsonRecord?.('cuviosclash.arcade-ghost-library.v1', {}) || {};
-            const persistedRoute = persistedLibrary?.routes?.[routeId] || persistedLibrary?.[routeId] || null;
+            // A ranked Arcade run stores its ghost on its level board (route:level:min-max).
+            const persistedDurations = Object.entries(persistedLibrary?.routes || {})
+                .filter(([key]) => key === routeId || key.startsWith(`${routeId}:level:`))
+                .map(([, entry]) => Number(entry?.durationMs || 0));
             return {
                 active: ghostState?.active === true,
                 entryCount: Number(ghostState?.entryCount || 0),
                 frameCount: Number(ghostState?.frameCount || 0),
                 routeId,
-                persistedDurationMs: Number(persistedRoute?.durationMs || 0),
+                persistedDurationMs: Math.max(0, ...persistedDurations),
             };
         });
         expect(arcadeGhostState.active).toBeTruthy();
