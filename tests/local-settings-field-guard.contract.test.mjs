@@ -14,6 +14,7 @@ const OPTIONAL_SAMPLE = Object.freeze({
     fightHangar: {},
     classicTutorial: {},
     playerColorP1: '#123456',
+    freePlayVariant: 'flags',
 });
 
 // A name directly followed by "$" is the start of a template expression, not a field.

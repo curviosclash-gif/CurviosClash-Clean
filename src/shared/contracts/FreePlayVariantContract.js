@@ -54,6 +54,8 @@ export function deriveFreePlayVariant(settings) {
     const modePath = String(settings?.localSettings?.modePath || '').trim().toLowerCase();
     if (modePath === 'normal') return 'classic';
     if (modePath !== 'fight') return null;
+    // Older settings carry escort as its own game mode instead of a team objective.
+    if (String(settings?.gameMode || '').toUpperCase() === 'ESCORT') return 'escort';
     if (settings?.hunt?.teamMode !== true) return 'ffa';
     const objective = String(settings?.hunt?.teamObjective || '').trim().toUpperCase();
     if (objective === TEAM_OBJECTIVE_TYPES.FLAGS) return 'flags';

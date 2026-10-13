@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 const MAP_KEY = 'clockwork_canyon';
 
@@ -8,7 +8,7 @@ test('Clockwork Canyon storm drives players into the rock nooks at the arena sca
     const errors = collectErrors(page);
     await waitForLoadedGame(page);
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
     await page.selectOption('#map-select', MAP_KEY);
     await page.locator('#submenu-game:not(.hidden) #btn-start').click({ force: true });

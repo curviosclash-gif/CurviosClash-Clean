@@ -1504,7 +1504,7 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   for (const desktopFeature of [
     '#btn-multiplayer-host',
     '#btn-multiplayer-transport-online',
-    'data-mode-path="fight"',
+    '#btn-free-play',
     '#btn-open-expert',
     '#btn-open-debug',
     '#arcade-ghost-duel-row',

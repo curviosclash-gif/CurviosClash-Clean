@@ -414,6 +414,10 @@ export class GameRuntimeFacade {
         return this.menuActionHandler.handleModePathChange(event);
     }
 
+    handleFreePlayVariantChange(event) {
+        return this.menuActionHandler.handleFreePlayVariantChange(event);
+    }
+
     handleQuickStartLastStart() {
         return this.menuActionHandler.handleQuickStartLastStart();
     }

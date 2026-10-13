@@ -51,6 +51,7 @@ test('the variant reads back from stored settings and round-trips', () => {
     assert.equal(deriveFreePlayVariant({}), null);
     // Team mode without a readable objective is plain team play.
     assert.equal(deriveFreePlayVariant({ localSettings: { modePath: 'fight' }, hunt: { teamMode: true } }), 'team');
+    assert.equal(deriveFreePlayVariant({ localSettings: { modePath: 'fight' }, gameMode: 'ESCORT' }), 'escort');
 });
 
 test('map eligibility follows the authored exclusions of the variant game modes', () => {

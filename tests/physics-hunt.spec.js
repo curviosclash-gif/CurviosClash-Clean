@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.desktop.js';
-import { loadGame, openCustomSubmenu, startHuntGame, startHuntGameWithBots } from './helpers.js';
+import { loadGame, openCustomSubmenu, startHuntGame, startHuntGameWithBots, chooseFreePlayVariant } from './helpers.js';
 
 // The teleport scenarios below assume open air around the origin. The fight preset loads maze,
 // whose walls reach up to the ceiling, so these tests run on the open standard arena.
@@ -11,7 +11,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     test('Hunt keeps eight active bots after a saved Arena Waves run', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click();
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)');
         await page.selectOption('#map-select', 'maze');
         await page.evaluate(() => {

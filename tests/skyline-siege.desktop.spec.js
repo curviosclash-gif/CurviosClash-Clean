@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { selectSessionType, waitForLoadedGame } from './helpers.js';
+import { selectSessionType, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 const MAP_KEY = 'skyline_siege';
 const COLLAPSE_MODELS = [
@@ -9,7 +9,7 @@ const COLLAPSE_MODELS = [
 async function startSkylineMatch(page) {
     await waitForLoadedGame(page);
     await selectSessionType(page, 'single');
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
     await expect(page.locator(`#map-select option[value="${MAP_KEY}"]`)).toHaveCount(1);
     await page.selectOption('#map-select', MAP_KEY);

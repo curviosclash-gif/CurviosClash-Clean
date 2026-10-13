@@ -18,6 +18,7 @@ import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContra
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
+import { normalizeFreePlayVariant } from '../../shared/contracts/FreePlayVariantContract.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import { normalizeFightHangarState } from '../../shared/contracts/FightHangarStateContract.js';
 import { normalizeClassicTutorialState } from '../../shared/contracts/ClassicTutorialContract.js';
@@ -264,6 +265,9 @@ function normalizeLocalSettingsState(localSettings = null) {
         // Raw value on purpose: the preview helpers normalize number and string colors when they read it.
         ...(typeof source.playerColorP1 === 'string' || Number.isFinite(source.playerColorP1)
             ? { playerColorP1: source.playerColorP1 } : {}),
+        // Kept only once chosen, so an untouched profile stores nothing new.
+        ...(typeof source.freePlayVariant === 'string'
+            ? { freePlayVariant: normalizeFreePlayVariant(source.freePlayVariant) } : {}),
     };
 }
 

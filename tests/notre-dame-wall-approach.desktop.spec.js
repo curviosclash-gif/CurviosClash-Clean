@@ -1,6 +1,6 @@
 import { expect, test } from './helpers.desktop.js';
 import * as THREE from 'three';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 let previousGraphicsStyle = null;
 test.afterEach(async ({ page }) => {
@@ -18,7 +18,7 @@ async function startNotreDame(page) {
     await waitForLoadedGame(page);
     previousGraphicsStyle = await page.evaluate(() => window.GAME_INSTANCE.renderer.getGraphicsStyle());
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
     await page.selectOption('#map-select', 'notre_dame');
     await page.waitForFunction(

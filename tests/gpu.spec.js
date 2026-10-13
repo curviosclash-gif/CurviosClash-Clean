@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.desktop.js';
-import { loadGame, openLevel4Drawer, startGame, startGameWithBots, returnToMenu, waitForRenderFrames } from './helpers.js';
+import { loadGame, openLevel4Drawer, startGame, startGameWithBots, returnToMenu, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 import { DEFAULT_SHADOW_QUALITY, resolveShadowQualityLabel } from '../src/shared/contracts/ShadowQualityContract.js';
 
 test.describe('T21-40: Rendering & GPU', () => {
@@ -441,7 +441,7 @@ test.describe('T21-40: Rendering & GPU', () => {
     test('T33c: Recording-Only-Camera erzeugt Shorts-Shots ohne Live-Kamera-Regressionspfad', async ({ page }) => {
         await loadGame(page);
         await page.click('#menu-nav [data-session-type="splitscreen"]');
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {
@@ -516,7 +516,7 @@ test.describe('T21-40: Rendering & GPU', () => {
     test('T33d: Video-Perspektive steuert nur Shorts-Capture (classic neutral, soft/action distinct)', async ({ page }) => {
         await loadGame(page);
         await page.click('#menu-nav [data-session-type="splitscreen"]');
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {

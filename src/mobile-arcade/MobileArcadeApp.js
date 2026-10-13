@@ -133,8 +133,8 @@ body.mobile-arcade-app {
 
 body.mobile-arcade-app .nav-btn[data-session-type="multiplayer"],
 body.mobile-arcade-app .nav-btn[data-session-type="splitscreen"],
-body.mobile-arcade-app .mode-path-btn[data-mode-path="normal"],
-body.mobile-arcade-app .mode-path-btn[data-mode-path="fight"],
+body.mobile-arcade-app #btn-free-play,
+body.mobile-arcade-app #free-play-variant-group,
 body.mobile-arcade-app #submenu-multiplayer,
 body.mobile-arcade-app #multiplayer-inline-stub,
 body.mobile-arcade-app #btn-open-expert,

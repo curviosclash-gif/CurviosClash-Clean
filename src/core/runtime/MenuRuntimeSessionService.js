@@ -250,10 +250,13 @@ export function handleModePathChangeAction(ctx) {
     }
 
     onSettingsChanged({ changedKeys: Array.from(new Set(changedKeys)) });
-    game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', {
-        trigger: 'mode_path_selected',
-        modePath,
-    });
+    // Switching the variant inside free play keeps the player on the screen they are on.
+    if (event?.stayOnPanel !== true) {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', {
+            trigger: 'mode_path_selected',
+            modePath,
+        });
+    }
 
     const label = modePath === 'fight' ? 'Kampf' : (modePath === 'arcade' ? 'Arcade' : 'Klassisch');
     if (requestedModePath && requestedModePath !== modePath && !getSurfacePort(game).isModePathAllowed(requestedModePath)) {

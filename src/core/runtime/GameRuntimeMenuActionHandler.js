@@ -34,6 +34,7 @@ import {
     handleQuickStartRandomStartAction,
     handleSessionTypeChangeAction,
 } from './MenuRuntimeSessionService.js';
+import { handleFreePlayVariantChangeAction } from './MenuRuntimeFreePlayService.js';
 
 export class GameRuntimeMenuActionHandler {
     constructor({ facade = null } = {}) {
@@ -74,6 +75,10 @@ export class GameRuntimeMenuActionHandler {
 
     handleModePathChange(event) {
         handleModePathChangeAction(this._createSessionContext(event));
+    }
+
+    handleFreePlayVariantChange(event) {
+        handleFreePlayVariantChangeAction(this._createSessionContext(event));
     }
 
     handleQuickStartLastStart() {

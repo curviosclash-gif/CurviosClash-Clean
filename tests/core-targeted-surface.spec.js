@@ -41,6 +41,7 @@ import {
     buildLegacyRuntimeCustomMap,
     createMockEditorManager,
 } from './core-targeted.shared.js';
+import { chooseFreePlayVariant } from './helpers.js';
 
 async function openMatchAdvancedSettings(page) {
     await openStartSetupSection(page, 'match');
@@ -1717,7 +1718,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.keyboard.press('Enter');
         await expect(page.locator('#submenu-custom')).toBeVisible();
 
-        await page.focus('#submenu-custom [data-mode-path=\"normal\"]');
+        await page.focus('#submenu-custom #btn-free-play');
         await page.keyboard.press('Enter');
         await expect(page.locator('#submenu-game')).toBeVisible();
 
@@ -1731,7 +1732,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test('T20v: Ebene 3 schaltet nur Classic 3D/Planar und aendert nicht Fight-Auswahl aus Ebene 2', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path=\"fight\"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
         await expect(page.locator('#planar-mode-toggle')).toHaveCount(0);
@@ -1839,19 +1840,18 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(compactState.mainNavigationVisible).toBeFalsy();
         expect(compactState.mainPrimaryVisible).toBeFalsy();
         expect(compactState.breadcrumbVisible).toBeTruthy();
-        expect(compactState.breadcrumbText).toContain('Spielstil');
+        expect(compactState.breadcrumbText).toContain('Spielauswahl');
     });
 
-    test('T20w1: Moduskarten beschreiben die drei Spielstile', async ({ page }) => {
+    test('T20w1: Die Zentrale beschreibt Arcade-Reise und freies Spiel', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
 
-        const modeInfos = page.locator('#submenu-custom .level2-mode-grid [data-mode-path] .menu-choice-copy');
-        await expect(modeInfos).toHaveCount(3);
+        const modeInfos = page.locator('#submenu-custom .level2-mode-grid .menu-choice-copy');
+        await expect(modeInfos).toHaveCount(2);
         await expect(modeInfos).toContainText([
-            'Fliege durch Sektoren',
-            'Kämpfe mit Waffen',
-            'Weiche Hindernissen',
+            'Fliege von Etappe zu Etappe',
+            'Kampf, Team, Flaggen, Eskorte oder Klassisch',
         ]);
     });
 
@@ -1859,9 +1859,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await loadGame(page);
         await openCustomSubmenu(page);
 
-        await expect(page.locator('#submenu-custom .level2-config-section > .section-title .menu-info-hint'))
-            .toHaveAttribute('title', 'Wähle einen Spielstil. Karte, Flugzeug und Regeln kannst du danach noch anpassen.');
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await expect(page.locator('.start-map-preview-hint')).toHaveAttribute('title', 'Ziehen: drehen · Mausrad: zoomen');
         await expect(page.locator('.start-vehicle-preview-hint')).toHaveAttribute('title', 'Ziehen: drehen · Mausrad: zoomen');
 
@@ -1915,17 +1913,17 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await expect(page.locator('#btn-quick-event-playlist')).toHaveCount(0);
         await expect(page.locator('#submenu-custom #btn-open-fight-hangar')).toHaveCount(0);
 
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await expect(page.locator('#submenu-game #btn-open-fight-hangar')).toBeHidden();
         await page.click('#submenu-game [data-back]');
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await expect(page.locator('#submenu-game #btn-open-fight-hangar')).toBeVisible();
     });
 
     test('T20x0: Ebene-4 Fight-HP/MG-Regler sind nur im Fight-Modus aktiv', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openLevel4Drawer(page, { section: 'gameplay' });
 
@@ -1979,7 +1977,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.click('#btn-close-level4');
         await page.click('#submenu-game:not(.hidden) [data-back]');
         await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: 5000 });
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openLevel4Drawer(page, { section: 'gameplay' });
 
@@ -2032,7 +2030,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.click('#btn-close-level4');
         await page.click('#submenu-game:not(.hidden) [data-back]');
         await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: 5000 });
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await waitForRenderFrames(page, 10);
 
@@ -2053,7 +2051,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test('T20x1: Map-Auswahl bleibt in Normal und Arcade vollstaendig verfuegbar', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
 
         const normalState = await page.evaluate(() => {
@@ -2103,7 +2101,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test('T20x2: Arcade-Selbstduell-Option ist in Single-Normal/Fight aktiv und bleibt persistent', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
         await page.evaluate(() => {
@@ -2279,7 +2277,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
 
         // --- Single + Normal (map-key based route fallback) ---
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openMatchAdvancedSettings(page);
         await page.selectOption('#arcade-ghost-duel-mode-select', 'self_longest_ghost');
@@ -2406,7 +2404,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
     test('T70a: syncAll/syncByChangeKeys mutieren map/vehicle ohne Input nicht still', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
 
         const state = await page.evaluate(() => {
@@ -3477,7 +3475,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
     test('T20z1: Kartenfeld, Zusammenfassung, Vorschau und Runtime verwenden dieselbe Auswahl', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
 
         const state = await page.evaluate(() => {

@@ -94,13 +94,13 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await expect(settingsEntry).toBeFocused();
 
         await page.locator('[data-session-type="single"]').click();
-        for (const mode of ['arcade', 'fight', 'normal']) {
-            await expect(page.locator(`[data-mode-path="${mode}"] .menu-choice-copy`)).toBeVisible();
+        for (const card of ['[data-mode-path="arcade"]', '#btn-free-play']) {
+            await expect(page.locator(`#submenu-custom ${card} .menu-choice-copy`)).toBeVisible();
         }
         await capture('styles');
-        await page.locator('[data-mode-path="normal"]').click();
+        await page.locator('#btn-free-play').click();
         await page.keyboard.press('Escape');
-        await expect(page.locator('[data-mode-path="normal"]')).toBeFocused();
+        await expect(page.locator('#btn-free-play')).toBeFocused();
         await page.keyboard.press('Enter');
         await page.locator('.start-step-tab[data-start-section-target="match"]').click();
         await expect(page.locator('#menu-selection-summary')).toContainText('2 Bots · Schwer · 5 Siege');
@@ -252,7 +252,7 @@ test('desktop LAN lobby creates, joins, readies, starts and leaves through menu 
         await host.locator('#btn-lobby-edit-match').click();
         await expect(host.locator('#submenu-game')).toBeVisible();
         await host.locator('#btn-setup-mode').click();
-        await host.locator('[data-mode-path="normal"]').click();
+        await host.locator('#btn-free-play').click();
         await host.locator('#map-select').selectOption('maze');
         await host.locator('.start-step-tab[data-start-section-target="match"]').click();
         await host.locator('#bot-difficulty').selectOption('EASY');

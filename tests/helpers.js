@@ -300,6 +300,25 @@ export async function selectSessionType(page, sessionType = 'single') {
     await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: buttonTimeoutMs });
 }
 
+const FREE_PLAY_VARIANT_BY_MODE_PATH = Object.freeze({ normal: 'classic', fight: 'ffa' });
+
+// Opens free play from the hub (single player or shared screen) and picks a variant:
+// ffa, team, flags, escort or classic.
+export async function chooseFreePlayVariant(page, variant = 'ffa') {
+    const entry = page.locator('#submenu-custom:not(.hidden) #btn-free-play').first();
+    if (await entry.count()) {
+        await entry.click({ force: true });
+    }
+    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    const button = page.locator(`#submenu-game:not(.hidden) [data-free-play-variant="${variant}"]`).first();
+    if ((await button.getAttribute('aria-pressed')) !== 'true') {
+        await button.click({ force: true });
+    }
+    await page.waitForFunction((expected) => (
+        document.querySelector(`#submenu-game [data-free-play-variant="${expected}"]`)?.getAttribute('aria-pressed') === 'true'
+    ), variant, { timeout: 5000 });
+}
+
 async function openViaNavigationRuntime(page, submenuId) {
     const opened = await page.evaluate((panelId) => {
         const runtime = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime;
@@ -319,30 +338,17 @@ export async function openSubmenu(page, submenuId, options = {}) {
 
     if (submenuId === 'submenu-game') {
         await selectSessionType(page, options.sessionType || 'single');
-        let modePathButton = page
-            .locator('#submenu-custom:not(.hidden) [data-mode-path="normal"]:visible:not([disabled])')
-            .first();
-        if (await modePathButton.count()) {
-            await modePathButton.click({ force: true });
+        const freePlayButton = page.locator('#submenu-custom:not(.hidden) #btn-free-play:visible:not([disabled])').first();
+        if (await freePlayButton.count()) {
+            await chooseFreePlayVariant(page, 'classic');
         } else {
-            const openedCustomSetupStep = await openCustomSetupStep(page);
-            if (openedCustomSetupStep) {
-                modePathButton = page
-                    .locator('#submenu-custom:not(.hidden) [data-mode-path="normal"]:visible:not([disabled])')
-                    .first();
-            }
-
-            if (await modePathButton.count()) {
-                await modePathButton.click({ force: true });
+            const submenuButton = page
+                .locator('#submenu-custom:not(.hidden) [data-menu-step-target="submenu-game"]:visible:not([disabled])')
+                .first();
+            if (await submenuButton.count()) {
+                await submenuButton.click({ force: true });
             } else {
-                const submenuButton = page
-                    .locator('#submenu-custom:not(.hidden) [data-menu-step-target="submenu-game"]:visible:not([disabled])')
-                    .first();
-                if (await submenuButton.count()) {
-                    await submenuButton.click({ force: true });
-                } else {
-                    await openViaNavigationRuntime(page, 'submenu-game');
-                }
+                await openViaNavigationRuntime(page, 'submenu-game');
             }
         }
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
@@ -655,6 +661,11 @@ async function openCustomSetupStep(page) {
 }
 
 async function selectModePath(page, modePath) {
+    const freePlayVariant = FREE_PLAY_VARIANT_BY_MODE_PATH[modePath];
+    if (freePlayVariant) {
+        await chooseFreePlayVariant(page, freePlayVariant);
+        return;
+    }
     const modePathSelector = `#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]:visible:not([disabled])`;
     let modeButton = page.locator(modePathSelector).first();
     if (!(await modeButton.count())) {

@@ -1339,7 +1339,22 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 }
 
 .level2-mode-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Free play: the variant switch sits in the screen header and wraps on narrow screens. */
+#submenu-game .submenu-header {
+    flex-wrap: wrap;
+}
+
+.free-play-variant-group {
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+#free-play-variant-hint {
+    flex-basis: 100%;
+    margin: 0;
 }
 
 .menu-choice-card {
