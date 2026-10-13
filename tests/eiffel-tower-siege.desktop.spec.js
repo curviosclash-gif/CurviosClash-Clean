@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { expect, test } from './helpers.desktop.js';
 import { selectSessionType, waitForLoadedGame, chooseMenuModePath } from './helpers.js';
 import { EIFFEL_TOWER_SIEGE_MODELS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeModels.js';
+import { LIBRARY_PART_NAMES } from '../src/entities/systems/map-units/MapUnitModelCache.js';
 
 // The siege map is the first one a match can take apart, and none of what makes that work can be
 // argued from the preset alone. Four questions only the running app answers:
@@ -715,7 +716,8 @@ test.describe('Eiffel tower siege', () => {
         }), { timeout: 30_000 }).toEqual({
             count: 2,
             requested: true,
-            loaded: 6,
+            // The shared library also carries other map units' parts (pigeons since 1421619e).
+            loaded: LIBRARY_PART_NAMES.length,
             authored: [true, true],
         });
 
