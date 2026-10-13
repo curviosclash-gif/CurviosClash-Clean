@@ -57,6 +57,7 @@ const VARIANTS = Object.freeze([
     }),
 ]);
 
+/** @type {Map<string, (typeof VARIANTS)[number]>} */
 const VARIANT_BY_ID = new Map(VARIANTS.map((variant) => [variant.id, variant]));
 
 /** @returns {readonly object[]} */
