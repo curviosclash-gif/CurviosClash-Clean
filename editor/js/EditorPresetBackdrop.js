@@ -176,10 +176,10 @@ function collectChangedPaths(stated, applied, path, out) {
  */
 function collectWorldLimitWarnings(placements, warnings) {
     const checks = [
-        ['staticTurrets', (list, keep) => resolveMapStaticTurretDefinitions({ staticTurrets: list }, { preserveSpatialRange: keep })],
-        ['mapUnits', (list, keep) => resolveMapUnitDefinitions({ mapUnits: list }, { preserveSpatial: keep })],
+        { key: 'staticTurrets', resolve: (list, keep) => resolveMapStaticTurretDefinitions({ staticTurrets: list }, { preserveSpatialRange: keep }) },
+        { key: 'mapUnits', resolve: (list, keep) => resolveMapUnitDefinitions({ mapUnits: list }, { preserveSpatial: keep }) },
     ];
-    for (const [key, resolve] of checks) {
+    for (const { key, resolve } of checks) {
         const list = placements[key];
         if (!Array.isArray(list) || list.length === 0) continue;
         const stated = resolve(list, true);
