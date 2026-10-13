@@ -13,8 +13,5 @@ export function registerSessionMenuEventHandlers(facade, registry) {
     registry.set(MENU_CONTROLLER_EVENT_TYPES.LEVEL4_OPEN, (event) => facade.handleLevel4Open(event));
     registry.set(MENU_CONTROLLER_EVENT_TYPES.LEVEL4_CLOSE, () => facade.handleLevel4Close());
     registry.set(MENU_CONTROLLER_EVENT_TYPES.LEVEL4_RESET, (event) => facade.handleLevel4Reset(event));
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.CONFIG_EXPORT_CODE, () => facade.handleConfigExportCode());
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.CONFIG_EXPORT_JSON, () => facade.handleConfigExportJson());
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.CONFIG_IMPORT, (event) => facade.handleConfigImport(event));
     registry.set(MENU_CONTROLLER_EVENT_TYPES.START_MATCH, (event) => startMatchWithBorrowedSettings(facade, event?.borrowedSettings));
 }

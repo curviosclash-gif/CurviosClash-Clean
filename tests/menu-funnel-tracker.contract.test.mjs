@@ -47,7 +47,7 @@ test('continue is one click, and the next menu step after a match opens a new pa
 
 test('panels without a funnel meaning do not count', () => {
     const { tracker } = createTracker();
-    tracker.onPanelChanged('submenu-expert', 'nav');
+    tracker.onPanelChanged('submenu-tools', 'nav');
     tracker.onPanelChanged('', 'nav');
     assert.equal(tracker.snapshot().clicks, 0);
 });

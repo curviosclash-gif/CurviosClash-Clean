@@ -71,15 +71,6 @@ test('WebCodecs and the MP4 muxer stay in a lazy recording chunk', async () => {
     assert.doesNotMatch(recorderSource, /^import \{ WebCodecsRecorderEngine \}/m);
 });
 
-test('game menu bindings route developer telemetry to the distribution adapter', async () => {
-    const source = readFileSync('src/ui/menu/MenuDevPanelBindings.js', 'utf8');
-    const gameBindings = isExportedRepository
-        ? source
-        : (await import('../scripts/export-game-repo.mjs')).transformMenuDevPanelBindings(source);
-    assert.match(gameBindings, /\.\.\/\.\.\/product\/GameDistributionToolingAdapter\.js/);
-    assert.doesNotMatch(gameBindings, /MenuDeveloperStateSync/);
-});
-
 test('offline installers have stable architecture-specific names and per-user NSIS policy', () => {
     const builderConfig = readFileSync(sourcePath('game-export/electron-builder.yml', 'electron/game-builder.yml'), 'utf8');
     assert.match(builderConfig, /artifactName: CurviosClash-Setup-\$\{version\}-\$\{arch\}\.\$\{ext\}/);

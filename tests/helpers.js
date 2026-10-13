@@ -513,88 +513,63 @@ export async function openLevel4Drawer(page, options = {}) {
     }
 }
 
-export async function openExpertSubmenu(page) {
-    const expertPanel = page.locator('#submenu-expert');
-    if (await expertPanel.count()) {
-        const isVisible = await expertPanel.isVisible().catch(() => false);
-        if (isVisible) return;
-    }
+// The tools screen is the one way into editors and developer functions (no password any more).
+// Playwright starts Electron from source, which is the development environment, so the
+// developer block (#tools-developer-block) is visible in these runs.
+export async function openToolsSubmenu(page) {
+    const toolsPanel = page.locator('#submenu-tools');
+    if (await toolsPanel.isVisible().catch(() => false)) return;
     const level4DrawerVisible = await page.locator('#submenu-level4:not(.hidden)').count();
     if (level4DrawerVisible) {
-        const closeDrawer = async () => {
-            const drawer = document.getElementById('submenu-level4');
-            if (!drawer || drawer.classList.contains('hidden')) return true;
-            window.GAME_INSTANCE?.uiManager?.setLevel4Open?.(false);
-            return !!drawer.classList.contains('hidden');
-        };
         const closeButton = page.locator('#btn-close-level4').first();
         if (await closeButton.count()) {
             await closeButton.click({ force: true }).catch(() => {});
         }
-        const drawerHiddenAfterClick = await page.evaluate(closeDrawer);
-        if (!drawerHiddenAfterClick) {
-            await page.waitForFunction(closeDrawer, null, { timeout: 4000 });
-        }
+        await page.waitForFunction(() => {
+            const drawer = document.getElementById('submenu-level4');
+            if (!drawer || drawer.classList.contains('hidden')) return true;
+            window.GAME_INSTANCE?.uiManager?.setLevel4Open?.(false);
+            return drawer.classList.contains('hidden');
+        }, null, { timeout: 4000 });
     }
-    const expertButton = page.locator('#btn-open-expert').first();
-    if (await expertButton.count()) {
-        await expertButton.waitFor({ state: 'visible', timeout: 4000 });
+    const toolsButton = page.locator('#btn-main-tools').first();
+    if (await toolsButton.count()) {
+        await toolsButton.waitFor({ state: 'visible', timeout: 4000 });
         for (let attempt = 0; attempt < 3; attempt += 1) {
-            await expertButton.click({ force: true });
-            const panelVisible = await expertPanel.isVisible().catch(() => false);
-            if (panelVisible) return;
+            await toolsButton.click({ force: true });
+            if (await toolsPanel.isVisible().catch(() => false)) return;
             try {
-                await openViaNavigationRuntime(page, 'submenu-expert');
+                await openViaNavigationRuntime(page, 'submenu-tools');
                 return;
             } catch {
                 await page.waitForTimeout(150 * (attempt + 1));
             }
         }
     } else {
-        await openViaNavigationRuntime(page, 'submenu-expert');
+        await openViaNavigationRuntime(page, 'submenu-tools');
         return;
     }
-    await page.waitForSelector('#submenu-expert:not(.hidden)', { timeout: 4000 });
+    await page.waitForSelector('#submenu-tools:not(.hidden)', { timeout: 4000 });
 }
 
-export async function unlockExpertMode(page, password = '1307') {
-    const isUnlocked = await page.evaluate(() => !!window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.());
-    if (isUnlocked) return;
-    await openExpertSubmenu(page);
-    await page.fill('#expert-password-input', password);
-    await page.click('#btn-expert-unlock');
-    await page.waitForFunction(() => !!window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.(), null, { timeout: 4000 });
+export async function openInfoSubmenu(page) {
+    if (await page.locator('#submenu-info').isVisible().catch(() => false)) return;
+    await page.click('#btn-main-info');
+    await page.waitForSelector('#submenu-info:not(.hidden)', { timeout: 4000 });
 }
 
-export async function lockExpertMode(page) {
-    await openExpertSubmenu(page);
-    const isUnlocked = await page.evaluate(() => !!window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.());
-    if (!isUnlocked) return;
-    await page.click('#btn-expert-lock');
-    await page.waitForFunction(() => !window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.(), null, { timeout: 4000 });
-}
-
-export async function openDeveloperSubmenu(page) {
-    await unlockExpertMode(page);
-    await openExpertSubmenu(page);
-    await page.click('#btn-open-developer');
-    await page.waitForSelector('#submenu-developer:not(.hidden)', { timeout: 4000 });
-}
-
-export async function openDebugSubmenu(page) {
-    await unlockExpertMode(page);
-    await openExpertSubmenu(page);
-    await page.click('#btn-open-debug');
-    await page.waitForSelector('#submenu-debug:not(.hidden)', { timeout: 4000 });
-}
+// Older specs reach the developer functions through these names; they all land on the tools screen now.
+export const openExpertSubmenu = openToolsSubmenu;
+export const openDeveloperSubmenu = openToolsSubmenu;
+export const openDebugSubmenu = openToolsSubmenu;
 
 const MENU_SCREEN_OPENERS = Object.freeze({
     modeChoice: (page) => openCustomSubmenu(page),
     freeplay: (page, options) => openGameSubmenu(page, options),
     lobby: (page, options) => openMultiplayerSubmenu(page, options),
     settings: (page, options) => openLevel4Drawer(page, options),
-    expert: (page) => openExpertSubmenu(page),
-    debug: (page) => openDebugSubmenu(page),
+    tools: (page) => openToolsSubmenu(page),
+    info: (page) => openInfoSubmenu(page),
 });
 
 // Opens a menu screen by name; the panel id lives only in tests/support/menu-screens.js.

@@ -6,7 +6,6 @@ import {
     importMenuConfigFromInput,
     parseMenuConfigImportInput,
 } from '../src/ui/menu/MenuConfigShareOps.js';
-import { handleConfigImportAction } from '../src/core/runtime/MenuRuntimePresetConfigService.js';
 
 test('a versioned Curvios Clash export reports the number of imported settings', () => {
     const exported = JSON.parse(exportMenuConfigAsJson({ mapKey: 'standard', numBots: 3 }));
@@ -46,18 +45,4 @@ test('legacy two-field imports keep omitted settings and report two imported val
     assert.equal(settings.gameMode, 'HUNT');
     assert.equal(settings.mapKey, 'standard');
     assert.equal(settings.numBots, 2);
-});
-
-test('the runtime import action shows the rejection instead of an import success toast', () => {
-    const toasts = [];
-    const game = {
-        settings: { mapKey: 'original', numBots: 4 },
-        ui: { configShareStatus: { textContent: '', setAttribute() {} } },
-        _showStatusToast(message) { toasts.push(message); },
-    };
-    handleConfigImportAction({ game, inputValue: JSON.stringify({ mapKey: 'standard' }) });
-
-    assert.equal(toasts[0], 'Import fehlgeschlagen: Daten passen nicht zu Curvios Clash');
-    assert.equal(game.ui.configShareStatus.textContent, toasts[0]);
-    assert.equal(game.settings.mapKey, 'original');
 });

@@ -7,8 +7,8 @@ export const MENU_SCREEN_PANEL_IDS = Object.freeze({
     freeplay: 'submenu-game',
     lobby: 'submenu-multiplayer',
     settings: 'submenu-level4',
-    expert: 'submenu-expert',
-    debug: 'submenu-debug',
+    tools: 'submenu-tools',
+    info: 'submenu-info',
 });
 
 export function menuScreenPanelId(screen) {

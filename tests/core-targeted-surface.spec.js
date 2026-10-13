@@ -3,11 +3,9 @@ import {
     expect,
     CONFIG,
     collectErrors,
-    lockExpertMode,
     loadGame,
     openCustomSubmenu,
-    openDebugSubmenu,
-    openExpertSubmenu,
+    openToolsSubmenu,
     openGameSubmenu,
     openStartSetupSection,
     openLevel4Drawer,
@@ -17,7 +15,6 @@ import {
     resolveAppUrl,
     startGame,
     startGameWithBots,
-    unlockExpertMode,
     createMapDocument,
     parseMapJSON,
     stringifyMapDocument,
@@ -530,18 +527,16 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         }, null, { timeout: 4000 });
     });
 
-    test('T20hc: Expertenbereich hat konsistenten State, Fokus und Escape-Navigation', async ({ page }) => {
+    test('T20hc: Werkzeuge-Bildschirm hat konsistenten State und Escape-Navigation', async ({ page }) => {
         await loadGame(page);
-        await openExpertSubmenu(page);
+        await openToolsSubmenu(page);
 
         const expertState = await page.evaluate(() => ({
-            activeId: document.activeElement?.id || '',
             menuState: window.GAME_INSTANCE?.uiManager?.menuStateMachine?.getState?.() || '',
             visiblePanels: Array.from(document.querySelectorAll('.submenu-panel:not(.hidden)')).map((panel) => panel.id),
         }));
-        expect(expertState.activeId).toBe('expert-password-input');
-        expect(expertState.menuState).toBe('expert');
-        expect(expertState.visiblePanels).toEqual(['submenu-expert']);
+        expect(expertState.menuState).toBe('tools');
+        expect(expertState.visiblePanels).toEqual(['submenu-tools']);
 
         await page.keyboard.press('Escape');
         const mainState = await page.evaluate(() => ({
@@ -556,12 +551,12 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await loadGame(page);
         await openCustomSubmenu(page);
 
-        // submenu-expert carries an OPEN access policy, so only the state machine can refuse it:
-        // the custom flow reaches path/start_setup/main/quickstart/multiplayer, never "expert".
+        // submenu-tools carries an OPEN access policy, so only the state machine can refuse it:
+        // the custom flow reaches path/start_setup/main/quickstart/multiplayer, never "tools".
         const result = await page.evaluate(() => {
             const runtime = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime;
             return {
-                opened: runtime?.showPanel?.('submenu-expert', { trigger: 'blocked_transition_test' }),
+                opened: runtime?.showPanel?.('submenu-tools', { trigger: 'blocked_transition_test' }),
                 menuState: window.GAME_INSTANCE?.uiManager?.menuStateMachine?.getState?.() || '',
                 visiblePanels: Array.from(document.querySelectorAll('.submenu-panel:not(.hidden)')).map((panel) => panel.id),
             };
@@ -669,49 +664,33 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(expandedOnLevel3).toBe(0);
     });
 
-    test('T20ia: Expertenlogin sperrt Debug bis Passwort 1307; Developer-Menue bleibt entfernt', async ({ page }) => {
+    test('T20ia: Werkzeuge-Bildschirm zeigt die Editoren und in der Entwicklungsumgebung den Entwicklerblock', async ({ page }) => {
         await loadGame(page);
-        await expect(page.locator('#btn-open-developer')).toHaveCount(0);
-        await expect(page.locator('#submenu-developer')).toHaveCount(0);
+        for (const id of ['btn-open-expert', 'submenu-expert', 'expert-password-input', 'submenu-debug', 'btn-open-developer']) {
+            await expect(page.locator(`#${id}`)).toHaveCount(0);
+        }
 
-        await openExpertSubmenu(page);
-        await expect(page.locator('#expert-unlocked-state')).toBeHidden();
-        await page.fill('#expert-password-input', '9999');
-        await page.click('#btn-expert-unlock');
-        await expect(page.locator('#expert-login-status')).toContainText('Passwort falsch');
-        await expect(page.locator('#expert-unlocked-state')).toBeHidden();
-
-        await page.fill('#expert-password-input', '1307');
-        await page.click('#btn-expert-unlock');
-        await expect(page.locator('#expert-unlocked-state')).toBeVisible();
-        await expect(page.locator('#build-info')).toContainText('Build');
-        await expect(page.locator('#btn-open-developer')).toHaveCount(0);
-        await expect(page.locator('#submenu-developer')).toHaveCount(0);
-
-        await openDebugSubmenu(page);
-        await expect(page.locator('#submenu-debug')).toBeVisible();
+        await openToolsSubmenu(page);
+        await expect(page.locator('#btn-open-editor')).toBeVisible();
+        await expect(page.locator('#btn-open-vehicle-editor')).toBeVisible();
+        // Playwright startet Electron aus dem Quellcode: das ist die Entwicklungsumgebung.
+        await expect(page.locator('#tools-developer-block')).toBeVisible();
+        await expect(page.locator('#arcade-intermission-slider')).toBeVisible();
+        await expect(page.locator('#bot-heuristic-profile-select')).toBeVisible();
     });
 
-    test('T20ib: Logout sperrt den Expertenbereich erneut und Reload startet wieder gesperrt', async ({ page }) => {
+    test('T20ib: Info-Panel zeigt Build-Info, Kopieren und die Tastenuebersicht', async ({ page }) => {
         await loadGame(page);
-        await unlockExpertMode(page);
-        await expect(page.locator('#expert-unlocked-state')).toBeVisible();
+        await page.click('#btn-main-info');
+        await page.waitForSelector('#submenu-info:not(.hidden)', { timeout: 4000 });
+        await expect(page.locator('#build-info')).toContainText('Build');
+        await expect(page.locator('#build-info-detail')).not.toBeEmpty();
+        await expect(page.locator('#btn-copy-build')).toBeVisible();
+        await expect(page.locator('#submenu-info .info-key-list')).toContainText('FPS');
 
-        await lockExpertMode(page);
-        await expect(page.locator('#expert-unlocked-state')).toBeHidden();
-        await expect(page.locator('#expert-locked-state')).toBeVisible();
-
-        const postLockState = await page.evaluate(() => ({
-            unlocked: !!window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.(),
-            developerOpened: !!window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-developer', { trigger: 'post_lock_test' }),
-        }));
-        expect(postLockState.unlocked).toBeFalsy();
-        expect(postLockState.developerOpened).toBeFalsy();
-
-        await page.reload();
-        await page.waitForSelector('#main-menu', { state: 'visible', timeout: 10000 });
-        const postReloadUnlocked = await page.evaluate(() => !!window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.());
-        expect(postReloadUnlocked).toBeFalsy();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#submenu-info')).toBeHidden();
+        await expect(page.locator('#main-menu')).toHaveAttribute('data-menu-depth', '1');
     });
 
     test('T20j: Menu-Compatibility-Rules fixen inkonsistente Fixed-Preset-States deterministisch', async ({ page }) => {
@@ -1604,7 +1583,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             const accessContext = {
                 isOwner: true,
                 developerModeVisibility: 'owner_only',
-                expertModeUnlocked: true,
+                developerToolsEnabled: true,
             };
             const modeResult = game.settingsManager.setDeveloperMode(game.settings, true, accessContext);
             const startResult = game.settingsManager.setMenuTextOverride('menu.level3.start.label', 'Los jetzt');
@@ -1627,7 +1606,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             const result = game.settingsManager.setDeveloperReleasePreview(game.settings, true, {
                 isOwner: true,
                 developerModeVisibility: 'owner_only',
-                expertModeUnlocked: true,
+                developerToolsEnabled: true,
             });
             game.runtimeFacade.onSettingsChanged({ changedKeys: ['developer.releasePreview'] });
             return result.success;
@@ -1643,7 +1622,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             const accessContext = {
                 isOwner: true,
                 developerModeVisibility: 'owner_only',
-                expertModeUnlocked: true,
+                developerToolsEnabled: true,
             };
             game.settingsManager.setDeveloperReleasePreview(game.settings, false, accessContext);
             game.settingsManager.clearMenuTextOverride('menu.level3.start.label');
@@ -1652,35 +1631,6 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 changedKeys: ['developer.releasePreview', 'developer.textOverrides'],
             });
         });
-    });
-
-    test('T20s: Config-Export/Import stellt Setup reproduzierbar wieder her', async ({ page }) => {
-        await loadGame(page);
-        await openGameSubmenu(page);
-        await page.selectOption('#map-select', 'maze');
-        expect(await page.inputValue('#map-select')).toBe('maze');
-
-        await openLevel4Drawer(page, { section: 'utilities' });
-        await page.click('#btn-config-export-json');
-        const exportedJson = await page.inputValue('#config-share-input');
-        expect(exportedJson.length).toBeGreaterThan(20);
-        expect(JSON.parse(exportedJson).payload?.mapKey).toBe('maze');
-
-        await page.click('#btn-close-level4');
-        await page.waitForFunction(() => {
-            const drawer = document.getElementById('submenu-level4');
-            return !!drawer
-                && drawer.classList.contains('hidden')
-                && !window.GAME_INSTANCE?.settings?.localSettings?.toolsState?.level4Open;
-        }, null, { timeout: 4000 });
-        await page.selectOption('#map-select', 'pyramid');
-        expect(await page.inputValue('#map-select')).toBe('pyramid');
-
-        await openLevel4Drawer(page, { section: 'utilities' });
-        await page.fill('#config-share-input', exportedJson);
-        await page.click('#btn-config-import');
-        await waitForRenderFrames(page, 3);
-        expect(await page.inputValue('#map-select')).toBe('maze');
     });
 
     test('T20t: Suchfilter und Telemetrie sind im neuen Flow verfuegbar', async ({ page }) => {
@@ -1863,10 +1813,6 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             'Speichere den aktuellen Stand aller Einstellungen unter einem Namen.'
         );
         await expect(page.locator('#level4-section-presets')).toHaveCount(0);
-        await expect(page.locator('#level4-section-utilities .section-title .menu-info-hint')).toHaveAttribute(
-            'title',
-            'Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration.'
-        );
         await expect(page.locator('#profile-transfer-status')).toHaveAttribute('role', 'status');
     });
 
@@ -3504,7 +3450,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 profileContainsPresetActions: !!document.querySelector('#level4-section-tools #btn-preset-apply'),
                 profileContainsEditorActions: !!document.querySelector('#level4-section-tools #btn-open-editor'),
                 presetPanelExists: !!document.querySelector('#level4-section-presets'),
-                utilitiesContainEditorActions: !!document.querySelector('#level4-section-utilities #btn-open-editor'),
+                drawerContainsEditorActions: !!document.querySelector('#submenu-level4 #btn-open-editor'),
                 drawerOverflow: Math.max(0, Math.round((drawer?.scrollWidth || 0) - (drawer?.clientWidth || 0))),
                 stackOverflow: Math.max(0, Math.round((stack?.scrollWidth || 0) - (stack?.clientWidth || 0))),
             };
@@ -3515,7 +3461,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(level4State.profileContainsPresetActions).toBeFalsy();
         expect(level4State.profileContainsEditorActions).toBeFalsy();
         expect(level4State.presetPanelExists).toBeFalsy();
-        expect(level4State.utilitiesContainEditorActions).toBeTruthy();
+        expect(level4State.drawerContainsEditorActions).toBeFalsy();
         expect(level4State.drawerOverflow).toBeLessThanOrEqual(4);
         expect(level4State.stackOverflow).toBeLessThanOrEqual(4);
     });

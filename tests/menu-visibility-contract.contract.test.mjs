@@ -157,7 +157,7 @@ test('custom editor maps are local only', () => {
 });
 
 test('developer functions need a development environment', () => {
-    for (const key of ['developerTools', 'telemetryPanel', 'tuningConsoleHint']) {
+    for (const key of ['developerTools', 'tuningConsoleHint']) {
         expectEnabled(resolve({ devEnvironment: true }), key);
         expectHidden(resolve({ devEnvironment: false }), key, MENU_VISIBILITY_REASONS.DEV_ONLY);
     }

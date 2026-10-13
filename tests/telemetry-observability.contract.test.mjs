@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { RuntimePerfProfiler } from '../src/core/perf/RuntimePerfProfiler.js';
@@ -10,8 +9,6 @@ import { TelemetryPreferencesStore } from '../src/shared/telemetry/TelemetryPref
 import { MatchFlowTelemetryController } from '../src/ui/MatchFlowTelemetryController.js';
 import { createSettingsTelemetryFacade } from '../src/core/settings/SettingsTelemetryFacade.js';
 import { MenuTelemetryStore } from '../src/ui/menu/MenuTelemetryStore.js';
-import { renderMenuTelemetryDashboard } from '../src/ui/menu/MenuTelemetryDashboard.js';
-import { resolveMapPreview } from '../src/ui/menu/MenuPreviewCatalog.js';
 
 function createMemoryStoragePlatform() {
     const records = new Map();
@@ -95,64 +92,6 @@ test('menu telemetry aggregates arcade sector and run KPIs', () => {
     assert.equal(summary.missionsCompleted, 2);
     assert.equal(summary.rewardChoiceCounts.shield, 1);
     assert.equal(summary.modifierCounts.kinetic, 1);
-});
-
-test('expert dashboard names completed arcade runs, funnel denominators and map labels', () => {
-    const previousDocument = globalThis.document;
-    const createElement = () => ({
-        children: [],
-        attributes: {},
-        textContent: '',
-        setAttribute(key, value) { this.attributes[key] = value; },
-        appendChild(child) { this.children.push(child); },
-        append(...children) { this.children.push(...children); },
-        replaceChildren(...children) { this.children = children; },
-    });
-    const find = (element, key, value) => {
-        if (element.attributes?.[key] === value) return element;
-        for (const child of element.children || []) {
-            const match = find(child, key, value);
-            if (match) return match;
-        }
-        return null;
-    };
-    globalThis.document = { createElement };
-    try {
-        const root = createElement();
-        renderMenuTelemetryDashboard(root, {
-            balance: { rounds: 5 },
-            topMaps: [{ key: 'standard', rounds: 5 }],
-            topModes: [{ key: 'hunt', rounds: 5 }],
-            recentRounds: [{ winnerLabel: 'Spieler 1', mapKey: 'standard', mode: 'hunt' }],
-            funnel: { eventCounts: { start_attempt: 5 }, startToRoundRate: 1, startToMatchRate: 0.2, abortRate: 0 },
-            arcade: { runs: 0, sectors: 5, averageScore: 0, totalXpEarned: 0 },
-        }, null, { rounds: 5, topMaps: [{ key: 'standard', count: 5 }], topModes: [{ key: 'hunt', count: 5 }] });
-
-        const row = (key) => find(root, 'data-telemetry-row-key', key);
-        const mapName = resolveMapPreview('standard').name;
-        assert.equal(row('arcade-runs').children[0].textContent, 'Beendete Läufe / Sektoren');
-        assert.equal(row('arcade-runs').children[1].textContent, '0 / 5');
-        assert.equal(row('arcade-score').children[0].textContent, 'Ø Punkte je beendetem Lauf');
-        assert.equal(row('arcade-xp').children[0].textContent, 'Sektor-XP gesamt');
-        assert.equal(row('mg-fire-time-per-round').children[1].textContent, 'Nicht gemessen');
-        assert.equal(row('history-mg-fire-time-r').children[1].textContent, 'Nicht gemessen');
-        assert.equal(row('funnel-round-rate').children[0].textContent, 'Rundenenden / Startversuche');
-        assert.equal(row('funnel-match-rate').children[0].textContent, 'Matchenden / Startversuche');
-        assert.equal(row('funnel-abort-rate').children[0].textContent, 'Abbrüche / Startversuche');
-        assert.equal(find(root, 'data-telemetry-card', 'maps').children[1].children[0].children[0].textContent, mapName);
-        assert.equal(find(root, 'data-telemetry-card', 'modes').children[1].children[0].children[0].textContent, 'Kampf');
-        assert.match(row('history-top-maps').children[1].textContent, new RegExp(mapName, 'u'));
-        assert.equal(row('history-top-modes').children[1].textContent, 'Kampf(5)');
-        assert.match(find(root, 'data-telemetry-recent-index', '0').textContent, new RegExp(`${mapName} / Kampf`, 'u'));
-
-        renderMenuTelemetryDashboard(root, {
-            balance: { rounds: 2, mgFireMeasuredRounds: 1, mgFireSecondsPerRound: 3.5 },
-        }, null, { rounds: 2, mgFireMeasuredRounds: 1, mgFireSecondsPerRound: 3.5 });
-        assert.equal(row('mg-fire-time-per-round').children[1].textContent, '3.50s (1 R)');
-        assert.equal(row('history-mg-fire-time-r').children[1].textContent, '3.50s (1 R)');
-    } finally {
-        globalThis.document = previousDocument;
-    }
 });
 
 test('round performance interval reports p95, p99, spikes and subsystem averages', () => {
@@ -373,17 +312,6 @@ test('arcade runtime support enriches locally recorded events after state handli
     assert.equal(calls[0], 'handled');
     assert.equal(calls[1][0], 'round_end');
     assert.equal(calls[1][1].arcade.runId, 'run-1');
-});
-
-test('desktop debug menu exposes telemetry controls, filters, exports and reset', async () => {
-    const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-    for (const id of [
-        'developer-telemetry-panel', 'telemetry-collection-toggle', 'telemetry-filter-build',
-        'telemetry-filter-map', 'telemetry-filter-mode', 'telemetry-filter-period',
-        'btn-telemetry-export-json', 'btn-telemetry-export-csv', 'btn-telemetry-reset',
-    ]) {
-        assert.match(html, new RegExp(`id=["']${id}["']`));
-    }
 });
 
 // Blickrichtung (0,0,-1), Weltoben (0,1,0): Rechts ist damit lokal +X. Der Pfeil wird im

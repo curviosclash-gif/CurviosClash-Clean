@@ -35,11 +35,7 @@ export function createOwnerAccessContext(overrides = {}) {
         developerModeVisibility: 'owner_only',
         developerModeEnabled: true,
         releasePreviewEnabled: false,
-        expertModeUnlocked: true,
-        expertModeAvailable: true,
-        expertModeAccessMode: 'owner_only',
-        expertModeReason: '',
-        expertModeProductSurfaceId: 'desktop-app',
+        developerToolsEnabled: true,
         ...overrides,
     };
 }

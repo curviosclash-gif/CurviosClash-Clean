@@ -2,12 +2,12 @@ import { test, expect } from './helpers.desktop.js';
 import { CONFIG } from '../src/core/Config.js';
 import {
     collectErrors,
-    lockExpertMode,
     loadGame,
     openCustomSubmenu,
     openDebugSubmenu,
     openDeveloperSubmenu,
     openExpertSubmenu,
+    openToolsSubmenu,
     openGameSubmenu,
     openStartSetupSection,
     openLevel4Drawer,
@@ -17,7 +17,6 @@ import {
     resolveAppUrl,
     startGame,
     startGameWithBots,
-    unlockExpertMode,
     waitForRenderFrames,
 } from './helpers.js';
 import { createMapDocument, parseMapJSON, stringifyMapDocument, toArenaMapDefinition } from '../src/entities/MapSchema.js';
@@ -110,12 +109,12 @@ export {
     // Runtime/menu helpers.
     CONFIG,
     collectErrors,
-    lockExpertMode,
     loadGame,
     openCustomSubmenu,
     openDebugSubmenu,
     openDeveloperSubmenu,
     openExpertSubmenu,
+    openToolsSubmenu,
     openGameSubmenu,
     openStartSetupSection,
     openLevel4Drawer,
@@ -125,7 +124,6 @@ export {
     resolveAppUrl,
     startGame,
     startGameWithBots,
-    unlockExpertMode,
     waitForRenderFrames,
     loadGameWithRetry,
     // Map/editor contract helpers.

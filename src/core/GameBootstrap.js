@@ -39,7 +39,6 @@ import {
     HuntHUD,
     KeybindEditorController,
     MatchFlowUiController,
-    MenuExpertLoginRuntime,
 } from '../composition/core-ui/CoreUiBootstrapPorts.js';
 import { createCoreRuntimeAccess } from '../composition/core-ui/CoreRuntimeAccessFactory.js';
 
@@ -270,11 +269,6 @@ export function bootstrapGameRuntime(game, options = {}) {
         appVersion: options.appVersion,
         buildId: options.buildId,
         buildTime: options.buildTime,
-    }));
-    registerRuntimeHandle('menuExpertLoginRuntime', new MenuExpertLoginRuntime({
-        settings: game.settings,
-        ui,
-        showStatusToast,
     }));
 
     // F8/F9 cinematic recording is handled exclusively via main.js global hotkeys.

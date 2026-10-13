@@ -39,7 +39,6 @@ export function createNavigationLifecyclePort(deps = {}) {
     const getActiveSubmenu = resolveCallback(deps.getActiveSubmenu, () => null);
     const setActiveSubmenu = resolveCallback(deps.setActiveSubmenu, () => null);
     const persistMenuState = resolveCallback(deps.persistMenuState, () => null);
-    const getExpertLoginRuntime = resolveCallback(deps.getExpertLoginRuntime, () => null);
     const getSettingsDirty = resolveCallback(deps.getSettingsDirty, () => false);
     const getActiveProfileName = resolveCallback(deps.getActiveProfileName, () => '');
     const updateToolsState = resolveCallback(deps.updateToolsState, () => null);
@@ -53,7 +52,6 @@ export function createNavigationLifecyclePort(deps = {}) {
         getActiveSubmenu: () => getActiveSubmenu() || null,
         setActiveSubmenu: (panelId) => setActiveSubmenu(panelId || null),
         persistMenuState: (state, transition = null) => persistMenuState(state, transition),
-        getExpertLoginRuntime: () => getExpertLoginRuntime() || null,
         getSettingsDirty: () => getSettingsDirty() === true,
         getActiveProfileName: () => String(getActiveProfileName() || '').trim(),
         updateToolsState: (patch = null) => updateToolsState(patch && typeof patch === 'object' ? patch : null),
@@ -81,7 +79,6 @@ export function createStartSetupControllerPortFromManager({
 export function createNavigationLifecyclePortFromManager({
     manager = null,
     game = null,
-    menuExpertLoginRuntime = null,
     profileManager = null,
 } = {}) {
     return createNavigationLifecyclePort({
@@ -93,7 +90,6 @@ export function createNavigationLifecyclePortFromManager({
             game._menuState = state || null;
             game._menuTransition = transition || null;
         },
-        getExpertLoginRuntime: () => menuExpertLoginRuntime || manager?.menuExpertLoginRuntime || null,
         getSettingsDirty: () => game?.settingsDirty === true,
         getActiveProfileName: () => game?.activeProfileName || profileManager?.getActiveProfileName?.() || '',
         updateToolsState: (patch = null) => {

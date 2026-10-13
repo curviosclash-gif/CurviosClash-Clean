@@ -3,7 +3,6 @@
 // offene Sitzung als menschliche Runde.
 
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
@@ -18,7 +17,6 @@ import { normalizeTelemetryHistoryEntry } from '../src/state/TelemetryHistorySto
 import { computeTelemetryHistorySummary } from '../src/state/telemetry/TelemetryHistorySummary.js';
 import { matchesTelemetryHistoryFilters } from '../src/state/telemetry/TelemetryHistoryEntry.js';
 import { MatchFlowTelemetryController } from '../src/ui/MatchFlowTelemetryController.js';
-import { renderTelemetryHistorySection } from '../src/ui/menu/MenuTelemetryDashboard.js';
 
 const ACTIVE_SAMPLES = ROUND_CONTROL_MIN_SAMPLES * 2;
 
@@ -149,43 +147,6 @@ test('round payload marks a tool-driven window as automation', () => {
     const payload = new MatchFlowTelemetryController({ game }).buildRoundEndTelemetryPayload(roundEndPlan);
     assert.equal(payload.control.source, ROUND_CONTROL_SOURCES.AUTOMATION);
     assert.equal(payload.control.automationSignal, 'webdriver');
-});
-
-test('developer panel shows the control split and filters real play by default', async () => {
-    const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-    const select = html.match(/<select id="telemetry-filter-control">[\s\S]*?<\/select>/)?.[0] || '';
-    assert.ok(select.includes('value="human" selected'), 'Steuerungsfilter steht ab Werk auf echtem Spiel');
-    assert.ok(select.includes('value="automation"'));
-
-    const previousDocument = globalThis.document;
-    const createElement = () => ({
-        children: [], attributes: {}, textContent: '',
-        setAttribute(key, value) { this.attributes[key] = value; },
-        appendChild(child) { this.children.push(child); },
-        append(...children) { this.children.push(...children); },
-        replaceChildren(...children) { this.children = children; },
-    });
-    const find = (element, key, value) => {
-        if (element.attributes?.[key] === value) return element;
-        for (const child of element.children || []) {
-            const match = find(child, key, value);
-            if (match) return match;
-        }
-        return null;
-    };
-    globalThis.document = { createElement };
-    try {
-        const root = createElement();
-        renderTelemetryHistorySection(root, {
-            rounds: 4,
-            controlSourceCounts: { human: 1, idle: 1, automation: 1, unknown: 1 },
-        });
-        const row = find(root, 'data-telemetry-row-key', 'history-control');
-        assert.equal(row.children[0].textContent, 'Steuerung');
-        assert.equal(row.children[1].textContent, 'Mensch 1 · untätig 1 · automatisch 1 · unbekannt 1');
-    } finally {
-        globalThis.document = previousDocument;
-    }
 });
 
 test('recording a round resets the input activity for the next round', () => {

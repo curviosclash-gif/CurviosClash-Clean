@@ -1,12 +1,11 @@
 // ============================================
 // UINavigationLifecycleController.js
-// Navigation, Level4-Drawer, Expert-Login, Toast, Access-Sichtbarkeit und Dispose
+// Navigation, Level4-Drawer, Toast, Access-Sichtbarkeit und Dispose
 // Extrahiert aus UIManager.js (V38 Phase 38.3.2)
 // ============================================
 
 import {
     evaluateMenuAccessPolicy,
-    resolveDebugAccessPolicy,
     resolveDeveloperAccessPolicy,
 } from './menu/MenuAccessPolicy.js';
 import { LEVEL4_SECTION_IDS, MENU_SESSION_TYPES } from './menu/MenuStateContracts.js';
@@ -53,10 +52,6 @@ export class UINavigationLifecycleController {
 
     _persistMenuState(transition = null) {
         this.port?.persistMenuState?.(this.manager?.menuStateMachine?.getState?.() || null, transition || null);
-    }
-
-    _getExpertLoginRuntime() {
-        return this.port?.getExpertLoginRuntime?.() || this.manager?.menuExpertLoginRuntime || null;
     }
 
     _getSettings() {
@@ -249,60 +244,6 @@ export class UINavigationLifecycleController {
     }
 
     // ------------------------------------------------------------------
-    // Expert-Login
-    // ------------------------------------------------------------------
-
-    setupExpertLoginBindings() {
-        const runtime = this._getExpertLoginRuntime();
-        if (!runtime) return;
-        const listen = (target, type, handler) => this.manager._listen(target, type, handler);
-        if (this.ui.expertPasswordInput) {
-            listen(this.ui.expertPasswordInput, 'input', () => runtime.clearError());
-            listen(this.ui.expertPasswordInput, 'keydown', (event) => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                this._attemptExpertUnlock();
-            });
-        }
-        if (this.ui.expertUnlockButton)  listen(this.ui.expertUnlockButton,   'click', () => this._attemptExpertUnlock());
-        if (this.ui.expertLockButton)    listen(this.ui.expertLockButton,     'click', () => runtime.lock());
-        if (this.ui.expertQuickLockButton) listen(this.ui.expertQuickLockButton, 'click', () => runtime.lock());
-        if (this.ui.expertCancelButton)  listen(this.ui.expertCancelButton,   'click', () => this.manager.showMainNav());
-    }
-
-    _attemptExpertUnlock() {
-        const runtime = this._getExpertLoginRuntime();
-        if (!runtime) return;
-        const password = String(this.ui.expertPasswordInput?.value || '');
-        const result = runtime.unlock(password);
-        if (!result.success) {
-            const isPasswordError = result.reason === 'invalid_password';
-            this.manager.showToast(result.message || 'Passwort falsch.', 1400, isPasswordError ? 'error' : 'info');
-            if (isPasswordError) {
-                this.ui.expertPasswordInput?.focus?.();
-                this.ui.expertPasswordInput?.select?.();
-            }
-            return;
-        }
-        runtime.focusPrimaryControl();
-    }
-
-    handleExpertStateChanged() {
-        const settings = this._getSettings();
-        const menuUiContext = this.manager._resolveMenuUiContext?.(settings) || null;
-        if (menuUiContext) {
-            this.manager.syncDeveloperState(settings, menuUiContext);
-            this.updateContext(menuUiContext);
-        } else {
-            this.manager.updateContext();
-            this.manager.syncDeveloperState(settings);
-        }
-        if (this._getActiveSubmenu() === 'submenu-expert') {
-            this._getExpertLoginRuntime()?.focusPrimaryControl?.();
-        }
-    }
-
-    // ------------------------------------------------------------------
     // Menü-Navigation
     // ------------------------------------------------------------------
 
@@ -352,9 +293,6 @@ export class UINavigationLifecycleController {
                 this._setActiveSubmenu(panelId || null);
                 if (panelId === 'submenu-developer') {
                     this.ensureDeveloperTextCatalogSetup();
-                }
-                if (panelId === 'submenu-expert') {
-                    this._getExpertLoginRuntime()?.focusPrimaryControl?.();
                 }
                 // Die Kartenauswahl liest im Desktop neu gespeicherte Editor-Karten nach.
                 if (panelId === 'submenu-game') {
@@ -429,22 +367,14 @@ export class UINavigationLifecycleController {
         const shouldHideDeveloperUi = releaseState.developerUiHidden;
         const shouldHideDebugHints = releaseState.releaseCutEnabled;
         const developerPanelConfig = manager.menuPanelRegistry.getPanelById('submenu-developer');
-        const debugPanelConfig = manager.menuPanelRegistry.getPanelById('submenu-debug');
         const developerPolicy = developerPanelConfig?.semanticId === 'developer'
             ? resolveDeveloperAccessPolicy(accessContext)
             : (developerPanelConfig?.accessPolicy || 'open');
-        const debugPolicy = debugPanelConfig?.semanticId === 'debug'
-            ? resolveDebugAccessPolicy(accessContext)
-            : (debugPanelConfig?.accessPolicy || 'open');
         const developerAllowed = !shouldHideDeveloperUi
             && developerPanelConfig?.visibility !== 'hidden'
             && evaluateMenuAccessPolicy(developerPolicy, accessContext).allowed;
-        const debugAllowed = !shouldHideDeveloperUi
-            && debugPanelConfig?.visibility !== 'hidden'
-            && evaluateMenuAccessPolicy(debugPolicy, accessContext).allowed;
 
         this._setElementsHidden(manager._developerNavButtons, !developerAllowed);
-        this._setElementsHidden(manager._debugNavButtons, !debugAllowed);
         this._setElementsHidden(manager._debugHintNodes, shouldHideDebugHints);
 
         if (manager._developerPanel) {
@@ -453,9 +383,6 @@ export class UINavigationLifecycleController {
         if (!developerAllowed && this._getActiveSubmenu() === 'submenu-developer') {
             manager.showMainNav();
             return;
-        }
-        if (!debugAllowed && this._getActiveSubmenu() === 'submenu-debug') {
-            manager.showMainNav();
         }
     }
 
@@ -523,13 +450,12 @@ export class UINavigationLifecycleController {
         } else if (activeSubmenu === 'submenu-custom') {
             contextText = `${section} | ${sessionLabel} | ${resolveMenuCatalogText('menu.context.custom.summary', 'Sofortstart oder Setup')} | ${dirtyState}`;
             breadcrumbText = `${sessionLabel} › ${resolveMenuCatalogText('menu.context.custom.step', 'Spielstil wählen')}`;
-        } else if (activeSubmenu === 'submenu-expert') {
-            const expertState = this._getExpertLoginRuntime()?.getState?.() || null;
-            const expertStateLabel = expertState?.available === false
-                ? 'lokaler Dev-Pfad'
-                : (expertState?.unlocked ? 'freigeschaltet' : 'gesperrt');
-            contextText = `${section} | Expertenstatus: ${expertStateLabel} | ${dirtyState}`;
-            breadcrumbText = resolveMenuCatalogText('menu.expert.locked.title', 'Expertenbereich');
+        } else if (activeSubmenu === 'submenu-tools') {
+            contextText = `${section} | ${dirtyState}`;
+            breadcrumbText = resolveMenuCatalogText('menu.tools.title', 'Werkzeuge');
+        } else if (activeSubmenu === 'submenu-info') {
+            contextText = `${section} | ${dirtyState}`;
+            breadcrumbText = resolveMenuCatalogText('menu.info.title', 'Info');
         }
         this.ui.menuContext.textContent = contextText;
         if (this.ui.menuBreadcrumb) {

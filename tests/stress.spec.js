@@ -332,7 +332,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
             const accessContext = {
                 isOwner: true,
                 developerModeVisibility: 'owner_only',
-                expertModeUnlocked: true,
+                developerToolsEnabled: true,
             };
             const modeResult = game.settingsManager.setDeveloperMode(game.settings, true, accessContext);
             const textResult = game.settingsManager.setMenuTextOverride('menu.level3.start.label', 'BurstStart');

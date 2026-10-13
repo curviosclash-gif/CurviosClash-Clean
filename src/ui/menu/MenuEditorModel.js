@@ -76,12 +76,14 @@ function resolveTextPanelId(textId, schema) {
     if (textId.startsWith('menu.level4.tools.')) {
         return findPanelIdBySemanticId(schema, 'profiles', 'submenu-profiles');
     }
-    if (textId.startsWith('menu.tools.')) {
+    if (textId.startsWith('menu.level4.advanced_map.')) {
         return findPanelIdBySemanticId(schema, 'portals', 'submenu-portals');
     }
-    if (textId.startsWith('menu.developer.') || textId.startsWith('menu.debug.')
-        || textId.startsWith('menu.panels.expert.')) {
-        return findPanelIdBySemanticId(schema, 'expert', 'submenu-expert');
+    if (textId.startsWith('menu.tools.')) {
+        return findPanelIdBySemanticId(schema, 'tools', 'submenu-tools');
+    }
+    if (textId.startsWith('menu.developer.') || textId.startsWith('menu.debug.') || textId.startsWith('menu.info.')) {
+        return findPanelIdBySemanticId(schema, 'info', 'submenu-info');
     }
     if (textId.startsWith('menu.panels.controls.')) {
         return findPanelIdBySemanticId(schema, 'controls', 'submenu-controls');

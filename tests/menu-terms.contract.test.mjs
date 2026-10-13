@@ -19,11 +19,11 @@ test('the built-in presets carry German names while their ids stay', () => {
     assert.deepEqual(names, ['Endlosjagd', 'Arcade Standard', 'Wettkampf', 'Chaos', 'Kampf Standard', 'Klassisch Standard']);
 });
 
-test('the options window is "Einstellungen" and the diagnosis area is "Expertenbereich"', () => {
+test('the options window is "Einstellungen" and the expert area is gone', () => {
     assert.equal(MENU_TEXT_CATALOG['menu.level4.title'], 'Einstellungen');
     assert.equal(MENU_TEXT_CATALOG['menu.level3.open_level4.label'], 'Einstellungen');
     assert.equal(MENU_TEXT_CATALOG['menu.context.level4.title'], 'Einstellungen');
-    assert.equal(MENU_TEXT_CATALOG['menu.expert.locked.title'], 'Expertenbereich');
+    assert.equal(MENU_TEXT_CATALOG['menu.expert.locked.title'], undefined);
     const allText = `${visibleHtmlText} ${Object.values(MENU_TEXT_CATALOG).join(' ')}`;
     assert.doesNotMatch(allText, /Erweiterte[nr]? (Optionen|Bereich)/u);
 });

@@ -58,7 +58,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
             await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), size);
             await expect(page.locator('#btn-quick-last-settings')).toBeInViewport();
             await expect(page.locator('[data-session-type="splitscreen"]')).toBeInViewport();
-            await expect(page.locator('.menu-utility-shell [data-level4-section="utilities"]')).toBeInViewport();
+            await expect(page.locator('#btn-main-tools')).toBeInViewport();
             await capture('home-' + size[0]);
         }
         await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1280, 720));

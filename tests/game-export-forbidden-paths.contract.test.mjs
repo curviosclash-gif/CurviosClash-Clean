@@ -51,7 +51,6 @@ const REWRITTEN_EXPORT_EDGES = Object.freeze([
     ['src/core/main.js', 'src/dev/tuning/TuningRuntimeIpcBridge.js', EXPORT_TRANSFORM],
     ['src/core/main.js', 'src/mobile-classic/MobileClassicApp.js', EXPORT_VITE_CONFIG],
     ['src/ui/UIManager.js', 'src/ui/menu/MenuDeveloperStateSync.js', EXPORT_TRANSFORM],
-    ['src/ui/menu/MenuDevPanelBindings.js', 'src/ui/menu/MenuDeveloperStateSync.js', EXPORT_TRANSFORM],
     ['src/core/SettingsManager.js', 'src/state/AuthoringTelemetryStore.js', EXPORT_TRANSFORM],
     ['src/shared/storage/StorageKeys.js', 'src/shared/contracts/AuthoringTelemetryContract.js', EXPORT_TRANSFORM],
     ['src/entities/runtime-modular-vehicle-mesh.js', 'src/shared/vehicle-lab/ModularVehicleMeshBridge.js', EXPORT_TRANSFORM],

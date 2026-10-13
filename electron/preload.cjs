@@ -16,6 +16,8 @@ const PRELOAD_CONTRACT_VERSIONS = Object.freeze({
     localMaps: 'preload.local-maps.v1',
 });
 const PLATFORM_CAPABILITY_SNAPSHOT_CONTRACT_VERSION = 'platform-capability-snapshot.v1';
+// Set by the main process (webPreferences.additionalArguments) only in the development environment.
+const DEVELOPER_ENVIRONMENT = process.argv.includes('--curvios-developer-environment');
 const RECORDING_VIDEO_EXPORT_REQUEST_CONTRACT_VERSION = 'recording-video-export-request.v1';
 const TUNING_RUNTIME_REQUEST_CHANNEL = 'tuning-runtime:request';
 const TUNING_RUNTIME_RESPONSE_CHANNEL = 'tuning-runtime:response';
@@ -369,6 +371,7 @@ const curviosApp = Object.freeze({
     getDiscoveredHosts: discoveryContract.listHosts,
     onDiscoveredHosts: discoveryContract.subscribeHosts,
     isApp: true,
+    developerEnvironment: DEVELOPER_ENVIRONMENT,
 });
 
 contextBridge.exposeInMainWorld('__CURVIOS_APP__', true);

@@ -481,188 +481,6 @@
     white-space: pre-line;
 }
 
-.developer-telemetry-dashboard {
-    display: grid;
-    gap: 12px;
-    margin-bottom: 10px;
-}
-
-.developer-telemetry-consent {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    color: #c9d8ec;
-    font-size: 0.84em;
-}
-
-.developer-telemetry-filters {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 10px;
-    margin: 12px 0;
-}
-
-.developer-telemetry-filters label {
-    display: grid;
-    gap: 5px;
-    color: #9bb1cb;
-    font-size: 0.75em;
-}
-
-.developer-telemetry-filters select {
-    width: 100%;
-}
-
-.developer-telemetry-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.developer-telemetry-actions .secondary-btn {
-    width: auto;
-}
-
-.developer-telemetry-output {
-    max-height: 280px;
-    overflow: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: #aebed5;
-    font-size: 0.72em;
-}
-
-.developer-telemetry-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
-}
-
-.developer-telemetry-card {
-    border: 1px solid rgba(0, 170, 255, 0.16);
-    background: linear-gradient(180deg, rgba(5, 16, 42, 0.92), rgba(4, 11, 28, 0.86));
-    border-radius: 12px;
-    padding: 12px 14px;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-}
-
-.developer-telemetry-card-wide {
-    grid-column: 1 / -1;
-}
-
-.developer-telemetry-title {
-    margin: 0 0 10px;
-    font-size: 0.82em;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #7ec8ff;
-}
-
-.developer-telemetry-list {
-    margin: 0;
-}
-
-.developer-telemetry-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 12px;
-    padding: 4px 0;
-    align-items: baseline;
-}
-
-.developer-telemetry-label,
-.developer-telemetry-value {
-    margin: 0;
-    font-family: var(--menu-theme-display-font);
-    font-size: 0.76em;
-}
-
-.developer-telemetry-label {
-    color: #9bb1cb;
-}
-
-.developer-telemetry-value {
-    color: #f5f8ff;
-    text-align: right;
-}
-
-.developer-telemetry-recent-list {
-    margin: 0;
-    padding-left: 18px;
-    display: grid;
-    gap: 6px;
-}
-
-.developer-telemetry-recent-item {
-    color: #b6c6df;
-    font-size: 0.78em;
-    line-height: 1.5;
-}
-
-.developer-telemetry-recent-empty {
-    list-style: none;
-    margin-left: -18px;
-}
-
-.developer-telemetry-heatmap-legend {
-    list-style: none;
-    margin: 0 0 10px;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    color: #9bb1cb;
-    font-size: 0.76em;
-}
-
-.developer-telemetry-heatmap-legend li {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.developer-telemetry-heatmap-swatch {
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
-    display: inline-block;
-}
-
-.developer-telemetry-heatmap-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 12px;
-}
-
-.developer-telemetry-heatmap-canvas {
-    width: 100%;
-    height: auto;
-    display: block;
-    border-radius: 8px;
-}
-
-.developer-telemetry-heatmap-meta {
-    margin: 8px 0 4px;
-    color: #9bb1cb;
-    font-size: 0.74em;
-}
-
-.developer-telemetry-heatmap-hotspots {
-    margin: 0;
-    padding-left: 18px;
-    display: grid;
-    gap: 4px;
-    color: #b6c6df;
-    font-size: 0.74em;
-}
-
-.developer-telemetry-heatmap-empty {
-    color: #8893aa;
-    font-size: 0.78em;
-    margin: 0;
-}
-
 .debug-hint {
     color: #8893aa;
     font-size: 0.88em;
@@ -1121,11 +939,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
    MENU UX FOLLOW-UP OVERRIDES
    ============================================ */
 
-.expert-entry-btn {
-    width: auto;
-    min-width: 92px;
-}
-
 .menu-footer {
     display: flex;
     align-items: center;
@@ -1143,12 +956,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     border-radius: 10px;
     border: 1px solid rgba(120, 180, 255, 0.18);
     background: rgba(16, 24, 42, 0.7);
-}
-
-.build-info--expert {
-    margin-top: 10px;
-    font-size: 0.78rem;
-    text-align: left;
 }
 
 .menu-context {
@@ -1365,25 +1172,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     font-size: 1rem;
     font-weight: 700;
     color: #edf4ff;
-}
-
-.expert-auth-card,
-.expert-panel-card {
-    max-width: 520px;
-}
-
-.expert-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.expert-panel-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
 }
 
 .expert-tuning-card {
@@ -1634,13 +1422,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
 
     .nav-btn {
         min-height: 90px;
-    }
-
-    .expert-panel-header,
-    .expert-panel-actions {
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
     }
 
     #main-menu[data-menu-depth="2"] .menu-content h1,
@@ -9466,4 +9247,37 @@ body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
 
 @media (prefers-reduced-motion: reduce) {
     .sandstorm-proximity-cue { animation: none; }
+}
+
+/* Etappe 3: Info-Link, Werkzeuge-Bildschirm und Tastenübersicht */
+.info-key-list {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+    color: #c3d4e7;
+}
+
+.info-key-list kbd,
+.tools-developer-block kbd {
+    display: inline-block;
+    min-width: 2.2em;
+    padding: 2px 7px;
+    margin-right: 6px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.tools-developer-block {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(120, 180, 255, 0.28);
+}
+
+.tools-developer-block[hidden],
+.tools-developer-block [hidden] {
+    display: none !important;
 }

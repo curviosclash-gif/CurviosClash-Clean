@@ -88,7 +88,6 @@ export const LEVEL4_SECTION_IDS = Object.freeze({
     RECORDING: 'recording',
     HUD: 'hud',
     TOOLS: 'tools',
-    UTILITIES: 'utilities',
 });
 /** @type {Set<string>} */
 const VALID_LEVEL4_SECTION_SET = new Set(Object.values(LEVEL4_SECTION_IDS));

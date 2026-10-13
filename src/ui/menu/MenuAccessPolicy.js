@@ -1,5 +1,5 @@
 import { MENU_DEVELOPER_ACCESS_MODES } from './MenuStateContracts.js';
-import { resolveMenuExpertState } from './MenuExpertLoginRuntime.js';
+import { resolveMenuDeveloperEnvironment } from './MenuDeveloperEnvironment.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 export const MENU_ACCESS_POLICIES = Object.freeze({
@@ -17,8 +17,7 @@ export const MENU_ACCESS_GUARD_REASONS = Object.freeze({
     OWNER_REQUIRED: 'owner_required',
     LOCKED: 'locked',
     HIDDEN_FOR_PLAYER: 'hidden_for_player',
-    EXPERT_LOGIN_REQUIRED: 'expert_login_required',
-    EXPERT_SURFACE_POLICY: 'expert_surface_policy',
+    DEVELOPER_TOOLS_DISABLED: 'developer_tools_disabled',
     INVALID_POLICY: 'invalid_policy',
 });
 
@@ -53,7 +52,6 @@ export function resolveMenuAccessContext(settings) {
         ? requestedMode
         : MENU_DEVELOPER_ACCESS_MODES.OWNER_ONLY;
 
-    const expertState = resolveMenuExpertState(settings);
     return {
         ownerId,
         actorId,
@@ -61,11 +59,8 @@ export function resolveMenuAccessContext(settings) {
         developerModeVisibility,
         developerModeEnabled: settings?.menuFeatureFlags?.developerModeEnabled !== false,
         releasePreviewEnabled: !!localSettings.releasePreviewEnabled,
-        expertModeUnlocked: expertState?.unlocked === true,
-        expertModeAvailable: expertState?.available !== false,
-        expertModeAccessMode: normalizeString(expertState?.accessMode, ''),
-        expertModeReason: normalizeString(expertState?.reason, ''),
-        expertModeProductSurfaceId: normalizeString(expertState?.productSurfaceId, ''),
+        // Developer tools exist only in the development environment, never behind a password.
+        developerToolsEnabled: resolveMenuDeveloperEnvironment(),
     };
 }
 
@@ -74,32 +69,21 @@ export function normalizeAccessPolicy(accessPolicy) {
     return VALID_ACCESS_POLICY_SET.has(normalized) ? normalized : null;
 }
 
-export function resolveExpertAccessState(accessContext) {
-    if (accessContext?.expertModeAvailable === false) {
-        return { allowed: false, reason: MENU_ACCESS_GUARD_REASONS.EXPERT_SURFACE_POLICY };
-    }
-    if (accessContext?.expertModeUnlocked === true) {
+export function resolveDeveloperToolsAccessState(accessContext) {
+    if (accessContext?.developerToolsEnabled === true) {
         return { allowed: true, reason: MENU_ACCESS_GUARD_REASONS.ALLOWED };
     }
-    return { allowed: false, reason: MENU_ACCESS_GUARD_REASONS.EXPERT_LOGIN_REQUIRED };
+    return { allowed: false, reason: MENU_ACCESS_GUARD_REASONS.DEVELOPER_TOOLS_DISABLED };
 }
 
 export function resolveDeveloperAccessPolicy(accessContext) {
-    const expertAccessState = resolveExpertAccessState(accessContext);
-    if (!expertAccessState.allowed) {
+    const developerToolsState = resolveDeveloperToolsAccessState(accessContext);
+    if (!developerToolsState.allowed) {
         return MENU_ACCESS_POLICIES.LOCKED;
     }
     const mode = normalizeString(accessContext?.developerModeVisibility, MENU_DEVELOPER_ACCESS_MODES.OWNER_ONLY);
     if (mode === MENU_DEVELOPER_ACCESS_MODES.OPEN) return MENU_ACCESS_POLICIES.OPEN;
     if (mode === MENU_DEVELOPER_ACCESS_MODES.HIDDEN_FOR_PLAYERS) return MENU_ACCESS_POLICIES.HIDDEN_FOR_PLAYERS;
-    return MENU_ACCESS_POLICIES.OWNER_ONLY;
-}
-
-export function resolveDebugAccessPolicy(accessContext) {
-    const expertAccessState = resolveExpertAccessState(accessContext);
-    if (!expertAccessState.allowed) {
-        return MENU_ACCESS_POLICIES.LOCKED;
-    }
     return MENU_ACCESS_POLICIES.OWNER_ONLY;
 }
 
