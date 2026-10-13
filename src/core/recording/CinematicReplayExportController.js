@@ -200,7 +200,8 @@ export class CinematicReplayExportController {
     async _runExport(replay, saveAdapter, abortState) {
         this._emitStatus('preparing', { message: 'Replay wird vorbereitet' });
         const { width, height, fps } = this._resolveExportFormat();
-        const durationMs = resolveEffectiveReplayDurationMs(replay);
+        const exportStartMs = Math.max(0, toFiniteNumber(replay.exportStartMs, 0));
+        const durationMs = Math.max(1, resolveEffectiveReplayDurationMs(replay) - exportStartMs);
         const audioBytes = replay.audioBlob?.size > 0
             ? new Uint8Array(await replay.audioBlob.arrayBuffer())
             : null;
@@ -235,19 +236,29 @@ export class CinematicReplayExportController {
         abortState.exportId = beginResult.exportId;
         const totalFrames = Math.max(1, Math.ceil(durationMs * fps / 1000));
         let leftIndex = 0;
+        let streamLeft = replay.snapshots[0];
+        let streamRight = replay.snapshots[1] || streamLeft;
         let lastReportedPercent = -1;
         try {
             for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
                 if (abortState.requested) throw new Error('export_cancelled');
-                const timeMs = frameIndex * 1000 / fps;
+                const timeMs = exportStartMs + frameIndex * 1000 / fps;
                 while (
                     leftIndex < replay.snapshots.length - 2
                     && toFiniteNumber(replay.snapshots[leftIndex + 1]?.timeMs, 0) <= timeMs
                 ) {
                     leftIndex++;
                 }
-                const leftSnapshot = replay.snapshots[leftIndex];
-                const rightSnapshot = replay.snapshots[Math.min(leftIndex + 1, replay.snapshots.length - 1)];
+                if (typeof replay.nextSnapshot === 'function') {
+                    while (streamRight.timeMs <= timeMs) {
+                        const next = await replay.nextSnapshot();
+                        if (!next) break;
+                        streamLeft = streamRight; streamRight = next;
+                    }
+                }
+                const leftSnapshot = typeof replay.nextSnapshot === 'function' ? streamLeft : replay.snapshots[leftIndex];
+                const rightSnapshot = typeof replay.nextSnapshot === 'function' ? streamRight
+                    : replay.snapshots[Math.min(leftIndex + 1, replay.snapshots.length - 1)];
                 const leftTime = toFiniteNumber(leftSnapshot?.timeMs, 0);
                 const rightTime = Math.max(leftTime, toFiniteNumber(rightSnapshot?.timeMs, leftTime));
                 const alpha = rightTime > leftTime ? clamp01((timeMs - leftTime) / (rightTime - leftTime)) : 0;

@@ -1,0 +1,18 @@
+{
+  "contractVersion": "marketing-short-brief.v1",
+  "id": "thick-trail-internal-proof",
+  "topic": "THICK changes the next trail",
+  "scene": "Two pilots weave between existing trails; one collects and activates THICK.",
+  "keyClaim": "The recorded trail visibly grows wider after THICK activation.",
+  "scenario": "thick",
+  "mode": "CLASSIC",
+  "mapKey": "standard",
+  "subjectPlayer": 0,
+  "requiredEvents": ["TRAILS_PRESENT", "ITEM_PICKUP", "ITEM_USE", "TRAIL_WIDENED"],
+  "approvedFacts": [{ "id": "classic-mode", "approvedBy": "product owner" }],
+  "platforms": ["youtube-shorts", "tiktok", "instagram-reels"],
+  "callToAction": {
+    "phase": "pre-demo",
+    "url": "https://curviosclash.itch.io/"
+  }
+}

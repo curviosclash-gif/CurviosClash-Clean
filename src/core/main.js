@@ -119,9 +119,30 @@ export class Game {
             initialBindings: this.settings.controls,
         });
         this.debugApi = new GameDebugApi(runtimeAccess.gameDebug);
-
-        // Debug Recorder
         this.recorder = new RoundRecorder();
+        if (window.curviosMarketing) {
+            this._marketingSessionReady = Promise.all([
+                import('./recording/MarketingSession.js'),
+                import('./recording/MarketingSessionRuntimePort.js'),
+            ]).then(async ([{ MarketingSession }, { createMarketingSessionRuntimePort }]) => {
+                const createView = window.__CURVIOS_MARKETING_VIEW_FACTORY__;
+                if (typeof createView !== 'function') throw new Error('marketing_view_unavailable');
+                const runtimePort = createMarketingSessionRuntimePort(this);
+                const session = new MarketingSession(runtimePort, window.curviosMarketing, createView());
+                this.marketingSession = session; await session.initialize();
+                return session;
+            }).catch((error) => {
+                console.error('[marketing] session initialization failed', error);
+                this._showStatusToast?.('Marketing-Modus konnte nicht initialisiert werden.', 5000, 'error');
+                return null;
+            });
+            const dispose = this.dispose.bind(this);
+            this.dispose = () => {
+                this._marketingDisposePromise ||= Promise.resolve(this._marketingSessionReady)
+                    .then((session) => session?.finish()).then(() => dispose());
+                return this._marketingDisposePromise;
+            };
+        }
         this._recorderFrameCaptureEnabled = this.debugApi.resolveRecorderFrameCaptureEnabledDefault();
         this.recorder.setFrameCaptureEnabled(this._recorderFrameCaptureEnabled);
 

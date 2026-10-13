@@ -74,6 +74,13 @@ function resolveRendererManualChunk(id, env = process.env) {
         return 'three-core';
     }
 
+    // Marketing capture and replay helpers are loaded only by the dedicated
+    // MarketingSession dynamic import; keep them out of the normal runtime chunk.
+    if (normalizedId.includes('/core/recording/Marketing')
+        || normalizedId.endsWith('/ui/marketing/MarketingCaptureView.js')
+        || normalizedId.endsWith('/shared/contracts/MarketingSessionContract.js')) {
+        return 'marketing-session';
+    }
     if (normalizedId.includes('/core/recording/') ||
         normalizedId.endsWith('/core/MediaRecorderSystem.js') ||
         normalizedId.endsWith('/core/renderer/RecordingCapturePipeline.js') ||

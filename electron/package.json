@@ -42,6 +42,8 @@
       "recording-video-export-job.cjs",
       "cinematic-replay-video-export-job.cjs",
       "encoder-staging-dir.cjs",
+      "marketing-session-ipc.cjs",
+      "marketing-session-store.cjs",
       "static-server.cjs",
       "node_modules/ffmpeg-static/**/*"
     ],

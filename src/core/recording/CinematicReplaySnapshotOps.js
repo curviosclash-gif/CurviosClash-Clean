@@ -92,6 +92,8 @@ function interpolateSceneEntries(target, leftEntries, rightEntries, alpha) {
 }
 
 export function buildReplayNetworkSnapshot(target, leftSnapshot, rightSnapshot, alpha) {
+    const selected = alpha < 0.5 ? leftSnapshot : (rightSnapshot || leftSnapshot);
+    for (const key of ['repairDrones', 'mapFireDestructibles', 'dandelionSeeds']) target[key] = selected?.[key] ?? null;
     const fogSnapshot = alpha < 0.5 ? leftSnapshot?.globalFog : rightSnapshot?.globalFog;
     const fogRemaining = Math.max(0, toFiniteNumber(fogSnapshot?.remainingSeconds, 0));
     target.globalFog = { active: fogSnapshot?.active === true && fogRemaining > 0, remainingSeconds: fogRemaining,

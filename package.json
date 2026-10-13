@@ -5,6 +5,9 @@
   "description": "Bereinigte, vollstaendige Produktbasis des klassischen CurviosClash-Spiels",
   "type": "module",
   "scripts": {
+    "marketing:record": "npm run build:app && node scripts/marketing/record-session.mjs",
+    "marketing:process": "node scripts/marketing/process-session.mjs",
+    "test:marketing-session": "node --test tests/marketing-mode-isolation.contract.test.mjs tests/marketing-session.contract.test.mjs tests/marketing-session-stream.contract.test.mjs tests/marketing-trail-state.contract.test.mjs tests/marketing-camera-quality.contract.test.mjs tests/marketing-rocket-duel-scene.contract.test.mjs tests/marketing-short-quality.contract.test.mjs tests/marketing-trail-short-render.contract.test.mjs tests/marketing-trail-short-scene.contract.test.mjs",
     "dev": "vite",
     "git:hooks:install": "git config core.hooksPath .githooks",
     "build": "node scripts/vite-build.mjs && node scripts/check-production-training-boundary.mjs dist",
