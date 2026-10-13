@@ -354,9 +354,13 @@ const NOTRE_DAME_OBSTACLES = [
 // Portals shortcut the long way round: up the facade, across the roof, and back down the nave.
 const NOTRE_DAME_PORTALS = [
     { a: [-94, GROUND + 37, 0], b: [-83, GROUND + 92, 0], color: 0x77aaff },
-    { a: [CROSSING_CENTRE, ROOF_RIDGE + 12, -52], b: [CROSSING_CENTRE, GROUND + 30, 0], color: 0xffaa33 },
-    { a: [79, GROUND + 52, 0], b: [-40, NAVE_VAULT + 8, 0], color: 0xaa66ff },
-    { a: [128, GROUND + 12, 0], b: [-150, GROUND + 16, 0], color: 0x44ffbb },
+    // The roof shortcut lands in the middle of the choir, below the CP10 -> CP11_CHOIR rings: beside
+    // the line at z 7 the exit sat so close to the choir wall that larger ships came out in the stone.
+    { a: [CROSSING_CENTRE, ROOF_RIDGE + 12, -52], b: [CHOIR_CENTRE, GROUND + 20, 0], color: 0xffaa33 },
+    // a floats above the ridge like the roof shortcut: at GROUND + 52 it lay inside the roof lead,
+    // so every load moved the portal about 27 world units, and ships still came out in the lead.
+    { a: [79, ROOF_RIDGE + 12, 0], b: [-40, NAVE_VAULT + 8, 0], color: 0xaa66ff },
+    { a: [136, GROUND + 16, 0], b: [-159, GROUND + 16, -4], color: 0x44ffbb },
 ];
 
 const NOTRE_DAME_GATES = [
