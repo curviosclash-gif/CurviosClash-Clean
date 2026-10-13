@@ -103,14 +103,22 @@ export function assertPropsClearOfRoute(map, props, { floorY, obstacles, wallCle
     }
 }
 
+// 'dynamic' never turns static meshes into colliders, so the check runs in 'scene' mode:
+// once as authored, and once with `collision: true` forced so only the files' own `_nocol`
+// markers can keep the real loader from building a collider.
 export async function assertLoaderAddsNoColliders(props) {
-    const loaded = await loadGLBMapCollection(props, {
-        loader: geometryOnlyGlbLoader, colliderMode: 'dynamic', requireComplete: true,
-    });
-    try {
-        assert.deepEqual(loaded.warnings, []);
-        assert.equal(loaded.colliders.length, 0);
-    } finally {
-        disposeObject3DResources(loaded.scene);
+    for (const [label, descriptors] of [
+        ['as authored', props],
+        ['with collision forced on', props.map((prop) => ({ ...prop, collision: true }))],
+    ]) {
+        const loaded = await loadGLBMapCollection(descriptors, {
+            loader: geometryOnlyGlbLoader, colliderMode: 'scene', requireComplete: true,
+        });
+        try {
+            assert.deepEqual(loaded.warnings, []);
+            assert.equal(loaded.colliders.length, 0, `props add no collider ${label}`);
+        } finally {
+            disposeObject3DResources(loaded.scene);
+        }
     }
 }
