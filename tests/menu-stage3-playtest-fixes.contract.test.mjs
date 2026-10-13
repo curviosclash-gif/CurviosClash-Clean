@@ -3,6 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 
 import { bindMenuExtrasButtons } from '../src/ui/menu/MenuExtrasBindings.js';
+import { menuScreenPanelId } from './support/menu-screens.js';
 
 test('the loading notice shows at once instead of fading in behind a blocked thread', () => {
     const css = fs.readFileSync('style.css', 'utf8');
@@ -22,7 +23,7 @@ test('saved settings stay small and fold away when another tab is chosen', () =>
     const drawer = {};
     const button = {
         setAttribute: (name, value) => { attrs[name] = value; },
-        closest: (selector) => (selector === '#submenu-level4' ? drawer : null),
+        closest: (selector) => (selector === `#${menuScreenPanelId('settings')}` ? drawer : null),
     };
     const panel = { hidden: true };
     // The arcade surface further down needs a real DOM; the backups toggle is bound before it.
