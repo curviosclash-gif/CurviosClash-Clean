@@ -59,12 +59,19 @@ export function bindMenuExtrasButtons(ctx) {
     }
 
     if (ui.level4BackupsButton && ui.level4BackupsPanel) {
-        bind(ui.level4BackupsButton, 'click', () => {
-            const show = ui.level4BackupsPanel.hidden;
-            ui.level4BackupsPanel.hidden = !show;
-            ui.level4BackupsButton.setAttribute('aria-pressed', String(show));
-            ui.level4BackupsButton.setAttribute('aria-expanded', String(show));
-        });
+        const setBackupsOpen = (open) => {
+            ui.level4BackupsPanel.hidden = !open;
+            ui.level4BackupsButton.setAttribute('aria-pressed', String(open));
+            ui.level4BackupsButton.setAttribute('aria-expanded', String(open));
+        };
+        bind(ui.level4BackupsButton, 'click', () => setBackupsOpen(ui.level4BackupsPanel.hidden));
+        // A tab switch shows that tab; the saved settings fold away instead of covering it.
+        const drawer = ui.level4BackupsButton.closest?.('#submenu-level4');
+        if (drawer) {
+            bind(drawer, 'click', (event) => {
+                if (event?.target?.closest?.('[data-level4-section-target]')) setBackupsOpen(false);
+            });
+        }
     }
 
     if (ui.openEditorButton) {

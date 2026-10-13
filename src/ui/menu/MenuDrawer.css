@@ -101,7 +101,8 @@
 }
 
 .level4-backups {
-    max-height: 40vh;
+    /* Saved settings open below the tab content and never squeeze it to nothing. */
+    max-height: min(30vh, 240px);
     overflow: auto;
 }
 

@@ -142,6 +142,7 @@ export class MatchFlowUiController {
                 game.ui.messageSub.textContent = uiState.messageSub;
             }
             if (hasOwn('messageOverlayHidden')) {
+                if (visibility.messageOverlayHidden !== false) game.ui.messageOverlay.removeAttribute?.('data-loading');
                 game.ui.messageOverlay.classList.toggle('hidden', visibility.messageOverlayHidden !== false);
                 // style.css hides the frozen Fight HUD behind the result through this flag.
                 game.ui.hud?.classList.toggle('result-overlay-open', visibility.messageOverlayHidden === false);
@@ -401,6 +402,8 @@ export class MatchFlowUiController {
         this.applyMatchStartUiState(matchStartTransition.uiState);
         const loadingUiState = this._resolveMatchLoadingUiState();
         this.applyMatchUiState(loadingUiState);
+        // Loading blocks the main thread, so a fade-in would sit at its first transparent frame.
+        this.game?.ui?.messageOverlay?.setAttribute?.('data-loading', 'true');
 
         return true;
     }

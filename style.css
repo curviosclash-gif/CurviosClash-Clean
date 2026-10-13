@@ -8961,6 +8961,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     outline-offset: 3px;
 }
 
+/* The loading notice must be readable at once: loading blocks the thread the fade-in needs. */
+#message-overlay[data-loading="true"] { animation: none; }
 #message-overlay.has-arcade-results #message-stats { display: none; }
 /* "Replay ansehen": the result fades out for the playback; the HUD stays hidden behind it. */
 #message-overlay.arcade-replay-viewing { opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
