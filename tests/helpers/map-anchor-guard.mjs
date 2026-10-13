@@ -4,8 +4,9 @@
 // Coordinate rule, copied from the arena (not invented here):
 //  - obstacles, portals, gates and the arena size always grow by MAP_SCALE
 //    (ArenaGeometryCompilePipeline.compileObstacleStage, PortalLayoutBuilder, ArenaBuilder)
-//  - player spawn, bot spawns, item anchors, lights and their `distance` grow only when the map
-//    says `scaleAuthoredAnchors: true` (Arena._cacheAuthoredMapAnchors, AuthoredMapLightRig.build)
+//  - player spawn, bot spawns, item anchors, static turrets, lights and their `distance` grow only
+//    when the map says `scaleAuthoredAnchors: true` (Arena._cacheAuthoredMapAnchors,
+//    StaticTurretSystem, AuthoredMapLightRig.build)
 //
 // What the checks can and cannot see: solid geometry comes from listCompiledBoxObstacles, the same
 // list the parcours ring guard uses, so on maps with GLB scene collision only boxes marked
@@ -358,6 +359,18 @@ export function analyzeMapAnchors(mapKey, map, mapScale, options = {}) {
         const twin = itemWorlds.find((other) => Math.hypot(...other.world.map((value, axis) => value - world[axis])) < ITEM_DUPLICATE_DISTANCE);
         if (twin) add('item-duplicate', point, `same place as ${twin.point} at ${fmt(world)}`);
         itemWorlds.push({ point, world });
+    });
+
+    // Static turrets follow the anchor rule too (StaticTurretSystem: pos x resolveAuthoredAnchorScale).
+    (Array.isArray(map?.staticTurrets) ? map.staticTurrets : []).forEach((turret, index) => {
+        const point = `staticTurrets[${label(turret, index, '#')}]`;
+        const local = Array.isArray(turret?.pos) && turret.pos.length >= 3 && turret.pos.slice(0, 3).every(isNumber)
+            ? turret.pos.slice(0, 3) : null;
+        if (!local) {
+            add('anchor-format', point, `turret has no numeric pos[3] (${JSON.stringify(turret?.pos)}); the game cannot place it`);
+            return;
+        }
+        checkPlacement(point, local.map((value) => value * anchorScale), worldSize, 'turret');
     });
 
     const authoredPortalsAreBuilt = CONFIG.GAMEPLAY.PLANAR_MODE !== true
