@@ -28,6 +28,15 @@ export function shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRec
     return false;
 }
 
+function writeSegmentBounds(box, offset, seg) {
+    box[offset] = seg.boundsMinX;
+    box[offset + 1] = seg.boundsMaxX;
+    box[offset + 2] = seg.boundsMinY;
+    box[offset + 3] = seg.boundsMaxY;
+    box[offset + 4] = seg.boundsMinZ;
+    box[offset + 5] = seg.boundsMaxZ;
+}
+
 export class TrailCollisionQuery {
     constructor(options = {}) {
         this.getPlayers = typeof options.getPlayers === 'function'
@@ -58,6 +67,8 @@ export class TrailCollisionQuery {
             excludeRocketTrailId: '',
             skipRecent: -1,
             pairs: [],
+            // Six bounds per pair, so probes reject candidates without touching segment objects.
+            box: new Float64Array(96),
         };
         this._globalCandidateCache = {
             grid: null,
@@ -167,6 +178,13 @@ export class TrailCollisionQuery {
                 seg._projectileTrailQueryStamp = queryStamp;
 
                 if (shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
+                const offset = pairs.length * 3;
+                if (offset + 6 > cache.box.length) {
+                    const grown = new Float64Array(cache.box.length * 2);
+                    grown.set(cache.box);
+                    cache.box = grown;
+                }
+                writeSegmentBounds(cache.box, offset, seg);
                 pairs.push(seg, key);
             }
         }
@@ -204,8 +222,16 @@ export class TrailCollisionQuery {
         const result = this._projectileTrailCollisionResult;
         result.entry = null;
         result._bestDistSq = Infinity;
+        const box = this._candidateCache.box;
+        const px = position.x;
+        const py = position.y;
+        const pz = position.z;
 
-        for (let i = 0; i < pairs.length; i += 2) {
+        for (let i = 0, o = 0; i < pairs.length; i += 2, o += 6) {
+            // The box rejection of _segmentIntersectsSphere, on the packed copy of the bounds.
+            if (px < box[o] - radius || px > box[o + 1] + radius) continue;
+            if (py < box[o + 2] - radius || py > box[o + 3] + radius) continue;
+            if (pz < box[o + 4] - radius || pz > box[o + 5] + radius) continue;
             const seg = pairs[i];
             // A segment can be destroyed without the grid changing, so the flag is still checked here.
             if (seg.destroyed) continue;
@@ -291,13 +317,7 @@ export class TrailCollisionQuery {
                     grown.set(list.box);
                     list.box = grown;
                 }
-                const box = list.box;
-                box[offset] = seg.boundsMinX;
-                box[offset + 1] = seg.boundsMaxX;
-                box[offset + 2] = seg.boundsMinY;
-                box[offset + 3] = seg.boundsMaxY;
-                box[offset + 4] = seg.boundsMinZ;
-                box[offset + 5] = seg.boundsMaxZ;
+                writeSegmentBounds(list.box, offset, seg);
                 segs.push(seg);
             }
         }
