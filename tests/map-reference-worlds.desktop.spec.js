@@ -1,13 +1,13 @@
 import { writeFile } from 'node:fs/promises';
 import { test, expect } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { openCustomSubmenu, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 test.describe.configure({ timeout: 180000 });
 
 async function selectMap(page, mapKey) {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+    await chooseFreePlayVariant(page, 'classic');
     await page.waitForSelector('#submenu-game:not(.hidden)');
     await page.selectOption('#map-select', mapKey);
     await page.evaluate(() => {

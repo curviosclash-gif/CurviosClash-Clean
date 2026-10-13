@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { waitForLoadedGame, openCustomSubmenu, returnToMenu } from './helpers.js';
+import { waitForLoadedGame, openCustomSubmenu, returnToMenu, chooseFreePlayVariant } from './helpers.js';
 import { writeFile } from 'node:fs/promises';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 
@@ -9,7 +9,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
         test.setTimeout(240000);
         await waitForLoadedGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)');
         await page.selectOption('#map-select', mapKey);
         await page.evaluate(() => {
@@ -89,7 +89,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
         for (const nextMap of ['standard', mapKey, 'standard', mapKey]) {
             await returnToMenu(page);
             await openCustomSubmenu(page);
-            await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+            await chooseFreePlayVariant(page, 'ffa');
             await page.waitForSelector('#submenu-game:not(.hidden)');
             await page.selectOption('#map-select', nextMap);
             await page.click('#btn-start');

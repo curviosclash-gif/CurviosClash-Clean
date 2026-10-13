@@ -41,6 +41,7 @@ import {
     buildLegacyRuntimeCustomMap,
     createMockEditorManager,
 } from './core-targeted.shared.js';
+import { chooseFreePlayVariant } from './helpers.js';
 
 async function openMatchAdvancedSettings(page) {
     await openStartSetupSection(page, 'match');
@@ -110,7 +111,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20kq: Grafikstufe Sehr hoch schaltet Schattenkarte, Pixel und GPU-Uhr im echten Fenster', async ({ page }) => {
         await loadGame(page);
-        await openLevel4Drawer(page, { section: 'gameplay' });
+        await openLevel4Drawer(page, { section: 'controls' });
         await page.click('#level4-tab-graphics');
         await expect(page.locator('#graphics-quality-select')).toHaveValue('auto');
 
@@ -488,7 +489,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test('T20ha: Escape schliesst Ebene 4 auch bei State-Desync', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
-        await openLevel4Drawer(page, { section: 'gameplay' });
+        await openLevel4Drawer(page, { section: 'controls' });
 
         await page.evaluate(() => {
             const stateMachine = window.GAME_INSTANCE?.uiManager?.menuStateMachine;
@@ -573,14 +574,15 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20he: Native Menue-Eingaben behalten Pfeiltastensteuerung und Fokus', async ({ page }) => {
         await loadGame(page);
-        await openLevel4Drawer(page, { section: 'gameplay' });
+        await openLevel4Drawer(page, { section: 'controls' });
 
-        const speedSlider = page.locator('#speed-slider');
-        const speedBefore = Number(await speedSlider.inputValue());
-        await speedSlider.focus();
+        await page.click('#level4-tab-audio');
+        const volumeSlider = page.locator('#audio-master-volume-slider');
+        const volumeBefore = Number(await volumeSlider.inputValue());
+        await volumeSlider.focus();
         await page.keyboard.press('ArrowRight');
-        expect(Number(await speedSlider.inputValue())).toBeGreaterThan(speedBefore);
-        expect(await page.evaluate(() => document.activeElement?.id || '')).toBe('speed-slider');
+        expect(Number(await volumeSlider.inputValue())).toBeGreaterThan(volumeBefore);
+        expect(await page.evaluate(() => document.activeElement?.id || '')).toBe('audio-master-volume-slider');
 
         await page.click('#level4-tab-recording');
         const cameraSelect = page.locator('#normal-camera-perspective-select');
@@ -593,7 +595,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20hf: Level4-Close verarbeitet genau einen Panelwechsel ohne Abort-Telemetrie', async ({ page }) => {
         await loadGame(page);
-        await page.click('[data-level4-return-target="main"][data-level4-section="gameplay"]');
+        await page.click('[data-level4-return-target="main"][data-level4-section="controls"]');
         await expect(page.locator('#submenu-level4')).toBeVisible();
 
         await page.evaluate(() => {
@@ -1547,15 +1549,15 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(await page.inputValue('#map-select')).toBe(expectedDefaults.level3MapKey);
         expect(await page.inputValue('#vehicle-select-p1')).toBe(expectedDefaults.level3VehicleP1);
 
-        await openLevel4Drawer(page, { section: 'gameplay' });
-        const speedSlider = page.locator('#speed-slider');
-        await expect(speedSlider).toHaveCount(1);
+        await openLevel4Drawer(page, { section: 'controls' });
+        // The speed slider left the player menu; the tuning path (F7, Settings Studio) sets it directly.
+        await expect(page.locator('#speed-slider')).toHaveCount(0);
         await page.evaluate(() => {
-            const slider = document.getElementById('speed-slider');
-            slider.value = '33';
-            slider.dispatchEvent(new Event('input', { bubbles: true }));
+            const game = window.GAME_INSTANCE;
+            game.settings.gameplay.speed = 33;
+            game.runtimeFacade.onSettingsChanged({ changedKeys: ['gameplay.speed'] });
         });
-        await expect(speedSlider).toHaveValue('33');
+        expect(await page.evaluate(() => window.GAME_INSTANCE.settings.gameplay.speed)).toBe(33);
         // Reset = defaults plus the style preset of the current game style (fresh profile values).
         expectedDefaults.level4Speed = await page.evaluate(async () => {
             const mod = await window.__curviosImport('/src/ui/menu/MenuDefaultsEditorConfig.js');
@@ -1569,12 +1571,11 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.selectOption('#normal-camera-perspective-select', 'cinematic_action');
         await page.click('#level4-tab-graphics');
         await page.uncheck('#normal-camera-reduce-motion-toggle');
-        await page.click('#level4-tab-gameplay');
         await page.click('#btn-level4-reset');
         await expect(page.locator('#btn-level4-reset')).toHaveAttribute('data-reset-armed', 'true');
         await page.click('#btn-level4-reset');
         await waitForRenderFrames(page, 2);
-        expect(await page.inputValue('#speed-slider')).toBe(expectedDefaults.level4Speed);
+        expect(String(await page.evaluate(() => window.GAME_INSTANCE.settings.gameplay.speed))).toBe(expectedDefaults.level4Speed);
         expect(await page.inputValue('#normal-camera-perspective-select')).toBe(expectedDefaults.level4PerspectiveNormal);
         await expect(page.locator('#normal-camera-reduce-motion-toggle')).toHaveJSProperty(
             'checked',
@@ -1717,7 +1718,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.keyboard.press('Enter');
         await expect(page.locator('#submenu-custom')).toBeVisible();
 
-        await page.focus('#submenu-custom [data-mode-path=\"normal\"]');
+        await page.focus('#submenu-custom #btn-free-play');
         await page.keyboard.press('Enter');
         await expect(page.locator('#submenu-game')).toBeVisible();
 
@@ -1731,16 +1732,15 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test('T20v: Ebene 3 schaltet nur Classic 3D/Planar und aendert nicht Fight-Auswahl aus Ebene 2', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path=\"fight\"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
         await expect(page.locator('#planar-mode-toggle')).toHaveCount(0);
-        const portalsToggle = page.locator('#portals-toggle');
-        await expect(portalsToggle).toHaveCount(1);
+        await expect(page.locator('#portals-toggle')).toHaveCount(0);
         await page.evaluate(() => {
-            const toggle = document.getElementById('portals-toggle');
-            toggle.checked = false;
-            toggle.dispatchEvent(new Event('change', { bubbles: true }));
+            const game = window.GAME_INSTANCE;
+            game.settings.portalsEnabled = false;
+            game.runtimeFacade.onSettingsChanged({ changedKeys: ['rules.portalsEnabled'] });
         });
 
         await page.click('#btn-dimension-planar');
@@ -1839,19 +1839,19 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(compactState.mainNavigationVisible).toBeFalsy();
         expect(compactState.mainPrimaryVisible).toBeFalsy();
         expect(compactState.breadcrumbVisible).toBeTruthy();
-        expect(compactState.breadcrumbText).toContain('Spielstil');
+        expect(compactState.breadcrumbText).toContain('Spielauswahl');
     });
 
-    test('T20w1: Moduskarten beschreiben die drei Spielstile', async ({ page }) => {
+    test('T20w1: Die Zentrale beschreibt Arcade-Reise und freies Spiel', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
 
-        const modeInfos = page.locator('#submenu-custom .level2-mode-grid [data-mode-path] .menu-choice-copy');
-        await expect(modeInfos).toHaveCount(3);
+        // The four-player card joins the grid hidden and only shows for four shared-screen players.
+        const modeInfos = page.locator('#submenu-custom .level2-mode-grid .menu-choice-card:not(.hidden) .menu-choice-copy');
+        await expect(modeInfos).toHaveCount(2);
         await expect(modeInfos).toContainText([
-            'Fliege durch Sektoren',
-            'Kämpfe mit Waffen',
-            'Weiche Hindernissen',
+            'Fliege von Etappe zu Etappe',
+            'Kampf, Team, Flaggen, Eskorte oder Klassisch',
         ]);
     });
 
@@ -1859,9 +1859,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await loadGame(page);
         await openCustomSubmenu(page);
 
-        await expect(page.locator('#submenu-custom .level2-config-section > .section-title .menu-info-hint'))
-            .toHaveAttribute('title', 'Wähle einen Spielstil. Karte, Flugzeug und Regeln kannst du danach noch anpassen.');
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await expect(page.locator('.start-map-preview-hint')).toHaveAttribute('title', 'Ziehen: drehen · Mausrad: zoomen');
         await expect(page.locator('.start-vehicle-preview-hint')).toHaveAttribute('title', 'Ziehen: drehen · Mausrad: zoomen');
 
@@ -1870,10 +1868,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             'title',
             'Speichere den aktuellen Stand aller Einstellungen unter einem Namen.'
         );
-        await expect(page.locator('#level4-section-presets .section-title .menu-info-hint')).toHaveAttribute(
-            'title',
-            'Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.'
-        );
+        await expect(page.locator('#level4-section-presets')).toHaveCount(0);
         await expect(page.locator('#level4-section-utilities .section-title .menu-info-hint')).toHaveAttribute(
             'title',
             'Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration.'
@@ -1915,102 +1910,49 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await expect(page.locator('#btn-quick-event-playlist')).toHaveCount(0);
         await expect(page.locator('#submenu-custom #btn-open-fight-hangar')).toHaveCount(0);
 
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await expect(page.locator('#submenu-game #btn-open-fight-hangar')).toBeHidden();
         await page.click('#submenu-game [data-back]');
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await expect(page.locator('#submenu-game #btn-open-fight-hangar')).toBeVisible();
     });
 
-    test('T20x0: Ebene-4 Fight-HP/MG-Regler sind nur im Fight-Modus aktiv', async ({ page }) => {
+    test('T20x0: Fight-HP/MG-Werte aus den Einstellungen wirken nur im Fight-Modus', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-        await openLevel4Drawer(page, { section: 'gameplay' });
+        // The player menu has no combat sliders any more; F7 and the Settings Studio change the values.
+        await expect(page.locator('#fight-player-hp-slider')).toHaveCount(0);
+        await expect(page.locator('#fight-mg-damage-slider')).toHaveCount(0);
 
         const normalState = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
-            const hpSetting = document.getElementById('fight-player-hp-setting');
-            const damageSetting = document.getElementById('fight-mg-damage-setting');
-            const hint = document.getElementById('fight-tuning-hint');
-            const hpSlider = document.getElementById('fight-player-hp-slider');
-            const damageSlider = document.getElementById('fight-mg-damage-slider');
-
-            const beforeHp = Number(game?.settings?.gameplay?.fightPlayerHp || 0);
-            const beforeDamage = Number(game?.settings?.gameplay?.fightMgDamage || 0);
-            const runtimeHp = Number(game?.config?.HUNT?.PLAYER_MAX_HP || 0);
-            const runtimeDamage = Number(game?.config?.HUNT?.MG?.DAMAGE || 0);
-
-            if (hpSlider) {
-                hpSlider.value = '220';
-                hpSlider.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            if (damageSlider) {
-                damageSlider.value = '15.50';
-                damageSlider.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-
             return {
                 modePath: String(game?.settings?.localSettings?.modePath || ''),
-                hpHidden: !!hpSetting?.classList?.contains('hidden'),
-                damageHidden: !!damageSetting?.classList?.contains('hidden'),
-                hpDisabled: !!hpSlider?.disabled,
-                damageDisabled: !!damageSlider?.disabled,
-                hintHidden: !!hint?.classList?.contains('hidden'),
-                beforeHp,
-                afterHp: Number(game?.settings?.gameplay?.fightPlayerHp || 0),
-                beforeDamage,
-                afterDamage: Number(game?.settings?.gameplay?.fightMgDamage || 0),
-                runtimeHp,
-                runtimeDamage,
+                runtimeHp: Number(game?.config?.HUNT?.PLAYER_MAX_HP || 0),
+                runtimeDamage: Number(game?.config?.HUNT?.MG?.DAMAGE || 0),
             };
         });
-
         expect(normalState.modePath).toBe('normal');
-        expect(normalState.hpHidden).toBeTruthy();
-        expect(normalState.damageHidden).toBeTruthy();
-        expect(normalState.hpDisabled).toBeTruthy();
-        expect(normalState.damageDisabled).toBeTruthy();
-        expect(normalState.hintHidden).toBeFalsy();
-        expect(normalState.afterHp).toBe(normalState.beforeHp);
-        expect(normalState.afterDamage).toBe(normalState.beforeDamage);
 
-        await page.click('#btn-close-level4');
         await page.click('#submenu-game:not(.hidden) [data-back]');
         await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: 5000 });
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-        await openLevel4Drawer(page, { section: 'gameplay' });
 
         await page.evaluate(() => {
-            const hpSlider = document.getElementById('fight-player-hp-slider');
-            const damageSlider = document.getElementById('fight-mg-damage-slider');
-            if (hpSlider) {
-                hpSlider.value = '170';
-                hpSlider.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            if (damageSlider) {
-                damageSlider.value = '12.50';
-                damageSlider.dispatchEvent(new Event('input', { bubbles: true }));
-            }
+            const game = window.GAME_INSTANCE;
+            game.settings.gameplay.fightPlayerHp = 170;
+            game.settings.gameplay.fightMgDamage = 12.5;
+            game.runtimeFacade.onSettingsChanged({ changedKeys: ['gameplay.fightPlayerHp', 'gameplay.fightMgDamage'] });
         });
         await waitForRenderFrames(page, 14);
 
         const fightState = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
-            const hpSetting = document.getElementById('fight-player-hp-setting');
-            const damageSetting = document.getElementById('fight-mg-damage-setting');
-            const hint = document.getElementById('fight-tuning-hint');
-            const hpSlider = document.getElementById('fight-player-hp-slider');
-            const damageSlider = document.getElementById('fight-mg-damage-slider');
             return {
                 modePath: String(game?.settings?.localSettings?.modePath || ''),
-                hpHidden: !!hpSetting?.classList?.contains('hidden'),
-                damageHidden: !!damageSetting?.classList?.contains('hidden'),
-                hpDisabled: !!hpSlider?.disabled,
-                damageDisabled: !!damageSlider?.disabled,
-                hintHidden: !!hint?.classList?.contains('hidden'),
                 settingsHp: Number(game?.settings?.gameplay?.fightPlayerHp || 0),
                 settingsDamage: Number(game?.settings?.gameplay?.fightMgDamage || 0),
                 runtimeHp: Number(game?.config?.HUNT?.PLAYER_MAX_HP || 0),
@@ -2019,20 +1961,14 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         });
 
         expect(fightState.modePath).toBe('fight');
-        expect(fightState.hpHidden).toBeFalsy();
-        expect(fightState.damageHidden).toBeFalsy();
-        expect(fightState.hpDisabled).toBeFalsy();
-        expect(fightState.damageDisabled).toBeFalsy();
-        expect(fightState.hintHidden).toBeFalsy();
         expect(fightState.settingsHp).toBe(170);
         expect(fightState.settingsDamage).toBeCloseTo(12.5, 2);
         expect(fightState.runtimeHp).toBe(170);
         expect(fightState.runtimeDamage).toBeCloseTo(12.5, 2);
 
-        await page.click('#btn-close-level4');
         await page.click('#submenu-game:not(.hidden) [data-back]');
         await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: 5000 });
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await waitForRenderFrames(page, 10);
 
@@ -2053,7 +1989,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test('T20x1: Map-Auswahl bleibt in Normal und Arcade vollstaendig verfuegbar', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
 
         const normalState = await page.evaluate(() => {
@@ -2103,7 +2039,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test('T20x2: Arcade-Selbstduell-Option ist in Single-Normal/Fight aktiv und bleibt persistent', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
         await page.evaluate(() => {
@@ -2279,7 +2215,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
 
         // --- Single + Normal (map-key based route fallback) ---
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openMatchAdvancedSettings(page);
         await page.selectOption('#arcade-ghost-duel-mode-select', 'self_longest_ghost');
@@ -2406,7 +2342,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
     test('T70a: syncAll/syncByChangeKeys mutieren map/vehicle ohne Input nicht still', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
 
         const state = await page.evaluate(() => {
@@ -3098,7 +3034,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(railState.startVisible).toBeTruthy();
         expect(railState.summaryBlocks).toBeGreaterThanOrEqual(4);
         expect(railState.summaryWhiteSpace).toBe('normal');
-        expect(railState.visibleSummaryBlocks).toEqual(['Spielstil', 'Karte', 'Flugzeug', 'Regeln']);
+        expect(railState.visibleSummaryBlocks).toEqual(['Spielart', 'Karte', 'Flugzeug', 'Regeln']);
 
         await page.click('.start-step-tab[data-start-section-target="vehicle"]');
         await expect(page.locator('#btn-start')).toBeInViewport();
@@ -3477,7 +3413,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
     test('T20z1: Kartenfeld, Zusammenfassung, Vorschau und Runtime verwenden dieselbe Auswahl', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
 
         const state = await page.evaluate(() => {
@@ -3521,8 +3457,6 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 drawerOffsetTop: Math.round((drawerRect?.top || 0) - (menuRect?.top || 0)),
                 backgroundInert: background?.hasAttribute('inert') || background?.inert === true,
                 backgroundAriaHidden: background?.getAttribute('aria-hidden'),
-                fireRateText: String(document.getElementById('fire-rate-label')?.textContent || '').trim(),
-                lockOnText: String(document.getElementById('lockon-label')?.textContent || '').trim(),
             };
         });
 
@@ -3531,8 +3465,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(Math.abs(state.drawerOffsetTop)).toBeLessThanOrEqual(2);
         expect(state.backgroundInert).toBeTruthy();
         expect(state.backgroundAriaHidden).toBe('true');
-        expect(state.fireRateText).toMatch(/^\d+(?:\.\d+)?s$/);
-        expect(state.lockOnText).toMatch(/^\d+°$/);
+        // The reset button lives in the graphics tab.
+        await page.click('#submenu-level4 [data-level4-section-target="graphics"]');
         await page.locator('#btn-level4-reset').focus();
         await page.keyboard.press('Shift+Tab');
         const wrappedFocus = await page.evaluate(() => {
@@ -3550,7 +3484,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
 
     test('T20z3: Einstellungen aus dem Hauptmenue kehren beim Schliessen dorthin zurueck', async ({ page }) => {
         await loadGame(page);
-        await page.click('[data-level4-return-target="main"][data-level4-section="gameplay"]');
+        await page.click('[data-level4-return-target="main"][data-level4-section="controls"]');
         await expect(page.locator('#submenu-level4')).toBeVisible();
         await expect(page.locator('#submenu-level4')).toHaveAttribute('data-level4-return-target', 'main');
 
@@ -3575,18 +3509,18 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 activeSection: String(activePanel?.dataset?.level4Section || ''),
                 profileContainsPresetActions: !!document.querySelector('#level4-section-tools #btn-preset-apply'),
                 profileContainsEditorActions: !!document.querySelector('#level4-section-tools #btn-open-editor'),
-                presetsContainPresetActions: !!document.querySelector('#level4-section-presets #btn-preset-apply'),
+                presetPanelExists: !!document.querySelector('#level4-section-presets'),
                 utilitiesContainEditorActions: !!document.querySelector('#level4-section-utilities #btn-open-editor'),
                 drawerOverflow: Math.max(0, Math.round((drawer?.scrollWidth || 0) - (drawer?.clientWidth || 0))),
                 stackOverflow: Math.max(0, Math.round((stack?.scrollWidth || 0) - (stack?.clientWidth || 0))),
             };
         });
 
-        expect(level4State.tabCount).toBe(11);
+        expect(level4State.tabCount).toBe(9);
         expect(level4State.activeSection).toBe('tools');
         expect(level4State.profileContainsPresetActions).toBeFalsy();
         expect(level4State.profileContainsEditorActions).toBeFalsy();
-        expect(level4State.presetsContainPresetActions).toBeTruthy();
+        expect(level4State.presetPanelExists).toBeFalsy();
         expect(level4State.utilitiesContainEditorActions).toBeTruthy();
         expect(level4State.drawerOverflow).toBeLessThanOrEqual(4);
         expect(level4State.stackOverflow).toBeLessThanOrEqual(4);

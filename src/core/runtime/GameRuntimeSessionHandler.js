@@ -226,6 +226,7 @@ export class GameRuntimeSessionHandler {
             const isReceivedMultiplayerStartCommand = sessionContract.sessionType === RUNTIME_SESSION_TYPES.MULTIPLAYER
                 && options?.source === MATCH_START_COMMAND_SOURCE;
             facade?._recordMenuTelemetry?.('start_attempt', telemetryPayload);
+            if (!isReceivedMultiplayerStartCommand) facade?.menuActionHandler?.menuFunnel?.onMatchStartAttempt?.();
             const validationIssue = isReceivedMultiplayerStartCommand
                 ? null
                 : facade?._resolveStartValidationIssue?.();

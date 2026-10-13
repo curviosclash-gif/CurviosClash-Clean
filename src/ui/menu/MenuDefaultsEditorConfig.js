@@ -42,7 +42,7 @@ function deepClone(value) {
 const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     schemaVersion: MENU_DEFAULT_EDITOR_SCHEMA_VERSION,
     baseSettings: {
-        settingsVersion: 5,
+        settingsVersion: 6,
         mode: '2p',
         gameMode: HUNT_CONFIG.DEFAULT_MODE,
         mapKey: 'mega_maze',

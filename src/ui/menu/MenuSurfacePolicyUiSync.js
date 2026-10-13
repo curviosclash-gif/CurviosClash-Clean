@@ -6,6 +6,7 @@ import {
 } from '../../shared/contracts/PlatformSurfacePolicyOps.js';
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
 import { syncDesktopOnlyFeatureButton } from './MenuSurfaceFeatureAccess.js';
+import { syncFreePlayUi } from './MenuFreePlayUiSync.js';
 
 export function syncMenuSurfacePolicyUi({
     ui,
@@ -207,6 +208,14 @@ export function syncMenuSurfacePolicyUi({
             ),
         }
     );
+
+    syncFreePlayUi({
+        ui,
+        settings,
+        sessionType: resolvedSessionType,
+        isModePathAllowed: (candidate) => !surfacePolicy || surfacePolicyPort.isModePathAllowed(candidate),
+        huntFeatureEnabled,
+    });
 
     return {
         modePath,

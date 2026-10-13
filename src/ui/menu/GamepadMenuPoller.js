@@ -2,7 +2,7 @@
 // buttons, optional hold-repeat and left-stick directions. The callers decide what a press means.
 
 export const GAMEPAD_MENU_BUTTONS = Object.freeze({
-    A: 0, B: 1, LB: 4, RB: 5, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15,
+    A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15,
 });
 
 const DIRECTIONS = Object.freeze([
@@ -30,6 +30,7 @@ function documentLacksFocus() {
  * @param {{
  *   onDirection?: (direction: 'left'|'right'|'up'|'down') => void,
  *   onConfirm?: () => void, onBack?: () => void, onPreviousTab?: () => void, onNextTab?: () => void, onStart?: () => void,
+ *   onX?: () => void, onY?: () => void,
  *   isActive?: () => boolean, isEnabled?: () => boolean,
  *   repeat?: boolean, leftStick?: boolean, requireDocumentFocus?: boolean,
  *   repeatDelayMs?: number, repeatIntervalMs?: number, stickThreshold?: number,
@@ -42,6 +43,8 @@ export function createGamepadMenuPoller(options = {}) {
     const buttonActions = [
         [GAMEPAD_MENU_BUTTONS.A, callback(options.onConfirm)],
         [GAMEPAD_MENU_BUTTONS.B, callback(options.onBack)],
+        [GAMEPAD_MENU_BUTTONS.X, callback(options.onX)],
+        [GAMEPAD_MENU_BUTTONS.Y, callback(options.onY)],
         [GAMEPAD_MENU_BUTTONS.LB, callback(options.onPreviousTab)],
         [GAMEPAD_MENU_BUTTONS.RB, callback(options.onNextTab)],
         [GAMEPAD_MENU_BUTTONS.START, callback(options.onStart)],

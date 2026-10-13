@@ -6,7 +6,10 @@ import {
     waitForShellOrRuntimeReady,
 } from './playwright-readiness.js';
 import { consumeFreshBootMark, isForceGotoEnv, shouldSkipInitialGoto } from './fresh-boot-mark.mjs';
+import { menuScreenPanelId, menuScreenSelector } from './support/menu-screens.js';
 import { performance } from 'node:perf_hooks';
+
+export { menuScreenSelector };
 
 function toPositiveInt(rawValue, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
     const numeric = Number.parseInt(String(rawValue || ''), 10);
@@ -297,6 +300,35 @@ export async function selectSessionType(page, sessionType = 'single') {
     await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: buttonTimeoutMs });
 }
 
+const FREE_PLAY_VARIANT_BY_MODE_PATH = Object.freeze({ normal: 'classic', fight: 'ffa' });
+
+// Picks a mode path from the hub: arcade is a hub card, normal and fight are free play variants.
+export async function chooseMenuModePath(page, modePath) {
+    const variant = FREE_PLAY_VARIANT_BY_MODE_PATH[modePath];
+    if (variant) {
+        await chooseFreePlayVariant(page, variant);
+        return;
+    }
+    await page.locator(`#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]`).click({ force: true });
+}
+
+// Opens free play from the hub (single player or shared screen) and picks a variant:
+// ffa, team, flags, escort or classic.
+export async function chooseFreePlayVariant(page, variant = 'ffa') {
+    const entry = page.locator('#submenu-custom:not(.hidden) #btn-free-play').first();
+    if (await entry.count()) {
+        await entry.click({ force: true });
+    }
+    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    const button = page.locator(`#submenu-game:not(.hidden) [data-free-play-variant="${variant}"]`).first();
+    if ((await button.getAttribute('aria-pressed')) !== 'true') {
+        await button.click({ force: true });
+    }
+    await page.waitForFunction((expected) => (
+        document.querySelector(`#submenu-game [data-free-play-variant="${expected}"]`)?.getAttribute('aria-pressed') === 'true'
+    ), variant, { timeout: 5000 });
+}
+
 async function openViaNavigationRuntime(page, submenuId) {
     const opened = await page.evaluate((panelId) => {
         const runtime = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime;
@@ -316,30 +348,17 @@ export async function openSubmenu(page, submenuId, options = {}) {
 
     if (submenuId === 'submenu-game') {
         await selectSessionType(page, options.sessionType || 'single');
-        let modePathButton = page
-            .locator('#submenu-custom:not(.hidden) [data-mode-path="normal"]:visible:not([disabled])')
-            .first();
-        if (await modePathButton.count()) {
-            await modePathButton.click({ force: true });
+        const freePlayButton = page.locator('#submenu-custom:not(.hidden) #btn-free-play:visible:not([disabled])').first();
+        if (await freePlayButton.count()) {
+            await chooseFreePlayVariant(page, 'classic');
         } else {
-            const openedCustomSetupStep = await openCustomSetupStep(page);
-            if (openedCustomSetupStep) {
-                modePathButton = page
-                    .locator('#submenu-custom:not(.hidden) [data-mode-path="normal"]:visible:not([disabled])')
-                    .first();
-            }
-
-            if (await modePathButton.count()) {
-                await modePathButton.click({ force: true });
+            const submenuButton = page
+                .locator('#submenu-custom:not(.hidden) [data-menu-step-target="submenu-game"]:visible:not([disabled])')
+                .first();
+            if (await submenuButton.count()) {
+                await submenuButton.click({ force: true });
             } else {
-                const submenuButton = page
-                    .locator('#submenu-custom:not(.hidden) [data-menu-step-target="submenu-game"]:visible:not([disabled])')
-                    .first();
-                if (await submenuButton.count()) {
-                    await submenuButton.click({ force: true });
-                } else {
-                    await openViaNavigationRuntime(page, 'submenu-game');
-                }
+                await openViaNavigationRuntime(page, 'submenu-game');
             }
         }
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
@@ -564,6 +583,21 @@ export async function openDebugSubmenu(page) {
     await page.waitForSelector('#submenu-debug:not(.hidden)', { timeout: 4000 });
 }
 
+const MENU_SCREEN_OPENERS = Object.freeze({
+    modeChoice: (page) => openCustomSubmenu(page),
+    freeplay: (page, options) => openGameSubmenu(page, options),
+    lobby: (page, options) => openMultiplayerSubmenu(page, options),
+    settings: (page, options) => openLevel4Drawer(page, options),
+    expert: (page) => openExpertSubmenu(page),
+    debug: (page) => openDebugSubmenu(page),
+});
+
+// Opens a menu screen by name; the panel id lives only in tests/support/menu-screens.js.
+export async function openMenuScreen(page, screen, options = {}) {
+    menuScreenPanelId(screen);
+    return MENU_SCREEN_OPENERS[screen](page, options);
+}
+
 const BENIGN_ERROR_PATTERNS = [
     /wasm streaming compile failed/i,
     /falling back to ArrayBuffer instantiation/i,
@@ -637,6 +671,11 @@ async function openCustomSetupStep(page) {
 }
 
 async function selectModePath(page, modePath) {
+    const freePlayVariant = FREE_PLAY_VARIANT_BY_MODE_PATH[modePath];
+    if (freePlayVariant) {
+        await chooseFreePlayVariant(page, freePlayVariant);
+        return;
+    }
     const modePathSelector = `#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]:visible:not([disabled])`;
     let modeButton = page.locator(modePathSelector).first();
     if (!(await modeButton.count())) {

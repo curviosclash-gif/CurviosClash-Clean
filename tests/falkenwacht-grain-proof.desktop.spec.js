@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 // Falkenwacht's surfaces get their variation from vertex colours: a per-element tint written by the
 // generator, multiplied by baked ambient occlusion. None of that is visible to a contract test --
@@ -35,7 +35,7 @@ const MIN_MESHES_WITH_COLOR = 55;
 
 async function startMap(page, mapKey) {
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await page.selectOption('#map-select', mapKey);
     await page.waitForFunction(

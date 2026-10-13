@@ -68,6 +68,10 @@ export class UIStartSyncController {
         this._mapPicker3d = null;
         this._lobbyMapPicker3d = null;
         this._vehiclePicker3d = null;
+        /** @type {{ handleButton: (button: string) => boolean }|null} */
+        this.mapPickerShortcuts = null;
+        /** Replaceable in tests; the random map button draws from it. */
+        this.mapRandomSource = null;
     }
 
     _getSettings() {
@@ -325,6 +329,11 @@ export class UIStartSyncController {
     // ------------------------------------------------------------------
     // Sync-Methoden
     // ------------------------------------------------------------------
+
+    /** Gamepad press (LB, RB, X, Y) for the free play map choice; true when it was used there. */
+    handleMapPickerGamepadButton(button) {
+        return this.mapPickerShortcuts?.handleButton(button) === true;
+    }
 
     syncStartSetupState(settings = this._getSettings(), syncSnapshot = null) {
         if (!settings) return;

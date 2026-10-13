@@ -32,7 +32,6 @@ export function createLobbyMatchSummary(settings = {}) {
     const teamSettings = normalizeTeamHuntSettings(settings?.hunt);
     const teamObjective = normalizeTeamObjectiveType(settings?.hunt?.teamObjective);
     const humanCount = Math.max(1, Number(settings?.session?.humanEntityCount)
-        || Number(settings?.localSettings?.humanEntityCount)
         || settings?.session?.networkPlayerSlots?.length
         || 1);
     const teamRoster = teamSettings.enabled

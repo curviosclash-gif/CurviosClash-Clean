@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 
 import { expect, test } from './helpers.desktop.js';
-import { selectSessionType, waitForLoadedGame } from './helpers.js';
+import { selectSessionType, waitForLoadedGame, chooseMenuModePath } from './helpers.js';
 import { EIFFEL_TOWER_SIEGE_MODELS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeModels.js';
 
 // The siege map is the first one a match can take apart, and none of what makes that work can be
@@ -63,7 +63,7 @@ const INTACT_MODELS = ['eiffel-legs-lower', 'eiffel-legs-mid', 'eiffel-shaft', '
 async function startSiegeMatch(page, { modePath, sessionType }) {
     await waitForLoadedGame(page);
     await selectSessionType(page, sessionType);
-    await page.locator(`#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]`).click({ force: true });
+    await chooseMenuModePath(page, modePath);
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
 
     const offered = await page.locator(`#map-select option[value="${MAP_KEY}"]`).count();

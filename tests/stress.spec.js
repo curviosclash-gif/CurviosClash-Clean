@@ -9,6 +9,7 @@ import {
     resolveAppUrl,
     startGame,
     waitForRenderFrames,
+    chooseFreePlayVariant,
 } from './helpers.js';
 
 const SETTINGS_STORAGE_KEY = 'cuviosclash.settings.v1';
@@ -263,8 +264,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         for (let i = 0; i < 18; i += 1) {
             const presetId = presetIds[i % presetIds.length];
             await page.evaluate((targetPresetId) => {
-                const button = document.querySelector(`#submenu-game [data-preset-id="${targetPresetId}"]`);
-                button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                window.GAME_INSTANCE.runtimeFacade.applyMenuPreset({ presetId: targetPresetId, source: 'quickstart' });
             }, presetId);
             await waitForRenderFrames(page, 1);
         }
@@ -355,7 +355,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         test.setTimeout(90000);
         const errors = collectErrors(page);
         const sessionTypes = ['single', 'multiplayer', 'splitscreen'];
-        const level4Sections = ['gameplay', 'controls', 'tools'];
+        const level4Sections = ['audio', 'controls', 'tools'];
 
         await loadGame(page);
 
@@ -364,7 +364,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
             const sectionId = level4Sections[i % level4Sections.length];
 
             await selectSessionType(page, sessionType);
-            await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+            await chooseFreePlayVariant(page, 'classic');
             await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
 
             await page.click('#btn-open-level4');
@@ -393,7 +393,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         const errors = collectErrors(page);
         await loadGame(page);
         await selectSessionType(page, 'splitscreen');
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {

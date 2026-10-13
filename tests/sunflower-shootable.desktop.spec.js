@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { stat, writeFile } from 'node:fs/promises';
 import { expect, test } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 const MAP_KEY = 'sunflower_meadow';
 const GLB_PATH = path.resolve('assets/models/sunflower/sunflower_shootable.glb');
@@ -9,7 +9,7 @@ const GLB_PATH = path.resolve('assets/models/sunflower/sunflower_shootable.glb')
 async function startSunflowerFight(page) {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await page.selectOption('#map-select', MAP_KEY);
     await page.evaluate(() => {

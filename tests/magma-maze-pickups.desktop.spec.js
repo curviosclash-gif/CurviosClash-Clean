@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 const MAP_KEY = 'magma_maze';
 const PICKUP_OWNER_ID = 'magma-maze-desktop-proof';
@@ -15,7 +15,7 @@ const AFFECTED_PICKUPS = Object.freeze([
 async function startMagmaMaze(page) {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.locator('#submenu-game:not(.hidden)').waitFor({ state: 'visible', timeout: 10_000 });
     await page.selectOption('#map-select', MAP_KEY);
     await page.waitForFunction((mapKey) => (

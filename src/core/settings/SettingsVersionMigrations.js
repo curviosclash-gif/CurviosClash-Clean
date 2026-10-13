@@ -7,6 +7,7 @@ export const SETTINGS_VERSION_MIGRATION_IDS = Object.freeze({
     V2_TO_V3: 'settings.v2-to-v3',
     V3_TO_V4: 'settings.v3-to-v4',
     V4_TO_V5: 'settings.v4-to-v5',
+    V5_TO_V6: 'settings.v5-to-v6',
 });
 
 function ensureLocalSettings(settings) {
@@ -74,6 +75,60 @@ function migrateV4ToV5(settings, defaults) {
     return settings;
 }
 
+// Player menu stopped offering these values (the map balancing tool owns them per map).
+// Values a player once set there could never be undone, so version 6 puts them back to
+// what a fresh profile starts with.
+export const RETIRED_PLAYER_MENU_GAMEPLAY_KEYS = Object.freeze([
+    'speed',
+    'turnSensitivity',
+    'gravityStrength',
+    'planeScale',
+    'trailWidth',
+    'trailLength',
+    'gapSize',
+    'gapFrequency',
+    'itemAmount',
+    'fireRate',
+    'lockOnAngle',
+    'nextCheckpointGlowIntensity',
+    'mgTrailAimRadius',
+    'fightPlayerHp',
+    'fightMgDamage',
+    'planarLevelCount',
+]);
+
+/**
+ * Fresh profile = defaults (including the Settings Studio override) with the preset of the
+ * style on top. The preset values come in through context.resolveStylePresetValues.
+ * Only values the snapshot really stored are reset; a missing value falls back to the plain
+ * defaults in the sanitizer as before.
+ */
+function migrateV5ToV6(settings, defaults, context = {}) {
+    if (!settings.gameplay || typeof settings.gameplay !== 'object' || Array.isArray(settings.gameplay)) {
+        settings.gameplay = {};
+    }
+    const modePath = String(settings.localSettings?.modePath || defaults?.localSettings?.modePath || 'normal')
+        .trim().toLowerCase();
+    const presetValues = typeof context?.resolveStylePresetValues === 'function'
+        ? context.resolveStylePresetValues(modePath)
+        : null;
+    const presetFor = (path) => (
+        presetValues && typeof presetValues === 'object' && Object.hasOwn(presetValues, path)
+            ? presetValues[path]
+            : undefined
+    );
+    const stored = context?.storedKeys;
+    for (const key of RETIRED_PLAYER_MENU_GAMEPLAY_KEYS) {
+        if (stored && !stored.gameplay.has(key)) continue;
+        const fresh = presetFor(`gameplay.${key}`) ?? defaults?.gameplay?.[key];
+        if (fresh !== undefined) settings.gameplay[key] = fresh;
+    }
+    const freshPortals = presetFor('portalsEnabled') ?? defaults?.portalsEnabled;
+    if ((!stored || stored.portalsEnabled) && typeof freshPortals === 'boolean') settings.portalsEnabled = freshPortals;
+    settings.settingsVersion = 6;
+    return settings;
+}
+
 const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
     Object.freeze({
         id: SETTINGS_VERSION_MIGRATION_IDS.V0_TO_V1,
@@ -105,6 +160,12 @@ const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
         toVersion: 5,
         migrate: migrateV4ToV5,
     }),
+    Object.freeze({
+        id: SETTINGS_VERSION_MIGRATION_IDS.V5_TO_V6,
+        fromVersion: 5,
+        toVersion: 6,
+        migrate: migrateV5ToV6,
+    }),
 ]);
 
 function normalizeVersion(value, fallback = 0) {
@@ -112,17 +173,25 @@ function normalizeVersion(value, fallback = 0) {
     return Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : fallback;
 }
 
-export function migrateSettingsSnapshot(source, defaults) {
+export function migrateSettingsSnapshot(source, defaults, context = {}) {
     const settings = deepClone(source && typeof source === 'object' ? source : {});
     const fromVersion = normalizeVersion(settings.settingsVersion, 0);
     const targetVersion = normalizeVersion(defaults?.settingsVersion, fromVersion);
     const appliedMigrations = [];
     let reachedVersion = fromVersion;
+    const storedGameplay = settings.gameplay && typeof settings.gameplay === 'object' ? settings.gameplay : {};
+    const stepContext = {
+        ...context,
+        storedKeys: {
+            gameplay: new Set(Object.keys(storedGameplay)),
+            portalsEnabled: settings.portalsEnabled !== undefined,
+        },
+    };
 
     while (reachedVersion < targetVersion) {
         const migration = SETTINGS_VERSION_MIGRATIONS.find((entry) => entry.fromVersion === reachedVersion);
         if (!migration || migration.toVersion > targetVersion) break;
-        migration.migrate(settings, defaults);
+        migration.migrate(settings, defaults, stepContext);
         reachedVersion = migration.toVersion;
         appliedMigrations.push(migration.id);
     }

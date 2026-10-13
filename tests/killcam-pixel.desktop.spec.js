@@ -1,10 +1,10 @@
 import { expect, test } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { openCustomSubmenu, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 test('desktop killcam replays the bandwidth-bounded rendered framebuffer when explicitly enabled', async ({ page }, testInfo) => {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await page.evaluate(() => {
         const game = window.GAME_INSTANCE;

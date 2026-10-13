@@ -8,6 +8,7 @@ import {
     startGameFromMenu,
     waitForLoadedGame,
     waitForRenderFrames,
+    chooseFreePlayVariant,
 } from './helpers.js';
 
 test.describe('Desktop Smoke', () => {
@@ -578,7 +579,7 @@ async function checkSplitScreenFightHud(page, testInfo) {
     const errors = collectErrors(page);
     await waitForLoadedGame(page);
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.locator('#submenu-game:not(.hidden) #btn-start').click({ force: true });
     await page.waitForFunction(() => {
         const game = window.GAME_INSTANCE;

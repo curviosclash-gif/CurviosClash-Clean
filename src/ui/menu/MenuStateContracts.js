@@ -18,8 +18,10 @@ import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContra
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
+import { normalizeFreePlayVariant } from '../../shared/contracts/FreePlayVariantContract.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import { normalizeFightHangarState } from '../../shared/contracts/FightHangarStateContract.js';
+import { normalizeFreePlayMapMemory } from '../../shared/contracts/FreePlayVariantContract.js';
 import { normalizeClassicTutorialState } from '../../shared/contracts/ClassicTutorialContract.js';
 import {
     normalizeFourPlayerPlanarSettings,
@@ -80,14 +82,12 @@ const VALID_MULTIPLAYER_TRANSPORT_SET = new Set(Object.values(MULTIPLAYER_TRANSP
 export const LEVEL4_SECTION_IDS = Object.freeze({
     CONTROLS: 'controls',
     MOBILE_CONTROLS: 'mobile_controls',
-    GAMEPLAY: 'gameplay',
     AUDIO: 'audio',
     GRAPHICS: 'graphics',
     RECORDING: 'recording',
     HUD: 'hud',
     ADVANCED_MAP: 'advanced_map',
     TOOLS: 'tools',
-    PRESETS: 'presets',
     UTILITIES: 'utilities',
 });
 /** @type {Set<string>} */
@@ -239,6 +239,8 @@ function normalizeLocalSettingsState(localSettings = null) {
         modePath,
         seededModePaths: normalizeSeededModePaths(source.seededModePaths),
         lastTeamObjective: normalizeTeamObjectiveType(source.lastTeamObjective),
+        // Free play remembers one map per variant; a plain copy, because settings are mutated and saved as JSON.
+        freePlayMapByVariant: { ...normalizeFreePlayMapMemory(source.freePlayMapByVariant) },
         graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
         mapBrightness: normalizeMapBrightness(source.mapBrightness, defaults.mapBrightness),
         viewDistance: normalizeViewDistance(source.viewDistance, defaults.viewDistance),
@@ -261,6 +263,12 @@ function normalizeLocalSettingsState(localSettings = null) {
             ? { fightHangar: normalizeFightHangarState(source.fightHangar) } : {}),
         ...(source.classicTutorial && typeof source.classicTutorial === 'object'
             ? { classicTutorial: normalizeClassicTutorialState(source.classicTutorial) } : {}),
+        // Raw value on purpose: the preview helpers normalize number and string colors when they read it.
+        ...(typeof source.playerColorP1 === 'string' || Number.isFinite(source.playerColorP1)
+            ? { playerColorP1: source.playerColorP1 } : {}),
+        // Kept only once chosen, so an untouched profile stores nothing new.
+        ...(typeof source.freePlayVariant === 'string'
+            ? { freePlayVariant: normalizeFreePlayVariant(source.freePlayVariant) } : {}),
     };
 }
 

@@ -1878,7 +1878,6 @@ test('UIManager full and targeted sync keep surface copy after the developer tex
         'syncRules',
         'syncGameplay',
         'syncVehicles',
-        'syncPresetState',
         'syncMultiplayerState',
     ]) {
         manager[methodName] = () => calls.push(methodName);

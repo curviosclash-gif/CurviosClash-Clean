@@ -82,11 +82,11 @@ test('validated Hunt profile defaults retain their independent tuning', () => {
 test('settings sanitizer migrates missing tuning and clamps persisted values', () => {
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
     const defaults = manager.createDefaultSettings();
-    assert.equal(defaults.settingsVersion, 5);
+    assert.equal(defaults.settingsVersion, 6);
     assert.equal(defaults.botHeuristicTuning.defensive.aggression, 50);
 
     const sanitized = manager.sanitizeSettings({
-        settingsVersion: 5,
+        settingsVersion: 6,
         botHeuristicProfile: 'aggressive',
         botHeuristicTuning: {
             defensive: { aggression: -20, survivalFocus: 130 },

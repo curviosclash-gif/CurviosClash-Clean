@@ -1,6 +1,7 @@
 import { renderParameterList, renderTabs } from './tuning-renderer.js';
 import { createTuningPresetUi } from './tuning-preset-ui.js';
 import { createTuningBalancingUi } from './tuning-balancing-ui.js';
+import { createTuningTelemetryUi } from './tuning-telemetry-ui.js';
 import { TuningPresetManager } from '../../src/dev/tuning/TuningPresetManager.js';
 
 const tuningApi = globalThis.tuningApi;
@@ -22,6 +23,7 @@ const dom = {
     presetImportButton: document.getElementById('preset-import-btn'),
     resetAllButton: document.getElementById('reset-all-btn'),
     balancingRoot: document.getElementById('balancing-root'),
+    telemetryRoot: document.getElementById('telemetry-root'),
 };
 
 const state = {
@@ -260,6 +262,7 @@ async function bootstrap() {
     await handleCapabilityStatus();
     setupUiBindings();
     createTuningBalancingUi({ tuningApi, container: dom.balancingRoot, setStatus });
+    createTuningTelemetryUi({ tuningApi, container: dom.telemetryRoot, setStatus });
 
     const registryResult = resolveResultPayload(await tuningApi.getRegistry());
     if (!registryResult.ok || !registryResult.value || typeof registryResult.value !== 'object') {
