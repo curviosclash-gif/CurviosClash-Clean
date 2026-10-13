@@ -559,7 +559,12 @@ test('Mobile Classic hands exported files to the Android share sheet', async () 
   assert.equal(cancelled.saved, false);
   assert.equal(cancelled.cancelled, true);
 
-  for (const relativePath of ['src/core/recording/DownloadService.js', 'src/ui/PlayerProfileUiController.js', 'src/ui/hangar/ArcadeHangarWorkshop.js']) {
+  for (const relativePath of [
+    'src/core/recording/DownloadService.js',
+    'src/ui/PlayerProfileUiController.js',
+    'src/ui/hangar/ArcadeHangarWorkshop.js',
+    'src/ui/hangar/ArcadeHangarWorkshopBuildEvents.js',
+  ]) {
     const source = await readText(relativePath);
     assert.doesNotMatch(source, /anchor\.download\s*=/, `${relativePath} must route downloads through BrowserFileExport`);
   }

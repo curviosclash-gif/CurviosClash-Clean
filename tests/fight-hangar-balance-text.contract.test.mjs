@@ -27,7 +27,7 @@ function readSource(path) {
 }
 
 test('the fight hangar speaks of the next fight, not the next run', () => {
-    const workshop = readSource('../src/ui/hangar/ArcadeHangarWorkshop.js');
+    const workshop = readSource('../src/ui/hangar/ArcadeHangarWorkshopSave.js');
     assert.match(workshop, /hangarMode === 'fight' \? 'Build gespeichert und für den nächsten Kampf aktiviert\.'/);
     const renderer = readSource('../src/ui/hangar/ArcadeHangarWorkshopRenderer.js');
     assert.match(renderer, /Aktiver \$\{mode === 'fight' \? 'Kampf' : 'Run'\}-Build/);

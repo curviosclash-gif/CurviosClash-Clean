@@ -371,7 +371,9 @@ export function buildArcadeRunSummary(runState, { endedAtMs = Date.now(), replay
     const endedAtIso = new Date(Math.max(0, toSafeNumber(endedAtMs, Date.now()))).toISOString();
     const summary = {
         scoreModel: CURRENT_ARCADE_SCORE_MODEL,
-        succeeded: runState.completedSectors >= runState.config?.sectorCount,
+        // A failed final objective still counts its sector as completed (failed middle sectors
+        // advance the run), so the count alone cannot tell a lost finale from a cleared one.
+        succeeded: runState.completedSectors >= runState.config?.sectorCount && runState.finaleFailed !== true,
         aborted: runState.aborted === true
             || ![ARCADE_RUN_PHASES.FINISHED, ARCADE_RUN_PHASES.VICTORY].includes(runState.phase),
         runId: String(runState.runId || ''),

@@ -43,8 +43,11 @@ export class ParcoursProgressSystem {
         this._progressPlayerIndexResolver = null;
         this._respawnPlanByPlayer = new Map();
     }
-    setXpEventCallback(callback) { this._xpEventCallback = typeof callback === 'function' ? callback : null; } setLeaderboardCallback(callback) { this._leaderboardCallback = typeof callback === 'function' ? callback : null; }
-    setAttemptResetCallback(callback) { this._attemptResetCallback = typeof callback === 'function' ? callback : null; } setDeathCallback(callback) { this._deathCallback = typeof callback === 'function' ? callback : null; } setSpawnCallback(callback) { this._spawnCallback = typeof callback === 'function' ? callback : null; }
+    setXpEventCallback(callback) { this._xpEventCallback = typeof callback === 'function' ? callback : null; }
+    setLeaderboardCallback(callback) { this._leaderboardCallback = typeof callback === 'function' ? callback : null; }
+    setAttemptResetCallback(callback) { this._attemptResetCallback = typeof callback === 'function' ? callback : null; }
+    setDeathCallback(callback) { this._deathCallback = typeof callback === 'function' ? callback : null; }
+    setSpawnCallback(callback) { this._spawnCallback = typeof callback === 'function' ? callback : null; }
     setGhostRecorder(recorder) {
         this._ghostRecorder = recorder && typeof recorder.sample === 'function' ? recorder : null;
     }

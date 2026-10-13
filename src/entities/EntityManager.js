@@ -21,6 +21,9 @@ import { clearEndlessBotRuntimeIdentity, resetEndlessBotRuntimeIdentity } from '
 import { countArcadeSelfTrailSkip } from './systems/lifecycle/ArcadePartCollisionOps.js';
 import { bindMapFeedback } from './effects/MapFeedbackBindings.js';
 import { applyHit } from './combat/CombatPipeline.js';
+import { applyEntityNetworkSnapshot, setEntityNetworkReplica } from './runtime/EntityNetworkReplicaOps.js';
+import * as visibility from './runtime/EntityVisibilityOps.js';
+import { teardownEntityRuntime } from './runtime/EntityRuntimeTeardownOps.js';
 
 function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -295,11 +298,21 @@ export class EntityManager {
 
     _traceFreeDistance(origin, direction, maxDistance, stepDistance, radius = 0.8) { return this._spawnPlacementSystem.traceFreeDistance(origin, direction, maxDistance, stepDistance, radius); }
 
-    update(dt, inputManager, renderFrameId = 0) { this._tickPipeline.update(dt, inputManager, renderFrameId); } requestRoundEnd(request = {}) { return this.isFightOutcomeAuthority !== false && this._roundOutcomeSystem?.requestRoundEnd?.(request) === true; }
+    update(dt, inputManager, renderFrameId = 0) { this._tickPipeline.update(dt, inputManager, renderFrameId); }
+    requestRoundEnd(request = {}) { return this.isFightOutcomeAuthority !== false && this._roundOutcomeSystem?.requestRoundEnd?.(request) === true; }
 
-    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); this._flagObjectiveSystem?.setNetworkReplica?.(enabled); this._mapHazardSystem?.setNetworkReplica?.(enabled); this._mapDestructibleSystem?.setNetworkReplica?.(enabled); this._mapOwnedPickupSystem?.setNetworkReplica?.(enabled); this._waterZoneSystem?.setNetworkReplica?.(enabled); this.arena?.setDandelionSeedNetworkReplica?.(enabled); this._globalFogEffectSystem?.setNetworkReplica?.(enabled); this._mapSandstormSystem?.setNetworkReplica?.(enabled); this._exclusionZoneSystem?.setNetworkReplica?.(enabled); this._secretRoomSystem?.setNetworkReplica?.(enabled); this._mapUnitSystem?.setNetworkReplica?.(enabled); this._repairDroneSystem?.setNetworkReplica?.(enabled); this._lightningStrikeSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { if (snapshot?.mapFireDestructibles) this._mapDestructibleSystem?.applyNetworkState?.(snapshot.mapFireDestructibles); this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); this._repairDroneSystem?.applyNetworkState?.(snapshot?.repairDrones); this._globalFogEffectSystem?.applyNetworkSnapshot?.(snapshot?.globalFog); this._mapSandstormSystem?.applyNetworkSnapshot?.(snapshot?.sandstorm); if (Number.isFinite(Number(snapshot?.mapElapsedSeconds))) this.arena?.setGlbAnimationElapsedSeconds?.(snapshot.mapElapsedSeconds); if (Array.isArray(snapshot?.dandelionSeeds)) this.arena?.applyDandelionSeedState?.(snapshot.dandelionSeeds); if (Array.isArray(snapshot?.cherryLeaves)) this.arena?.applyCherryLeafState?.(snapshot.cherryLeaves); if (Array.isArray(snapshot?.sunflowerKernels)) this.arena?.applySunflowerKernelState?.(snapshot.sunflowerKernels); } getGlobalFogState() { return this._globalFogEffectSystem?.getState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 }; } getMapSandstormState() { return this._mapSandstormSystem?.getState?.() || { enabled: false, phase: 'CALM', remainingSeconds: 0, eventIndex: 0, directionIndex: 0, intensity: 0 }; } getGlobalFogVisibilityRange() { return this._globalFogEffectSystem?.getVisibilityRange?.() ?? Infinity; } isPositionVisibleDuringGlobalFog(observerPosition, targetPosition) { return this._globalFogEffectSystem?.isPositionVisible?.(observerPosition, targetPosition) !== false; }
+    setNetworkReplica(enabled) { setEntityNetworkReplica(this, enabled); }
+    applyNetworkSnapshot(snapshot) { applyEntityNetworkSnapshot(this, snapshot); }
+    getGlobalFogState() { return visibility.getGlobalFogState(this); }
+    getMapSandstormState() { return visibility.getMapSandstormState(this); }
+    getGlobalFogVisibilityRange() { return visibility.getGlobalFogVisibilityRange(this); }
+    isPositionVisibleDuringGlobalFog(observerPosition, targetPosition) { return visibility.isPositionVisibleDuringGlobalFog(this, observerPosition, targetPosition); }
 
-    filterVisiblePlayers(observer, players = this.players) { const fogVisible = this._globalFogEffectSystem?.filterVisiblePlayers?.(observer, players) || players; return this._mapSandstormSystem?.filterVisiblePlayers?.(observer, fogVisible) || fogVisible; } filterVisiblePowerups(observer, powerups = this.powerupManager?.items) { const fogVisible = this._globalFogEffectSystem?.filterVisiblePowerups?.(observer, powerups) || powerups; return this._mapSandstormSystem?.filterVisiblePowerups?.(observer, fogVisible) || fogVisible; } isPositionVisible(observerPosition, targetPosition) { return this._globalFogEffectSystem?.isPositionVisible?.(observerPosition, targetPosition) !== false && this._mapSandstormSystem?.isPositionVisible?.(observerPosition, targetPosition) !== false; } getVisibilityRange(observerPosition) { return Math.min(this._globalFogEffectSystem?.getVisibilityRange?.() ?? Infinity, this._mapSandstormSystem?.getVisibilityRange?.(observerPosition) ?? Infinity); } getSandstormProximityCue(playerIndex) { return this._mapSandstormSystem?.getProximityCue?.(this.players?.[playerIndex], this.players) || null; }
+    filterVisiblePlayers(observer, players = this.players) { return visibility.filterVisiblePlayers(this, observer, players); }
+    filterVisiblePowerups(observer, powerups = this.powerupManager?.items) { return visibility.filterVisiblePowerups(this, observer, powerups); }
+    isPositionVisible(observerPosition, targetPosition) { return visibility.isPositionVisible(this, observerPosition, targetPosition); }
+    getVisibilityRange(observerPosition) { return visibility.getVisibilityRange(this, observerPosition); }
+    getSandstormProximityCue(playerIndex) { return visibility.getSandstormProximityCue(this, playerIndex); }
 
     getMapDestructibleSystem() { return this._mapDestructibleSystem || null; }
 
@@ -531,52 +544,5 @@ export class EntityManager {
         this._teardownRuntime({ disposeProjectileSystem: true });
     }
 
-    _teardownRuntime({ disposeProjectileSystem = false } = {}) {
-        this.audio?.clearMapAmbience?.();
-        for (const player of this.players) {
-            if (player) player.dispose();
-        }
-        this.players.length = 0;
-        this.humanPlayers.length = 0;
-        this.bots.length = 0;
-        this.botByPlayer.clear();
-        if (disposeProjectileSystem) {
-            this._projectileSystem.dispose();
-        } else {
-            this._projectileSystem.clear();
-        }
-        this._lastRoundGhostSystem?.clear?.();
-        this._killcamReplaySystem?.clear?.();
-        this._killcamSystem?.resetPixelCapture?.();
-        this._overheatGunSystem.reset();
-        this._respawnSystem.reset();
-        this._parcoursProgressSystem?.reset?.();
-        if (disposeProjectileSystem) {
-            this._staticTurretSystem?.dispose?.();
-        } else {
-            this._staticTurretSystem?.clear?.();
-        }
-        if (disposeProjectileSystem) this._flagObjectiveSystem?.dispose?.();
-        else this._flagObjectiveSystem?.clear?.();
-        this._mapHazardSystem?.clear?.(); this._mapDestructibleSystem?.clear?.(); this._mapOwnedPickupSystem?.clear?.(); if (disposeProjectileSystem) { this._mapUnitSystem?.dispose?.(); this._repairDroneSystem?.dispose?.(); this._lightningStrikeSystem?.dispose?.(); this._railgunSystem?.dispose?.(); this._waterZoneSystem?.dispose?.(); } else { this._mapUnitSystem?.clear?.(); this._repairDroneSystem?.clear?.(); this._lightningStrikeSystem?.reset?.(); this._waterZoneSystem?.clear?.(); } this._mapDestructibleBlastSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
-        this._globalFogEffectSystem?.reset?.();
-        if (disposeProjectileSystem) this._mapSandstormSystem?.dispose?.(); else this._mapSandstormSystem?.reset?.();
-        if (disposeProjectileSystem) this._objectiveTargetMarkerSystem?.dispose?.(); else this._objectiveTargetMarkerSystem?.reset?.(); this._huntScoring.reset();
-        this._simulationClockMs = 0;
-
-        if (this.powerupManager) {
-            this.powerupManager.clear();
-        }
-
-        this._trailSpatialIndex.clear();
-        this._lockOnCache.clear();
-        this.onHuntDamageEvent = null;
-        this.onHuntFeedEvent = null;
-        this.onArcadeGameplayEvent = null;
-        if (disposeProjectileSystem) {
-            this._lastRoundGhostSystem?.dispose?.();
-            this._killcamReplaySystem?.dispose?.();
-            this._killcamSystem?.dispose?.();
-        }
-    }
+    _teardownRuntime(options = {}) { teardownEntityRuntime(this, options); }
 }
