@@ -323,7 +323,9 @@ export class MenuNavigationRuntime {
         this.onMenuStateChanged?.(transition);
 
         const previousFocus = this._returnFocusByPanel.get('main');
-        const firstVisibleButton = isAvailable(previousFocus) ? previousFocus : this._getVisibleMainActions()[0] || null;
+        const mainActions = this._getVisibleMainActions();
+        const firstVisibleButton = isAvailable(previousFocus) ? previousFocus
+            : mainActions.find((entry) => entry.hasAttribute?.('data-menu-main-action')) || mainActions[0] || null;
         this.focusMainAction({ fallbackTarget: firstVisibleButton });
         queueMicrotask(() => {
             this.focusMainAction({ onlyIfFocusLost: true, fallbackTarget: firstVisibleButton });
@@ -338,7 +340,9 @@ export class MenuNavigationRuntime {
         const focusWasLost = !activeElement || activeElement === document.body || !menuRoot?.contains?.(activeElement);
         if (options.onlyIfFocusLost === true && !focusWasLost) return false;
         if (!this._isMenuInteractive()) return false;
-        const target = options.fallbackTarget || this._getVisibleMainActions()[0] || null;
+        // The main action ("Weiterspielen") leads, even though the top bar comes first in the document.
+        const actions = this._getVisibleMainActions();
+        const target = options.fallbackTarget || actions.find((entry) => entry.hasAttribute?.('data-menu-main-action')) || actions[0] || null;
         focusWithoutScroll(target);
         return !!target;
     }
