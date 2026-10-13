@@ -236,6 +236,7 @@ export class GameRuntimeFacade {
             : state.postRunSummary;
         return { ...state, records, postRunSummary };
     }
+    getArcadeRunSurfaceState() { return this._arcadeSupport.getRunSurfaceState(); }
     tickArcadeSuddenDeath(dt = 0) { return this._arcadeSupport.tickSuddenDeath(dt); }
     tickPendingArcadeRewards() { return this._arcadeSupport.tickPendingArcadeRewards(); }
     selectArcadeIntermissionChoice(choiceId) { return this._arcadeSupport.selectIntermissionChoice(choiceId); }

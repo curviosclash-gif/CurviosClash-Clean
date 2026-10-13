@@ -45,11 +45,12 @@ export function createPlayingStateRuntimeAccess(runtime) {
             || game?.runtimeCoordinator?.getRuntimeHandle?.('matchKernelAdapter')
             || null
         );
-        const getArcadeMenuSurfaceState = () => (
-            game?.runtimeBundle?.ports?.arcadePort?.getMenuSurfaceState?.()
-            || game?.runtimePorts?.arcadePort?.getMenuSurfaceState?.()
-            || null
-        );
+        // The match loop reads only the running run: the full menu state (records, leaderboard,
+        // daily, replay) was rebuilt twice per frame, in every match, Arcade or not.
+        const getArcadeMenuSurfaceState = () => {
+            const port = game?.runtimeBundle?.ports?.arcadePort || game?.runtimePorts?.arcadePort;
+            return (typeof port?.getRunSurfaceState === 'function' ? port.getRunSurfaceState() : port?.getMenuSurfaceState?.()) || null;
+        };
         const actionSyncArcadeOverlay = () => {
             game?.matchFlowUiController?._syncArcadeOverlayPanel?.();
         };
