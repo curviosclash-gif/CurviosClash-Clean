@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 // Whole-map screenshots retain the visual context. Assertions measure a uniform emissive surface:
 // building silhouettes and textures must not masquerade as a fog edge. All coordinates are world
@@ -18,7 +18,7 @@ const VIEWPOINTS = [
 
 async function startMap(page, mapKey) {
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await page.selectOption('#map-select', mapKey);
     await page.waitForFunction(

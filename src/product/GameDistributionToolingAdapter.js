@@ -16,15 +16,7 @@ export function installPlaytestReturnControl() {
 
 export function installDesktopTuningRuntimeBridge() {}
 
-/** @param {{ui?: any}} [context] */
-export function syncMenuDeveloperState({ ui } = {}) {
-    if (ui?.developerTelemetryPanel) ui.developerTelemetryPanel.hidden = true;
-}
-
-/** @param {{ui?: any}} [context] */
-export function setupMenuTelemetryControls({ ui } = {}) {
-    if (ui?.developerTelemetryPanel) ui.developerTelemetryPanel.hidden = true;
-}
+export function syncMenuDeveloperState() {}
 
 export const AUTHORING_TELEMETRY_STORAGE_KEY = 'cuviosclash.authoring-telemetry.v1';
 

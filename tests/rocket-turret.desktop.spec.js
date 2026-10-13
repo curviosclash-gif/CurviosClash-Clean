@@ -1,12 +1,12 @@
 import { test, expect } from './helpers.desktop.js';
-import { waitForLoadedGame, collectErrors } from './helpers.js';
+import { waitForLoadedGame, collectErrors, chooseFreePlayVariant } from './helpers.js';
 
 for (const session of ['single', 'splitscreen']) {
     test(`Raketenwerfer: ${session} deployed turrets, HUD and fixed destruction`, async ({ page }, testInfo) => {
         const errors = collectErrors(page);
         await waitForLoadedGame(page);
         await page.locator(`#menu-nav [data-session-type="${session}"]`).click({ force: true });
-        await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+        await chooseFreePlayVariant(page, 'ffa');
         await page.selectOption('#map-select', 'parcours_assault');
         await page.locator('#submenu-game:not(.hidden) #btn-start').click({ force: true });
         await page.waitForFunction(() => window.GAME_INSTANCE?.entityManager?.humanPlayers?.length > 0

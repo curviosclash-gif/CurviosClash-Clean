@@ -1,6 +1,7 @@
 import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS, getVehicleDefinition } from '../../entities/vehicle-registry.js';
 import { listRegisteredArcadeLabShips } from '../../shared/contracts/ArcadeLabRegistryContract.js';
 import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../../entities/GLBMapLoader.js';
+import { classifyMapSize } from '../../shared/contracts/MapProfileContract.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import {
     resolveMapPortalEntryCount,
@@ -32,13 +33,8 @@ function countTunnelFeatures(obstacles) {
 }
 
 export function resolveMapCategory(mapDefinition) {
-    const size = Array.isArray(mapDefinition?.size) ? mapDefinition.size : [];
-    const width = toNumber(size[0], 80);
-    const depth = toNumber(size[2], 80);
-    const footprint = width * depth;
-    if (footprint < 5000) return 'small';
-    if (footprint > 10000) return 'large';
-    return 'medium';
+    // Same thresholds as the map profile card, so the size filter and the card never disagree.
+    return classifyMapSize(mapDefinition?.size);
 }
 
 export function resolveVehicleCategory(vehicleDefinition) {

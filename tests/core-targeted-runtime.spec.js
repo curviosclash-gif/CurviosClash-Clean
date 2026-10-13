@@ -3,7 +3,6 @@ import {
     expect,
     CONFIG,
     collectErrors,
-    lockExpertMode,
     loadGame,
     openCustomSubmenu,
     openDebugSubmenu,
@@ -11,13 +10,11 @@ import {
     openExpertSubmenu,
     openGameSubmenu,
     openStartSetupSection,
-    openLevel4Drawer,
     openMultiplayerSubmenu,
     openSubmenu,
     returnToMenu,
     startGame,
     startGameWithBots,
-    unlockExpertMode,
     waitForRenderFrames,
     createMapDocument,
     parseMapJSON,
@@ -1855,7 +1852,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             controller.setupListeners();
 
             ui.pauseResumeButton.click();
-            // "Hauptmenü" ends the match only on the confirming second click.
+            // "Match verlassen" ends the match only on the confirming second click.
             ui.pauseMenuButton.click();
             ui.pauseMenuButton.click();
             ui.pauseSettingsButton.click();
@@ -1868,7 +1865,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
             controller.dispose();
             ui.pauseResumeButton.click();
-            // "Hauptmenü" ends the match only on the confirming second click.
+            // "Match verlassen" ends the match only on the confirming second click.
             ui.pauseMenuButton.click();
             ui.pauseMenuButton.click();
             ui.pauseSettingsButton.click();
@@ -1881,7 +1878,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
             controller.setupListeners();
             ui.pauseResumeButton.click();
-            // "Hauptmenü" ends the match only on the confirming second click.
+            // "Match verlassen" ends the match only on the confirming second click.
             ui.pauseMenuButton.click();
             ui.pauseMenuButton.click();
             ui.pauseSettingsButton.click();
@@ -2412,24 +2409,17 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         await openGameSubmenu(page);
         await openStartSetupSection(page, 'match');
         await page.click('#btn-dimension-planar');
-        await openLevel4Drawer(page, { section: 'advanced_map' });
-        // The portal count belongs to the map; the menu has no slider for it any more.
+        // Portal count, portals and level count belong to the map; the player menu has no controls for them.
         await expect(page.locator('#portal-count-slider')).toHaveCount(0);
+        await expect(page.locator('#portals-toggle')).toHaveCount(0);
+        await expect(page.locator('#planar-level-count-slider')).toHaveCount(0);
         await page.evaluate(() => {
-            const toggle = document.getElementById('portals-toggle');
-            const levelSlider = document.getElementById('planar-level-count-slider');
-            if (toggle && !toggle.checked) {
-                toggle.checked = true;
-                toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            if (levelSlider) {
-                levelSlider.value = '4';
-                levelSlider.dispatchEvent(new Event('input', { bubbles: true }));
-                levelSlider.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            const game = window.GAME_INSTANCE;
+            game.settings.portalsEnabled = true;
+            game.settings.gameplay.planarLevelCount = 4;
+            game.runtimeFacade.onSettingsChanged({ changedKeys: ['rules.portalsEnabled', 'gameplay.planarLevelCount'] });
         });
         await waitForRenderFrames(page, 15);
-        await page.click('#btn-close-level4');
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {
             const hud = document.getElementById('hud');

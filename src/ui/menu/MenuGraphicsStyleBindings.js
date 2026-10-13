@@ -2,6 +2,7 @@ import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleCont
 import { normalizeGraphicsQualitySetting } from '../../shared/contracts/GraphicsQualityContract.js';
 import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessContract.js';
 import { normalizeViewDistance, resolveViewDistanceLabel } from '../../shared/contracts/ViewDistanceContract.js';
+import { normalizeMenuScale, resolveMenuScaleFactor, resolveMenuScaleLabel } from '../../shared/contracts/MenuScaleContract.js';
 
 export function bindGraphicsStyleSelect({
     ui,
@@ -39,6 +40,16 @@ export function bindGraphicsStyleSelect({
         });
     }
 
+    if (ui.menuScaleSlider) {
+        bind(ui.menuScaleSlider, 'input', () => {
+            const menuScale = normalizeMenuScale(ui.menuScaleSlider.value);
+            ensureLocalSettings().menuScale = menuScale;
+            // Live preview: the menu follows the slider before the change is published.
+            applyMenuScale(ui, menuScale);
+            queueInputSettingsChanged?.([settingsChangeKeys.LOCAL_MENU_SCALE]);
+        });
+    }
+
     if (ui.graphicsQualitySelect) {
         bind(ui.graphicsQualitySelect, 'change', () => {
             ensureLocalSettings().graphicsQuality = normalizeGraphicsQualitySetting(ui.graphicsQualitySelect.value);
@@ -47,7 +58,15 @@ export function bindGraphicsStyleSelect({
     }
 }
 
-/** Shows the stored style, brightness, view distance and graphics level in the menu controls. */
+/** Menu size: the CSS variable on the menu root drives every size token (see MenuTokens.css). */
+export function applyMenuScale(ui, value) {
+    const menuScale = normalizeMenuScale(value);
+    ui.mainMenu?.style?.setProperty?.('--menu-scale', String(resolveMenuScaleFactor(menuScale)));
+    if (ui.menuScaleSlider) ui.menuScaleSlider.value = String(menuScale);
+    if (ui.menuScaleLabel) ui.menuScaleLabel.textContent = resolveMenuScaleLabel(menuScale);
+}
+
+/** Shows the stored style, brightness, view distance, menu size and graphics level in the menu controls. */
 export function syncGraphicsStyleControls({ ui, settings }) {
     const localSettings = settings?.localSettings;
     if (ui.graphicsStyleSelect) {
@@ -62,4 +81,5 @@ export function syncGraphicsStyleControls({ ui, settings }) {
     if (ui.graphicsQualitySelect) {
         ui.graphicsQualitySelect.value = normalizeGraphicsQualitySetting(localSettings?.graphicsQuality);
     }
+    applyMenuScale(ui, localSettings?.menuScale);
 }

@@ -1,4 +1,4 @@
-import { evaluateMenuAccessPolicy, resolveDebugAccessPolicy, resolveDeveloperAccessPolicy } from './MenuAccessPolicy.js';
+import { evaluateMenuAccessPolicy, resolveDeveloperAccessPolicy } from './MenuAccessPolicy.js';
 import { isLevel4PauseHosted } from './Level4PauseHost.js';
 import { isAvailable, getFocusableElements, focusWithoutScroll, moveMainMenuFocus, adjustGamepadControl } from './MenuNavigationFocusOps.js';
 import { MENU_STATE_IDS } from './MenuStateMachine.js';
@@ -55,6 +55,9 @@ export class MenuNavigationRuntime {
         this.onLevel4CloseRequested = typeof options.onLevel4CloseRequested === 'function'
             ? options.onLevel4CloseRequested
             : null;
+        this.onGamepadShortcut = typeof options.onGamepadShortcut === 'function'
+            ? options.onGamepadShortcut
+            : null;
         this.accessContext = options.accessContext && typeof options.accessContext === 'object'
             ? options.accessContext
             : { isOwner: true };
@@ -76,12 +79,19 @@ export class MenuNavigationRuntime {
             onBack: () => {
                 if (this._isLevel4Open() || this.stateMachine?.getState?.() !== MENU_STATE_IDS.MAIN) this._goBackFromCurrent('controller_back');
             },
-            onPreviousTab: () => this._moveFocusByDirection('left'),
-            onNextTab: () => this._moveFocusByDirection('right'),
+            // LB/RB/X/Y first go to the free play map choice while it is on screen (it says if it used the press).
+            onPreviousTab: () => { if (!this._offerGamepadShortcut('LB')) this._moveFocusByDirection('left'); },
+            onNextTab: () => { if (!this._offerGamepadShortcut('RB')) this._moveFocusByDirection('right'); },
+            onX: () => this._offerGamepadShortcut('X'),
+            onY: () => this._offerGamepadShortcut('Y'),
         });
         this._gamepadButtonStateByIndex = this._gamepadPoller.buttonState;
         this._activeSessionType = '';
         this._returnFocusByPanel = new Map();
+    }
+
+    _offerGamepadShortcut(button) {
+        return this.onGamepadShortcut?.(button) === true;
     }
 
     init() {
@@ -282,7 +292,9 @@ export class MenuNavigationRuntime {
         if (returnFocus && isAvailable(returnFocus)) {
             focusWithoutScroll(returnFocus);
         } else if (!targetPanel.contains?.(callbackFocusTarget)) {
-            const [focusTarget] = getFocusableElements(targetPanel);
+            // A screen can name its natural start (e.g. the chosen free play variant) instead of "Zurück".
+            const preferred = targetPanel.querySelector?.('[data-menu-focus-preferred="true"]:not([disabled]):not(.hidden)');
+            const [focusTarget] = isAvailable(preferred) ? [preferred] : getFocusableElements(targetPanel);
             focusWithoutScroll(focusTarget);
         }
         resetMobileMenuScroll(targetPanel);
@@ -311,7 +323,9 @@ export class MenuNavigationRuntime {
         this.onMenuStateChanged?.(transition);
 
         const previousFocus = this._returnFocusByPanel.get('main');
-        const firstVisibleButton = isAvailable(previousFocus) ? previousFocus : this._getVisibleMainActions()[0] || null;
+        const mainActions = this._getVisibleMainActions();
+        const firstVisibleButton = isAvailable(previousFocus) ? previousFocus
+            : mainActions.find((entry) => entry.hasAttribute?.('data-menu-main-action')) || mainActions[0] || null;
         this.focusMainAction({ fallbackTarget: firstVisibleButton });
         queueMicrotask(() => {
             this.focusMainAction({ onlyIfFocusLost: true, fallbackTarget: firstVisibleButton });
@@ -326,7 +340,9 @@ export class MenuNavigationRuntime {
         const focusWasLost = !activeElement || activeElement === document.body || !menuRoot?.contains?.(activeElement);
         if (options.onlyIfFocusLost === true && !focusWasLost) return false;
         if (!this._isMenuInteractive()) return false;
-        const target = options.fallbackTarget || this._getVisibleMainActions()[0] || null;
+        // The main action ("Weiterspielen") leads, even though the top bar comes first in the document.
+        const actions = this._getVisibleMainActions();
+        const target = options.fallbackTarget || actions.find((entry) => entry.hasAttribute?.('data-menu-main-action')) || actions[0] || null;
         focusWithoutScroll(target);
         return !!target;
     }
@@ -402,7 +418,7 @@ export class MenuNavigationRuntime {
     _getVisibleMainActions() {
         const menuRoot = this.ui.mainMenu || document.getElementById('main-menu');
         return Array.from(menuRoot?.querySelectorAll?.(
-            '[data-menu-main-action], .nav-btn, .menu-utility-shell button, .menu-tutorial-entry'
+            '[data-menu-main-action], .nav-btn, .menu-utility-shell button, .menu-tutorial-entry, .menu-top-right button, .menu-stage-footer button'
         ) || []).filter(isAvailable);
     }
 
@@ -511,9 +527,6 @@ export class MenuNavigationRuntime {
         if (!panelConfig || typeof panelConfig !== 'object') return 'open';
         if (panelConfig.semanticId === 'developer') {
             return resolveDeveloperAccessPolicy(this.accessContext);
-        }
-        if (panelConfig.semanticId === 'debug') {
-            return resolveDebugAccessPolicy(this.accessContext);
         }
         return panelConfig.accessPolicy || 'open';
     }

@@ -31,8 +31,10 @@ function createSection(id) {
     return section;
 }
 
+const PROBE_LOCKED_SECTIONS = ['match_rules_probe'];
+
 function createDocument() {
-    const sections = ['controls', 'gameplay', 'audio', 'advanced_map', 'presets', 'hud'].map(createSection);
+    const sections = ['controls', 'match_rules_probe', 'audio', 'hud'].map(createSection);
     return {
         sections,
         querySelectorAll: (selector) => (selector === '[data-level4-section]' ? sections : []),
@@ -42,20 +44,21 @@ function createDocument() {
 
 test('a guest cannot change match rules, only local options', () => {
     const doc = createDocument();
-    applyLobbyGuestMatchLock(doc, true);
+    applyLobbyGuestMatchLock(doc, true, PROBE_LOCKED_SECTIONS);
     for (const section of doc.sections) {
-        const locked = GUEST_LOCKED_LEVEL4_SECTIONS.includes(section.dataset.level4Section);
+        const locked = PROBE_LOCKED_SECTIONS.includes(section.dataset.level4Section);
         assert.equal(section.body.inert, locked, `${section.dataset.level4Section} inert`);
         assert.equal(!!section.querySelector('.lobby-guest-lock-hint'), locked, `${section.dataset.level4Section} hint`);
     }
     assert.equal(doc.sections[1].querySelector('.lobby-guest-lock-hint').textContent, LOBBY_GUEST_LOCK_HINT);
-    assert.deepEqual([...GUEST_LOCKED_LEVEL4_SECTIONS].sort(), ['advanced_map', 'gameplay', 'presets']);
+    // The settings drawer has no tab with match rules left, so nothing is locked by default.
+    assert.deepEqual([...GUEST_LOCKED_LEVEL4_SECTIONS], []);
 });
 
 test('leaving the guest role unlocks the rules again and drops the hint', () => {
     const doc = createDocument();
-    applyLobbyGuestMatchLock(doc, true);
-    applyLobbyGuestMatchLock(doc, true);
+    applyLobbyGuestMatchLock(doc, true, PROBE_LOCKED_SECTIONS);
+    applyLobbyGuestMatchLock(doc, true, PROBE_LOCKED_SECTIONS);
     assert.equal(doc.sections[1].children.filter((node) => node.isHint).length, 1, 'no duplicate hint');
     applyLobbyGuestMatchLock(doc, false);
     assert.ok(doc.sections.every((section) => section.body.inert === false));

@@ -87,14 +87,15 @@ test('switching to an unused game style applies its preset and remembers it', ()
     assert.deepEqual(game.settings.localSettings.seededModePaths, ['fight']);
 });
 
-test('returning to a game style that already has own values keeps them and points to the preset', () => {
+test('returning to a game style that already has own values keeps them without pointing to removed presets', () => {
     const { game, calls } = createGame({ modePath: 'arcade', seededModePaths: ['fight', 'arcade'] });
     clickModePath(game, calls, 'fight');
     assert.deepEqual(calls.appliedPresets, []);
     assert.equal(game.settings.gameplay.speed, 33);
     assert.equal(game.settings.localSettings.modePath, 'fight');
     assert.equal(game.settings.gameMode, 'HUNT');
-    assert.match(calls.toasts.at(-1).message, /Vorlage/);
+    // Presets left the player menu, so the toast no longer sends anyone looking for them.
+    assert.doesNotMatch(calls.toasts.at(-1).message, /Vorlage/);
 });
 
 test('the seeded game styles survive settings normalization', () => {

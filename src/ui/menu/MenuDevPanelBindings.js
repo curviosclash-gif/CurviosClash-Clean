@@ -1,89 +1,8 @@
-import { setupMenuTelemetryControls } from './MenuDeveloperStateSync.js';
-import { syncPresetDeleteButton } from './MenuPresetStateSync.js';
-import { armConfirmButton } from '../ConfirmButtonArming.js';
-
 export function setupMenuDevPanelBindings(ctx) {
     const ui = ctx.ui;
     const emit = ctx.emit;
     const eventTypes = ctx.eventTypes;
     const bind = ctx.bind;
-
-    const emitPresetAction = (type, extraPayload = null) => {
-        const payload = extraPayload && typeof extraPayload === 'object' ? extraPayload : {};
-        emit(type, payload);
-    };
-
-    if (Array.isArray(ui.quickstartPresetButtons)) {
-        ui.quickstartPresetButtons.forEach((button) => {
-            bind(button, 'click', () => {
-                const presetId = String(button?.dataset?.presetId || '').trim();
-                if (!presetId) return;
-                emitPresetAction(eventTypes.PRESET_APPLY, {
-                    presetId,
-                    source: 'quickstart',
-                });
-            });
-        });
-    }
-
-    if (ui.presetApplyButton) {
-        bind(ui.presetApplyButton, 'click', () => {
-            const presetId = String(ui.presetSelect?.value || '').trim();
-            if (!presetId) {
-                emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Wähle zuerst eine Vorlage aus.',
-                    tone: 'error',
-                    duration: 1700,
-                });
-                return;
-            }
-            emitPresetAction(eventTypes.PRESET_APPLY, { presetId, source: 'custom_panel' });
-        });
-    }
-
-    if (ui.presetSaveOpenButton) {
-        bind(ui.presetSaveOpenButton, 'click', () => {
-            const presetName = String(ui.presetNameInput?.value || '').trim();
-            emitPresetAction(eventTypes.PRESET_SAVE_OPEN, {
-                name: presetName,
-                sourcePresetId: String(ui.presetSelect?.value || '').trim(),
-            });
-        });
-    }
-
-    if (ui.presetSaveFixedButton) {
-        bind(ui.presetSaveFixedButton, 'click', () => {
-            const presetName = String(ui.presetNameInput?.value || '').trim();
-            emitPresetAction(eventTypes.PRESET_SAVE_FIXED, {
-                name: presetName,
-                sourcePresetId: String(ui.presetSelect?.value || '').trim(),
-            });
-        });
-    }
-
-    if (ui.presetSelect && ui.presetDeleteButton) {
-        bind(ui.presetSelect, 'change', () => syncPresetDeleteButton(ui.presetDeleteButton, ui.presetSelect.value));
-    }
-
-    if (ui.presetDeleteButton) {
-        const confirmation = armConfirmButton(ui.presetDeleteButton, {
-            label: ui.presetDeleteButton.textContent,
-            onConfirm: () => {
-                const presetId = String(ui.presetSelect?.value || '').trim();
-                if (!presetId) {
-                    emit(eventTypes.SHOW_STATUS_TOAST, {
-                        message: 'Keine Vorlage zum Löschen ausgewählt.',
-                        tone: 'error',
-                        duration: 1700,
-                    });
-                    return;
-                }
-                emitPresetAction(eventTypes.PRESET_DELETE, { presetId });
-            },
-        });
-        bind(ui.presetSelect, 'change', confirmation.disarm);
-        ctx.registerDisposer?.(() => confirmation.dispose());
-    }
 
     if (ui.multiplayerReadyToggle) {
         bind(ui.multiplayerReadyToggle, 'change', () => {
@@ -157,7 +76,4 @@ export function setupMenuDevPanelBindings(ctx) {
             });
         });
     }
-
-    setupMenuTelemetryControls(ctx);
-
 }

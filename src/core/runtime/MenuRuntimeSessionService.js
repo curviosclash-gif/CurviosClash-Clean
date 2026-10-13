@@ -23,7 +23,7 @@ import {
     normalizeMultiplayerTransport,
 } from '../../shared/contracts/RuntimeSessionContract.js';
 import { hasConfiguredOnlineSignalingUrl } from '../../shared/contracts/OnlineSignalingConfig.js';
-import { normalizeGraphicsQualitySetting } from '../../shared/contracts/GraphicsQualityContract.js';
+import { LEVEL4_RESET_SCOPES, applyLevel4Reset, isLevel4ResetSection } from '../../shared/settings/Level4ResetScopes.js';
 import { appendMutationChangedKeys, resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 import { resolvePresetFailureMessage } from './MenuRuntimeQuickStartService.js';
 import { MODE_PATH_TO_PRESET_ID } from '../settings/FreshProfileSettingsOps.js';
@@ -156,8 +156,8 @@ export function handleSessionTypeChangeAction(ctx) {
             ? 'Splitscreen'
             : (result.targetSessionType === 'multiplayer' ? 'Multiplayer' : 'Single Player'));
     const transportLabel = selectedMultiplayerTransport === MULTIPLAYER_TRANSPORTS.ONLINE
-        ? ' | Transport: Online'
-        : (result.targetSessionType === 'multiplayer' ? ' | Transport: LAN' : '');
+        ? ' · Verbindung: Online'
+        : (result.targetSessionType === 'multiplayer' ? ' · Verbindung: LAN' : '');
     if (!requestedAllowed && requestedSessionType !== targetSessionType) {
         const blockedLabel = requestedSessionType === 'splitscreen'
             ? 'Splitscreen'
@@ -168,8 +168,8 @@ export function handleSessionTypeChangeAction(ctx) {
     }
     game._showStatusToast(
         result.loadedDraft
-            ? `Session gewechselt: ${label}${transportLabel} (Draft geladen)`
-            : `Session gewechselt: ${label}${transportLabel}`,
+            ? `Gewählt: ${label}${transportLabel} (letzte Auswahl geladen)`
+            : `Gewählt: ${label}${transportLabel}`,
         1200,
         'info'
     );
@@ -250,10 +250,13 @@ export function handleModePathChangeAction(ctx) {
     }
 
     onSettingsChanged({ changedKeys: Array.from(new Set(changedKeys)) });
-    game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', {
-        trigger: 'mode_path_selected',
-        modePath,
-    });
+    // Switching the variant inside free play keeps the player on the screen they are on.
+    if (event?.stayOnPanel !== true) {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', {
+            trigger: 'mode_path_selected',
+            modePath,
+        });
+    }
 
     const label = modePath === 'fight' ? 'Kampf' : (modePath === 'arcade' ? 'Arcade' : 'Klassisch');
     if (requestedModePath && requestedModePath !== modePath && !getSurfacePort(game).isModePathAllowed(requestedModePath)) {
@@ -261,14 +264,8 @@ export function handleModePathChangeAction(ctx) {
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
     } else if (requestedModePath === 'fight' && !huntFeatureEnabled) {
         game._showStatusToast('Kampf ist deaktiviert. Klassisch wurde gesetzt.', 1500, 'warning');
-    } else if (presetId && keepsOwnValues && modePath !== previousModePath) {
-        game._showStatusToast(
-            `Modus gewählt: ${label} – deine Werte bleiben. Vorlage unter „Vorlagen“ anwenden.`,
-            2200,
-            'info'
-        );
     } else {
-        game._showStatusToast(`Modus gewählt: ${label}`, 1200, 'info');
+        game._showStatusToast(`Gewählt: ${event?.label || label}`, 1200, 'info');
     }
 }
 
@@ -332,86 +329,12 @@ export function handleLevel4CloseAction(ctx) {
     game._saveSettings?.();
 }
 
-// A fresh profile plays its style with the style preset on top of the defaults, so the
-// reset hands back the same gameplay values. Map, bots and rules stay outside its scope.
-function resolveStylePresetGameplayValues(game) {
-    const modePath = String(game?.settings?.localSettings?.modePath || 'normal').trim().toLowerCase();
-    const presetId = MODE_PATH_TO_PRESET_ID[modePath];
-    const presets = game?.settingsManager?.listMenuPresets?.();
-    const preset = Array.isArray(presets) ? presets.find((entry) => entry?.id === presetId) : null;
-    const gameplay = {};
-    for (const [path, value] of Object.entries(preset?.values || {})) {
-        if (path.startsWith('gameplay.')) gameplay[path.slice('gameplay.'.length)] = value;
-    }
-    return gameplay;
-}
-
+// The reset button of the settings drawer puts back one tab only (see Level4ResetScopes).
 export function handleLevel4ResetAction(ctx) {
-    const { game, onSettingsChanged } = ctx;
-    const defaults = game.settingsManager.createDefaultSettings();
-    game.settings.gameplay = { ...defaults.gameplay, ...resolveStylePresetGameplayValues(game) };
-    game.settings.matchSettings = {
-        ...(game.settings.matchSettings || {}),
-        activePresetId: '',
-        activePresetKind: '',
-        activePresetSourceId: '',
-    };
-    if (!game.settings.localSettings || typeof game.settings.localSettings !== 'object') {
-        game.settings.localSettings = {};
-    }
-    game.settings.localSettings.shadowQuality = defaults.localSettings.shadowQuality;
-    game.settings.localSettings.bloomQuality = defaults.localSettings.bloomQuality;
-    game.settings.localSettings.bloomQualityUserSet = false;
-    game.settings.localSettings.graphicsQuality = normalizeGraphicsQualitySetting(defaults.localSettings.graphicsQuality);
-    game.settings.localSettings.mapBrightness = defaults.localSettings.mapBrightness;
-    game.settings.localSettings.viewDistance = defaults.localSettings.viewDistance;
-    game.settings.autoRoll = defaults.autoRoll;
-    game.settings.invertPitch = { ...defaults.invertPitch };
-    game.settings.cockpitCamera = { ...defaults.cockpitCamera };
-    game.settings.cameraPerspective = { ...defaults.cameraPerspective };
-    game.settings.recording = { ...defaults.recording };
-
-    onSettingsChanged({
-        changedKeys: [
-            SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_ID,
-            SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_KIND,
-            SETTINGS_CHANGE_KEYS.RULES_AUTO_ROLL,
-            SETTINGS_CHANGE_KEYS.RULES_INVERT_P1,
-            SETTINGS_CHANGE_KEYS.RULES_INVERT_P2,
-            SETTINGS_CHANGE_KEYS.RULES_INVERT_P3,
-            SETTINGS_CHANGE_KEYS.RULES_COCKPIT_P1,
-            SETTINGS_CHANGE_KEYS.RULES_COCKPIT_P2,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_SPEED,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_TURN_SENSITIVITY,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_GRAVITY_STRENGTH,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_PLANE_SCALE,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_TRAIL_WIDTH,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_GAP_SIZE,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_GAP_FREQUENCY,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_ITEM_AMOUNT,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_FIRE_RATE,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_LOCK_ON_ANGLE,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_NEXT_CHECKPOINT_GLOW_INTENSITY,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_MG_TRAIL_AIM_RADIUS,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_PLAYER_HP,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_MG_DAMAGE,
-            SETTINGS_CHANGE_KEYS.LOCAL_SHADOW_QUALITY,
-            SETTINGS_CHANGE_KEYS.LOCAL_BLOOM_QUALITY,
-            SETTINGS_CHANGE_KEYS.LOCAL_GRAPHICS_QUALITY,
-            SETTINGS_CHANGE_KEYS.LOCAL_MAP_BRIGHTNESS,
-            SETTINGS_CHANGE_KEYS.LOCAL_VIEW_DISTANCE,
-            SETTINGS_CHANGE_KEYS.RECORDING_PROFILE,
-            SETTINGS_CHANGE_KEYS.RECORDING_HUD_MODE,
-            SETTINGS_CHANGE_KEYS.RECORDING_ORIENTATION,
-            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_NORMAL,
-            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REDUCE_MOTION,
-            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REACTOR_FLASH,
-            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REACTOR_SHAKE,
-            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_SPEED_FOV_ENABLED,
-            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_SPEED_FOV_INTENSITY,
-            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_ENABLED,
-            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_INTENSITY,
-        ],
-    });
-    game._showStatusToast('Spieloptionen zurückgesetzt', 1600, 'info');
+    const { game, event, onSettingsChanged } = ctx;
+    const sectionId = String(event?.sectionId || '').trim();
+    if (!isLevel4ResetSection(sectionId)) return;
+    const changedKeys = applyLevel4Reset(game.settings, game.settingsManager.createDefaultSettings(), sectionId);
+    onSettingsChanged({ changedKeys });
+    game._showStatusToast(`${LEVEL4_RESET_SCOPES[sectionId].label} zurückgesetzt`, 1600, 'info');
 }

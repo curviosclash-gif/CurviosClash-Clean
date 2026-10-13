@@ -1,8 +1,5 @@
 import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import {
-    handleConfigExportCodeAction,
-    handleConfigExportJsonAction,
-    handleConfigImportAction,
     applyMenuPresetAction,
     saveMenuPresetAction,
     deleteMenuPresetAction,
@@ -23,7 +20,6 @@ import {
     handleDeveloperVisibilityChangeAction,
 } from './MenuRuntimeDeveloperModeService.js';
 import {
-    SESSION_SWITCH_CHANGED_KEYS,
     handleLevel3ResetAction,
     handleLevel4CloseAction,
     handleLevel4OpenAction,
@@ -34,6 +30,8 @@ import {
     handleQuickStartRandomStartAction,
     handleSessionTypeChangeAction,
 } from './MenuRuntimeSessionService.js';
+import { handleFreePlayVariantChangeAction } from './MenuRuntimeFreePlayService.js';
+import { createMenuFunnelTracker } from './MenuFunnelTracker.js';
 
 export class GameRuntimeMenuActionHandler {
     constructor({ facade = null } = {}) {
@@ -41,12 +39,17 @@ export class GameRuntimeMenuActionHandler {
         // A playlist start runs across an awaited startMatch; a second click in that window
         // would work on settings the first preset already replaced.
         this._quickStartEventPlaylistBusy = false;
+        this.menuFunnel = createMenuFunnelTracker({
+            now: () => this._facade?.runtimeClock?.nowMs?.() ?? 0,
+            record: (eventType, payload) => this._facade?._recordMenuTelemetry?.(eventType, payload),
+        });
     }
 
     handleMenuPanelChanged(previousPanelId, nextPanelId, transitionMetadata = null) {
         const fromPanelId = String(previousPanelId || '').trim();
         const toPanelId = String(nextPanelId || '').trim();
         const trigger = String(transitionMetadata?.trigger || '').trim();
+        this.menuFunnel.onPanelChanged(toPanelId, trigger);
         if (toPanelId) return;
         if (!fromPanelId || fromPanelId === 'submenu-custom') {
             if (trigger === 'back_button' || trigger === 'escape') {
@@ -76,7 +79,12 @@ export class GameRuntimeMenuActionHandler {
         handleModePathChangeAction(this._createSessionContext(event));
     }
 
+    handleFreePlayVariantChange(event) {
+        handleFreePlayVariantChangeAction(this._createSessionContext(event));
+    }
+
     handleQuickStartLastStart() {
+        this.menuFunnel.onContinuePressed();
         return handleQuickStartLastStartAction(this._createSessionContext());
     }
 
@@ -103,6 +111,7 @@ export class GameRuntimeMenuActionHandler {
     }
 
     handleLevel4Open(event) {
+        this.menuFunnel.onSettingsOpened();
         handleLevel4OpenAction(this._createSessionContext(event));
     }
 
@@ -110,26 +119,8 @@ export class GameRuntimeMenuActionHandler {
         handleLevel4CloseAction(this._createSessionContext());
     }
 
-    handleLevel4Reset() {
-        handleLevel4ResetAction(this._createSessionContext());
-    }
-
-    handleConfigExportCode() {
-        handleConfigExportCodeAction(this._facade?.game);
-    }
-
-    handleConfigExportJson() {
-        handleConfigExportJsonAction(this._facade?.game);
-    }
-
-    handleConfigImport(event) {
-        const game = this._facade?.game;
-        handleConfigImportAction({
-            game,
-            inputValue: String(event?.inputValue || game?.ui?.configShareInput?.value || ''),
-            onSettingsChanged: (payload) => this._facade?.onSettingsChanged?.(payload),
-            sessionSwitchChangedKeys: SESSION_SWITCH_CHANGED_KEYS,
-        });
+    handleLevel4Reset(event) {
+        handleLevel4ResetAction(this._createSessionContext(event));
     }
 
     applyMenuPreset(event) {

@@ -89,9 +89,6 @@ test('Session menu handler forwards LEVEL4_OPEN payload to facade', () => {
         },
         handleLevel4Close() {},
         handleLevel4Reset() {},
-        handleConfigExportCode() {},
-        handleConfigExportJson() {},
-        handleConfigImport() {},
         startMatch() {},
     };
     const registry = new Map();

@@ -25,10 +25,12 @@ class FakeElement {
     removeEventListener(type, handler) { this.listeners.get(type)?.delete(handler); }
     click() { [...(this.listeners.get('click') ?? [])].forEach((handler) => handler({ type: 'click' })); }
     listenerCount() { return [...this.listeners.values()].reduce((sum, set) => sum + set.size, 0); }
-    find(predicate) {
-        if (predicate(this)) return this;
+    // Only the one selector form the notice uses: [data-part="name"].
+    querySelector(selector) {
+        const name = /^\[data-part="([^"]+)"\]$/.exec(selector)?.[1];
         for (const child of this.children) {
-            const hit = child.find(predicate);
+            if (child.dataset.part === name) return child;
+            const hit = child.querySelector(selector);
             if (hit) return hit;
         }
         return null;
@@ -41,7 +43,7 @@ const { createMenuStateNotice, updateMenuStateNotice, MENU_STATE_NOTICE_KINDS } 
 const { MENU_STATE_NOTICE_CATALOG, resolveMenuStateNotice } =
     await import('../src/ui/menu/MenuStateNoticeCatalog.js');
 
-const part = (notice, name) => notice.element.find((node) => node.dataset.part === name);
+const part = (notice, name) => notice.element.querySelector(`[data-part="${name}"]`);
 
 test('every kind shows a visible text label and a symbol, so it is readable without color', () => {
     const labels = new Set();
@@ -148,4 +150,10 @@ test('resolve fills the reason placeholder and falls back to generic-error for u
     assert.equal(unknown.kind, 'error');
     assert.equal(resolveMenuStateNotice('no-ghost-yet').text,
         'Noch kein Geist für diese Etappe. Flieg sie einmal, dann fliegt deine Bestleistung mit.');
+});
+
+test('the symbol is hidden from screen readers because the label already says it', () => {
+    const notice = createMenuStateNotice(doc, { kind: 'error', title: 'Titel' });
+    assert.equal(part(notice, 'symbol').getAttribute('aria-hidden'), 'true');
+    assert.equal(part(notice, 'label').getAttribute('aria-hidden'), null);
 });

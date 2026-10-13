@@ -5,7 +5,8 @@ import { MatchFlowArcadeOverlayController } from './MatchFlowArcadeOverlayContro
 import { MatchFlowLifecycleController } from './MatchFlowLifecycleController.js';
 import { MatchFlowTelemetryController } from './MatchFlowTelemetryController.js';
 import { resolveArenaMapSelection } from '../entities/CustomMapLoader.js';
-import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../entities/GLBMapLoader.js';
+import { resolveMapPreview } from './menu/MenuPreviewCatalog.js';
+import { buildLoadingMessages, resolveMenuReturnTarget } from './PauseMenuText.js';
 import { deriveMatchLoadingUiState } from '../shared/contracts/MatchUiStateContract.js';
 import { createPreferredMatchInputSource } from './MatchInputSourceResolver.js';
 import {
@@ -106,6 +107,10 @@ export class MatchFlowUiController {
                 container,
                 runtimePort: this.runtimePort,
                 getControls: () => this.game?.settings?.controls || null,
+                getMenuLabel: () => resolveMenuReturnTarget({
+                    sessionType: this.game?.settings?.localSettings?.sessionType,
+                    arcade: !!this.runtimePort?.getMatchRuntimeProjection?.()?.arcade,
+                }).resultLabel,
             });
         }
         this.continuePrompt.apply(promptState);
@@ -137,6 +142,7 @@ export class MatchFlowUiController {
                 game.ui.messageSub.textContent = uiState.messageSub;
             }
             if (hasOwn('messageOverlayHidden')) {
+                if (visibility.messageOverlayHidden !== false) game.ui.messageOverlay.removeAttribute?.('data-loading');
                 game.ui.messageOverlay.classList.toggle('hidden', visibility.messageOverlayHidden !== false);
                 // style.css hides the frozen Fight HUD behind the result through this flag.
                 game.ui.hud?.classList.toggle('result-overlay-open', visibility.messageOverlayHidden === false);
@@ -228,29 +234,10 @@ export class MatchFlowUiController {
     }
 
     _resolveMatchLoadingUiState() {
-        const requestedMapKey = this.game?.runtimeConfig?.session?.mapKey || this.game?.mapKey || 'standard';
-        const mapSelection = resolveArenaMapSelection(requestedMapKey);
-        const mapDefinition = mapSelection?.mapDefinition || null;
-        const mapName = String(mapDefinition?.name || requestedMapKey || 'Arena');
-        if (!hasGLBMapSource(mapDefinition)) {
-            return deriveMatchLoadingUiState({
-                messageText: `Lade ${mapName}...`,
-                messageSub: 'Arena wird vorbereitet',
-            });
-        }
-        const footprint = resolveGLBMapSourceFootprint(mapDefinition);
-        const COLLIDER_LABELS = {
-            fallbackOnly: 'Box-Collider',
-            dynamic: 'Box- und Animations-Collider',
-        };
-        const colliderLabel = COLLIDER_LABELS[footprint.colliderMode] || 'Szenen-Collider';
-        const sourceLabel = footprint.sourceKind === 'embedded'
-            ? 'eingebettet'
-            : (footprint.sourceKind === 'collection' ? `${footprint.modelCount} Modelle` : footprint.sourceKind);
-        return deriveMatchLoadingUiState({
-            messageText: `Lade ${mapName}...`,
-            messageSub: `GLB-Umgebung wird vorbereitet (${sourceLabel}, ${colliderLabel})`,
-        });
+        const mapKey = this.game?.runtimeConfig?.session?.mapKey || this.game?.mapKey || 'standard';
+        const catalogName = resolveMapPreview(mapKey).name;
+        const mapName = catalogName !== mapKey ? catalogName : (resolveArenaMapSelection(mapKey)?.mapDefinition?.name || mapKey);
+        return deriveMatchLoadingUiState(buildLoadingMessages(mapKey, mapName));
     }
 
     waitForMatchLoadingFrame() {
@@ -415,6 +402,8 @@ export class MatchFlowUiController {
         this.applyMatchStartUiState(matchStartTransition.uiState);
         const loadingUiState = this._resolveMatchLoadingUiState();
         this.applyMatchUiState(loadingUiState);
+        // Loading blocks the main thread, so a fade-in would sit at its first transparent frame.
+        this.game?.ui?.messageOverlay?.setAttribute?.('data-loading', 'true');
 
         return true;
     }

@@ -3,7 +3,6 @@ import {
     expect,
     CONFIG,
     collectErrors,
-    lockExpertMode,
     loadGame,
     openCustomSubmenu,
     openDebugSubmenu,
@@ -18,7 +17,6 @@ import {
     resolveAppUrl,
     startGame,
     startGameWithBots,
-    unlockExpertMode,
     waitForRenderFrames,
     createMapDocument,
     parseMapJSON,
@@ -36,7 +34,6 @@ import {
     SETTINGS_PROFILES_STORAGE_KEY,
     LEGACY_SETTINGS_STORAGE_KEY,
     MENU_DRAFTS_STORAGE_KEY,
-    MENU_PRESETS_STORAGE_KEY,
     CUSTOM_MAP_STORAGE_KEY,
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
     ARCADE_VEHICLE_LOADOUT_STORAGE_KEY,
@@ -533,39 +530,9 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         expect(result.panelRemoved).toBe(true);
     });
 
-    test('T20e: Open-Preset speichert Metadatenvertrag vollstaendig', async ({ page }) => {
+    test('T20confirm: Gespeicherte Einstellungen brauchen zwei Löschklicks', async ({ page }) => {
         await loadGame(page);
-        await page.evaluate((storageKey) => localStorage.removeItem(storageKey), MENU_PRESETS_STORAGE_KEY);
-        // #preset-name lives in the "presets" tab; the level-4 tabs are mutually exclusive.
-        await openLevel4Drawer(page, { section: 'presets' });
-        await page.fill('#preset-name', 'Open Preset QA');
-        await page.click('#btn-preset-save-open');
-        await waitForRenderFrames(page, 1);
-
-        const contractState = await page.evaluate(() => {
-            const raw = localStorage.getItem('cuviosclash.menu-presets.v1');
-            const parsed = raw ? JSON.parse(raw) : {};
-            const presets = Array.isArray(parsed?.presets) ? parsed.presets : [];
-            const openPreset = presets.find((preset) => preset?.metadata?.kind === 'open');
-            if (!openPreset) return { ok: false };
-            const metadata = openPreset.metadata || {};
-            const required = ['id', 'kind', 'ownerId', 'lockedFields', 'sourcePresetId', 'createdAt', 'updatedAt'];
-            const hasAll = required.every((key) => Object.prototype.hasOwnProperty.call(metadata, key));
-            return {
-                ok: hasAll,
-                kind: metadata.kind,
-                id: metadata.id,
-            };
-        });
-
-        expect(contractState.ok).toBeTruthy();
-        expect(contractState.kind).toBe('open');
-        expect(contractState.id.length).toBeGreaterThan(0);
-    });
-
-    test('T20confirm: Gespeicherte Einstellungen und Vorlagen brauchen zwei Löschklicks', async ({ page }) => {
-        await loadGame(page);
-        await openLevel4Drawer(page, { section: 'tools' });
+        await openLevel4Drawer(page, { backups: true });
         await page.fill('#profile-name', 'Delete QA');
         await page.click('#btn-profile-save');
         await expect(page.locator('#profile-select')).toHaveValue('Delete QA');
@@ -574,20 +541,6 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await expect(page.locator('#profile-select')).toHaveValue('Delete QA');
         await page.click('#btn-profile-delete');
         await expect(page.locator('#profile-select option[value="Delete QA"]')).toHaveCount(0);
-
-        await page.click('#level4-tab-presets');
-        await page.fill('#preset-name', 'Delete Preset QA');
-        await page.click('#btn-preset-save-open');
-        const savedPreset = page.locator('#preset-select option', { hasText: 'Delete Preset QA' });
-        await expect(savedPreset).toHaveCount(1);
-        const presetId = await savedPreset.getAttribute('value');
-        expect(presetId).not.toBe('');
-        await page.selectOption('#preset-select', presetId);
-        await page.click('#btn-preset-delete');
-        await expect(page.locator('#btn-preset-delete')).toHaveAttribute('data-confirm-armed', 'true');
-        await expect(page.locator('#preset-select')).toHaveValue(presetId);
-        await page.click('#btn-preset-delete');
-        await expect(page.locator(`#preset-select option[value="${presetId}"]`)).toHaveCount(0);
     });
 
     test('T20escape: Escape verlässt den Mehrspieler-Bereich ohne Lobby-Austritt', async ({ page }) => {
@@ -616,12 +569,10 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             return mod.findFixedMenuPresetSeedById('competitive');
         });
         await page.evaluate(() => {
-            // The start setup only offers presets of the current play style; Wettkampf is classic.
+            // No chip in the player menu any more; the preset event path (Schnellstart) still applies it.
             const game = window.GAME_INSTANCE;
             game.settings.localSettings.modePath = 'normal';
-            game.uiManager?.syncByChangeKeys?.(['session.modePath']);
-            const button = document.querySelector('#submenu-game [data-preset-id="competitive"]');
-            button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            game.runtimeFacade.applyMenuPreset({ presetId: 'competitive', source: 'quickstart' });
         });
         await waitForRenderFrames(page, 1);
 
@@ -757,7 +708,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_PROFILES_STORAGE_KEY);
         await page.reload();
         await page.waitForSelector('#main-menu', { state: 'visible', timeout: 15000 });
-        await openLevel4Drawer(page, { section: 'tools' });
+        await openLevel4Drawer(page, { backups: true });
 
         await page.fill('#profile-name', 'QA Profil');
         await expect(page.locator('#btn-profile-save')).toBeEnabled();

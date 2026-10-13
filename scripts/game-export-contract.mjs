@@ -72,8 +72,6 @@ export function isGameExportSourcePath(relativePath) {
             && normalized !== 'src/state/AuthoringTelemetrySession.js'
             && normalized !== 'src/state/AuthoringTelemetryStore.js'
             && normalized !== 'src/ui/menu/MenuDeveloperStateSync.js'
-            && !normalized.startsWith('src/ui/menu/MenuTelemetryDashboard')
-            && !normalized.startsWith('src/ui/menu/MenuTelemetryHeatmap')
             && !normalized.startsWith('src/dev/')
             && !normalized.startsWith('src/mobile-arcade/')
             && !normalized.startsWith('src/mobile-classic/');

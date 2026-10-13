@@ -55,6 +55,9 @@ const UNCHANGED_LEAF_PATHS = Object.freeze([
     // An empty container for per-session drafts. Filling it adds leaf paths instead of
     // changing a value; the session draft tests cover its content.
     'localSettings.draftStateBySessionType',
+    // Another empty container: the map each free play variant remembers. Filling it adds leaf
+    // paths; free-play-map-shortcuts.contract.test.mjs covers that it survives the normalizer.
+    'localSettings.freePlayMapByVariant',
     // Only kept while the session type is multiplayer, which the sweep does not select.
     'localSettings.multiplayerTransport',
     // Contract version stamps the code writes on every sanitize.
@@ -80,6 +83,7 @@ const ALTERNATIVE_NUMBERS = new Map([
     ['cameraPerspective.speedFovIntensity', 1.25],
     ['cameraPerspective.thrusterExhaustIntensity', 1.25],
     ['localSettings.viewDistance', 50],
+    ['localSettings.menuScale', 130],
     ['localSettings.shadowQuality', 1],
     ['localSettings.hud.scale', 1.2],
     ['localSettings.hud.opacity', 0.8],
@@ -154,7 +158,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['localSettings.startSetup.vehicleSearch', 'ship'],
     ['localSettings.startSetup.vehicleFilter', 'heavy'],
     ['localSettings.startSetup.arcadeGhostDuelMode', 'self_longest_ghost'],
-    ['localSettings.toolsState.activeSection', 'gameplay'],
+    ['localSettings.toolsState.activeSection', 'graphics'],
     ['localSettings.mobileControls.tiltPitchMode', 'touch'],
     ['localSettings.mobileControls.tiltAssistMode', 'arcade'],
     ['localSettings.telemetryState.lastEvents', [{ type: 'quickstart' }]],

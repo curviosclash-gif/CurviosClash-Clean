@@ -25,7 +25,7 @@ function createPlayerContext() {
         actorId: 'player',
         isOwner: false,
         developerModeEnabled: false,
-        expertModeUnlocked: false,
+        developerToolsEnabled: false,
     });
 }
 

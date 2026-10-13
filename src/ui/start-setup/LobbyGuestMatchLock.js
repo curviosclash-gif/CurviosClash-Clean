@@ -4,20 +4,21 @@
 //
 // In a lobby the host's match settings win at start. A guest could still move the rule
 // sliders in the options window; the change stayed local and was dropped silently. Those
-// tabs are now inert for guests. Local tabs (controls, audio, graphics, HUD, recording)
-// stay free.
+// tabs are now inert for guests. Every tab left in the settings drawer (controls, graphics,
+// audio, HUD, recording, player) is local, so none is locked at the moment; a future tab with
+// match rules goes into this list.
 
-export const GUEST_LOCKED_LEVEL4_SECTIONS = Object.freeze(['gameplay', 'advanced_map', 'presets']);
+export const GUEST_LOCKED_LEVEL4_SECTIONS = Object.freeze([]);
 export const LOBBY_GUEST_LOCK_HINT = 'Der Host legt die Match-Einstellungen fest.';
 
 export function isLobbyGuestMatchLocked(state, isMultiplayerSession) {
     return isMultiplayerSession === true && state?.joined === true && state?.isHost !== true;
 }
 
-export function applyLobbyGuestMatchLock(doc, locked) {
+export function applyLobbyGuestMatchLock(doc, locked, lockedSections = GUEST_LOCKED_LEVEL4_SECTIONS) {
     const sections = doc?.querySelectorAll?.('[data-level4-section]') || [];
     for (const section of sections) {
-        const lockSection = locked === true && GUEST_LOCKED_LEVEL4_SECTIONS.includes(section.dataset?.level4Section);
+        const lockSection = locked === true && lockedSections.includes(section.dataset?.level4Section);
         for (const body of section.querySelectorAll('.menu-section')) {
             body.inert = lockSection;
         }

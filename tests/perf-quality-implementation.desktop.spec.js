@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { test, expect } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { openCustomSubmenu, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 // Compare production uploads with a full-upload reference and verify GPU bytes and pixels.
 test.describe.configure({ timeout: 360000 });
@@ -19,7 +19,7 @@ for (const mapKey of ['standard', 'cherry_grove', 'dandelion_sky']) {
             window.webContents.setBackgroundThrottling(false);
         });
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)');
         await page.selectOption('#map-select', mapKey);
         await page.evaluate(() => {

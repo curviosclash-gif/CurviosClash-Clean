@@ -59,17 +59,6 @@ function transformUiManager(source) {
     );
 }
 
-export function transformMenuDevPanelBindings(source) {
-    const result = replaceRequired(
-        source,
-        "from './MenuDeveloperStateSync.js';",
-        "from '../../product/GameDistributionToolingAdapter.js';",
-        'developer menu binding adapter'
-    );
-    assert.doesNotMatch(result, /MenuDeveloperStateSync/);
-    return result;
-}
-
 function transformSettingsManager(source) {
     return replaceRequired(
         source,
@@ -180,18 +169,16 @@ export function transformElectronPreload(source) {
 }
 
 function transformIndexHtml(source) {
+    // The game distribution ships neither the editors nor developer functions: no tools screen, no entry to it.
     let result = source;
-    result = result.replace(/\s*<button type="button" id="btn-open-expert"[\s\S]*?<\/button>\s*<button type="button" id="btn-expert-lock-quick"[\s\S]*?<\/button>/, '');
-    result = result.replace(/\s*<div class="btn-group secondary-btn-spaced">\s*<button type="button" id="btn-open-editor"[\s\S]*?<\/div>/, '');
-    result = result.replace(/\s*<!-- ======= SUBMENU: EXPERT ======= -->[\s\S]*?<!-- ======= SUBMENU: BENUTZERDEFINIERT ======= -->/, '\n                <!-- ======= SUBMENU: BENUTZERDEFINIERT ======= -->');
-    result = result.replace(/\s*<!-- ======= SUBMENU: DEBUG \/ INFO ======= -->[\s\S]*?(?=\s*<!-- ======= SUBMENU:)/, '');
+    result = result.replace(/\s*<button type="button" id="btn-main-tools"[\s\S]*?<\/button>/, '');
+    result = result.replace(/\s*<!-- ======= SUBMENU: WERKZEUGE ======= -->[\s\S]*?(?=\s*<!-- ======= SUBMENU: INFO ======= -->)/, '');
     return result;
 }
 
 function transformGameFile(relativePath, source) {
     if (relativePath === 'src/core/main.js') return transformCoreMain(source);
     if (relativePath === 'src/ui/UIManager.js') return transformUiManager(source);
-    if (relativePath === 'src/ui/menu/MenuDevPanelBindings.js') return transformMenuDevPanelBindings(source);
     if (relativePath === 'src/core/SettingsManager.js') return transformSettingsManager(source);
     if (relativePath === 'src/shared/storage/StorageKeys.js') {
         return source.replace(

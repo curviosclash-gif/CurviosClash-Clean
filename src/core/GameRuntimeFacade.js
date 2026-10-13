@@ -414,6 +414,10 @@ export class GameRuntimeFacade {
         return this.menuActionHandler.handleModePathChange(event);
     }
 
+    handleFreePlayVariantChange(event) {
+        return this.menuActionHandler.handleFreePlayVariantChange(event);
+    }
+
     handleQuickStartLastStart() {
         return this.menuActionHandler.handleQuickStartLastStart();
     }
@@ -438,20 +442,8 @@ export class GameRuntimeFacade {
         return this.menuActionHandler.handleLevel4Close();
     }
 
-    handleLevel4Reset() {
-        return this.menuActionHandler.handleLevel4Reset();
-    }
-
-    handleConfigExportCode() {
-        return this.menuActionHandler.handleConfigExportCode();
-    }
-
-    handleConfigExportJson() {
-        return this.menuActionHandler.handleConfigExportJson();
-    }
-
-    handleConfigImport(event) {
-        return this.menuActionHandler.handleConfigImport(event);
+    handleLevel4Reset(event) {
+        return this.menuActionHandler.handleLevel4Reset(event);
     }
 
     applyMenuPreset(event) {

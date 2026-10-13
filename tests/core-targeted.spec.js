@@ -3,7 +3,6 @@ import {
     expect,
     CONFIG,
     collectErrors,
-    lockExpertMode,
     loadGame,
     openCustomSubmenu,
     openDebugSubmenu,
@@ -17,7 +16,6 @@ import {
     returnToMenu,
     startGame,
     startGameWithBots,
-    unlockExpertMode,
     createMapDocument,
     parseMapJSON,
     stringifyMapDocument,
@@ -301,7 +299,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         expect(probe.currentMapKey).toBe(glbMapKey);
         expect(probe.overlayVisibleDuringStart).toBeTruthy();
         expect(probe.loadingText).toContain('GLB');
-        expect(probe.loadingSub).toContain('GLB');
+        expect(probe.loadingSub).toContain('Tipp:');
         expect(probe.glbScenePresent).toBeTruthy();
         expect(probe.glbChildCount).toBeGreaterThanOrEqual(1);
         expect(probe.glbError).toBe('');

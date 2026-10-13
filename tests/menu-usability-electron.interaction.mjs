@@ -48,7 +48,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
                 else delete navigator.getGamepads;
             }
         }, index);
-        await expect(page.locator('#btn-quick-last-settings')).toContainText('Sofort spielen');
+        await expect(page.locator('#btn-quick-last-settings')).toContainText('Weiterspielen');
         await expect(page.locator('#quick-last-summary')).toContainText('Schwer');
         await capture('home');
         await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -58,7 +58,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
             await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), size);
             await expect(page.locator('#btn-quick-last-settings')).toBeInViewport();
             await expect(page.locator('[data-session-type="splitscreen"]')).toBeInViewport();
-            await expect(page.locator('.menu-utility-shell [data-level4-section="utilities"]')).toBeInViewport();
+            await expect(page.locator('#btn-main-tools')).toBeInViewport();
             await capture('home-' + size[0]);
         }
         await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1280, 720));
@@ -83,7 +83,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         assert.ok(reachability.count >= 10);
         assert.deepEqual(reachability.missing, []);
 
-        const settingsEntry = page.locator('.menu-utility-shell [data-level4-section="gameplay"]');
+        const settingsEntry = page.locator('.menu-top-right .menu-settings-entry');
         await settingsEntry.click();
         await expect(page.locator('#submenu-level4')).toBeVisible();
         await page.locator('#level4-tab-audio').click();
@@ -94,13 +94,13 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await expect(settingsEntry).toBeFocused();
 
         await page.locator('[data-session-type="single"]').click();
-        for (const mode of ['arcade', 'fight', 'normal']) {
-            await expect(page.locator(`[data-mode-path="${mode}"] .menu-choice-copy`)).toBeVisible();
+        for (const card of ['[data-mode-path="arcade"]', '#btn-free-play']) {
+            await expect(page.locator(`#submenu-custom ${card} .menu-choice-copy`)).toBeVisible();
         }
         await capture('styles');
-        await page.locator('[data-mode-path="normal"]').click();
+        await page.locator('#btn-free-play').click();
         await page.keyboard.press('Escape');
-        await expect(page.locator('[data-mode-path="normal"]')).toBeFocused();
+        await expect(page.locator('#btn-free-play')).toBeFocused();
         await page.keyboard.press('Enter');
         await page.locator('.start-step-tab[data-start-section-target="match"]').click();
         await expect(page.locator('#menu-selection-summary')).toContainText('2 Bots · Schwer · 5 Siege');
@@ -136,13 +136,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await expect(volume).not.toBeFocused();
         const audioValue = await volume.inputValue();
 
-        await page.locator('#level4-tab-gameplay').click();
-        const combat = page.locator('#level4-group-combat');
-        await combat.locator('summary').focus();
-        await gamepad(0);
-        await expect(combat).toHaveJSProperty('open', true);
-        await gamepad(13);
-        await expect(page.locator('#fire-rate-slider')).toBeFocused();
+        await page.locator('#level4-tab-graphics').click();
         await page.locator('#btn-level4-reset').click();
         await expect(page.locator('#btn-level4-reset')).toHaveAttribute('data-reset-armed', 'true');
         await page.locator('#btn-level4-reset').click();
@@ -252,7 +246,7 @@ test('desktop LAN lobby creates, joins, readies, starts and leaves through menu 
         await host.locator('#btn-lobby-edit-match').click();
         await expect(host.locator('#submenu-game')).toBeVisible();
         await host.locator('#btn-setup-mode').click();
-        await host.locator('[data-mode-path="normal"]').click();
+        await host.locator('#btn-free-play').click();
         await host.locator('#map-select').selectOption('maze');
         await host.locator('.start-step-tab[data-start-section-target="match"]').click();
         await host.locator('#bot-difficulty').selectOption('EASY');

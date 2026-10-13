@@ -595,14 +595,14 @@ test('Unified Mobile Android preserves an authoritative LAN multiplayer snapshot
 
 test('Unified Mobile Android Level 4 keeps the shared game menu copy', () => {
   const nodesById = new Map([
-    ['btn-open-level4', { textContent: 'Erweiterte Optionen', dataset: { level4Section: LEVEL4_SECTION_IDS.GAMEPLAY } }],
+    ['btn-open-level4', { textContent: 'Erweiterte Optionen', dataset: { level4Section: LEVEL4_SECTION_IDS.CONTROLS } }],
     ['level4-tab-mobile-controls', { textContent: 'Mobile' }],
-    ['level4-tab-gameplay', { textContent: 'Gameplay' }],
+    ['level4-tab-controls', { textContent: 'Steuerung' }],
   ]);
   const nodesBySelector = new Map([
     ['#submenu-level4 .level4-header .submenu-title', { textContent: 'Erweiterte Optionen' }],
     ['#level4-section-mobile-controls .section-title', { textContent: 'Mobile-Feineinstellung' }],
-    ['#level4-section-gameplay .section-title', { textContent: 'Spieloptionen' }],
+    ['#level4-section-controls .section-title', { textContent: 'Steuerung' }],
   ]);
   const doc = {
     documentElement: {
@@ -633,12 +633,12 @@ test('Unified Mobile Android Level 4 keeps the shared game menu copy', () => {
   });
 
   assert.equal(nodesById.get('btn-open-level4').textContent, 'Erweiterte Optionen');
-  assert.equal(nodesById.get('btn-open-level4').dataset.level4Section, LEVEL4_SECTION_IDS.GAMEPLAY);
+  assert.equal(nodesById.get('btn-open-level4').dataset.level4Section, LEVEL4_SECTION_IDS.CONTROLS);
   assert.equal(nodesBySelector.get('#submenu-level4 .level4-header .submenu-title').textContent, 'Erweiterte Optionen');
   assert.equal(nodesById.get('level4-tab-mobile-controls').textContent, 'Mobile');
-  assert.equal(nodesById.get('level4-tab-gameplay').textContent, 'Gameplay');
+  assert.equal(nodesById.get('level4-tab-controls').textContent, 'Steuerung');
   assert.equal(nodesBySelector.get('#level4-section-mobile-controls .section-title').textContent, 'Mobile-Feineinstellung');
-  assert.equal(nodesBySelector.get('#level4-section-gameplay .section-title').textContent, 'Spieloptionen');
+  assert.equal(nodesBySelector.get('#level4-section-controls .section-title').textContent, 'Steuerung');
 });
 
 test('Mobile Classic GitHub update config resolves repository metadata', () => {
@@ -1504,11 +1504,9 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   for (const desktopFeature of [
     '#btn-multiplayer-host',
     '#btn-multiplayer-transport-online',
-    'data-mode-path="fight"',
-    '#btn-open-expert',
-    '#btn-open-debug',
+    '#btn-free-play',
+    '#btn-main-tools',
     '#arcade-ghost-duel-row',
-    '#fight-player-hp-setting',
     '#multiplayer-share-card',
     '#btn-multiplayer-start',
   ]) {

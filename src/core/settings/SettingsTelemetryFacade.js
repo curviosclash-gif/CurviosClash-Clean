@@ -177,6 +177,7 @@ function normalizeFunnelSnapshot(source = null) {
     const rounds = toNonNegativeInt(eventCounts.round_end, 0);
     const matches = toNonNegativeInt(eventCounts.match_end, 0);
     const aborts = toNonNegativeInt(eventCounts.abort, 0);
+    const samples = toNonNegativeInt(value.matchPathSamples, 0);
     return {
         eventCounts,
         abortReasonCounts: normalizeCountMap(value.abortReasonCounts),
@@ -185,6 +186,11 @@ function normalizeFunnelSnapshot(source = null) {
         startToRoundRate: attempts > 0 ? Math.min(1, rounds / attempts) : 0,
         startToMatchRate: attempts > 0 ? Math.min(1, matches / attempts) : 0,
         abortRate: attempts > 0 ? Math.min(1, aborts / attempts) : 0,
+        // Menu path to the match start (MenuFunnelContract): click buckets and averages.
+        clicksToMatchCounts: normalizeCountMap(value.clicksToMatchCounts),
+        matchPathSamples: samples,
+        averageClicksToMatch: samples > 0 ? toNonNegativeNumber(value.clicksToMatchSum, 0) / samples : 0,
+        averageDurationToMatchMs: samples > 0 ? toNonNegativeNumber(value.durationToMatchMsSum, 0) / samples : 0,
     };
 }
 

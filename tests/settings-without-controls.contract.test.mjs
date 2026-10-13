@@ -7,7 +7,6 @@ import { SETTINGS_LIMITS } from '../src/shared/contracts/SettingsRuntimeContract
 import { resolveSyncMethodNamesForChangeKeys } from '../src/ui/UISettingsSyncMap.js';
 import { bindArcadeRunSettings, syncArcadeRunSettings } from '../src/ui/menu/MenuArcadeRunSettingsBindings.js';
 import { bindBotHeuristicControls, syncBotHeuristicControls } from '../src/ui/menu/MenuBotHeuristicBindings.js';
-import { bindTrailLengthControl, syncTrailLengthControl } from '../src/ui/menu/MenuTrailLengthControl.js';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -25,30 +24,8 @@ function createHarness() {
 const input = (id, value = '') => ({ id, value: String(value), checked: false, min: '', max: '', step: '' });
 const label = () => ({ textContent: '' });
 
-test('trail length has a slider next to the trail width in the game rules tab', () => {
-    const gameplay = html.match(/<section id="level4-section-gameplay"[\s\S]*?<\/section>/)?.[0] || '';
-    assert.match(gameplay, /id="trail-width-slider"[\s\S]{0,400}id="trail-length-slider"/);
-});
-
-test('the trail length slider writes the setting and the setting fills the slider', () => {
-    const harness = createHarness();
-    const ui = { trailLengthSlider: input('trail-length-slider'), trailLengthLabel: label() };
-    const settings = { gameplay: { trailLength: 5000 } };
-    const limits = SETTINGS_LIMITS.gameplay.trailLength;
-    bindTrailLengthControl({ ui, settings, bind: harness.bind, limits, emit: harness.emit, keys: SETTINGS_CHANGE_KEYS });
-    ui.trailLengthSlider.value = '99999';
-    harness.fire(ui.trailLengthSlider, 'input');
-    assert.equal(settings.gameplay.trailLength, limits.max, 'clamped to the contract range');
-    assert.deepEqual(harness.emitted, [SETTINGS_CHANGE_KEYS.GAMEPLAY_TRAIL_LENGTH]);
-
-    settings.gameplay.trailLength = 3200;
-    syncTrailLengthControl(ui, settings, limits);
-    assert.equal(ui.trailLengthSlider.value, '3200');
-    assert.equal(ui.trailLengthLabel.textContent, '3200 Segmente');
-});
-
-test('the expert area carries the arcade fine values and the bot heuristic', () => {
-    const expert = html.match(/<div id="expert-unlocked-state"[\s\S]*?<!-- ======= SUBMENU: BENUTZERDEFINIERT/)?.[0] || '';
+test('the developer block of the tools screen carries the arcade fine values and the bot heuristic', () => {
+    const expert = html.match(/<div id="tools-developer-block"[\s\S]*?<!-- ======= SUBMENU: INFO/)?.[0] || '';
     for (const id of ['arcade-intermission-slider', 'arcade-combo-decay-slider', 'arcade-replay-hooks-toggle',
         'bot-heuristic-profile-select', 'bot-heuristic-aggression-slider', 'bot-heuristic-survival-slider']) {
         assert.match(expert, new RegExp(`id="${id}"`), id);

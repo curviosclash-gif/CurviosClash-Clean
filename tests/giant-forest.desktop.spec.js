@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { selectSessionType, waitForLoadedGame } from './helpers.js';
+import { selectSessionType, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import {
     CANOPY_DECK,
@@ -36,7 +36,7 @@ function world([x, y, z]) {
 async function startMatch(page) {
     await waitForLoadedGame(page);
     await selectSessionType(page, 'single');
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
     const offered = await page.locator(`#map-select option[value="${MAP_KEY}"]`).count();
     expect(offered, `the map picker has to offer "${MAP_KEY}" (BASE_MAP_KEYS)`).toBe(1);

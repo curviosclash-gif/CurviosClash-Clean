@@ -300,6 +300,35 @@ export async function selectSessionType(page, sessionType = 'single') {
     await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: buttonTimeoutMs });
 }
 
+const FREE_PLAY_VARIANT_BY_MODE_PATH = Object.freeze({ normal: 'classic', fight: 'ffa' });
+
+// Picks a mode path from the hub: arcade is a hub card, normal and fight are free play variants.
+export async function chooseMenuModePath(page, modePath) {
+    const variant = FREE_PLAY_VARIANT_BY_MODE_PATH[modePath];
+    if (variant) {
+        await chooseFreePlayVariant(page, variant);
+        return;
+    }
+    await page.locator(`#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]`).click({ force: true });
+}
+
+// Opens free play from the hub (single player or shared screen) and picks a variant:
+// ffa, team, flags, escort or classic.
+export async function chooseFreePlayVariant(page, variant = 'ffa') {
+    const entry = page.locator('#submenu-custom:not(.hidden) #btn-free-play').first();
+    if (await entry.count()) {
+        await entry.click({ force: true });
+    }
+    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    const button = page.locator(`#submenu-game:not(.hidden) [data-free-play-variant="${variant}"]`).first();
+    if ((await button.getAttribute('aria-pressed')) !== 'true') {
+        await button.click({ force: true });
+    }
+    await page.waitForFunction((expected) => (
+        document.querySelector(`#submenu-game [data-free-play-variant="${expected}"]`)?.getAttribute('aria-pressed') === 'true'
+    ), variant, { timeout: 5000 });
+}
+
 async function openViaNavigationRuntime(page, submenuId) {
     const opened = await page.evaluate((panelId) => {
         const runtime = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime;
@@ -319,30 +348,17 @@ export async function openSubmenu(page, submenuId, options = {}) {
 
     if (submenuId === 'submenu-game') {
         await selectSessionType(page, options.sessionType || 'single');
-        let modePathButton = page
-            .locator('#submenu-custom:not(.hidden) [data-mode-path="normal"]:visible:not([disabled])')
-            .first();
-        if (await modePathButton.count()) {
-            await modePathButton.click({ force: true });
+        const freePlayButton = page.locator('#submenu-custom:not(.hidden) #btn-free-play:visible:not([disabled])').first();
+        if (await freePlayButton.count()) {
+            await chooseFreePlayVariant(page, 'classic');
         } else {
-            const openedCustomSetupStep = await openCustomSetupStep(page);
-            if (openedCustomSetupStep) {
-                modePathButton = page
-                    .locator('#submenu-custom:not(.hidden) [data-mode-path="normal"]:visible:not([disabled])')
-                    .first();
-            }
-
-            if (await modePathButton.count()) {
-                await modePathButton.click({ force: true });
+            const submenuButton = page
+                .locator('#submenu-custom:not(.hidden) [data-menu-step-target="submenu-game"]:visible:not([disabled])')
+                .first();
+            if (await submenuButton.count()) {
+                await submenuButton.click({ force: true });
             } else {
-                const submenuButton = page
-                    .locator('#submenu-custom:not(.hidden) [data-menu-step-target="submenu-game"]:visible:not([disabled])')
-                    .first();
-                if (await submenuButton.count()) {
-                    await submenuButton.click({ force: true });
-                } else {
-                    await openViaNavigationRuntime(page, 'submenu-game');
-                }
+                await openViaNavigationRuntime(page, 'submenu-game');
             }
         }
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
@@ -485,6 +501,11 @@ export async function openLevel4Drawer(page, options = {}) {
     }
     await page.click('#btn-open-level4');
     await page.waitForSelector('#submenu-level4:not(.hidden)', { timeout: 4000 });
+    if (options.backups) {
+        // Saved settings sit in the drawer footer behind "Sichern / Laden".
+        await page.click('#btn-level4-backups');
+        await page.waitForSelector('#level4-backups:not([hidden])', { timeout: 4000 });
+    }
     if (options.section) {
         const sectionId = String(options.section).trim();
         await page.click(`#submenu-level4 [data-level4-section-target="${sectionId}"]`);
@@ -492,88 +513,63 @@ export async function openLevel4Drawer(page, options = {}) {
     }
 }
 
-export async function openExpertSubmenu(page) {
-    const expertPanel = page.locator('#submenu-expert');
-    if (await expertPanel.count()) {
-        const isVisible = await expertPanel.isVisible().catch(() => false);
-        if (isVisible) return;
-    }
+// The tools screen is the one way into editors and developer functions (no password any more).
+// Playwright starts Electron from source, which is the development environment, so the
+// developer block (#tools-developer-block) is visible in these runs.
+export async function openToolsSubmenu(page) {
+    const toolsPanel = page.locator('#submenu-tools');
+    if (await toolsPanel.isVisible().catch(() => false)) return;
     const level4DrawerVisible = await page.locator('#submenu-level4:not(.hidden)').count();
     if (level4DrawerVisible) {
-        const closeDrawer = async () => {
-            const drawer = document.getElementById('submenu-level4');
-            if (!drawer || drawer.classList.contains('hidden')) return true;
-            window.GAME_INSTANCE?.uiManager?.setLevel4Open?.(false);
-            return !!drawer.classList.contains('hidden');
-        };
         const closeButton = page.locator('#btn-close-level4').first();
         if (await closeButton.count()) {
             await closeButton.click({ force: true }).catch(() => {});
         }
-        const drawerHiddenAfterClick = await page.evaluate(closeDrawer);
-        if (!drawerHiddenAfterClick) {
-            await page.waitForFunction(closeDrawer, null, { timeout: 4000 });
-        }
+        await page.waitForFunction(() => {
+            const drawer = document.getElementById('submenu-level4');
+            if (!drawer || drawer.classList.contains('hidden')) return true;
+            window.GAME_INSTANCE?.uiManager?.setLevel4Open?.(false);
+            return drawer.classList.contains('hidden');
+        }, null, { timeout: 4000 });
     }
-    const expertButton = page.locator('#btn-open-expert').first();
-    if (await expertButton.count()) {
-        await expertButton.waitFor({ state: 'visible', timeout: 4000 });
+    const toolsButton = page.locator('#btn-main-tools').first();
+    if (await toolsButton.count()) {
+        await toolsButton.waitFor({ state: 'visible', timeout: 4000 });
         for (let attempt = 0; attempt < 3; attempt += 1) {
-            await expertButton.click({ force: true });
-            const panelVisible = await expertPanel.isVisible().catch(() => false);
-            if (panelVisible) return;
+            await toolsButton.click({ force: true });
+            if (await toolsPanel.isVisible().catch(() => false)) return;
             try {
-                await openViaNavigationRuntime(page, 'submenu-expert');
+                await openViaNavigationRuntime(page, 'submenu-tools');
                 return;
             } catch {
                 await page.waitForTimeout(150 * (attempt + 1));
             }
         }
     } else {
-        await openViaNavigationRuntime(page, 'submenu-expert');
+        await openViaNavigationRuntime(page, 'submenu-tools');
         return;
     }
-    await page.waitForSelector('#submenu-expert:not(.hidden)', { timeout: 4000 });
+    await page.waitForSelector('#submenu-tools:not(.hidden)', { timeout: 4000 });
 }
 
-export async function unlockExpertMode(page, password = '1307') {
-    const isUnlocked = await page.evaluate(() => !!window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.());
-    if (isUnlocked) return;
-    await openExpertSubmenu(page);
-    await page.fill('#expert-password-input', password);
-    await page.click('#btn-expert-unlock');
-    await page.waitForFunction(() => !!window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.(), null, { timeout: 4000 });
+export async function openInfoSubmenu(page) {
+    if (await page.locator('#submenu-info').isVisible().catch(() => false)) return;
+    await page.click('#btn-main-info');
+    await page.waitForSelector('#submenu-info:not(.hidden)', { timeout: 4000 });
 }
 
-export async function lockExpertMode(page) {
-    await openExpertSubmenu(page);
-    const isUnlocked = await page.evaluate(() => !!window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.());
-    if (!isUnlocked) return;
-    await page.click('#btn-expert-lock');
-    await page.waitForFunction(() => !window.GAME_INSTANCE?.menuExpertLoginRuntime?.isUnlocked?.(), null, { timeout: 4000 });
-}
-
-export async function openDeveloperSubmenu(page) {
-    await unlockExpertMode(page);
-    await openExpertSubmenu(page);
-    await page.click('#btn-open-developer');
-    await page.waitForSelector('#submenu-developer:not(.hidden)', { timeout: 4000 });
-}
-
-export async function openDebugSubmenu(page) {
-    await unlockExpertMode(page);
-    await openExpertSubmenu(page);
-    await page.click('#btn-open-debug');
-    await page.waitForSelector('#submenu-debug:not(.hidden)', { timeout: 4000 });
-}
+// Older specs reach the developer functions through these names; they all land on the tools screen now.
+export const openExpertSubmenu = openToolsSubmenu;
+export const openDeveloperSubmenu = openToolsSubmenu;
+export const openDebugSubmenu = openToolsSubmenu;
 
 const MENU_SCREEN_OPENERS = Object.freeze({
     modeChoice: (page) => openCustomSubmenu(page),
     freeplay: (page, options) => openGameSubmenu(page, options),
     lobby: (page, options) => openMultiplayerSubmenu(page, options),
     settings: (page, options) => openLevel4Drawer(page, options),
-    expert: (page) => openExpertSubmenu(page),
-    debug: (page) => openDebugSubmenu(page),
+    tools: (page) => openToolsSubmenu(page),
+    info: (page) => openInfoSubmenu(page),
 });
 
 // Opens a menu screen by name; the panel id lives only in tests/support/menu-screens.js.
@@ -655,6 +651,11 @@ async function openCustomSetupStep(page) {
 }
 
 async function selectModePath(page, modePath) {
+    const freePlayVariant = FREE_PLAY_VARIANT_BY_MODE_PATH[modePath];
+    if (freePlayVariant) {
+        await chooseFreePlayVariant(page, freePlayVariant);
+        return;
+    }
     const modePathSelector = `#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]:visible:not([disabled])`;
     let modeButton = page.locator(modePathSelector).first();
     if (!(await modeButton.count())) {

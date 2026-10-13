@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { captureReactorVideo } from './reactor-video-capture.mjs';
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 test('reactor plays one of four torus clouds with sound, flash and the enlarged ceiling', async ({ page }, testInfo) => {
     test.setTimeout(300_000);
@@ -10,7 +10,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
     page.on('console', (message) => { if (/WebGL/i.test(message.text())) glMessages.push(message.text()); });
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)');
     await page.selectOption('#map-select', 'reactor_site');
     await page.evaluate(() => {

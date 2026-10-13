@@ -16,6 +16,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     LOCAL_GRAPHICS_STYLE: 'local.graphicsStyle',
     LOCAL_MAP_BRIGHTNESS: 'local.mapBrightness',
     LOCAL_VIEW_DISTANCE: 'local.viewDistance',
+    LOCAL_MENU_SCALE: 'local.menuScale',
     LOCAL_SHADOW_QUALITY: 'local.shadowQuality',
     LOCAL_BLOOM_QUALITY: 'local.bloomQuality',
     LOCAL_GRAPHICS_QUALITY: 'local.graphicsQuality',

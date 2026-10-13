@@ -19,22 +19,25 @@ test('the built-in presets carry German names while their ids stay', () => {
     assert.deepEqual(names, ['Endlosjagd', 'Arcade Standard', 'Wettkampf', 'Chaos', 'Kampf Standard', 'Klassisch Standard']);
 });
 
-test('the options window is "Einstellungen" and the diagnosis area is "Expertenbereich"', () => {
+test('the options window is "Einstellungen" and the expert area is gone', () => {
     assert.equal(MENU_TEXT_CATALOG['menu.level4.title'], 'Einstellungen');
     assert.equal(MENU_TEXT_CATALOG['menu.level3.open_level4.label'], 'Einstellungen');
     assert.equal(MENU_TEXT_CATALOG['menu.context.level4.title'], 'Einstellungen');
-    assert.equal(MENU_TEXT_CATALOG['menu.expert.locked.title'], 'Expertenbereich');
+    assert.equal(MENU_TEXT_CATALOG['menu.expert.locked.title'], undefined);
     const allText = `${visibleHtmlText} ${Object.values(MENU_TEXT_CATALOG).join(' ')}`;
     assert.doesNotMatch(allText, /Erweiterte[nr]? (Optionen|Bereich)/u);
 });
 
-test('the profile page separates players from saved settings and explains both', () => {
-    const section = /<section id="level4-section-tools"[\s\S]*?<\/section>/u.exec(html)?.[0] || '';
-    const headings = Array.from(section.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>\s*<p class="menu-hint[^"]*"[^>]*>([^<]+)<\/p>/gu),
-        (match) => [match[1].replace(/<[^>]+>/gu, '').replace(/\s+/gu, ' ').trim().replace(/ i$/u, ''), match[2].trim()]);
+test('the player tab and the saved-settings area each explain themselves', () => {
+    const player = /<section id="level4-section-tools"[\s\S]*?<\/section>/u.exec(html)?.[0] || '';
+    const backups = /<div id="level4-backups"[\s\S]*?<div class="level4-footer-actions">/u.exec(html)?.[0] || '';
+    const headings = [player, backups].map((area) => {
+        const match = /<h2[^>]*>([\s\S]*?)<\/h2>\s*<p class="menu-hint[^"]*"[^>]*>([^<]+)<\/p>/u.exec(area);
+        return [match[1].replace(/<[^>]+>/gu, '').replace(/\s+/gu, ' ').trim().replace(/ i$/u, ''), match[2].trim()];
+    });
     assert.deepEqual(headings.map(([title]) => title), ['Spieler', 'Gespeicherte Einstellungen']);
     headings.forEach(([, sentence]) => assert.ok(sentence.length > 30, 'each area has an explaining sentence'));
-    assert.doesNotMatch(section.replace(/<[^>]+>/gu, ' '), /\bProfil/u, 'no "Profil" wording left on the page');
+    assert.doesNotMatch(`${player} ${backups}`.replace(/<[^>]+>/gu, ' '), /Profil/u, 'no "Profil" wording left on the page');
 });
 
 test('saved-settings messages no longer speak of a "Profil"', () => {
@@ -48,9 +51,7 @@ test('saved-settings messages no longer speak of a "Profil"', () => {
 test('menu surfaces use one German name for each shared concept', () => {
     const expected = {
         'menu.multiplayer.title': 'Mehrspieler',
-        'menu.level4.tabs.advanced_map.label': 'Karten-Details',
         'menu.level4.tools.vehicle_editor.label': 'Fahrzeug-Werkstatt öffnen',
-        'menu.level4.gameplay.item_amount.label': 'Gegenstände:',
         'menu.level1.splitscreen.label': 'Geteilter Bildschirm',
     };
     for (const [id, label] of Object.entries(expected)) assert.equal(MENU_TEXT_CATALOG[id], label, id);

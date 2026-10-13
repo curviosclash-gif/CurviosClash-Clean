@@ -168,7 +168,7 @@ export class FourPlayerPlanarSetupView {
         for (const sessionButton of Array.from(this.document.querySelectorAll('[data-session-type]'))) {
             this._listen(sessionButton, 'click', () => this._scheduleFrame(() => handlers.onSessionTypeChanged?.()));
         }
-        for (const standardModeButton of Array.from(this.document.querySelectorAll('#submenu-custom [data-mode-path]'))) {
+        for (const standardModeButton of Array.from(this.document.querySelectorAll('#submenu-custom [data-mode-path], #btn-free-play'))) {
             this._listen(standardModeButton, 'click', () => handlers.onStandardModeSelected?.());
         }
     }

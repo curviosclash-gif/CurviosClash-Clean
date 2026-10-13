@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 const MAP_KEY = 'pyramid';
 
@@ -20,7 +20,7 @@ function readRenderedFogHeightFalloff() {
 async function startPyramidSplitScreen(page) {
     await waitForLoadedGame(page);
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
     await page.selectOption('#map-select', MAP_KEY);
     await page.evaluate(() => {

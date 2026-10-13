@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.desktop.js';
-import { waitForLoadedGame, openCustomSubmenu } from './helpers.js';
+import { waitForLoadedGame, openCustomSubmenu, chooseFreePlayVariant } from './helpers.js';
 import {
     VEHICLE_LAB_CATALOG_STORAGE_KEY,
     saveVehicleLabCatalog,
@@ -125,7 +125,7 @@ test('T-ARC-R2: Arcade offers only the factory ships and starts a stored Lab bui
         await waitForLoadedGame(page);
         // Earlier tests leave the menu on the Arcade path, so pick Classic explicitly.
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await chooseFreePlayVariant(page, 'classic');
         await page.waitForSelector('#submenu-game:not(.hidden)');
         await expect(page.locator(`#vehicle-select-p1 option[value="${lab.vehicle.id}"]`), 'Classic keeps the Lab build').toHaveCount(1);
         await page.click('#submenu-game [data-back]');

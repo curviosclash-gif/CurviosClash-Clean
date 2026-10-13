@@ -10,8 +10,8 @@ export const MENU_STATE_IDS = Object.freeze({
     CONTROLS: 'controls',
     PROFILES: 'profiles',
     PORTALS: 'portals',
-    EXPERT: 'expert',
-    DEBUG: 'debug',
+    TOOLS: 'tools',
+    INFO: 'info',
 });
 
 const CUSTOM_FLOW_STATE_SET = new Set([
@@ -42,9 +42,9 @@ function createDefaultTransitionMap() {
             MENU_STATE_IDS.PROFILES,
             MENU_STATE_IDS.PORTALS,
             MENU_STATE_IDS.MULTIPLAYER,
-            MENU_STATE_IDS.EXPERT,
+            MENU_STATE_IDS.TOOLS,
+            MENU_STATE_IDS.INFO,
             MENU_STATE_IDS.DEVELOPER,
-            MENU_STATE_IDS.DEBUG,
         ])],
         [MENU_STATE_IDS.QUICKSTART, new Set([
             MENU_STATE_IDS.MAIN,
@@ -57,15 +57,19 @@ function createDefaultTransitionMap() {
             MENU_STATE_IDS.PROFILES,
             MENU_STATE_IDS.PORTALS,
             MENU_STATE_IDS.MULTIPLAYER,
-            MENU_STATE_IDS.EXPERT,
+            MENU_STATE_IDS.TOOLS,
+            MENU_STATE_IDS.INFO,
             MENU_STATE_IDS.DEVELOPER,
-            MENU_STATE_IDS.DEBUG,
         ])],
-        [MENU_STATE_IDS.EXPERT, new Set([
+        [MENU_STATE_IDS.TOOLS, new Set([
             MENU_STATE_IDS.MAIN,
-            MENU_STATE_IDS.EXPERT,
-            MENU_STATE_IDS.DEVELOPER,
-            MENU_STATE_IDS.DEBUG,
+            MENU_STATE_IDS.TOOLS,
+            MENU_STATE_IDS.INFO,
+        ])],
+        [MENU_STATE_IDS.INFO, new Set([
+            MENU_STATE_IDS.MAIN,
+            MENU_STATE_IDS.INFO,
+            MENU_STATE_IDS.TOOLS,
         ])],
         [MENU_STATE_IDS.MULTIPLAYER, new Set([
             MENU_STATE_IDS.MAIN,
@@ -73,25 +77,14 @@ function createDefaultTransitionMap() {
             MENU_STATE_IDS.PATH,
             MENU_STATE_IDS.START_SETUP,
             MENU_STATE_IDS.MULTIPLAYER,
-            MENU_STATE_IDS.DEBUG,
         ])],
         [MENU_STATE_IDS.DEVELOPER, new Set([
             MENU_STATE_IDS.MAIN,
             MENU_STATE_IDS.QUICKSTART,
             MENU_STATE_IDS.PATH,
             MENU_STATE_IDS.START_SETUP,
-            MENU_STATE_IDS.EXPERT,
+            MENU_STATE_IDS.TOOLS,
             MENU_STATE_IDS.DEVELOPER,
-            MENU_STATE_IDS.DEBUG,
-        ])],
-        [MENU_STATE_IDS.DEBUG, new Set([
-            MENU_STATE_IDS.MAIN,
-            MENU_STATE_IDS.QUICKSTART,
-            MENU_STATE_IDS.CUSTOM,
-            MENU_STATE_IDS.MULTIPLAYER,
-            MENU_STATE_IDS.EXPERT,
-            MENU_STATE_IDS.DEVELOPER,
-            MENU_STATE_IDS.DEBUG,
         ])],
     ]);
 }

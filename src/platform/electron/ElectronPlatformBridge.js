@@ -60,6 +60,18 @@ export function resolveElectronRuntimeSnapshot(runtimeGlobal = globalThis) {
 }
 
 /**
+ * True nur in der Entwicklungsumgebung des Desktops (Start aus dem Quellcode oder mit
+ * --dev-tools). Der Hauptprozess entscheidet, das Preload reicht es durch.
+ *
+ * @param {typeof globalThis} [runtimeGlobal]
+ * @returns {boolean}
+ */
+export function resolveElectronDeveloperEnvironment(runtimeGlobal = globalThis) {
+    const { appRuntime } = resolveAppRuntime(runtimeGlobal);
+    return appRuntime?.developerEnvironment === true;
+}
+
+/**
  * Die im Desktop gespeicherten Editor-Karten (userData/maps), so wie der
  * Hauptprozess sie beim Start liefert. Ausserhalb des Desktops: leer.
  *

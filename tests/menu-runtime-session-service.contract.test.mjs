@@ -279,55 +279,59 @@ test('handleQuickStartRandomStartAction handles a rejecting match start without 
     assert.equal(calls.toasts[0]?.tone, 'error');
 });
 
-test('handleLevel4ResetAction preserves audio, HUD and controls when resetting game, graphics and recording options', () => {
+test('handleLevel4ResetAction resets only the tab named in the event', () => {
     const defaults = {
-        gameplay: { speed: 35, portalCount: 8 },
+        localSettings: { shadowQuality: 3, bloomQuality: 0, graphicsQuality: 'auto', mapBrightness: 'mittel', viewDistance: 0, menuScale: 100, audio: { masterVolume: 1 }, hud: { scale: 1 } },
         controls: { PLAYER_1: { LEFT: 'KeyA' } },
-        localSettings: { shadowQuality: 3, bloomQuality: 0 },
-        portalsEnabled: true,
+        gameplay: { speed: 35 },
         autoRoll: true,
-        invertPitch: { PLAYER_1: true, PLAYER_2: true },
-        cockpitCamera: { PLAYER_1: true, PLAYER_2: true },
-        cameraPerspective: { normal: 'classic', reduceMotion: true },
-        recording: { profile: 'standard', hudMode: 'clean' },
+        invertPitch: { PLAYER_1: true },
+        cockpitCamera: { PLAYER_1: true },
+        cameraPerspective: { normal: 'classic' },
+        recording: { profile: 'standard' },
     };
     const changed = [];
     const toasts = [];
     const game = {
         settings: {
-            gameplay: { speed: 12, portalCount: 2 },
+            gameplay: { speed: 12 },
             controls: { PLAYER_1: { LEFT: 'ArrowLeft' } },
-            localSettings: { shadowQuality: 0, bloomQuality: 2, audio: { masterVolume: 0.42 }, hud: { scale: 1.2 } },
-            portalsEnabled: false,
+            localSettings: { shadowQuality: 0, bloomQuality: 2, menuScale: 130, audio: { masterVolume: 0.42 }, hud: { scale: 1.2 } },
             autoRoll: false,
-            invertPitch: { PLAYER_1: false, PLAYER_2: false },
-            cockpitCamera: { PLAYER_1: false, PLAYER_2: false },
-            cameraPerspective: { normal: 'cinematic_action', reduceMotion: false },
-            recording: { profile: 'youtube_short', hudMode: 'with_hud' },
+            invertPitch: { PLAYER_1: false },
+            cockpitCamera: { PLAYER_1: false },
+            cameraPerspective: { normal: 'cinematic_action' },
+            recording: { profile: 'youtube_short' },
         },
-        settingsManager: {
-            createDefaultSettings: () => structuredClone(defaults),
-        },
-        _showStatusToast(message, duration, tone) {
-            toasts.push({ message, duration, tone });
-        },
+        settingsManager: { createDefaultSettings: () => structuredClone(defaults) },
+        _showStatusToast(message, duration, tone) { toasts.push({ message, duration, tone }); },
     };
-
-    handleLevel4ResetAction({
+    const reset = (sectionId) => handleLevel4ResetAction({
         game,
-        onSettingsChanged(payload) {
-            changed.push(payload);
-        },
+        event: sectionId === undefined ? null : { sectionId },
+        onSettingsChanged(payload) { changed.push(payload); },
     });
 
-    assert.deepEqual(game.settings.gameplay, defaults.gameplay);
-    assert.deepEqual(game.settings.cameraPerspective, defaults.cameraPerspective);
-    assert.deepEqual(game.settings.recording, defaults.recording);
-    assert.equal(game.settings.localSettings.bloomQuality, 0);
-    assert.deepEqual(game.settings.controls, { PLAYER_1: { LEFT: 'ArrowLeft' } });
-    assert.equal(game.settings.portalsEnabled, false);
+    reset(undefined);
+    reset('tools');
+    assert.equal(changed.length, 0, 'no tab, or a tab without reset, changes nothing');
+
+    reset('graphics');
+    assert.equal(game.settings.localSettings.shadowQuality, 3);
+    assert.equal(game.settings.localSettings.menuScale, 100);
+    // The video perspective belongs to the recording tab and stays.
+    assert.deepEqual(game.settings.cameraPerspective, { normal: 'cinematic_action' });
+    assert.deepEqual(game.settings.cockpitCamera, defaults.cockpitCamera);
+    assert.deepEqual(game.settings.recording, { profile: 'youtube_short' });
+    assert.equal(game.settings.autoRoll, false);
     assert.deepEqual(game.settings.localSettings.audio, { masterVolume: 0.42 });
     assert.deepEqual(game.settings.localSettings.hud, { scale: 1.2 });
+    assert.deepEqual(game.settings.gameplay, { speed: 12 });
+    assert.deepEqual(game.settings.controls, { PLAYER_1: { LEFT: 'ArrowLeft' } });
     assert.equal(changed.length, 1);
-    assert.match(toasts[0]?.message || '', /Spieloptionen zurückgesetzt/);
+    assert.equal(toasts[0]?.message, 'Grafik & Kamera zurückgesetzt');
+
+    reset('audio');
+    assert.deepEqual(game.settings.localSettings.audio, defaults.localSettings.audio);
+    assert.deepEqual(game.settings.localSettings.hud, { scale: 1.2 });
 });

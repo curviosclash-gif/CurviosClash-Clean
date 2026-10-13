@@ -9,7 +9,7 @@ import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { openCustomSubmenu, openGameSubmenu, openLevel4Drawer, openStartSetupSection, selectSessionType, startGameFromMenu } from '../../tests/helpers.js';
+import { chooseFreePlayVariant, openCustomSubmenu, openGameSubmenu, openLevel4Drawer, openStartSetupSection, selectSessionType, startGameFromMenu } from '../../tests/helpers.js';
 import * as D from './playtest-driver.mjs';
 import { cancellableSleep, throwIfCancelled } from './playtest-jobs.mjs';
 import { leaveAsGuest, openLanMatch, proveGuestInput, proveRemoteTurn } from './playtest-lan.mjs';
@@ -181,9 +181,10 @@ export function scenarioEditorRoundTrip(run, session, context) {
     const mapKey = `editor_${mapName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     return runSteps(session, context, async (steps) => {
         let editor = null;
-        await steps.run('open the map editor from the utilities drawer', async () => {
+        await steps.run('open the map editor from the tools screen', async () => {
             await toMainMenu(session);
-            await openLevel4Drawer(session.page, { section: 'utilities' });
+            await session.page.locator('#btn-main-tools').click({ timeout: 10_000 });
+            await session.page.locator('#submenu-tools:not(.hidden)').waitFor({ timeout: 10_000 });
             const popup = session.page.waitForEvent('popup', { timeout: 30_000 });
             await session.page.locator('#btn-open-editor').click({ timeout: 10_000 });
             editor = await popup;
@@ -246,7 +247,7 @@ export function scenarioEditorRoundTrip(run, session, context) {
             await openGameSubmenu(session.page).catch(() => {});
             await session.page.locator('#submenu-game:not(.hidden) [data-back]').click({ timeout: 10_000 }).catch(() => {});
             await openCustomSubmenu(session.page);
-            await session.page.locator('#submenu-custom:not(.hidden) [data-mode-path="normal"]').click({ timeout: 10_000 });
+            await chooseFreePlayVariant(session.page, 'classic');
             await session.page.locator(`#map-select option[value="${mapKey}"]`).waitFor({ state: 'attached', timeout: 15_000 });
         });
         await steps.run('play the saved map', async () => {
@@ -346,7 +347,7 @@ export function scenarioSplitscreen(run, session, context) {
         await steps.run('start a splitscreen match from the menu', async () => {
             await toMainMenu(session);
             await selectSessionType(session.page, 'splitscreen');
-            await session.page.locator('#submenu-custom:not(.hidden) [data-mode-path="normal"]').click({ timeout: 10_000 });
+            await chooseFreePlayVariant(session.page, 'classic');
             await session.page.locator('#submenu-game:not(.hidden) #btn-start').click({ timeout: 10_000 });
             await session.page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING' && (window.GAME_INSTANCE.entityManager?.humanPlayers?.length || 0) >= 2, null, { timeout: 60_000 });
         });

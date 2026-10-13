@@ -3,6 +3,7 @@
  * @property {string} [preload]
  * @property {boolean} [sandbox]
  * @property {boolean} [backgroundThrottling]
+ * @property {string[]} [additionalArguments]
  */
 
 /** @param {SecureWindowWebPreferencesOptions} [options] */
@@ -10,6 +11,7 @@ function createSecureWindowWebPreferences({
     preload,
     sandbox = true,
     backgroundThrottling = false,
+    additionalArguments = [],
 } = {}) {
     return Object.freeze({
         preload,
@@ -17,6 +19,7 @@ function createSecureWindowWebPreferences({
         nodeIntegration: false,
         sandbox: sandbox === true,
         backgroundThrottling: backgroundThrottling === true,
+        ...(Array.isArray(additionalArguments) && additionalArguments.length > 0 ? { additionalArguments } : {}),
     });
 }
 

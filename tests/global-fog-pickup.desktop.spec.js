@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 const PROFILES = [
     {
@@ -20,7 +20,7 @@ const PROFILES = [
 
 async function startSplitScreenFight(page, mapKey) {
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.selectOption('#map-select', mapKey);
     await page.evaluate(() => {
         const game = window.GAME_INSTANCE;

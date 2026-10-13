@@ -31,12 +31,6 @@ const CRITICAL_RENDERER_MARKERS = Object.freeze([
     'local.shadowQuality',
     'bloom-quality-slider',
     'local.bloomQuality',
-    'next-checkpoint-glow-slider',
-    'gameplay.nextCheckpointGlowIntensity',
-    'mg-trail-aim-slider',
-    'gameplay.mgTrailAimRadius',
-    'fight-player-hp-slider',
-    'gameplay.fightPlayerHp',
     'multiplayer.transport',
 ]);
 

@@ -3,8 +3,8 @@ function resolveMenuDepth(panelId, level4Open) {
     if (normalizedPanelId === 'submenu-custom') return 2;
     if (normalizedPanelId === 'submenu-game') return level4Open ? 4 : 3;
     if (normalizedPanelId === 'submenu-multiplayer') return level4Open ? 4 : 3;
-    if (normalizedPanelId === 'submenu-expert') return 2;
-    if (normalizedPanelId === 'submenu-developer' || normalizedPanelId === 'submenu-debug') return 5;
+    if (normalizedPanelId === 'submenu-tools' || normalizedPanelId === 'submenu-info') return 2;
+    if (normalizedPanelId === 'submenu-developer') return 5;
     return 1;
 }
 

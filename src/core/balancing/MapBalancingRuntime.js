@@ -2,7 +2,7 @@
 // working copies the F7 console and the balancing MCP edit, and the single place where
 // resolved values replace the player's gameplay values in a runtime config.
 
-import modesDocument from '../../../data/balancing/modes.json' with { type: 'json' };
+import { bundledMapDocuments, bundledModesDocument as modesDocument } from '../../shared/maps/MapBalancingBundledData.js';
 import {
     createMapBalancingCatalog,
     normalizeMapBalancingLayer,
@@ -14,12 +14,6 @@ import { SPLIT_SCREEN_VARIANTS } from '../../four-player-planar/FourPlayerPlanar
 // Off until the menu rework removes the player sliders for these values (B2); while off the
 // player's settings stay in charge so no menu control goes silently dead.
 export const MAP_BALANCING_AUTHORITATIVE = false;
-
-// Vite inlines every map file at build time; plain Node (contract tests) has no import.meta.env
-// and starts with mode defaults only.
-const bundledMapDocuments = import.meta.env
-    ? import.meta.glob('../../../data/balancing/maps/*.json', { eager: true, import: 'default' })
-    : {};
 
 const state = {
     /** @type {boolean | null} */

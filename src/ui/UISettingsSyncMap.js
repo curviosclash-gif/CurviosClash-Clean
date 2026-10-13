@@ -5,7 +5,7 @@ export const START_SETUP_SYNC_METHOD = 'syncMap';
 
 export const UI_SETTINGS_SYNC_MAP = Object.freeze({
     [SETTINGS_CHANGE_KEYS.SESSION_TYPE]: ['syncSessionState', 'syncModes', 'syncMultiplayerState'],
-    [SETTINGS_CHANGE_KEYS.MODE_PATH]: ['syncSessionState', 'syncGameplay', 'syncPresetState'],
+    [SETTINGS_CHANGE_KEYS.MODE_PATH]: ['syncSessionState', 'syncGameplay'],
     [SETTINGS_CHANGE_KEYS.MULTIPLAYER_TRANSPORT]: ['syncSessionState', 'syncMultiplayerState'],
     [SETTINGS_CHANGE_KEYS.LAN_HOST_LOCAL_PLAYER_COUNT]: ['syncSessionState', 'syncMultiplayerState'],
     [SETTINGS_CHANGE_KEYS.ARCADE_GHOST_DUEL_MODE]: ['syncSessionState'],
@@ -13,6 +13,7 @@ export const UI_SETTINGS_SYNC_MAP = Object.freeze({
     [SETTINGS_CHANGE_KEYS.LOCAL_GRAPHICS_STYLE]: ['syncGameplay'],
     [SETTINGS_CHANGE_KEYS.LOCAL_MAP_BRIGHTNESS]: ['syncGameplay'],
     [SETTINGS_CHANGE_KEYS.LOCAL_VIEW_DISTANCE]: ['syncGameplay'],
+    [SETTINGS_CHANGE_KEYS.LOCAL_MENU_SCALE]: ['syncGameplay'],
     [SETTINGS_CHANGE_KEYS.LOCAL_SHADOW_QUALITY]: ['syncGameplay'],
     [SETTINGS_CHANGE_KEYS.LOCAL_BLOOM_QUALITY]: ['syncGameplay'],
     [SETTINGS_CHANGE_KEYS.LOCAL_GRAPHICS_QUALITY]: ['syncGameplay'],
@@ -95,10 +96,10 @@ export const UI_SETTINGS_SYNC_MAP = Object.freeze({
     [SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_INTENSITY]: ['syncGameplay'],
     [SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_1]: ['syncVehicles'],
     [SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_2]: ['syncVehicles'],
-    [SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_ID]: ['syncPresetState'],
-    [SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_KIND]: ['syncPresetState'],
-    [SETTINGS_CHANGE_KEYS.PRESET_LIST]: ['syncPresetState'],
-    [SETTINGS_CHANGE_KEYS.PRESET_STATUS]: ['syncPresetState'],
+    [SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_ID]: ['syncSessionState'],
+    [SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_KIND]: ['syncSessionState'],
+    [SETTINGS_CHANGE_KEYS.PRESET_LIST]: ['syncSessionState'],
+    [SETTINGS_CHANGE_KEYS.PRESET_STATUS]: ['syncSessionState'],
     [SETTINGS_CHANGE_KEYS.MULTIPLAYER_STATUS]: ['syncMultiplayerState'],
     [SETTINGS_CHANGE_KEYS.DEVELOPER_MODE_ENABLED]: ['syncDeveloperState', 'syncSessionState'],
     [SETTINGS_CHANGE_KEYS.DEVELOPER_THEME_ID]: ['syncDeveloperState'],
@@ -119,7 +120,6 @@ const SYNC_METHOD_EXECUTION_ORDER = Object.freeze([
     'syncRules',
     'syncGameplay',
     'syncVehicles',
-    'syncPresetState',
     'syncMultiplayerState',
 ]);
 

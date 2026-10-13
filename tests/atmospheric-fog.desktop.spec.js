@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 // Two things about the fog can only be shown on a real GPU. First, that the patched three shader
 // chunks actually compile and link - a broken chunk shows up as a console error and a black scene,
@@ -118,7 +118,7 @@ test(`${profile.key}: fog compiles and meets the sky at multiple elevations @ren
 
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await page.selectOption('#map-select', profile.key);
     await page.waitForFunction(

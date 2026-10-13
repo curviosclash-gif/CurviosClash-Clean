@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { test, expect } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { openCustomSubmenu, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 // Hardware acceptance is opt-in: never turn a slow machine into a flaky default run.
 // Without PW_MAP_PERF=1 one short diagnostic trial keeps the state/actor coverage and
@@ -33,7 +33,7 @@ test(`${mapKey}: 1080p desktop frame pacing with one player and four bots`, asyn
         window.webContents.setBackgroundThrottling(false);
     });
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)');
     await page.selectOption('#map-select', mapKey);
     await page.evaluate(() => {

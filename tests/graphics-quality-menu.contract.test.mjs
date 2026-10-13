@@ -73,7 +73,7 @@ test('moving the bloom slider marks bloom as the player\'s own choice', () => {
     assert.match(bloomBinding[0], /bloomQualityUserSet = true/);
 });
 
-test('the reset of game and graphics options also returns the level to automatic', () => {
+test('the reset of the graphics tab also returns the level to automatic', () => {
     const changed = [];
     const game = {
         settings: { gameplay: {}, localSettings: { graphicsQuality: 'LOW', bloomQualityUserSet: true } },
@@ -82,7 +82,7 @@ test('the reset of game and graphics options also returns the level to automatic
         },
         _showStatusToast() {},
     };
-    handleLevel4ResetAction({ game, onSettingsChanged: (payload) => changed.push(payload) });
+    handleLevel4ResetAction({ game, event: { sectionId: 'graphics' }, onSettingsChanged: (payload) => changed.push(payload) });
     assert.equal(game.settings.localSettings.graphicsQuality, 'auto');
     assert.equal(game.settings.localSettings.bloomQualityUserSet, false);
     assert.ok(changed[0].changedKeys.includes(SETTINGS_CHANGE_KEYS.LOCAL_GRAPHICS_QUALITY));

@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { LEGACY_PICKUP_MODEL_TYPES } from '../src/entities/powerup/PowerupVisualCatalog.js';
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 const CLOSEUPS = [
     'SPEED_UP', 'SLOW_DOWN', 'THICK', 'THIN', 'SHIELD',
@@ -27,7 +27,7 @@ test('desktop loads Blender pickups, preserves authored shapes and reloads after
     const errors = collectErrors(page);
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)');
     // Fight lists the model showcases only behind their own collection filter.
     await page.selectOption('#map-filter-select', 'showcase');
