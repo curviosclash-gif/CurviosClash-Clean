@@ -53,6 +53,7 @@ export class LANMatchLobby extends MatchLobby {
         this._lastHandledMatchCommandId = '';
         this._reconnectPromise = null;
         this._cancelReconnect = false;
+        this._joinGeneration = 0;
     }
 
     _applySessionState(nextState) {
@@ -64,6 +65,7 @@ export class LANMatchLobby extends MatchLobby {
     }
 
     async create(options = {}) {
+        this._joinGeneration += 1;
         this.isHost = true;
         this.settings = { ...options };
         this._localPeerId = 'host';
@@ -118,10 +120,13 @@ export class LANMatchLobby extends MatchLobby {
         this._pollClosed = false;
         this._consecutivePollFailures = 0;
         this._cancelReconnect = false;
+        const joinGeneration = this._joinGeneration + 1;
+        this._joinGeneration = joinGeneration;
+        const joinSignalingUrl = url;
 
         try {
             // An unreachable host must not keep the menu waiting for the operating system (~10 s).
-            const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_JOIN}`, {
+            const res = await fetch(`${joinSignalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_JOIN}`, {
                 signal: AbortSignal.timeout(this._pollTimeoutMs * 2), method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -142,8 +147,30 @@ export class LANMatchLobby extends MatchLobby {
                 });
             }
             const data = await res.json();
-            this._localPeerId = String(data.playerId || '').trim();
-            this._localPeerToken = String(data.playerToken || '').trim();
+            const localPeerId = String(data.playerId || '').trim();
+            const localPeerToken = String(data.playerToken || '').trim();
+            if (joinGeneration !== this._joinGeneration || this._cancelReconnect) {
+                if (localPeerId && localPeerToken) {
+                    try {
+                        const cleanup = await fetch(`${joinSignalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_LEAVE}`, {
+                            signal: AbortSignal.timeout(this._pollTimeoutMs * 2),
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ playerId: localPeerId, playerToken: localPeerToken }),
+                        });
+                        if (cleanup?.ok === false) {
+                            logger.warn('Cancelled lobby join cleanup failed:', cleanup.status || 'unknown');
+                        }
+                    } catch (cleanupError) {
+                        logger.warn('Cancelled lobby join cleanup failed:', cleanupError);
+                    }
+                }
+                const error = new Error('Lobby join was cancelled.');
+                error.code = 'join_cancelled';
+                throw error;
+            }
+            this._localPeerId = localPeerId;
+            this._localPeerToken = localPeerToken;
             // A pendingMatchStart that predates this join belongs to an already
             // running match — mark it handled so the joiner does not fire a
             // stale matchStart immediately.
@@ -158,6 +185,11 @@ export class LANMatchLobby extends MatchLobby {
             this._processServerStatus(data);
             this._startPolling();
         } catch (err) {
+            if (joinGeneration !== this._joinGeneration || this._cancelReconnect) {
+                const error = new Error('Lobby join was cancelled.');
+                error.code = 'join_cancelled';
+                throw error;
+            }
             logger.warn('Lobby join request failed:', err);
             if (err instanceof Error && typeof /** @type {Error & { code?: unknown }} */ (err).code === 'string') {
                 throw err;
@@ -392,6 +424,7 @@ export class LANMatchLobby extends MatchLobby {
     }
 
     leave() {
+        this._joinGeneration += 1;
         this._cancelReconnect = true;
         this._stopPolling();
         this._consecutivePollFailures = 0;

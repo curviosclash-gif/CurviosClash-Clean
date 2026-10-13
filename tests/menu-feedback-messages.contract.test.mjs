@@ -50,7 +50,12 @@ test('a lobby join has a time limit and can be cancelled while it runs', async (
     const originalFetch = globalThis.fetch;
     let release = null;
     let joinSignal = null;
+    const leaveRequests = [];
     globalThis.fetch = (url, init = {}) => {
+        if (String(url).endsWith('/lobby/leave')) {
+            leaveRequests.push(JSON.parse(init.body));
+            return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+        }
         joinSignal = init.signal || null;
         return new Promise((resolve) => { release = () => resolve({ ok: true, json: async () => ({ playerId: 'peer-b', playerToken: 't', sessionState: { lobbyCode: 'ABCD1234', members: [] } }) }); });
     };
@@ -70,6 +75,7 @@ test('a lobby join has a time limit and can be cancelled while it runs', async (
     const result = await pending;
     assert.equal(result.ok, false);
     assert.equal(result.code, 'join_cancelled');
+    assert.deepEqual(leaveRequests, [{ playerId: 'peer-b', playerToken: 't' }]);
     assert.equal(lobby._pollingTimer, null, 'a cancelled join does not start polling afterwards');
 });
 
