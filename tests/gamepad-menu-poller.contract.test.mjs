@@ -230,3 +230,25 @@ test('start runs one frame loop; stop cancels it and forgets held buttons', () =
     assert.equal(poller.buttonState.size, 0);
     assert.equal(poller.isRunning(), false);
 });
+
+test('a surface that becomes active re-reads the pad: buttons and directions held from before stay silent', () => {
+    let active = true;
+    const { pad, calls, poller } = createHarness({ isActive: () => active });
+    poller.poll(0);
+    active = false;
+    poller.poll(16);
+    // While the surface was hidden the pilot pressed A (e.g. the button that opened it) and holds left.
+    pad.press(GAMEPAD_MENU_BUTTONS.A);
+    pad.press(GAMEPAD_MENU_BUTTONS.LEFT);
+    active = true;
+    poller.poll(32);
+    poller.poll(600);
+    assert.deepEqual(calls, [], 'neither the held A nor the held direction fires or repeats');
+    pad.press(GAMEPAD_MENU_BUTTONS.A, false);
+    pad.press(GAMEPAD_MENU_BUTTONS.LEFT, false);
+    poller.poll(616);
+    pad.press(GAMEPAD_MENU_BUTTONS.A);
+    pad.press(GAMEPAD_MENU_BUTTONS.LEFT);
+    poller.poll(632);
+    assert.deepEqual(calls, ['left', 'A'], 'fresh presses after the release count again');
+});

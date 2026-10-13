@@ -159,3 +159,22 @@ test('an actual map-death cleanup deactivates the wave without granting a clear 
     assert.equal(f.runtime.getHudState().alive, 0);
     assert.equal(f.runtime.mapStats[0].fastClearSeconds, 0);
 });
+
+test('the human and the last bot dying in one frame still complete the wave, in either order', () => {
+    // Kill events arrive synchronously from the death producer; the human death is only handled by
+    // the next runtime update. A wave the human finished in that frame therefore counts once.
+    for (const humanFirst of [false, true]) {
+        const f = integratedArena();
+        killThroughProducer(f.manager, f.bots[0].player, f.human);
+        if (humanFirst) killThroughProducer(f.manager, f.human);
+        killThroughProducer(f.manager, f.bots[1].player, f.human);
+        if (!humanFirst) killThroughProducer(f.manager, f.human);
+        f.runtime.update(0);
+        const stats = f.runtime.mapStats[0];
+        assert.deepEqual(stats.completedWaves, [1], `${humanFirst ? 'human first' : 'bot first'}: wave 1 counts once`);
+        assert.equal(stats.regularKills, 2);
+        assert.equal(stats.fastClearSeconds, humanFirst ? 0 : 45, 'only a living pilot earns the clear bonus');
+        assert.equal(f.runtime.mapIndex, 1, 'the death still moves the run to the next map');
+        assert.equal(f.runtime.phase, 'upgrade');
+    }
+});

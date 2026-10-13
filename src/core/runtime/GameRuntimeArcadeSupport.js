@@ -418,6 +418,11 @@ export class GameRuntimeArcadeSupport {
         );
     }
 
+    /** The running match only: outside an Arcade run no surface state is built (no per-frame allocation). */
+    getRunSurfaceState() {
+        return this.getRuntimeState()?.runtimeConfig?.arcade?.enabled === true ? this.getMenuSurfaceState() : null;
+    }
+
     getMenuSurfaceState() {
         if (this.demolitionSupport.isActive()) return this.demolitionSupport.getState();
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.getHudState();
