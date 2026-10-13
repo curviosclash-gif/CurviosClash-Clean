@@ -56,6 +56,20 @@ export function isWeaponRaceConfig(config = null) {
         && sessionType === 'single';
 }
 
+const WEAPON_RACE_WEAPON_LABELS = Object.freeze({
+    machine_gun: 'MG',
+    flamethrower: 'Flammenwerfer',
+    rocket_medium: 'Raketen',
+    railgun: 'Railgun',
+    lightning: 'Blitz',
+});
+
+/** Display name of a stage weapon; the machine gun is what a racer holds before the first stage. */
+export function resolveWeaponRaceWeaponLabel(weaponId) {
+    const id = String(weaponId || '').trim().toLowerCase();
+    return WEAPON_RACE_WEAPON_LABELS[id] || (id ? id.replace(/_/g, ' ') : WEAPON_RACE_WEAPON_LABELS.machine_gun);
+}
+
 export function resolveWeaponRaceStage(checkpointId) {
     return WEAPON_RACE_STAGE_BY_CHECKPOINT.get(String(checkpointId || '').trim().toUpperCase()) || null;
 }

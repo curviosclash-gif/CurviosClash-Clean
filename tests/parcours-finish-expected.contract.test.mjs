@@ -37,6 +37,17 @@ function createHarness() {
     return { system, player, feedback };
 }
 
+test('a wrong-order message names the time penalty in German and never the raw checkpoint id', () => {
+    const { system, player, feedback } = createHarness();
+    const entry = system._route.checkpoints[2];
+    system._route = { ...system._route, rules: { ...system._route.rules, wrongOrderPenaltyMs: 2000, wrongOrderCooldownMs: 0 } };
+    system._registerWrongOrder(player, system._playerStates.get(player.index), entry, 5000);
+    const message = feedback.find((text) => /Falsche Reihenfolge/.test(text));
+    assert.ok(message, 'the pilot is told about the wrong order');
+    assert.equal(message.includes(entry.id), false, message);
+    assert.match(message, /\+2\.0 s Strafzeit/);
+});
+
 test('after the last ring the finish is the expected goal and re-crossing a ring is no wrong order', () => {
     const { system, player, feedback } = createHarness();
     const route = system._route;

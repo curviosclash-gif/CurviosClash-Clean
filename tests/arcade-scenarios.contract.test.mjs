@@ -9,6 +9,7 @@ import {
 import { resolveArcadeMissionObjectiveLabel } from '../src/ui/arcade/ArcadeMissionHUD.js';
 import { ARCADE_SCENARIOS, normalizeArcadeScenarioCatalog } from '../src/entities/directors/ArcadeScenarioCatalog.js';
 import {
+    ARCADE_SECTOR_OBJECTIVES,
     buildArcadeSectorPlan,
     resolveArcadeSectorRuntimeProfile,
 } from '../src/entities/directors/ArcadeEncounterCatalog.js';
@@ -403,6 +404,14 @@ test('mission HUD localizes catalog objective labels and preserves authored labe
     assert.equal(resolveArcadeScenarioObjectiveLabel('survive_window'), 'Überleben');
     assert.equal(resolveArcadeMissionObjectiveLabel({ objectiveId: 'survive_window', label: 'Survive Window' }), 'Überleben');
     assert.equal(resolveArcadeMissionObjectiveLabel({ objectiveId: 'survive_window', label: 'Sturmflut' }), 'Sturmflut');
+});
+
+test('mission HUD shows every catalog sector objective in German', () => {
+    const expected = { bounty_hunt: 'Kopfgeldjagd', clean_sector: 'Sauberer Flug', hazard_lane: 'Gefahrenzone' };
+    for (const [objectiveId, german] of Object.entries(expected)) {
+        const catalogLabel = ARCADE_SECTOR_OBJECTIVES.find((entry) => entry.id === objectiveId).label;
+        assert.equal(resolveArcadeMissionObjectiveLabel({ objectiveId, label: catalogLabel }), german, objectiveId);
+    }
 });
 
 test('the intermission offers no alternative route into a scenario sector', () => {
