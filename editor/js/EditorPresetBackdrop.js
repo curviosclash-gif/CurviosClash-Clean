@@ -1,5 +1,7 @@
 import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.js';
 import { fromArenaMapDefinition, parseMapJSON, toArenaMapDefinition } from '../../src/entities/MapSchema.js';
+import { resolveMapStaticTurretDefinitions } from '../../src/shared/contracts/MapSinglePlayerScenarioContract.js';
+import { resolveMapUnitDefinitions } from '../../src/shared/contracts/MapUnitContract.js';
 
 // A built-in map as backdrop: its world model, spawns and lighting become an editor map (saved
 // with it, so the match lights it the same), and
@@ -146,6 +148,41 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
     };
 }
 
+// Fields the match changes when it reads `applied` instead of `stated` (paths like "range").
+function collectChangedPaths(stated, applied, path, out) {
+    if (typeof stated === 'number' || typeof applied === 'number') {
+        if (!(Math.abs(Number(stated) - Number(applied)) <= 1e-9)) out.push(path);
+        return;
+    }
+    if (!stated || typeof stated !== 'object' || !applied || typeof applied !== 'object') return;
+    for (const key of Object.keys(stated)) {
+        collectChangedPaths(stated[key], applied[key], path ? `${path}.${key}` : key, out);
+    }
+}
+
+/**
+ * A map without scaleAuthoredAnchors reads turrets and map units in world units and clamps their
+ * spatial values to world limits (turret range 180, unit speed 60, ...). Names every value the
+ * match would cut, so the author is not surprised by a shorter range in the game.
+ */
+function collectWorldLimitWarnings(placements, warnings) {
+    const checks = [
+        ['staticTurrets', (list, keep) => resolveMapStaticTurretDefinitions({ staticTurrets: list }, { preserveSpatialRange: keep })],
+        ['mapUnits', (list, keep) => resolveMapUnitDefinitions({ mapUnits: list }, { preserveSpatial: keep })],
+    ];
+    for (const [key, resolve] of checks) {
+        const list = placements[key];
+        if (!Array.isArray(list) || list.length === 0) continue;
+        const stated = resolve(list, true);
+        const applied = resolve(list, false);
+        stated.forEach((entry, index) => {
+            const paths = [];
+            collectChangedPaths(entry, applied[index], '', paths);
+            if (paths.length > 0) warnings.push(`${key} ${entry.id || index + 1}: ${paths.join(', ')} über der Weltgrenze, das Spiel kürzt.`);
+        });
+    }
+}
+
 export function isBackdropObject(object) {
     return String(object?.userData?.id || '').startsWith(BACKDROP_ID_PREFIX);
 }
@@ -154,7 +191,9 @@ export function isBackdropObject(object) {
  * The editor map as the preset file would write it: map units, anchors in the preset's own
  * convention, backdrop models left out unless asked for.
  */
-export function exportPlacementsInPresetFormat(mapManager, arenaSize, { preset = null, mapScale = 3, includeBackdrop = false } = {}) {
+export function exportPlacementsInPresetFormat(mapManager, arenaSize, {
+    preset = null, mapScale = 3, includeBackdrop = false, warnings = null,
+} = {}) {
     const editorDocument = JSON.parse(mapManager.generateJSONExport(arenaSize));
     if (!includeBackdrop) {
         for (const listKey of BLOCK_BACKDROP_KEYS) {
@@ -187,5 +226,6 @@ export function exportPlacementsInPresetFormat(mapManager, arenaSize, { preset =
         if (entries.length > 0) result[key] = entries;
     }
     if (runtime.parcours?.checkpoints?.length) result.parcours = runtime.parcours;
+    if (Array.isArray(warnings) && anchorScale !== 1) collectWorldLimitWarnings(result, warnings);
     return result;
 }

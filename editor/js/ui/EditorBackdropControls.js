@@ -98,9 +98,11 @@ export function bindEditorBackdropControls(editor) {
     const copyPlacements = async () => {
         if (!editor.mapManager) return '';
         const preset = await resolveBackdropPreset();
+        const warnings = [];
         const placements = exportPlacementsInPresetFormat(editor.mapManager, editor.getArenaSizeForExport(), {
             preset,
             mapScale: getRuntimeMapScale(1),
+            warnings,
         });
         const text = JSON.stringify(placements, null, 2);
         // Always visible in the Map JSON box; the clipboard is a convenience that may be refused.
@@ -111,6 +113,11 @@ export function bindEditorBackdropControls(editor) {
             editor.notify?.('Platzierungen im Kartenformat kopiert.', 'success');
         } catch {
             editor.notify?.('Platzierungen stehen im Feld „Map JSON“ zum Kopieren bereit.', 'info');
+        }
+        if (warnings.length > 0) {
+            console.warn('[EditorBackdrop] Values above the world limits of the target map:', warnings);
+            const more = warnings.length > 1 ? ` (+${warnings.length - 1} weitere, siehe Konsole)` : '';
+            editor.notify?.(`${warnings[0]}${more}`, 'warn');
         }
         return text;
     };
