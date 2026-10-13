@@ -390,6 +390,9 @@ export async function runPortalClearanceProbe(payload) {
                 : [0];
             reportMemory('before-pose-queries');
 
+            // Interior exits (approach.envelopeAdvisory, see INTERIOR_PORTAL_ENDPOINTS in the contract)
+            // report a broad envelope hit instead of failing; real ship shapes stay strict everywhere.
+            const envelopeReports = [];
             visitPortalApproachesAtPoses(poseTimes, approaches, (elapsedSeconds) => {
                 animation.setElapsedSeconds(elapsedSeconds);
                 loaded.scene.updateMatrixWorld(true);
@@ -411,6 +414,13 @@ export async function runPortalClearanceProbe(payload) {
                                 const diagnostic = broadHit
                                     ? diagnosePortalBroadHit(collision, point, sphere.radius)
                                     : null;
+                                if (broadHit && approach.envelopeAdvisory === true) {
+                                    const key = `${approach.portalIndex}.${approach.end}`;
+                                    if (!envelopeReports.some((report) => report.endpoint === key)) {
+                                        envelopeReports.push({ endpoint: key, shape: shape.id, elapsedSeconds, hit: diagnostic?.sourceName || 'unknown' });
+                                    }
+                                    continue;
+                                }
                                 assert.equal(broadHit, false,
                                     `${mapKey}/${model.id || model.url} sampled portal exit portal[${approach.portalIndex}].${approach.end}, conservative ${shape.id} envelope must clear at ${elapsedSeconds}s; broadHit=${JSON.stringify(diagnostic)}`);
                             } else {
@@ -430,6 +440,7 @@ export async function runPortalClearanceProbe(payload) {
                 animationTracks: loaded.animationTracks.length,
                 endpoints: approaches.length,
                 poseSampleCount: poseTimes.length,
+                envelopeReports,
                 sampledOnly: true,
                 probeScope: 'sampled-runtime-exit-poses; parent-selected model/endpoint scope; worker rejects collision:false before load',
                 ...(coverage ? { coverage } : {}),

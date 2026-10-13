@@ -74,6 +74,20 @@ const PORTAL_CLEARANCE_BASELINE = Object.freeze({
     }),
 });
 
+// Portal exits inside a building. The conservative Lab sweep envelope (ARCADE_LAB_MAX_SWEEP_RADIUS at
+// maximum plane scale, about 36 world units) is wider than the Notre-Dame vessel (about 60 across),
+// so no exit inside the cathedral can clear it. Here the probe holds every real ship shape - factory
+// craft and registered max-size Lab ships - to the strict check and only reports the envelope; every
+// other portal keeps the envelope as a hard check. Decided by the user on 13.10.2026.
+const INTERIOR_PORTAL_ENDPOINTS = Object.freeze({
+    notre_dame: Object.freeze(['1.b', '2.b']),
+    notre_dame_fire: Object.freeze(['1.b', '2.b']),
+});
+
+function isInteriorPortalEndpoint(mapKey, portalIndex, end) {
+    return INTERIOR_PORTAL_ENDPOINTS[mapKey]?.includes(`${portalIndex}.${end}`) === true;
+}
+
 // These probes use the actual maximum-size Arcade wall shape for every player-selectable
 // registry entry (including registered Arcade Lab ships). Mesh-only craft use their runtime
 // hitbox radius as a conservative one-sphere shape; the worker never imports the registry.
@@ -450,9 +464,25 @@ function createPortalProbePayload(mapKey, modelIndex, { endpointFilter = '', cov
             world,
             finish,
             exitPoints,
+            envelopeAdvisory: isInteriorPortalEndpoint(mapKey, portalIndex, end),
             })),
     };
 }
+
+test('only the listed interior exits report the Lab envelope; every other exit keeps it as a hard check', () => {
+    const advisory = [];
+    for (const mapKey of TARGET_MAPS) {
+        for (const approach of createPortalProbePayload(mapKey, 0).approaches) {
+            assert.equal(typeof approach.envelopeAdvisory, 'boolean', `${mapKey} ${approach.portalIndex}.${approach.end} states its envelope mode`);
+            if (approach.envelopeAdvisory) advisory.push(`${mapKey}:${approach.portalIndex}.${approach.end}`);
+        }
+    }
+    assert.deepEqual([...new Set(advisory)].sort(), [
+        'notre_dame:1.b', 'notre_dame:2.b', 'notre_dame_fire:1.b', 'notre_dame_fire:2.b',
+    ]);
+    assert.ok(VEHICLE_WALL_SHAPES.filter((shape) => shape.probeMode !== 'broad').length > 1,
+        'interior exits still face every real ship shape strictly');
+});
 
 test('optional GLB diagnostic filters select one known model/endpoint and reject unknown filters', () => {
     const full = resolvePortalGlbSelection({ mapFilter: '', modelFilter: '', endpointFilter: '' });
