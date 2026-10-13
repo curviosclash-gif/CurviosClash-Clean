@@ -228,6 +228,57 @@ test('a reopened map still copies placements with its backdrop map\'s anchor rul
     }
 });
 
+test('a copy warns where a map without scaled anchors would cut a value to its world limits', () => {
+    const preset = {
+        size: [100, 40, 100],
+        glbModels: [{ id: 'w', url: 'assets/maps/w/glb/w.glb', position: [0, 0, 0] }],
+        playerSpawn: { x: 0, y: 9, z: 0 },
+    };
+    const { document } = convertPresetToEditorDocument('plain', preset, { mapScale: MAP_SCALE });
+    const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
+    // 70 map units of range are 210 world units; such a map allows turrets at most 180.
+    document.staticTurrets = [
+        { id: 'far_turret', pos: [0, 5 * units, 0], range: 70 * units },
+        { id: 'near_turret', pos: [10 * units, 5 * units, 0], range: 20 * units },
+    ];
+    const { mapManager, load } = createEditor();
+    const arenaSize = load(document);
+
+    const warnings = [];
+    exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE, warnings });
+    assert.equal(warnings.length, 1, warnings.join(' | '));
+    assert.match(warnings[0], /far_turret/);
+    assert.match(warnings[0], /range/);
+
+    const scaledWarnings = [];
+    exportPlacementsInPresetFormat(mapManager, arenaSize, {
+        preset: { ...preset, scaleAuthoredAnchors: true }, mapScale: MAP_SCALE, warnings: scaledWarnings,
+    });
+    assert.deepEqual(scaledWarnings, []);
+});
+
+test('a copy says so when the saved backdrop map is no longer in the catalog', async () => {
+    const reopened = createEditor();
+    const arenaSize = reopened.load({ arenaSize: { width: 4200, height: 1400, depth: 4200 }, editorBackdrop: 'gone_map' });
+    const previousDocument = globalThis.document;
+    globalThis.document = { createElement: () => ({}) };
+    try {
+        const notes = [];
+        const editor = {
+            core: reopened.mapManager.core,
+            dom: { jsonOutput: { value: '' } },
+            mapManager: reopened.mapManager,
+            getArenaSizeForExport: () => arenaSize,
+            notify: (message, type) => notes.push({ message, type }),
+        };
+        bindEditorBackdropControls(editor);
+        await editor.copyPlacementsInPresetFormat();
+        assert.ok(notes.some((note) => note.type === 'warn' && note.message.includes('gone_map')), JSON.stringify(notes));
+    } finally {
+        globalThis.document = previousDocument;
+    }
+});
+
 /** Lighting of the map the match builds from an editor export. */
 function exportedMatchLighting(mapManager, arenaSize) {
     const parsed = parseMapJSON(mapManager.generateJSONExport(arenaSize));

@@ -181,6 +181,20 @@ export function normalizeAuthoredMapLighting(value) {
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
+// A map's own camera far plane in world units (reactor_site states 2000). Ten times the fog's
+// reach is far beyond any map; a larger far plane only costs depth precision (z-fighting).
+export const MAP_CAMERA_FAR_MAX = FOG_DISTANCE_MAX * 10;
+
+/**
+ * @param {unknown} value
+ * @returns {number|undefined} the far plane capped at MAP_CAMERA_FAR_MAX, undefined when unusable
+ */
+export function normalizeMapCameraFar(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return undefined;
+    return Math.min(numeric, MAP_CAMERA_FAR_MAX);
+}
+
 export function resolveMapLighting(value, baseLighting = DEFAULT_MAP_LIGHTING) {
     const normalizedBase = normalizeMapLighting(baseLighting, DEFAULT_MAP_LIGHTING);
     return normalizeMapLighting(value, normalizedBase);

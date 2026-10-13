@@ -65,6 +65,16 @@ test('a map without the fields, or with broken ones, stays without them', () => 
     }
 });
 
+test('a huge view distance is capped, so the depth buffer keeps its precision', async () => {
+    const { MAP_CAMERA_FAR_MAX } = await import('../src/shared/contracts/MapLightingContract.js');
+    assert.ok(MAP_CAMERA_FAR_MAX >= MAP_PRESET_CATALOG.reactor_site.cameraFar);
+    const parsed = parseMapJSON(JSON.stringify({ arenaSize: ARENA, cameraFar: 1e9 })).map;
+    assert.equal(parsed.cameraFar, MAP_CAMERA_FAR_MAX);
+    const editor = createEditor();
+    const saved = JSON.parse(editor.mapManager.generateJSONExport(editor.load({ arenaSize: ARENA, cameraFar: 1e9 })));
+    assert.equal(saved.cameraFar, MAP_CAMERA_FAR_MAX);
+});
+
 test('the editor keeps both fields when a map is saved and reopened', () => {
     const first = createEditor();
     const saved = JSON.parse(first.mapManager.generateJSONExport(first.load({ arenaSize: ARENA, cameraFar: 2000, fogLayer: FOG_LAYER })));
@@ -87,6 +97,23 @@ test('a game map used as backdrop hands its view distance and fog layer to the e
     assert.equal(reactor.cameraFar, 2000);
     const forest = convertPresetToEditorDocument('giant_forest', MAP_PRESET_CATALOG.giant_forest, { mapScale: MAP_SCALE }).document;
     assert.deepEqual(normalizeMapFogLayer(forest.fogLayer), normalizeMapFogLayer(FOG_LAYER));
+});
+
+test('a fog layer edge too sharp for the editor map is reported, not cut silently', () => {
+    // 0.3 per world unit becomes 0.9 per map unit, above the layer's 0.5 ceiling.
+    const preset = {
+        size: [100, 40, 100],
+        glbModels: [{ id: 'w', url: 'assets/maps/w/glb/w.glb', position: [0, 0, 0] }],
+        fogLayer: { stages: [
+            { atSeconds: 0, ceiling: 60, ceilingFalloff: 0.3, floor: -30, floorFalloff: 0 },
+            { atSeconds: 90, ceiling: 120, ceilingFalloff: 0.05, floor: 0, floorFalloff: 0 },
+        ] },
+    };
+    const { warnings } = convertPresetToEditorDocument('plain', preset, { mapScale: MAP_SCALE });
+    assert.equal(warnings.length, 1, JSON.stringify(warnings));
+    assert.match(warnings[0], /fogLayer/);
+    const forest = convertPresetToEditorDocument('giant_forest', MAP_PRESET_CATALOG.giant_forest, { mapScale: MAP_SCALE });
+    assert.deepEqual(forest.warnings, []);
 });
 
 test('fog layer heights of a map without scaled anchors stay at the same world height', () => {

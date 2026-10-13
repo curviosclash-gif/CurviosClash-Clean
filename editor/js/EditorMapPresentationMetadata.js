@@ -1,4 +1,4 @@
-import { normalizeMapLighting } from '../../src/shared/contracts/MapLightingContract.js';
+import { normalizeMapCameraFar, normalizeMapLighting } from '../../src/shared/contracts/MapLightingContract.js';
 import { normalizeMapFogLayer } from '../../src/shared/contracts/MapFogLayerContract.js';
 import { normalizeMapAnimationClock } from '../../src/shared/contracts/MapAnimationClockContract.js';
 
@@ -9,8 +9,8 @@ export function readEditorMapPresentationMetadata(source) {
     if (source?.lighting && typeof source.lighting === 'object') result.lighting = normalizeMapLighting(source.lighting);
     const fogLayer = normalizeMapFogLayer(source?.fogLayer);
     if (fogLayer) result.fogLayer = fogLayer;
-    const cameraFar = Number(source?.cameraFar);
-    if (Number.isFinite(cameraFar) && cameraFar > 0) result.cameraFar = cameraFar;
+    const cameraFar = normalizeMapCameraFar(source?.cameraFar);
+    if (cameraFar) result.cameraFar = cameraFar;
     if (source?.glbAnimationClock) result.glbAnimationClock = normalizeMapAnimationClock(source.glbAnimationClock);
     return result;
 }
