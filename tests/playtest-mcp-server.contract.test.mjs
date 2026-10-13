@@ -24,7 +24,7 @@ test('a real MCP client discovers exactly one tool and can call it without a ses
         const { tools } = await client.listTools();
         assert.deepEqual(tools.map((tool) => tool.name), ['curvios_playtest'], 'exactly one tool');
         const schema = tools[0].inputSchema;
-        assert.deepEqual(schema.properties.operation.enum, ['catalog', 'open', 'observe', 'act', 'pilot', 'scenario', 'job', 'balancing', 'close']);
+        assert.deepEqual(schema.properties.operation.enum, ['catalog', 'open', 'observe', 'act', 'pilot', 'scenario', 'job', 'balancing', 'telemetry', 'close']);
         assert.equal('eval' in schema.properties, false, 'no free JavaScript execution');
         assert.equal('expression' in schema.properties, false);
 
