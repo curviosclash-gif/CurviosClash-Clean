@@ -89,7 +89,6 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/player-altitude-speed.desktop.spec.js',
             'tests/player-health-aura.desktop.spec.js',
             'tests/player-profiles.desktop.spec.js',
-            'tests/gravity-settings.desktop.spec.js',
             'tests/playtest-regression-fixes.desktop.spec.js',
             'tests/render-smoothing.desktop.spec.js',
             'tests/rocket-turret.desktop.spec.js',

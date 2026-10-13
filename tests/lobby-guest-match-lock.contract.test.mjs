@@ -32,7 +32,7 @@ function createSection(id) {
 }
 
 function createDocument() {
-    const sections = ['controls', 'gameplay', 'audio', 'advanced_map', 'presets', 'hud'].map(createSection);
+    const sections = ['controls', 'advanced_map', 'audio', 'hud'].map(createSection);
     return {
         sections,
         querySelectorAll: (selector) => (selector === '[data-level4-section]' ? sections : []),
@@ -49,7 +49,7 @@ test('a guest cannot change match rules, only local options', () => {
         assert.equal(!!section.querySelector('.lobby-guest-lock-hint'), locked, `${section.dataset.level4Section} hint`);
     }
     assert.equal(doc.sections[1].querySelector('.lobby-guest-lock-hint').textContent, LOBBY_GUEST_LOCK_HINT);
-    assert.deepEqual([...GUEST_LOCKED_LEVEL4_SECTIONS].sort(), ['advanced_map', 'gameplay', 'presets']);
+    assert.deepEqual([...GUEST_LOCKED_LEVEL4_SECTIONS].sort(), ['advanced_map']);
 });
 
 test('leaving the guest role unlocks the rules again and drops the hint', () => {

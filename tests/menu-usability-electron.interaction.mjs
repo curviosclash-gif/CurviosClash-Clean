@@ -83,7 +83,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         assert.ok(reachability.count >= 10);
         assert.deepEqual(reachability.missing, []);
 
-        const settingsEntry = page.locator('.menu-utility-shell [data-level4-section="gameplay"]');
+        const settingsEntry = page.locator('.menu-utility-shell [data-level4-section="controls"]');
         await settingsEntry.click();
         await expect(page.locator('#submenu-level4')).toBeVisible();
         await page.locator('#level4-tab-audio').click();
@@ -136,13 +136,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await expect(volume).not.toBeFocused();
         const audioValue = await volume.inputValue();
 
-        await page.locator('#level4-tab-gameplay').click();
-        const combat = page.locator('#level4-group-combat');
-        await combat.locator('summary').focus();
-        await gamepad(0);
-        await expect(combat).toHaveJSProperty('open', true);
-        await gamepad(13);
-        await expect(page.locator('#fire-rate-slider')).toBeFocused();
+        await page.locator('#level4-tab-graphics').click();
         await page.locator('#btn-level4-reset').click();
         await expect(page.locator('#btn-level4-reset')).toHaveAttribute('data-reset-armed', 'true');
         await page.locator('#btn-level4-reset').click();

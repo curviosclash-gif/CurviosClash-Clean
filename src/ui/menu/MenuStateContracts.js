@@ -82,14 +82,12 @@ const VALID_MULTIPLAYER_TRANSPORT_SET = new Set(Object.values(MULTIPLAYER_TRANSP
 export const LEVEL4_SECTION_IDS = Object.freeze({
     CONTROLS: 'controls',
     MOBILE_CONTROLS: 'mobile_controls',
-    GAMEPLAY: 'gameplay',
     AUDIO: 'audio',
     GRAPHICS: 'graphics',
     RECORDING: 'recording',
     HUD: 'hud',
     ADVANCED_MAP: 'advanced_map',
     TOOLS: 'tools',
-    PRESETS: 'presets',
     UTILITIES: 'utilities',
 });
 /** @type {Set<string>} */

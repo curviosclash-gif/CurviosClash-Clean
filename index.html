@@ -99,7 +99,7 @@
                     <div class="menu-utility-shell" role="navigation" aria-label="Weitere Bereiche">
 <button type="button" id="btn-main-tutorial" class="secondary-btn menu-tutorial-entry" data-menu-text-id="menu.utility.tutorial.label">Steuerung lernen</button>
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
-                            data-level4-section="gameplay" data-level4-return-target="main" data-menu-text-id="menu.utility.settings.label">Einstellungen</button>
+                            data-level4-section="controls" data-level4-return-target="main" data-menu-text-id="menu.utility.settings.label">Einstellungen</button>
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
                             data-level4-section="controls" data-level4-return-target="main" data-menu-text-id="menu.utility.controls.label">Steuerung</button>
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
@@ -170,11 +170,6 @@
                             </button>
                             <div class="start-step-rail-divider" aria-hidden="true"></div>
                             <button type="button" class="start-step-tab start-step-tab-utility"
-                                data-start-section-target="presets">
-                                <span class="start-step-tab-glyph" aria-hidden="true">◆</span>
-                                <span><strong>Vorlagen</strong><small>Schnelle Kombinationen</small></span>
-                            </button>
-                            <button type="button" class="start-step-tab start-step-tab-utility"
                                 data-start-section-target="arcade" aria-controls="arcade-inline-surface">
                                 <span class="start-step-tab-glyph" aria-hidden="true">⚡</span>
                                 <span><strong>Arcade Run</strong><small>Seed, Daily und Mastery</small></span>
@@ -198,7 +193,7 @@
                                     data-menu-text-id="menu.level3.reset.label">Karte &amp; Flugzeug zurücksetzen</button>
                                 <button type="button" id="btn-open-fight-hangar" class="secondary-btn hidden"
                                     aria-hidden="true">Kampf-Hangar öffnen</button>
-                                <button type="button" id="btn-open-level4" class="secondary-btn" data-level4-section="gameplay"
+                                <button type="button" id="btn-open-level4" class="secondary-btn" data-level4-section="controls"
                                     data-menu-text-id="menu.level3.open_level4.label">Einstellungen</button>
                                 <button type="button" id="btn-start" class="start-btn" data-menu-action="start-match"
                                     data-menu-text-id="menu.level3.start.label">Spiel starten</button>
@@ -572,23 +567,6 @@
                             </div>
                         </details>
 
-                        <details class="menu-section menu-accordion start-section-card" data-start-section="presets">
-                            <summary class="menu-accordion-summary">
-                                <span class="section-title" data-menu-text-id="menu.level3.presets.title">Vorlagen</span>
-                                <span class="menu-accordion-copy" data-menu-text-id="menu.level3.presets.description">Fertige Einstellungen für Training, Arcade und Kampf</span>
-                            </summary>
-                            <div class="menu-accordion-body" data-menu-panel="quickstart-presets">
-                                <div class="preset-chip-grid">
-                                    <button type="button" class="secondary-btn" data-preset-id="arcade"></button>
-                                    <button type="button" class="secondary-btn" data-preset-id="competitive"></button>
-                                    <button type="button" class="secondary-btn" data-preset-id="chaos"></button>
-                                    <button type="button" class="secondary-btn" data-preset-id="fight-standard"></button>
-                                    <button type="button" class="secondary-btn" data-preset-id="normal-standard"></button>
-                                </div>
-                                <small id="preset-status" class="menu-hint">Vorlage: eigene Einstellungen</small>
-                            </div>
-                        </details>
-
                     </div>
                 </div>
 
@@ -602,14 +580,14 @@
                         <div class="btn-group">
                             <button type="button" id="btn-level4-reset" class="secondary-btn"
                                 data-menu-text-id="menu.level4.reset.label"
-                                data-reset-label="Spiel-, Grafik- &amp; Aufnahmeoptionen zurücksetzen"
-                                data-reset-confirm-label="Zum Bestätigen erneut klicken" aria-describedby="level4-reset-scope">Spiel-, Grafik- &amp; Aufnahmeoptionen zurücksetzen</button>
+                                data-reset-label="Grafik- &amp; Aufnahmeoptionen zurücksetzen"
+                                data-reset-confirm-label="Zum Bestätigen erneut klicken" aria-describedby="level4-reset-scope">Grafik- &amp; Aufnahmeoptionen zurücksetzen</button>
                             <button type="button" id="btn-close-level4" class="secondary-btn" data-back
                                 data-back-target="submenu-game" data-menu-action="back"
                                 data-menu-text-id="menu.level4.close.label">Schließen</button>
                         </div>
                     </div>
-                    <p id="level4-reset-scope" class="menu-reset-scope">Zurücksetzen betrifft Spielgefühl, Kampf-, Portal-, Grafik-, Kamera- und Aufnahmeoptionen. Audio, HUD und Tastenbelegung bleiben erhalten.</p>
+                    <p id="level4-reset-scope" class="menu-reset-scope">Zurücksetzen betrifft Grafik-, Kamera- und Aufnahmeoptionen sowie Auto-Roll und Höhenumkehr. Audio, HUD und Tastenbelegung bleiben erhalten.</p>
                     <div class="submenu-body level4-body">
                         <div class="level4-layout">
                             <div class="level4-section-nav" role="tablist" aria-label="Bereiche der Einstellungen">
@@ -619,9 +597,6 @@
                                 <button type="button" id="level4-tab-mobile-controls" class="level4-section-tab"
                                     data-level4-section-target="mobile_controls" role="tab" aria-controls="level4-section-mobile-controls"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.mobile_controls.label">Mobile</button>
-                                <button type="button" id="level4-tab-gameplay" class="level4-section-tab"
-                                    data-level4-section-target="gameplay" role="tab" aria-controls="level4-section-gameplay"
-                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.gameplay.label">Spielregeln</button>
                                 <button type="button" id="level4-tab-audio" class="level4-section-tab" data-level4-section-target="audio" role="tab" aria-controls="level4-section-audio" aria-selected="false" data-menu-text-id="menu.level4.tabs.audio.label">Audio</button>
                                 <button type="button" id="level4-tab-graphics" class="level4-section-tab" data-level4-section-target="graphics" role="tab" aria-controls="level4-section-graphics" aria-selected="false" data-menu-text-id="menu.level4.tabs.graphics.label">Grafik &amp; Kamera</button>
                                 <button type="button" id="level4-tab-recording" class="level4-section-tab" data-level4-section-target="recording" role="tab" aria-controls="level4-section-recording" aria-selected="false" data-menu-text-id="menu.level4.tabs.recording.label">Aufnahme</button>
@@ -632,9 +607,6 @@
                                 <button type="button" id="level4-tab-tools" class="level4-section-tab"
                                     data-level4-section-target="tools" role="tab" aria-controls="level4-section-tools"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.tools.label">Spieler</button>
-                                <button type="button" id="level4-tab-presets" class="level4-section-tab"
-                                    data-level4-section-target="presets" role="tab" aria-controls="level4-section-presets"
-                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.presets.label">Vorlagen</button>
                                 <button type="button" id="level4-tab-utilities" class="level4-section-tab"
                                     data-level4-section-target="utilities" role="tab" aria-controls="level4-section-utilities"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.utilities.label">Werkzeuge</button>
@@ -724,74 +696,6 @@
                                 <input type="checkbox" id="mobile-tilt-sensor-hz-toggle">
                                 <span data-menu-text-id="menu.level4.mobile.sensor_hz.label">Sensor-Hz anzeigen</span>
                             </label>
-                        </div>
-                        </section>
-
-                        <section id="level4-section-gameplay" class="level4-section-panel" data-level4-section="gameplay"
-                            role="tabpanel" aria-labelledby="level4-tab-gameplay" aria-hidden="true">
-                        <div class="menu-section level4-option-groups">
-                            <h2 class="section-title" data-menu-text-id="menu.level4.gameplay.title">Spieloptionen</h2>
-
-                            <details id="level4-group-game-feel" class="level4-option-group" open>
-                                <summary>Spielgefühl</summary>
-                                <div class="level4-option-group-body">
-                                    <label for="speed-slider"><span data-menu-text-id="menu.level4.gameplay.speed.label">Geschwindigkeit:</span> <span id="speed-label">35.0</span></label>
-                                    <input type="range" id="speed-slider" min="8" max="40" step="0.5" value="35">
-                                    <label for="turn-slider"><span data-menu-text-id="menu.level4.gameplay.turn.label">Lenkempfindlichkeit:</span> <span id="turn-label">3.4</span></label>
-                                    <input type="range" id="turn-slider" min="0.8" max="5.0" step="0.1" value="3.4">
-                                    <label for="gravity-slider"><span data-menu-text-id="menu.level4.gameplay.gravity.label">Gravitationswirkung:</span> <span id="gravity-label">20 %</span></label>
-                                    <input type="range" id="gravity-slider" min="0" max="50" step="1" value="20" aria-describedby="gravity-help">
-                                    <p id="gravity-help" class="hint" data-menu-text-id="menu.level4.gameplay.gravity.help">Tempoeffekt beim Steigen und Sinken. 0 % schaltet ihn aus; 20 % ist Standard.</p>
-                                    <label for="plane-size-slider"><span data-menu-text-id="menu.level4.gameplay.plane_size.label">Flugzeuggröße:</span> <span id="plane-size-label">1.0</span></label>
-                                    <input type="range" id="plane-size-slider" min="0.6" max="2.0" step="0.1" value="1.0">
-                                    <label for="trail-width-slider"><span data-menu-text-id="menu.level4.gameplay.trail_width.label">Strahldicke:</span> <span id="trail-width-label">0.60</span></label>
-                                    <input type="range" id="trail-width-slider" min="0.2" max="2.5" step="0.05" value="0.6">
-                                    <label for="trail-length-slider">Spurlänge: <span id="trail-length-label">5000 Segmente</span></label>
-                                    <input type="range" id="trail-length-slider" min="200" max="12000" step="100" value="5000">
-                                    <label for="gap-size-slider"><span data-menu-text-id="menu.level4.gameplay.gap_size.label">Lückengröße:</span> <span id="gap-size-label">0.30</span></label>
-                                    <input type="range" id="gap-size-slider" min="0.05" max="1.5" step="0.05" value="0.3">
-                                    <label for="gap-frequency-slider"><span data-menu-text-id="menu.level4.gameplay.gap_frequency.label">Lückenhäufigkeit:</span> <span id="gap-frequency-label">0.020</span></label>
-                                    <input type="range" id="gap-frequency-slider" min="0" max="0.25" step="0.005" value="0.02">
-                                    <label for="item-amount-slider"><span data-menu-text-id="menu.level4.gameplay.item_amount.label">Gegenstände:</span> <span id="item-amount-label">10</span></label>
-                                    <input type="range" id="item-amount-slider" min="1" max="60" step="1" value="10">
-                                </div>
-                            </details>
-
-                            <details id="level4-group-combat" class="level4-option-group">
-                                <summary>Kampf</summary>
-                                <div class="level4-option-group-body">
-                                    <label for="fire-rate-slider"><span data-menu-text-id="menu.level4.gameplay.fire_rate.label">Schussintervall:</span> <span id="fire-rate-label">1.25s</span></label>
-                                    <input type="range" id="fire-rate-slider" min="0.1" max="2.0" step="0.05" value="1.25">
-                                    <label for="lockon-slider"><span data-menu-text-id="menu.level4.gameplay.lockon.label">Zielerfassungswinkel:</span> <span id="lockon-label">11°</span></label>
-                                    <input type="range" id="lockon-slider" min="5" max="45" step="1" value="11">
-                                    <label for="next-checkpoint-glow-slider"><span data-menu-text-id="menu.level4.gameplay.checkpoint_glow.label">Leuchten des nächsten Checkpoints:</span> <span id="next-checkpoint-glow-label">1.35</span></label>
-                                    <input type="range" id="next-checkpoint-glow-slider" min="0" max="3.0" step="0.05" value="1.35">
-                                    <label for="mg-trail-aim-slider"><span data-menu-text-id="menu.level4.gameplay.mg_aim.label">MG-Zielsuchradius an Spuren:</span> <span id="mg-trail-aim-label">0.78</span></label>
-                                    <input type="range" id="mg-trail-aim-slider" min="0.2" max="6.0" step="0.05" value="0.78">
-                                    <div id="fight-player-hp-setting" class="fight-only-setting hidden">
-                                        <label for="fight-player-hp-slider"><span data-menu-text-id="menu.level4.gameplay.fight_hp.label">Spieler-HP im Kampf:</span> <span id="fight-player-hp-label">100</span></label>
-                                        <input type="range" id="fight-player-hp-slider" min="80" max="250" step="5" value="100">
-                                    </div>
-                                    <div id="fight-mg-damage-setting" class="fight-only-setting hidden">
-                                        <label for="fight-mg-damage-slider"><span data-menu-text-id="menu.level4.gameplay.fight_damage.label">MG-Schaden im Kampf:</span> <span id="fight-mg-damage-label">7.75</span></label>
-                                        <input type="range" id="fight-mg-damage-slider" min="4" max="20" step="0.25" value="7.75">
-                                    </div>
-                                    <div id="fight-tuning-presets" class="fight-only-setting btn-group hidden" aria-label="Kampfdauer-Vorlagen">
-                                        <button type="button" class="secondary-btn" data-fight-tuning-preset="fast">Schnell</button>
-                                        <button type="button" class="secondary-btn" data-fight-tuning-preset="standard">Standard</button>
-                                        <button type="button" class="secondary-btn" data-fight-tuning-preset="tactical">Taktisch</button>
-                                    </div>
-                                    <p id="fight-tuning-hint" class="field-hint" role="status" aria-live="polite">Nur im Spielstil Kampf aktiv.</p>
-                                </div>
-                            </details>
-
-
-
-
-
-
-
-
                         </div>
                         </section>
 
@@ -941,12 +845,7 @@
                             role="tabpanel" aria-labelledby="level4-tab-advanced-map" aria-hidden="true">
                         <div class="menu-section">
                             <h2 class="section-title" data-menu-text-id="menu.level4.advanced_map.title">Karten-Details</h2>
-                            <label class="toggle-row">
-                                <input type="checkbox" id="portals-toggle" checked>
-                                <span data-menu-text-id="menu.level4.map.portals.label">Portale aktiviert</span>
-                            </label>
-                            <label for="planar-level-count-slider"><span data-menu-text-id="menu.level4.map.planar_levels.label">Anzahl Ebenen:</span> <span id="planar-level-count-label">5</span></label>
-                            <input type="range" id="planar-level-count-slider" min="2" max="10" step="1" value="5">
+                            <p class="menu-hint menu-copy-secondary">Kartenwerte wie Tempo, Waffen und Portale stellt der Entwickler je Karte ein.</p>
                         </div>
                         </section>
 
@@ -1029,42 +928,6 @@
                                 </button>
                             </div>
                             <p id="profile-transfer-status" class="menu-hint" role="status" aria-live="polite">Noch nichts übertragen.</p>
-                        </div>
-                        </section>
-
-                        <section id="level4-section-presets" class="level4-section-panel" data-level4-section="presets"
-                            role="tabpanel" aria-labelledby="level4-tab-presets" aria-hidden="true">
-                        <div class="menu-section">
-                            <h2 class="section-title section-title-with-info"
-                                aria-description="Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.">
-                                <span data-menu-text-id="menu.level4.presets.title">Vorlagen</span>
-                                <button type="button" class="menu-info-hint"
-                                    aria-label="Hinweis: Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage."
-                                    title="Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.">i</button>
-                            </h2>
-                            <label for="preset-select" class="secondary-btn-spaced"
-                                data-menu-text-id="menu.level4.tools.preset_catalog.label">Vorlage</label>
-                            <select id="preset-select">
-                                <option value="">Vorlage wählen</option>
-                            </select>
-                            <button type="button" id="btn-preset-apply" class="secondary-btn secondary-btn-spaced"
-                                data-menu-action="preset-apply" data-menu-text-id="menu.level4.tools.preset_apply.label">
-                                Vorlage anwenden
-                            </button>
-                            <label for="preset-name" data-menu-text-id="menu.level4.tools.preset_name.label">Name der neuen Vorlage</label>
-                            <input type="text" id="preset-name" maxlength="40" placeholder="z. B. Team Scrim">
-                            <button type="button" id="btn-preset-save-open" class="secondary-btn secondary-btn-spaced"
-                                data-menu-action="preset-save-open" data-menu-text-id="menu.level4.tools.preset_save_open.label">
-                                Als freie Vorlage speichern
-                            </button>
-                            <button type="button" id="btn-preset-save-fixed" class="secondary-btn secondary-btn-spaced"
-                                data-menu-action="preset-save-fixed" data-menu-text-id="menu.level4.tools.preset_save_fixed.label">
-                                Als verbindliche Vorlage speichern
-                            </button>
-                            <button type="button" id="btn-preset-delete" class="secondary-btn secondary-btn-spaced"
-                                data-menu-action="preset-delete" data-menu-text-id="menu.level4.tools.preset_delete.label">
-                                Vorlage löschen
-                            </button>
                         </div>
                         </section>
 
@@ -1352,7 +1215,7 @@
                                 Einstellungen wurden in Ebene 4 als Slide-in unter `Gameplay-Feineinstellungen` konsolidiert.
                             </p>
                             <button type="button" class="secondary-btn" data-menu-action="level4-open"
-                                data-level4-section="gameplay" data-menu-text-id="menu.panels.settings.open.label">Spieloptionen öffnen</button>
+                                data-level4-section="controls" data-menu-text-id="menu.panels.settings.open.label">Spieloptionen öffnen</button>
                         </div>
                     </div>
                 </div>
