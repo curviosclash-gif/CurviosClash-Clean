@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { RepairDroneSystem } from '../src/entities/systems/RepairDroneSystem.js';
+import { applyEntityNetworkSnapshot, setEntityNetworkReplica } from '../src/entities/runtime/EntityNetworkReplicaOps.js';
 
 function createSide({ authority = true, withEffect = true } = {}) {
     const player = {
@@ -81,10 +82,16 @@ test('a replica renders host state without healing or deciding damage', () => {
     assert.equal(client.system.drones.length, 0, 'the next empty snapshot removes an expired drone');
 });
 
-test('entity manager network paths include repair drones', async () => {
-    const source = await import('node:fs').then((fs) => fs.readFileSync(
-        new URL('../src/entities/EntityManager.js', import.meta.url), 'utf8',
-    ));
-    assert.match(source, /_repairDroneSystem\?\.setNetworkReplica\?\.\(enabled\)/);
-    assert.match(source, /_repairDroneSystem\?\.applyNetworkState\?\.\(snapshot\?\.repairDrones\)/);
+test('entity manager network paths include repair drones', () => {
+    const calls = [];
+    const manager = {
+        _repairDroneSystem: {
+            setNetworkReplica: (enabled) => calls.push(['replica', enabled]),
+            applyNetworkState: (state) => calls.push(['state', state]),
+        },
+    };
+    const repairDrones = [{ id: 'drone_a' }];
+    setEntityNetworkReplica(manager, true);
+    applyEntityNetworkSnapshot(manager, { repairDrones });
+    assert.deepEqual(calls, [['replica', true], ['state', repairDrones]]);
 });

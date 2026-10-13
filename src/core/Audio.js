@@ -685,7 +685,8 @@ export class AudioManager {
     _playFightLead(options = {}) { playGameplayVoice(this, 'FIGHT_LEAD', options); }
     _playUiDrop(options = {}) { playGameplayVoice(this, 'UI_DROP', options); }
     _playUiPickup(options = {}) { playGameplayVoice(this, 'UI_PICKUP', options); }
-    _playUiReject(options = {}) { playGameplayVoice(this, 'UI_REJECT', options); } _playExclusionWarning(options = {}) { playGameplayVoice(this, 'EXCLUSION_WARNING', options); }
+    _playUiReject(options = {}) { playGameplayVoice(this, 'UI_REJECT', options); }
+    _playExclusionWarning(options = {}) { playGameplayVoice(this, 'EXCLUSION_WARNING', options); }
     _ensureAmbienceNodes() {
         if (!this.ctx || this._ambience || !this.buffers.musicNoise) return;
         const source = this.ctx.createBufferSource();
