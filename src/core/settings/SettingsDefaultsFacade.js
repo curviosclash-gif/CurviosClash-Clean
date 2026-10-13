@@ -66,7 +66,11 @@ export function applySettingsOverrideToDefaults(baseSettings, validatedOverrideD
     if (!isPlainObject(validatedOverrideDraft) || !isPlainObject(validatedOverrideDraft.baseSettings)) {
         return baseSettings;
     }
-    return deepMergeKnownShape(baseSettings, validatedOverrideDraft.baseSettings);
+    const merged = deepMergeKnownShape(baseSettings, validatedOverrideDraft.baseSettings);
+    // A draft saved before a settings migration must not pull the version back, or the
+    // migration would run again on every load.
+    merged.settingsVersion = Math.max(Number(merged.settingsVersion) || 0, Number(baseSettings.settingsVersion) || 0);
+    return merged;
 }
 
 export function createDefaultSettingsSnapshotWithOverride(rawOverrideDraft, migrationInfo = null) {

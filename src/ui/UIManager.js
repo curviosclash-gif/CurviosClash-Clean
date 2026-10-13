@@ -26,13 +26,10 @@ import { normalizeHudAppearance } from '../shared/contracts/HudAppearanceContrac
 import { applyRuntimeHudAppearance, formatHudAppearanceHint } from './HudAppearance.js';
 import { syncArcadeRunSettings } from './menu/MenuArcadeRunSettingsBindings.js';
 import { syncBotHeuristicControls } from './menu/MenuBotHeuristicBindings.js';
-import { syncTrailLengthControl } from './menu/MenuTrailLengthControl.js';
 import { syncHuntRespawnToggle } from './menu/MenuHuntRespawnToggleSync.js';
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
-import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
 import { syncMenuDeveloperState } from './menu/MenuDeveloperStateSync.js';
 import { syncNormalCameraPerspectiveUi } from './menu/CameraPerspectiveUiSync.js';
-import { syncFightMenuTuningUi } from './menu/FightMenuTuningSync.js';
 import { syncMenuSurfacePolicyUi } from './menu/MenuSurfacePolicyUiSync.js';
 import { resolveSurfaceEntryCopy } from '../shared/contracts/PlatformSurfacePolicyOps.js';
 import { resolveRuntimeSessionContract } from '../shared/contracts/RuntimeSessionContract.js';
@@ -317,7 +314,6 @@ export class UIManager {
             this.syncRules(settings);
             this.syncGameplay(settings);
             this.syncVehicles(settings);
-            this.syncPresetState(settings, menuUiContext);
             this.syncMultiplayerState(settings, menuUiContext);
         });
     }
@@ -455,14 +451,11 @@ export class UIManager {
         ui.invertP1.checked = !!settings.invertPitch.PLAYER_1;
         ui.invertP2.checked = !!settings.invertPitch.PLAYER_2;
         ui.invertP3.checked = !!settings.invertPitch.PLAYER_3;
-        ui.portalsToggle.checked = !!settings.portalsEnabled;
     }
 
     syncGameplay(settings = this.settings) {
         const ui = this.ui;
         const gp = settings.gameplay;
-        const runtimeConfig = this._getGameplayConfig();
-        const runtimeLimits = this._runtimeSettingLimits;
         const mobileControls = normalizeMobileClassicControlSettings(settings?.localSettings?.mobileControls);
         const audioSettings = normalizeAudioSettings(settings?.localSettings?.audio);
         if (ui.audioEnabledToggle) ui.audioEnabledToggle.checked = audioSettings.enabled;
@@ -503,46 +496,6 @@ export class UIManager {
         if (ui.mobileTiltPitchModeSelect) ui.mobileTiltPitchModeSelect.value = mobileControls.tiltPitchMode;
         if (ui.mobileTiltDebugToggle) ui.mobileTiltDebugToggle.checked = !!mobileControls.tiltDebugVisible;
         if (ui.mobileTiltSensorHzToggle) ui.mobileTiltSensorHzToggle.checked = !!mobileControls.tiltSensorHzVisible;
-        syncRangeInput(ui.speedSlider, gp.speed, runtimeLimits.gameplay.speed, gp.speed);
-        ui.speedLabel.textContent = `${gp.speed} m/s`;
-        syncRangeInput(ui.turnSlider, gp.turnSensitivity, runtimeLimits.gameplay.turnSensitivity, gp.turnSensitivity);
-        ui.turnLabel.textContent = gp.turnSensitivity.toFixed(1);
-        syncRangeInput(ui.gravitySlider, gp.gravityStrength, runtimeLimits.gameplay.gravityStrength, gp.gravityStrength);
-        if (ui.gravityLabel) ui.gravityLabel.textContent = `${gp.gravityStrength} %`;
-        syncRangeInput(ui.planeSizeSlider, gp.planeScale, runtimeLimits.gameplay.planeScale, gp.planeScale);
-        ui.planeSizeLabel.textContent = gp.planeScale.toFixed(1);
-        syncRangeInput(ui.trailWidthSlider, gp.trailWidth, runtimeLimits.gameplay.trailWidth, gp.trailWidth);
-        ui.trailWidthLabel.textContent = gp.trailWidth.toFixed(1);
-        syncTrailLengthControl(ui, settings, runtimeLimits.gameplay.trailLength);
-        syncRangeInput(ui.gapSizeSlider, gp.gapSize, runtimeLimits.gameplay.gapSize, gp.gapSize);
-        ui.gapSizeLabel.textContent = gp.gapSize.toFixed(2);
-        syncRangeInput(ui.gapFrequencySlider, gp.gapFrequency, runtimeLimits.gameplay.gapFrequency, gp.gapFrequency);
-        ui.gapFrequencyLabel.textContent = (gp.gapFrequency * 100).toFixed(0) + '%';
-        syncRangeInput(ui.itemAmountSlider, gp.itemAmount, runtimeLimits.gameplay.itemAmount, gp.itemAmount);
-        ui.itemAmountLabel.textContent = gp.itemAmount;
-        syncRangeInput(ui.fireRateSlider, gp.fireRate, runtimeLimits.gameplay.fireRate, gp.fireRate);
-        ui.fireRateLabel.textContent = gp.fireRate.toFixed(2) + 's';
-        syncRangeInput(ui.lockOnSlider, gp.lockOnAngle, runtimeLimits.gameplay.lockOnAngle, gp.lockOnAngle);
-        const nextCheckpointGlowIntensity = Number.isFinite(Number(gp.nextCheckpointGlowIntensity))
-            ? Number(gp.nextCheckpointGlowIntensity)
-            : 1.35;
-        syncRangeInput(
-            ui.nextCheckpointGlowSlider,
-            nextCheckpointGlowIntensity,
-            runtimeLimits.gameplay.nextCheckpointGlowIntensity,
-            nextCheckpointGlowIntensity
-        );
-        if (ui.nextCheckpointGlowLabel) ui.nextCheckpointGlowLabel.textContent = nextCheckpointGlowIntensity.toFixed(2);
-        const mgTrailAimRadius = Number.isFinite(Number(gp.mgTrailAimRadius))
-            ? Number(gp.mgTrailAimRadius)
-            : Math.max(runtimeLimits.gameplay.mgTrailAimRadius.min, Number(runtimeConfig?.HUNT?.MG?.TRAIL_HIT_RADIUS) || 0.78);
-        syncRangeInput(ui.mgTrailAimSlider, mgTrailAimRadius, runtimeLimits.gameplay.mgTrailAimRadius, mgTrailAimRadius);
-        if (ui.mgTrailAimLabel) ui.mgTrailAimLabel.textContent = mgTrailAimRadius.toFixed(2);
-        syncRangeInput(ui.planarLevelCountSlider, gp.planarLevelCount, runtimeLimits.gameplay.planarLevelCount, gp.planarLevelCount);
-        if (ui.planarLevelCountLabel) ui.planarLevelCountLabel.textContent = String(gp.planarLevelCount);
-        applyRangeInputLimits(ui.fightPlayerHpSlider, runtimeLimits.gameplay.fightPlayerHp);
-        applyRangeInputLimits(ui.fightMgDamageSlider, runtimeLimits.gameplay.fightMgDamage);
-        syncFightMenuTuningUi({ ui, settings, gameplay: gp, config: runtimeConfig });
         syncGraphicsStyleControls({ ui, settings });
         const shadowQuality = normalizeShadowQuality(settings?.localSettings?.shadowQuality, DEFAULT_SHADOW_QUALITY);
         if (ui.shadowQualitySlider) ui.shadowQualitySlider.value = String(shadowQuality);
@@ -550,7 +503,6 @@ export class UIManager {
         const bloomQuality = normalizeBloomQuality(settings?.localSettings?.bloomQuality, DEFAULT_BLOOM_QUALITY);
         if (ui.bloomQualitySlider) ui.bloomQualitySlider.value = String(bloomQuality);
         if (ui.bloomQualityLabel) ui.bloomQualityLabel.textContent = resolveBloomQualityLabel(bloomQuality);
-        ui.lockOnLabel.textContent = gp.lockOnAngle + '\u00B0';
         const recordingSettings = normalizeRecordingCaptureSettings(
             settings?.recording,
             createDefaultRecordingCaptureSettings()
@@ -608,15 +560,6 @@ export class UIManager {
     // Delegiert an UIStartSyncController
     syncStartSetupState(settings = this.settings, snapshot = null) {
         return this._syncStartSetupSnapshot(settings, { snapshot, force: true });
-    }
-
-    syncPresetState(settings = this.settings, menuUiContext = this._resolveMenuUiContext(settings)) {
-        syncMenuPresetState({
-            ui: this.ui,
-            settings,
-            settingsManager: this.settingsManager,
-            surfacePolicy: menuUiContext.surfacePolicy,
-        });
     }
 
     syncMultiplayerState(settings = this.settings, menuUiContext = this._resolveMenuUiContext(settings)) {

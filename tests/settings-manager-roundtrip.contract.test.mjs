@@ -154,7 +154,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['localSettings.startSetup.vehicleSearch', 'ship'],
     ['localSettings.startSetup.vehicleFilter', 'heavy'],
     ['localSettings.startSetup.arcadeGhostDuelMode', 'self_longest_ghost'],
-    ['localSettings.toolsState.activeSection', 'gameplay'],
+    ['localSettings.toolsState.activeSection', 'graphics'],
     ['localSettings.mobileControls.tiltPitchMode', 'touch'],
     ['localSettings.mobileControls.tiltAssistMode', 'arcade'],
     ['localSettings.telemetryState.lastEvents', [{ type: 'quickstart' }]],

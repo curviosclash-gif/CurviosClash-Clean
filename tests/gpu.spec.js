@@ -241,7 +241,7 @@ test.describe('T21-40: Rendering & GPU', () => {
 
     test('T31a: Schattenqualitaets-Slider steuert Shadow-Maps im Menue', async ({ page }) => {
         await loadGame(page);
-        await openLevel4Drawer(page, { section: 'gameplay' });
+        await openLevel4Drawer(page, { section: 'controls' });
 
         const expectedDefaultShadowQuality = {
             value: String(DEFAULT_SHADOW_QUALITY),

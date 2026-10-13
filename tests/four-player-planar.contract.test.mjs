@@ -64,6 +64,7 @@ test('four-player planar settings migrate and sanitize without changing legacy p
         'settings.v2-to-v3',
         'settings.v3-to-v4',
         'settings.v4-to-v5',
+        'settings.v5-to-v6',
     ]);
     assert.equal(migrated.settings.localSettings.splitScreenVariant, SPLIT_SCREEN_VARIANTS.STANDARD);
 

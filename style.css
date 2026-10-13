@@ -1102,13 +1102,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     scroll-margin-top: 12px;
 }
 
-[data-menu-action="preset-apply"],
-[data-menu-action="preset-save-open"],
-[data-menu-action="preset-save-fixed"],
-[data-menu-action="preset-delete"] {
-    text-align: left;
-}
-
 #submenu-developer .menu-hint,
 #submenu-multiplayer .menu-hint {
     line-height: 1.4;
@@ -1386,30 +1379,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     margin: 14px 0 4px;
     font-size: 0.9rem;
     color: #88bbff;
-}
-
-.preset-chip-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 8px;
-}
-
-/* A preset chip shows its name and, below it, what applying it changes. */
-.preset-chip-grid button {
-    display: grid;
-    gap: 3px;
-    text-align: left;
-}
-
-.preset-chip-name {
-    font-weight: 600;
-}
-
-.preset-chip-summary {
-    font-size: 0.8rem;
-    font-weight: 400;
-    opacity: 0.78;
-    white-space: normal;
 }
 
 .menu-preview-card {
@@ -3698,15 +3667,6 @@ body:has(#hunt-hud:not(.hidden) #hunt-target-progress:not(.hidden)) #hud-notice-
 
 .hunt-respawn-status.hidden {
     display: none !important;
-}
-
-#fight-tuning-hint[data-tone="fast"],
-#fight-tuning-hint[data-tone="slow"] {
-    color: #ffd166;
-}
-
-#fight-tuning-hint[data-tone="balanced"] {
-    color: #9ff2c7;
 }
 
 #hunt-p1-panel,

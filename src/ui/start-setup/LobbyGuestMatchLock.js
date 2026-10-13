@@ -7,7 +7,7 @@
 // tabs are now inert for guests. Local tabs (controls, audio, graphics, HUD, recording)
 // stay free.
 
-export const GUEST_LOCKED_LEVEL4_SECTIONS = Object.freeze(['gameplay', 'advanced_map', 'presets']);
+export const GUEST_LOCKED_LEVEL4_SECTIONS = Object.freeze(['advanced_map']);
 export const LOBBY_GUEST_LOCK_HINT = 'Der Host legt die Match-Einstellungen fest.';
 
 export function isLobbyGuestMatchLocked(state, isMultiplayerSession) {

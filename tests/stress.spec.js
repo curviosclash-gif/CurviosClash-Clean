@@ -263,8 +263,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         for (let i = 0; i < 18; i += 1) {
             const presetId = presetIds[i % presetIds.length];
             await page.evaluate((targetPresetId) => {
-                const button = document.querySelector(`#submenu-game [data-preset-id="${targetPresetId}"]`);
-                button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                window.GAME_INSTANCE.runtimeFacade.applyMenuPreset({ presetId: targetPresetId, source: 'quickstart' });
             }, presetId);
             await waitForRenderFrames(page, 1);
         }
@@ -355,7 +354,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         test.setTimeout(90000);
         const errors = collectErrors(page);
         const sessionTypes = ['single', 'multiplayer', 'splitscreen'];
-        const level4Sections = ['gameplay', 'controls', 'tools'];
+        const level4Sections = ['audio', 'controls', 'tools'];
 
         await loadGame(page);
 

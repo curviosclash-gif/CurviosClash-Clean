@@ -11,7 +11,6 @@ import { bindMenuExtrasButtons } from './MenuExtrasBindings.js';
 import { bindArcadeGhostDuelModeSelect } from './MenuArcadeGhostDuelBindings.js';
 import { bindArcadeRunSettings } from './MenuArcadeRunSettingsBindings.js';
 import { bindBotHeuristicControls } from './MenuBotHeuristicBindings.js';
-import { bindTrailLengthControl } from './MenuTrailLengthControl.js';
 import { bindMenuMobileTiltControls } from './MenuMobileTiltBindings.js';
 import { bindHuntWinConditionSelect } from './MenuHuntWinConditionBindings.js';
 import { bindMenuRecordingCameraControls } from './MenuRecordingCameraBindings.js';
@@ -21,7 +20,6 @@ import {
     writeHangarVehicleSelection,
 } from '../hangar/HangarSelectionWritebackContract.js';
 import { createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
-import { FIGHT_TUNING_PRESETS } from './FightMenuTuningSync.js';
 import { bindGraphicsStyleSelect } from './MenuGraphicsStyleBindings.js';
 import { applyMenuPlanarMode } from './MenuPlanarModeOps.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
@@ -39,10 +37,7 @@ export function setupMenuGameplayBindings(ctx) {
     const huntFeatureEnabled = gameplayConfig.HUNT?.ENABLED !== false;
     const runtimeLimits = createRuntimeSettingsLimitsForRuntime();
     const sessionLimits = runtimeLimits.session;
-    const gameplayLimits = runtimeLimits.gameplay;
     const hangarWindow = createHangarWindowMenuPort(globalThis);
-    const mgTrailAimLimits = gameplayLimits.mgTrailAimRadius;
-    const fightMgDamageLimits = gameplayLimits.fightMgDamage;
     settings.cockpitCamera = { ...(settings.cockpitCamera && typeof settings.cockpitCamera === 'object' ? settings.cockpitCamera : {}), PLAYER_1: GAMEPLAY_COCKPIT_CAMERA_ENABLED, PLAYER_2: GAMEPLAY_COCKPIT_CAMERA_ENABLED };
     const resolveCurrentHangarModePath = () => String(settings?.localSettings?.modePath || 'normal').trim().toLowerCase() || 'normal';
     const isFightModePathActive = () => resolveCurrentHangarModePath() === 'fight';
@@ -232,7 +227,6 @@ export function setupMenuGameplayBindings(ctx) {
     bindArcadeGhostDuelModeSelect({ ui, settings, bind, emitSettingsChangedImmediate, keys });
     bindArcadeRunSettings({ ui, settings, bind, emitSettingsChangedImmediate, keys });
     bindBotHeuristicControls({ ui, settings, bind, emitSettingsChangedImmediate, keys });
-    bindTrailLengthControl({ ui, settings, bind, limits: gameplayLimits.trailLength, emit: queueInputSettingsChanged, keys });
 
     bind(ui.botSlider, 'input', () => {
         settings.numBots = clamp(parseInt(ui.botSlider.value, 10), sessionLimits.numBots.min, sessionLimits.numBots.max);
@@ -292,152 +286,9 @@ export function setupMenuGameplayBindings(ctx) {
         emitSettingsChangedImmediate([keys.RULES_INVERT_P3]);
     });
 
-    bind(ui.portalsToggle, 'change', () => {
-        settings.portalsEnabled = !!ui.portalsToggle.checked;
-        emitSettingsChangedImmediate([keys.RULES_PORTALS_ENABLED]);
-    });
-
     bindMenuMobileTiltControls({
         ui, settings, bind, emitSettingsChangedImmediate, queueInputSettingsChanged, keys,
     });
-
-    bind(ui.speedSlider, 'input', () => {
-        settings.gameplay.speed = clamp(parseFloat(ui.speedSlider.value), gameplayLimits.speed.min, gameplayLimits.speed.max);
-        queueInputSettingsChanged([keys.GAMEPLAY_SPEED]);
-    });
-
-    bind(ui.turnSlider, 'input', () => {
-        settings.gameplay.turnSensitivity = clamp(
-            parseFloat(ui.turnSlider.value),
-            gameplayLimits.turnSensitivity.min,
-            gameplayLimits.turnSensitivity.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_TURN_SENSITIVITY]);
-    });
-
-    bind(ui.gravitySlider, 'input', () => {
-        settings.gameplay.gravityStrength = clamp(
-            Math.round(Number(ui.gravitySlider.value)), gameplayLimits.gravityStrength.min, gameplayLimits.gravityStrength.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_GRAVITY_STRENGTH]);
-    });
-
-    bind(ui.planeSizeSlider, 'input', () => {
-        settings.gameplay.planeScale = clamp(
-            parseFloat(ui.planeSizeSlider.value),
-            gameplayLimits.planeScale.min,
-            gameplayLimits.planeScale.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_PLANE_SCALE]);
-    });
-
-    bind(ui.trailWidthSlider, 'input', () => {
-        settings.gameplay.trailWidth = clamp(
-            parseFloat(ui.trailWidthSlider.value),
-            gameplayLimits.trailWidth.min,
-            gameplayLimits.trailWidth.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_TRAIL_WIDTH]);
-    });
-
-    bind(ui.gapSizeSlider, 'input', () => {
-        settings.gameplay.gapSize = clamp(
-            parseFloat(ui.gapSizeSlider.value),
-            gameplayLimits.gapSize.min,
-            gameplayLimits.gapSize.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_GAP_SIZE]);
-    });
-
-    bind(ui.gapFrequencySlider, 'input', () => {
-        settings.gameplay.gapFrequency = clamp(
-            parseFloat(ui.gapFrequencySlider.value),
-            gameplayLimits.gapFrequency.min,
-            gameplayLimits.gapFrequency.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_GAP_FREQUENCY]);
-    });
-
-    bind(ui.itemAmountSlider, 'input', () => {
-        settings.gameplay.itemAmount = clamp(
-            parseInt(ui.itemAmountSlider.value, 10),
-            gameplayLimits.itemAmount.min,
-            gameplayLimits.itemAmount.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_ITEM_AMOUNT]);
-    });
-
-    bind(ui.fireRateSlider, 'input', () => {
-        settings.gameplay.fireRate = clamp(
-            parseFloat(ui.fireRateSlider.value),
-            gameplayLimits.fireRate.min,
-            gameplayLimits.fireRate.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_FIRE_RATE]);
-    });
-
-    bind(ui.lockOnSlider, 'input', () => {
-        settings.gameplay.lockOnAngle = clamp(
-            parseInt(ui.lockOnSlider.value, 10),
-            gameplayLimits.lockOnAngle.min,
-            gameplayLimits.lockOnAngle.max
-        );
-        queueInputSettingsChanged([keys.GAMEPLAY_LOCK_ON_ANGLE]);
-    });
-
-    if (ui.nextCheckpointGlowSlider) {
-        bind(ui.nextCheckpointGlowSlider, 'input', () => {
-            settings.gameplay.nextCheckpointGlowIntensity = clamp(
-                parseFloat(ui.nextCheckpointGlowSlider.value),
-                gameplayLimits.nextCheckpointGlowIntensity.min,
-                gameplayLimits.nextCheckpointGlowIntensity.max
-            );
-            queueInputSettingsChanged([keys.GAMEPLAY_NEXT_CHECKPOINT_GLOW_INTENSITY]);
-        });
-    }
-
-    if (ui.mgTrailAimSlider) {
-        bind(ui.mgTrailAimSlider, 'input', () => {
-            settings.gameplay.mgTrailAimRadius = clamp(
-                parseFloat(ui.mgTrailAimSlider.value),
-                mgTrailAimLimits.min,
-                mgTrailAimLimits.max
-            );
-            queueInputSettingsChanged([keys.GAMEPLAY_MG_TRAIL_AIM_RADIUS]);
-        });
-    }
-    if (ui.fightPlayerHpSlider) {
-        bind(ui.fightPlayerHpSlider, 'input', () => {
-            if (!isFightModePathActive()) return;
-            settings.gameplay.fightPlayerHp = clamp(
-                parseInt(ui.fightPlayerHpSlider.value, 10),
-                gameplayLimits.fightPlayerHp.min,
-                gameplayLimits.fightPlayerHp.max
-            );
-            queueInputSettingsChanged([keys.GAMEPLAY_FIGHT_PLAYER_HP]);
-        });
-    }
-    if (ui.fightMgDamageSlider) {
-        bind(ui.fightMgDamageSlider, 'input', () => {
-            if (!isFightModePathActive()) return;
-            settings.gameplay.fightMgDamage = clamp(
-                parseFloat(ui.fightMgDamageSlider.value),
-                fightMgDamageLimits.min,
-                fightMgDamageLimits.max
-            );
-            queueInputSettingsChanged([keys.GAMEPLAY_FIGHT_MG_DAMAGE]);
-        });
-    }
-    for (const button of ui.fightTuningPresetButtons || []) {
-        bind(button, 'click', () => {
-            if (!isFightModePathActive()) return;
-            const preset = FIGHT_TUNING_PRESETS[String(button?.dataset?.fightTuningPreset || '')];
-            if (!preset) return;
-            settings.gameplay.fightPlayerHp = preset.fightPlayerHp;
-            settings.gameplay.fightMgDamage = preset.fightMgDamage;
-            emitSettingsChangedImmediate([keys.GAMEPLAY_FIGHT_PLAYER_HP, keys.GAMEPLAY_FIGHT_MG_DAMAGE]);
-        });
-    }
 
     const updateAudioSetting = (key, value, changedKey) => {
         if (!settings.localSettings || typeof settings.localSettings !== 'object') {

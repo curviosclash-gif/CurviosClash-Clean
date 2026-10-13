@@ -13,7 +13,7 @@ test('gravity settings default to 20 and clamp saved values to 0..50', () => {
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
     assert.equal(manager.createDefaultSettings().gameplay.gravityStrength, 20);
     for (const [value, expected] of [[-5, 0], [0, 0], [20, 20], [50, 50], [99, 50], [undefined, 20]]) {
-        const settings = manager.sanitizeSettings({ gameplay: { gravityStrength: value } });
+        const settings = manager.sanitizeSettings({ settingsVersion: manager.createDefaultSettings().settingsVersion, gameplay: { gravityStrength: value } });
         assert.equal(settings.gameplay.gravityStrength, expected);
         const runtime = createRuntimeConfigSnapshot(settings);
         assert.equal(runtime.player.gravityStrength, expected);

@@ -8,7 +8,6 @@ import { getPreferredFightEnemy } from '../src/hunt/FightTargetSelector.js';
 import { emitHuntEliminationFeed } from '../src/hunt/HuntEliminationFeed.js';
 import { createHuntNetworkState, applyHuntNetworkState } from '../src/hunt/HuntNetworkState.js';
 import { SpawnPlacementSystem } from '../src/entities/systems/SpawnPlacementSystem.js';
-import { deriveFightTuningSummary } from '../src/ui/menu/FightMenuTuningSync.js';
 import { createMenuDefaultsEditorConfigSnapshot } from '../src/ui/menu/MenuDefaultsEditorConfig.js';
 import { createMatchRuntimeProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
 import { HuntHUD } from '../src/ui/HuntHUD.js';
@@ -240,20 +239,6 @@ test('Fight spawns avoid visible enemies, recent deaths and recent spawn points'
     spawningPlayer.fightLastDeathPosition = null;
     system._rememberSpawn(new THREE.Vector3(2, 0, 0));
     assert.equal(system._isSpawnPositionSafe(candidate, 1, 144, owner.players, spawningPlayer), false);
-});
-
-test('Fight tuning summary includes hangar HP and readable TTK', () => {
-    const summary = deriveFightTuningSummary({
-        settings: {
-            vehicles: { PLAYER_1: 'ship5' },
-            localSettings: { fightHangar: { activeBonusesByVehicle: { ship5: { maxHpBonus: 60 } } } },
-        },
-        fightPlayerHp: 100,
-        fightMgDamage: 7.75,
-        config: { HUNT: { MG: { COOLDOWN: 0.08, OVERHEAT_PER_SHOT: 9, COOLING_PER_SECOND: 20, LOCKOUT_THRESHOLD: 96, LOCKOUT_SECONDS: 0.75, MIN_FALLOFF: 0.5 } } },
-    });
-    assert.match(summary.text, /effektiv 160 HP/);
-    assert.match(summary.text, /nah \d+ Treffer\/\d+\.\d s/);
 });
 
 test('Fight scoring exposes K/T/A and runtime projection keeps deathmatch state', () => {
