@@ -51,3 +51,34 @@ test('a run whose final sector is cleared still counts as succeeded', () => {
 
     assert.equal(run.getStateSnapshot().postRunSummary.succeeded, true);
 });
+
+/**
+ * Decision 13.10.2026: quitting counts like dying. Both runs clear sector 1 of 3; one quits
+ * to the menu during the intermission, the other dies early in sector 2. The records must not
+ * tell them apart, while only the quit is flagged as aborted (ranked boards skip aborted runs).
+ */
+test('an aborted run updates the records exactly like a death at the same point', () => {
+    const clearFirstSector = () => {
+        const run = makeRun(3);
+        run.deriveRoundEndPlan({ players: [pilot()], inputs: { reason: '' }, baseController });
+        run.handleRoundEndTelemetry({ state: 'ROUND_END', duration: 30, kills: 2 });
+        assert.equal(run.getPhase(), 'intermission');
+        return run;
+    };
+
+    const quit = clearFirstSector();
+    quit.resetRunState();
+
+    const died = clearFirstSector();
+    died.beginNextSector();
+    died.deriveRoundEndPlan({ players: [{ ...pilot(), alive: false, hp: 0 }], inputs: { reason: '' }, baseController });
+    died.handleRoundEndTelemetry({ state: 'MATCH_END', duration: 3, kills: 0 });
+    assert.equal(died.getStateSnapshot().postRunSummary.aborted, false);
+
+    const pick = (records) => ({
+        bestScore: records.bestScore, lastScore: records.lastScore, bestSector: records.bestSector,
+        lastSector: records.lastSector, runsPlayed: records.runsPlayed,
+    });
+    assert.ok(died._records.bestScore > 0, 'the cleared sector scored points');
+    assert.deepEqual(pick(quit._records), pick(died._records), 'quitting and dying leave the same records');
+});
