@@ -3,6 +3,7 @@ import { createDemolitionMapPlan, isDemolitionConfig, isDemolitionRunType } from
 import { isEndlessParcoursConfig, normalizeArcadeRunType } from './EndlessParcoursContract.js';
 import { isFivePortalsConfig, isFivePortalsRunType, resolvePortalChain } from './PortalChainContract.js';
 import { isWeaponRaceConfig, isWeaponRaceRunType } from './WeaponRaceContract.js';
+import { isHuntParcoursConfig, isHuntParcoursRunType, resolveHuntParcoursVariant } from './HuntParcoursContract.js';
 
 export const ARCADE_RUN_KINDS = Object.freeze({
     GAUNTLET: 'gauntlet',
@@ -11,6 +12,7 @@ export const ARCADE_RUN_KINDS = Object.freeze({
     ARENA_WAVES: 'arena_waves',
     WEAPON_RACE: 'weapon_race',
     DEMOLITION: 'demolition',
+    HUNT_PARCOURS: 'hunt_parcours',
 });
 
 export function resolveArcadeRunKind(value) {
@@ -19,6 +21,7 @@ export function resolveArcadeRunKind(value) {
     if (isFivePortalsRunType(runType)) return ARCADE_RUN_KINDS.FIVE_PORTALS;
     if (isArenaWavesRunType(runType)) return ARCADE_RUN_KINDS.ARENA_WAVES;
     if (isWeaponRaceRunType(runType)) return ARCADE_RUN_KINDS.WEAPON_RACE;
+    if (isHuntParcoursRunType(runType)) return ARCADE_RUN_KINDS.HUNT_PARCOURS;
     if (normalizeArcadeRunType(runType) === ARCADE_RUN_KINDS.ENDLESS_PARCOURS) return ARCADE_RUN_KINDS.ENDLESS_PARCOURS;
     return ARCADE_RUN_KINDS.GAUNTLET;
 }
@@ -28,6 +31,7 @@ export function resolveArcadeRuntimeKind(runtimeConfig) {
     if (isFivePortalsConfig(runtimeConfig)) return ARCADE_RUN_KINDS.FIVE_PORTALS;
     if (isArenaWavesConfig(runtimeConfig)) return ARCADE_RUN_KINDS.ARENA_WAVES;
     if (isWeaponRaceConfig(runtimeConfig)) return ARCADE_RUN_KINDS.WEAPON_RACE;
+    if (isHuntParcoursConfig(runtimeConfig)) return ARCADE_RUN_KINDS.HUNT_PARCOURS;
     if (isEndlessParcoursConfig(runtimeConfig)) return ARCADE_RUN_KINDS.ENDLESS_PARCOURS;
     return ARCADE_RUN_KINDS.GAUNTLET;
 }
@@ -37,5 +41,6 @@ export function resolveArcadeInitialMapKey({ arcadeEnabled = false, arcade = nul
     const kind = resolveArcadeRunKind(arcade?.runType);
     if (kind === ARCADE_RUN_KINDS.FIVE_PORTALS) return resolvePortalChain(arcade?.portalChainId).maps[0];
     if (kind === ARCADE_RUN_KINDS.DEMOLITION) return createDemolitionMapPlan(arcade?.seed).mapKeys[0];
+    if (kind === ARCADE_RUN_KINDS.HUNT_PARCOURS) return (resolveHuntParcoursVariant(arcade?.huntParcoursVariantId) || resolveHuntParcoursVariant('nemesis')).mapKeys[0];
     return String(fallbackMapKey || 'standard');
 }
