@@ -68,6 +68,7 @@ export function mushroom(id, form, variant, position, targetSize, options = {}) 
         targetSize,
         maxRenderDistance: options.maxRenderDistance || DEFAULT_RENDER_DISTANCE,
         collision: false,
+        role: 'optionalProp',
     });
 }
 
