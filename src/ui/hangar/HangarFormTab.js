@@ -5,7 +5,7 @@
 // part boxes of "Trefferzone zeigen" only there. Size slider and shape choice are gone from
 // "Form" (Plan, Aussehen).
 // The Fight hangar keeps "Form" with the colour panel only and has no "Ausbau".
-// Lives outside ArcadeHangarWorkshop.js, which is over the max-lines cap and must not grow.
+// Lives outside ArcadeHangarWorkshop.js so the workshop controller stays small.
 import { createHangarPartStylePanel } from './HangarPartStylePanel.js';
 import { createHangarUpgradeTab } from './HangarUpgradeTab.js';
 import { normalizeVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
