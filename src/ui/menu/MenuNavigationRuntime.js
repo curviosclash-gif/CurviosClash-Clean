@@ -414,7 +414,7 @@ export class MenuNavigationRuntime {
     _getVisibleMainActions() {
         const menuRoot = this.ui.mainMenu || document.getElementById('main-menu');
         return Array.from(menuRoot?.querySelectorAll?.(
-            '[data-menu-main-action], .nav-btn, .menu-utility-shell button, .menu-tutorial-entry'
+            '[data-menu-main-action], .nav-btn, .menu-utility-shell button, .menu-tutorial-entry, .menu-top-right button, .menu-stage-footer button'
         ) || []).filter(isAvailable);
     }
 
