@@ -247,7 +247,7 @@ export class TrailCollisionQuery {
             || cache.ownWriteIndex !== ownWriteIndex
             || cache.ownMaxSegments !== ownMaxSegments) {
             for (const list of cache.byCell.values()) {
-                list.length = 0;
+                list.segs.length = 0;
                 cache.pool.push(list);
             }
             cache.byCell.clear();
@@ -265,7 +265,8 @@ export class TrailCollisionQuery {
         const centerKey = (cellX + GRID_KEY_OFFSET) * GRID_KEY_STRIDE + (cellZ + GRID_KEY_OFFSET);
         let list = cache.byCell.get(centerKey);
         if (list) return list;
-        list = cache.pool.length > 0 ? cache.pool.pop() : [];
+        list = cache.pool.length > 0 ? cache.pool.pop() : { segs: [], box: new Float64Array(96) };
+        const segs = list.segs;
         const queryStamp = this._nextGlobalQueryStamp();
         for (let i = 0; i < CELL_OFFSETS_3X3.length; i++) {
             const [dx, dz] = CELL_OFFSETS_3X3[i];
@@ -282,7 +283,22 @@ export class TrailCollisionQuery {
                     }
                     if (shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
                 }
-                list.push(seg);
+                // The bounds are copied next to each other, so a probe rejects candidates without
+                // touching their segment objects. They are immutable until the next registration.
+                const offset = segs.length * 6;
+                if (offset + 6 > list.box.length) {
+                    const grown = new Float64Array(list.box.length * 2);
+                    grown.set(list.box);
+                    list.box = grown;
+                }
+                const box = list.box;
+                box[offset] = seg.boundsMinX;
+                box[offset + 1] = seg.boundsMaxX;
+                box[offset + 2] = seg.boundsMinY;
+                box[offset + 3] = seg.boundsMaxY;
+                box[offset + 4] = seg.boundsMinZ;
+                box[offset + 5] = seg.boundsMaxZ;
+                segs.push(seg);
             }
         }
         cache.byCell.set(centerKey, list);
@@ -304,8 +320,17 @@ export class TrailCollisionQuery {
                 excludePlayerIndex,
                 skipRecent
             );
-            for (let i = 0; i < candidates.length; i++) {
-                const seg = candidates[i];
+            const segs = candidates.segs;
+            const box = candidates.box;
+            const px = position.x;
+            const py = position.y;
+            const pz = position.z;
+            // The same box rejection _segmentIntersectsSphere starts with, on the packed copy.
+            for (let i = 0, o = 0; i < segs.length; i++, o += 6) {
+                if (px < box[o] - radius || px > box[o + 1] + radius) continue;
+                if (py < box[o + 2] - radius || py > box[o + 3] + radius) continue;
+                if (pz < box[o + 4] - radius || pz > box[o + 5] + radius) continue;
+                const seg = segs[i];
                 if (seg.destroyed) continue;
                 if (!this._segmentIntersectsSphere(seg, position, radius, this._tmpClosestPointData)) continue;
                 if (playerRef && playerRef.isSphereInOBB) {
