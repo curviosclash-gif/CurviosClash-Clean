@@ -128,6 +128,7 @@ export const ARCADE_SECTOR_CATALOG = Object.freeze([
 ]);
 
 import { createSeededRandom } from '../../shared/utils/ArcadeUtils.js';
+import { resolveArcadeTierAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { applyArcadeScenarioToSectorEntry, resolveArcadeScenarioForSector } from './ArcadeScenarioCatalog.js';
 
 function pickFromPool(pool, randomFn) {
@@ -152,6 +153,17 @@ function getSectorTemplate(sectorNumber) {
     )) || ARCADE_SECTOR_CATALOG[ARCADE_SECTOR_CATALOG.length - 1];
 }
 
+// The template ranges are authored as sector numbers of a 20-sector run. A planned run picks its
+// template by progress instead: the first sector is always the intro, the last one reaches the
+// endurance template, and a 20-sector run keeps exactly the authored numbers.
+const TEMPLATE_REFERENCE_SECTOR_COUNT = 20;
+
+function resolveTemplateSectorNumber(sectorNumber, sectorCount) {
+    if (sectorCount <= 1) return 1;
+    const progress = (sectorNumber - 1) / (sectorCount - 1);
+    return 1 + Math.floor(progress * (TEMPLATE_REFERENCE_SECTOR_COUNT - 1) + 1e-9);
+}
+
 // 82.1.4: Parcours sectors appear every PARCOURS_SECTOR_INTERVAL positions (e.g. sector 4, 8, 12…).
 // The final sector is always a boss sector regardless of interval alignment.
 const PARCOURS_SECTOR_INTERVAL = 4;
@@ -173,6 +185,36 @@ function normalizeArcadeDifficulty(value, fallback = 'NORMAL') {
         : 'NORMAL';
 }
 
+/**
+ * The run tier is the floor, a sector's pressure or a wave row may only raise it.
+ * A missing floor leaves the candidate as it is.
+ */
+export function resolveHigherArcadeBotDifficulty(floor, candidate) {
+    const raised = normalizeArcadeDifficulty(candidate, floor);
+    const base = normalizeArcadeDifficulty(floor, raised);
+    return ARCADE_DIFFICULTY_RANK[raised] > ARCADE_DIFFICULTY_RANK[base] ? raised : base;
+}
+
+/**
+ * Pressure of a sector entry flown with `modifierId`. A planned entry keeps the parts its pressure
+ * was built from (`pressureBasis`), so a route modifier swapped in the intermission re-derives it
+ * instead of keeping the planned modifier's share. Entries without a basis keep their pressure.
+ */
+export function resolveArcadeSectorPressure(entry, modifierId = entry?.modifierId) {
+    const stored = Math.max(0, Number(entry?.pressure) || 0);
+    const basis = entry?.pressureBasis;
+    if (!basis || typeof basis !== 'object' || entry.parcoursEnabled === true) return stored;
+    const nextModifierId = String(modifierId || '').trim();
+    if (nextModifierId === String(basis.modifierId || '').trim()) return stored;
+    const delta = ARCADE_SECTOR_MODIFIERS.find((item) => item.id === nextModifierId)?.difficultyDelta || 0;
+    const scale = Number.isFinite(Number(basis.scale)) ? Number(basis.scale) : 1;
+    return Number(Math.min(1, Math.max(0, ((Number(basis.squadPressure) || 0) + delta) * scale)).toFixed(3));
+}
+
+function createPressureBasis(squadPressure, scale, modifierId) {
+    return { squadPressure, scale, modifierId: modifierId || null };
+}
+
 /** One role per bot: the squad's mix repeats when a scenario asks for more bots than it lists. */
 function resolveSquadBotRoles(squad, botCount) {
     const roles = Array.isArray(squad?.botRoles) && squad.botRoles.length > 0 ? squad.botRoles : ['pursuer', 'flanker'];
@@ -184,12 +226,10 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
     const squadId = String(entry.squadId || '').trim();
     const squad = ARCADE_SQUAD_PROFILES[squadId] || null;
     const fallbackBotCount = Math.max(0, Math.trunc(Number(options.fallbackBotCount) || 0));
-    const pressure = Math.max(0, Math.min(1, Number(entry.pressure) || 0));
+    const pressure = Math.max(0, Math.min(1, resolveArcadeSectorPressure(entry)));
     const baseDifficulty = normalizeArcadeDifficulty(options.fallbackDifficulty, 'NORMAL');
     const pressureDifficulty = pressure > 0.72 ? 'HARD' : (pressure > 0.42 ? 'NORMAL' : 'EASY');
-    const botDifficulty = ARCADE_DIFFICULTY_RANK[pressureDifficulty] > ARCADE_DIFFICULTY_RANK[baseDifficulty]
-        ? pressureDifficulty
-        : baseDifficulty;
+    const botDifficulty = resolveHigherArcadeBotDifficulty(baseDifficulty, pressureDifficulty);
     const parcoursEnabled = entry.parcoursEnabled === true;
     const parcoursRacer = parcoursEnabled && (entry.parcoursRacer === true || entry.templateId === 'sector_parcours');
     const botCount = parcoursEnabled ? (parcoursRacer ? 1 : 0) : (Number.isInteger(entry.botCount) ? entry.botCount : (squad?.botCount ?? fallbackBotCount));
@@ -203,7 +243,7 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         botRoles: parcoursRacer ? [] : resolveSquadBotRoles(squad, botCount),
         botDifficulty,
         pressure,
-        aggressiveness: parcoursEnabled ? 0 : Math.max(0, Math.min(1, Number(squad?.aggressiveness) || 0)),
+        aggressiveness: parcoursEnabled || !squad ? 0 : resolveArcadeTierAggressiveness(squad.aggressiveness, entry.difficultyTierId),
         parcoursEnabled,
         parcoursRacer,
         isBoss: entry.isBoss === true,
@@ -235,8 +275,11 @@ export function buildArcadeSectorPlan(options = {}) {
         ? new Set(['worm_hunt', 'storm_flood', 'hydra_finale'])
         : null;
     const difficultyScale = resolveDifficultyScale(options.difficulty);
+    // The run tier's bot properties (aggressionBonus) reach the sector profile through the entry.
+    const difficultyTierId = String(options.difficulty ?? 'normal').trim().toLowerCase();
     const parcoursTemplate = ARCADE_SECTOR_CATALOG.find((t) => t.id === 'sector_parcours');
     const sequence = [];
+    const generatedScenarioIds = new Set();
 
     for (let sectorIndex = 0; sectorIndex < sectorCount; sectorIndex += 1) {
         const sectorNumber = sectorIndex + 1;
@@ -271,7 +314,10 @@ export function buildArcadeSectorPlan(options = {}) {
             continue;
         }
 
-        const template = getSectorTemplate(sectorNumber);
+        // The Daily is the same fixed run for everyone and keeps the authored sector numbers.
+        const template = getSectorTemplate(options.dailyChallenge === true
+            ? sectorNumber
+            : resolveTemplateSectorNumber(sectorNumber, sectorCount));
         const squadId = pickFromPool(template.squadPool, randomFn);
         const objectiveId = pickFromPool(template.objectivePool, randomFn);
         const modifierId = pickFromPool(template.modifierPool, randomFn);
@@ -293,8 +339,17 @@ export function buildArcadeSectorPlan(options = {}) {
             ? legacyDailyScenarioRandom
             : createSeededRandom(`${seedKey}-scenario-${sectorNumber}`);
         const scenario = resolveArcadeScenarioForSector({
-            sectorNumber, sectorCount, isBoss, isParcours: false, allowedScenarioIds: dailyScenarioIds,
+            sectorNumber,
+            sectorCount,
+            isBoss,
+            isParcours: false,
+            allowedScenarioIds: dailyScenarioIds,
+            excludedScenarioIds: options.dailyChallenge === true || !generatedScenarioIds.has('storm_flood')
+                ? null
+                : new Set(['storm_flood']),
+            allowLateSectorScenarios: options.dailyChallenge !== true && sectorNumber >= 7,
         }, scenarioRandomFn);
+        if (scenario) generatedScenarioIds.add(scenario.id);
         sequence.push(applyArcadeScenarioToSectorEntry({
             sectorNumber,
             templateId: template.id,
@@ -304,6 +359,9 @@ export function buildArcadeSectorPlan(options = {}) {
             scoreBonus: Number((modifierDef?.scoreBonus || 0).toFixed(3)),
             rewardChoices,
             pressure: Number(bossPressure.toFixed(3)),
+            // Boss pressure ignores the modifier; a scenario brings its own rules.
+            ...(isBoss || scenario ? {} : { pressureBasis: createPressureBasis(basePressure, difficultyScale, modifierId) }),
+            difficultyTierId,
             mapKey,
             isBoss,
             bossMultiplier: isBoss ? 2 : 1,
@@ -341,6 +399,8 @@ export function resolveArcadeEndlessSectorDescriptor(options = {}) {
         scoreBonus: Number((modifierDef?.scoreBonus || 0).toFixed(3)),
         rewardChoices,
         pressure: Number(pressure.toFixed(3)),
+        pressureBasis: Object.freeze(createPressureBasis(basePressure, difficultyScale, modifierId)),
+        difficultyTierId: String(options.difficulty ?? 'normal').trim().toLowerCase(),
         mapKey: pickFromPool(template.mapPool || ['standard'], randomFn) || 'standard',
         isBoss: false,
         bossMultiplier: 1,

@@ -4,6 +4,7 @@ export const MENU_CONTROLLER_EVENT_TYPES = Object.freeze({
     SETTINGS_CHANGED: 'settings_changed',
     SESSION_TYPE_CHANGE: 'session_type_change',
     MODE_PATH_CHANGE: 'mode_path_change',
+    FREE_PLAY_VARIANT_CHANGE: 'free_play_variant_change',
     QUICKSTART_LAST_START: 'quickstart_last_start',
     QUICKSTART_EVENT_PLAYLIST_START: 'quickstart_event_playlist_start',
     QUICKSTART_RANDOM_START: 'quickstart_random_start',

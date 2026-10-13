@@ -59,7 +59,7 @@ async function assignDemolitionProfiles(page, profileIds) {
 test('Desktop Abrisskommando binds three UUID profiles across timeout and card rebuild', async ({ page }) => {
     test.setTimeout(150_000);
     await waitForLoadedGame(page);
-    await page.locator('[data-menu-action="level4-open"][data-level4-section="tools"][data-menu-text-id="menu.utility.profiles.label"]').click();
+    await page.locator('#btn-main-player').click();
     await expect(page.locator('#level4-section-tools')).toBeVisible();
     await expect(page.locator('#player-profile-name')).toBeVisible();
     await expect(page.locator('#btn-player-profile-create')).toBeVisible();

@@ -50,7 +50,6 @@ test('menu surfaces use one German name for each shared concept', () => {
         'menu.multiplayer.title': 'Mehrspieler',
         'menu.level4.tabs.advanced_map.label': 'Karten-Details',
         'menu.level4.tools.vehicle_editor.label': 'Fahrzeug-Werkstatt öffnen',
-        'menu.level4.gameplay.item_amount.label': 'Gegenstände:',
         'menu.level1.splitscreen.label': 'Geteilter Bildschirm',
     };
     for (const [id, label] of Object.entries(expected)) assert.equal(MENU_TEXT_CATALOG[id], label, id);

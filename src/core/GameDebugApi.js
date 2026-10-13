@@ -1,5 +1,6 @@
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 import { createMapBalancingLiveApi, registerMapBalancingLiveSource } from './balancing/MapBalancingLive.js';
+import { createTelemetryDevApi, registerTelemetryDevSource } from './telemetry/TelemetryDevApi.js';
 
 export function createGameDebugRuntimeAccess(runtime) {
     return createRuntimeAccess(runtime, (game) => {
@@ -12,6 +13,7 @@ export function createGameDebugRuntimeAccess(runtime) {
             getMediaRecorderSystem: () => game?.mediaRecorderSystem || null,
             getEntityManager: () => game?.entityManager || null,
             getRuntimeFacade: () => game?.runtimeCoordinator?.getRuntimeFacade?.() || null,
+            getSettingsManager: () => game?.settingsManager || null,
             setRecorderFrameCaptureEnabled(enabled) {
                 if (!game) return;
                 game._recorderFrameCaptureEnabled = !!enabled;
@@ -29,11 +31,17 @@ export class GameDebugApi {
             ? runtimeAccess
             : {};
         registerMapBalancingLiveSource(() => this.runtimeAccess.getRuntimeFacade?.() || null);
+        registerTelemetryDevSource(() => this.runtimeAccess.getSettingsManager?.() || null);
     }
 
     /** Developer tools (F7 console, balancing MCP) read and tune the map balancing here. */
     getMapBalancingLive() {
         return createMapBalancingLiveApi();
+    }
+
+    /** Developer tools (F7 console, playtest MCP) read, export and clear round telemetry here. */
+    getTelemetry() {
+        return createTelemetryDevApi({ getSettingsManager: () => this.runtimeAccess.getSettingsManager?.() || null });
     }
 
     getRuntimePerformanceSnapshot(options = {}) {

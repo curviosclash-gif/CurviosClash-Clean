@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 const SHOT_DIR = path.resolve('test-results/mushroom-proof');
 
@@ -34,7 +34,7 @@ const SUBJECTS = {
 
 async function startMap(page, mapKey) {
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await page.selectOption('#map-select', mapKey);
     await page.waitForFunction((key) => window.GAME_INSTANCE?.settings?.mapKey === key, mapKey,

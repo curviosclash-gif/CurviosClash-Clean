@@ -15,21 +15,8 @@ import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../../shared/con
 import { HUNT_LAST_ALIVE_LIVES } from '../../shared/contracts/HuntLivesContract.js';
 import { normalizeTeamHuntSettings } from '../../shared/contracts/TeamHuntContract.js';
 import { normalizeTeamObjectiveType, TEAM_OBJECTIVE_TYPES } from '../../shared/contracts/FlagObjectiveContract.js';
+import { resolveModeLabel, resolveSessionLabel } from './StartSetupSummaryLabels.js';
 import { createLocalPilotSummaryBlocks, isThreePlayerSplitSelected, resolveMenuBotCount } from './StartSetupSplitPlayersSection.js';
-
-function resolveSessionLabel(surfaceEntryCopy, sessionType) {
-    return surfaceEntryCopy.sessionSummaryLabels[sessionType]
-        || (sessionType === MENU_SESSION_TYPES.SPLITSCREEN
-            ? 'Geteilter Bildschirm'
-            : (sessionType === MENU_SESSION_TYPES.MULTIPLAYER ? 'Mehrspieler' : 'Einzelspieler'));
-}
-
-function resolveModeLabel(modePath) {
-    if (modePath === 'fight') return 'Kampf';
-    if (modePath === 'arcade') return 'Arcade';
-    if (modePath === 'quick_action') return 'Schnellstart';
-    return 'Klassisch';
-}
 
 export function formatMapRenderMode(renderMode) {
     if (renderMode === 'GLB+FALLBACK') return '3D-Modell (mit Ersatzdarstellung)';
@@ -150,7 +137,7 @@ function createSummaryBlocks({
 }) {
     const summaryBlocks = [
         { label: 'Session', value: resolveSessionLabel(surfaceEntryCopy, sessionType), secondary: true },
-        { label: 'Spielstil', value: resolveModeLabel(modePath) },
+        { label: 'Spielart', value: resolveModeLabel(modePath, settings) },
         { label: 'Karte', value: mapPreview.name },
         { label: 'Flugzeug', value: vehiclePreviewP1.label },
         { label: 'Regeln', value: formatMenuRulesSummary(settings, modePath) },
@@ -277,7 +264,7 @@ export function renderStartSetupSummaryAndPreview({
     if (ui.quickStartLastSummary) {
         ui.quickStartLastSummary.textContent = [
             resolveSessionLabel(surfaceEntryCopy, sessionType),
-            resolveModeLabel(modePath),
+            resolveModeLabel(modePath, settings),
             mapPreview.name,
             vehiclePreviewP1.label,
             formatMenuRulesSummary(settings, modePath),
@@ -285,7 +272,7 @@ export function renderStartSetupSummaryAndPreview({
     }
     const quickLabel = ui.quickStartLastButton?.querySelector?.('.menu-primary-start-label');
     if (quickLabel) quickLabel.textContent = sessionType === MENU_SESSION_TYPES.MULTIPLAYER
-        ? (hasActiveLobbySession ? 'Zur Lobby' : 'Mehrspieler öffnen') : 'Sofort spielen';
+        ? (hasActiveLobbySession ? 'Zur Lobby' : 'Mehrspieler öffnen') : 'Weiterspielen';
     renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePreviewP2);
 }
 

@@ -32,7 +32,7 @@ import { createSettingsTelemetryFacade } from './settings/SettingsTelemetryFacad
 import { createSettingsBotPolicyFacade } from './settings/SettingsBotPolicyFacade.js';
 import { createSettingsDiagnosticsFacade } from './settings/SettingsDiagnosticsFacade.js';
 import { reconcileSettingsSnapshot } from './settings/SettingsDomainUtils.js';
-import { seedFreshProfileStylePreset } from './settings/FreshProfileSettingsOps.js';
+import { MODE_PATH_TO_PRESET_ID, seedFreshProfileStylePreset } from './settings/FreshProfileSettingsOps.js';
 import { registerArcadeLabShipsFromStore } from '../shared/contracts/ArcadeLabStoreContract.js';
 
 /**
@@ -193,9 +193,17 @@ export class SettingsManager {
         const sanitizedSettings = sanitizeSettingsSnapshot(
             saved,
             () => this.createDefaultSettings(),
-            this.runtimeGlobal
+            this.runtimeGlobal,
+            { resolveStylePresetValues: (modePath) => this.#resolveStylePresetValues(modePath) }
         );
         return rebaseSettingsSnapshotWithRuntimeDefaults(sanitizedSettings, this.runtimeGlobal);
+    }
+
+    // The values the style preset of a game style sets (what a fresh profile starts with).
+    #resolveStylePresetValues(modePath) {
+        const presetId = MODE_PATH_TO_PRESET_ID[modePath];
+        const preset = presetId ? this.listMenuPresets().find((entry) => entry?.id === presetId) : null;
+        return preset?.values || null;
     }
 
     loadSettings() {

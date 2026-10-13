@@ -30,21 +30,18 @@ function createMemoryStoragePlatform() {
     };
 }
 
-test('telemetry opt-out stops new gameplay events and remains persisted', () => {
+// Decision 12.10.2026: until release telemetry is always on; an old stored "off" is ignored.
+test('telemetry keeps collecting although an old opt-out is stored', () => {
     const storagePlatform = createMemoryStoragePlatform();
     const preferences = new TelemetryPreferencesStore({ storagePlatform });
     const telemetry = new MenuTelemetryStore({ storagePlatform, preferencesStore: preferences });
 
     preferences.setCollectionEnabled(false);
     telemetry.recordEvent('start_attempt', { sessionType: 'single' });
-    assert.equal(telemetry.getSnapshot().startAttempts, 0);
-    assert.equal(new TelemetryPreferencesStore({ storagePlatform }).isCollectionEnabled(), false);
-
-    preferences.setCollectionEnabled(true);
-    telemetry.recordEvent('start_attempt', { sessionType: 'single' });
     telemetry.recordEvent('abort', { trigger: 'escape' });
     assert.equal(telemetry.getSnapshot().startAttempts, 1);
     assert.equal(telemetry.getSnapshot().funnelSummary.abortReasonCounts.escape, 1);
+    assert.equal(new TelemetryPreferencesStore({ storagePlatform }).isCollectionEnabled(), true);
 });
 
 test('telemetry reset clears sidecars and the live settings projection', async () => {

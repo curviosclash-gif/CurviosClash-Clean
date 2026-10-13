@@ -21,7 +21,11 @@ const TUNING_CHANNELS = Object.freeze({
     exportPresetJson: 'tuning:export-preset-json',
     importPresetJson: 'tuning:import-preset-json',
     balancing: 'tuning:balancing',
+    telemetry: 'tuning:telemetry',
 });
+
+// Reading up to 500 recorded rounds from IndexedDB takes longer than a tuning value.
+const TELEMETRY_REQUEST_TIMEOUT_MS = 15000;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 2000;
 
@@ -141,7 +145,7 @@ function registerTuningIpc({
         });
     };
 
-    async function forwardToGameWindow(action, payload = null) {
+    async function forwardToGameWindow(action, payload = null, overrideTimeoutMs = 0) {
         const capability = resolveCapabilityStateSnapshot(resolveCapabilityState);
         if (capability.available !== true) {
             return createForwardError('capability_blocked', capability, capability.message);
@@ -152,7 +156,7 @@ function registerTuningIpc({
         }
 
         const requestId = createRequestId(requestCounterRef);
-        const timeoutMs = Math.max(200, Number(requestTimeoutMs) || DEFAULT_REQUEST_TIMEOUT_MS);
+        const timeoutMs = Math.max(200, Number(overrideTimeoutMs) || Number(requestTimeoutMs) || DEFAULT_REQUEST_TIMEOUT_MS);
 
         return new Promise((resolve) => {
             const timeoutId = setTimeout(() => {
@@ -299,6 +303,43 @@ function registerTuningIpc({
             value: request.value,
             enabled: request.enabled,
         }));
+    });
+
+    // Telemetrie: overview and clear run in the game; export lets the game build the file text
+    // and writes it where the developer chooses.
+    registerTuningHandler(TUNING_CHANNELS.telemetry, async (_event, payload = null) => {
+        const request = payload && typeof payload === 'object' ? payload : {};
+        const op = String(request.op || '');
+        const filters = request.filters && typeof request.filters === 'object' ? request.filters : {};
+        if (op === 'overview' || op === 'clear') {
+            return forwardToGameWindow(TUNING_CHANNELS.telemetry, { op, filters }, TELEMETRY_REQUEST_TIMEOUT_MS);
+        }
+        if (op !== 'export') return createForwardError('unknown_telemetry_op', resolveCapabilityStateSnapshot(resolveCapabilityState));
+        const format = request.format === 'csv' ? 'csv' : 'json';
+        const exported = await forwardToGameWindow(TUNING_CHANNELS.telemetry, { op, filters, format }, TELEMETRY_REQUEST_TIMEOUT_MS);
+        if (exported.ok !== true || !exported.value) return exported;
+        const capability = exported.capability;
+        if (!dialog || typeof dialog.showSaveDialog !== 'function') {
+            return createForwardError('dialog_unavailable', capability, 'Save-Dialog ist nicht verfügbar.');
+        }
+        const dialogResult = await dialog.showSaveDialog(
+            resolveDialogParentWindow(resolveTuningWindow, resolveGameWindow),
+            {
+                title: 'Telemetrie exportieren',
+                defaultPath: exported.value.fileName,
+                filters: [format === 'csv' ? { name: 'CSV', extensions: ['csv'] } : { name: 'JSON', extensions: ['json'] }],
+            }
+        );
+        if (dialogResult.canceled || !dialogResult.filePath) {
+            return createForwardError('dialog_cancelled', capability, 'Telemetrie-Export abgebrochen.');
+        }
+        const filePath = path.resolve(dialogResult.filePath);
+        try {
+            writeFileSync(filePath, String(exported.value.text || ''), 'utf-8');
+        } catch (error) {
+            return createForwardError('export_write_failed', capability, error instanceof Error ? error.message : String(error));
+        }
+        return { ok: true, reason: 'ok', detail: '', capability, value: { filePath, rounds: exported.value.rounds, format } };
     });
 
     registerTuningHandler(TUNING_CHANNELS.exportPresetJson, async (_event, payload = null) => {

@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, selectSessionType, waitForLoadedGame } from './helpers.js';
+import { collectErrors, selectSessionType, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 const MAP_KEY = 'storm_lighthouse_siege';
 const MAP_SCALE = 3;
@@ -9,7 +9,7 @@ const MAP_SCALE = 3;
 async function startLighthouseMatch(page) {
     await waitForLoadedGame(page);
     await selectSessionType(page, 'single');
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
     await page.selectOption('#map-select', MAP_KEY);
     await page.waitForFunction((mapKey) => window.GAME_INSTANCE?.settings?.mapKey === mapKey, MAP_KEY);

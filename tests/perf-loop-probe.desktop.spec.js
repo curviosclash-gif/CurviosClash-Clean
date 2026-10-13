@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './helpers.desktop.js';
-import { loadGame, openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { loadGame, openCustomSubmenu, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 // Measurement probe of the performance loop (.claude/skills/perf-loop). It only reports;
 // scripts/perf-loop-judge.mjs compares a baseline build against a candidate build.
@@ -140,7 +140,7 @@ for (const mapKey of maps) {
             win.webContents.setBackgroundThrottling(false);
         });
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)');
         // The arena is built (and later reused) from here on; its decorative dust points are
         // placed with Math.random, so that build must already see a fixed stream.

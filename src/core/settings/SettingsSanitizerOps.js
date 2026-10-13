@@ -240,11 +240,11 @@ function finalizeSanitizedSettings({ merged, migratedSessionType }) {
     return merged;
 }
 
-export function sanitizeSettingsSnapshot(saved, createDefaultSettings, runtimeGlobal = globalThis) {
+export function sanitizeSettingsSnapshot(saved, createDefaultSettings, runtimeGlobal = globalThis, migrationContext = {}) {
     const defaults = createDefaultSettings();
     const runtimeLimits = createRuntimeSettingsLimitsForRuntime(runtimeGlobal);
     const rawSource = saved && typeof saved === 'object' ? saved : {};
-    const src = migrateSettingsSnapshot(rawSource, defaults).settings;
+    const src = migrateSettingsSnapshot(rawSource, defaults, migrationContext).settings;
 
     const merged = deepClone(defaults);
     const fallbackSessionType = src.mode === '2p'

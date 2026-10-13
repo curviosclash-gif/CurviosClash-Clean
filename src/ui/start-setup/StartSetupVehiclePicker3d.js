@@ -8,6 +8,7 @@ import { HANGAR_SELECTION_PLAYER_SLOTS } from '../hangar/HangarSelectionWritebac
 import { MENU_SESSION_TYPES } from '../menu/MenuStateContracts.js';
 import { bindChoiceStripKeys } from './ChoiceStripKeys.js';
 import { isThreePlayerSplitSelected } from './StartSetupSplitPlayersSection.js';
+import { MENU_PREVIEW_OBSERVED_ROOT_ATTRIBUTES, isMenuPreviewCovered } from './MenuPreviewCover.js';
 
 const PLAYER_COLORS = Object.freeze({
     [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2]: '#ff9f5a',
@@ -101,7 +102,8 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
             !menu.classList.contains('hidden')
             && menu.getAttribute('aria-hidden') !== 'true'
         );
-        return sectionOpen && panelVisible && menuVisible && document.visibilityState !== 'hidden';
+        return sectionOpen && panelVisible && menuVisible && !isMenuPreviewCovered(mount)
+            && document.visibilityState !== 'hidden';
     }
 
     function syncVisibility() {
@@ -248,7 +250,7 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
         visibilityObserver?.observe(menuPanel, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
     }
     if (menuRoot) {
-        visibilityObserver?.observe(menuRoot, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
+        visibilityObserver?.observe(menuRoot, { attributes: true, attributeFilter: [...MENU_PREVIEW_OBSERVED_ROOT_ATTRIBUTES] });
     }
     syncVisibility();
 

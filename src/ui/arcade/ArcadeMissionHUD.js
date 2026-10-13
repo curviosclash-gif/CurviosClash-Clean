@@ -12,6 +12,17 @@ const MISSION_ICON_MAP = {
     stopwatch: '\u23F1',
 };
 
+// The two greens alone barely differ, so every state also has a symbol and a word.
+const MISSION_STATUS = Object.freeze({
+    done: Object.freeze({ symbol: '✓', word: 'erfüllt', color: '#44ff44' }),
+    failed: Object.freeze({ symbol: '✗', word: 'gescheitert', color: '#ff445f' }),
+    active: Object.freeze({ symbol: '•', word: 'aktiv', color: '#00ff88' }),
+});
+
+function setNodeText(node, text) {
+    if (node && node.textContent !== text) node.textContent = text;
+}
+
 function createElement(tag, className, textContent = '') {
     const el = document.createElement(tag);
     if (className) el.className = className;
@@ -111,8 +122,13 @@ export class ArcadeMissionHUD {
                 header.style.cssText = 'display:flex;align-items:center;gap:6px;';
                 const icon = createElement('span', 'arcade-mission-icon');
                 const label = createElement('span', 'arcade-mission-label');
+                const status = createElement('span', 'arcade-mission-status');
+                status.setAttribute('aria-hidden', 'true');
+                status.style.cssText = 'margin-left:auto;font-weight:700;';
                 header.appendChild(icon);
                 header.appendChild(label);
+                header.appendChild(status);
+                card.setAttribute('role', 'group');
 
                 const progressWrap = createElement('div', 'arcade-mission-progress-wrap');
                 progressWrap.style.cssText = 'margin-top:3px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;overflow:hidden;';
@@ -128,7 +144,7 @@ export class ArcadeMissionHUD {
                 card.appendChild(progressText);
                 this._container.appendChild(card);
 
-                this._missionElements.push({ card, icon, label, progressBar, progressText });
+                this._missionElements.push({ card, icon, label, status, progressBar, progressText, shownStatus: null, ariaLabel: '' });
             }
         }
 
@@ -141,23 +157,24 @@ export class ArcadeMissionHUD {
 
             const typeDef = MISSION_TYPES[mission.type];
             const objectiveTarget = isObjective && mission.targetLabel ? `: ${mission.targetLabel}` : '';
-            el.icon.textContent = isObjective ? '\u2316' : (MISSION_ICON_MAP[typeDef?.icon] || '\u2022');
-            el.label.textContent = isObjective ? `Hauptziel: ${resolveArcadeMissionObjectiveLabel(mission)}${objectiveTarget}` : `Optional: ${typeDef?.label || mission.type}`;
-            el.progressText.textContent = isObjective ? mission.progressText : formatMissionProgress(mission);
+            const labelText = isObjective ? `Hauptziel: ${resolveArcadeMissionObjectiveLabel(mission)}${objectiveTarget}` : `Optional: ${typeDef?.label || mission.type}`;
+            const progressText = String((isObjective ? mission.progressText : formatMissionProgress(mission)) ?? '');
+            const status = mission.completed ? MISSION_STATUS.done : (mission.failed ? MISSION_STATUS.failed : MISSION_STATUS.active);
+            setNodeText(el.icon, isObjective ? '\u2316' : (MISSION_ICON_MAP[typeDef?.icon] || '\u2022'));
+            setNodeText(el.label, labelText);
+            setNodeText(el.progressText, progressText);
+            setNodeText(el.status, status.symbol);
+            const ariaLabel = `${labelText}: ${progressText} \u2013 ${status.word}`;
+            if (el.ariaLabel !== ariaLabel) {
+                el.ariaLabel = ariaLabel;
+                el.card.setAttribute('aria-label', ariaLabel);
+            }
             const fraction = resolveProgressFraction(mission, isObjective);
             el.progressBar.style.width = `${(fraction * 100).toFixed(1)}%`;
-
-            // Completed styling
-            if (mission.completed) {
-                el.card.style.borderLeftColor = '#44ff44';
-                el.progressBar.style.background = '#44ff44';
-                el.label.textContent += ' \u2713';
-            } else if (mission.failed) {
-                el.card.style.borderLeftColor = '#ff445f';
-                el.progressBar.style.background = '#ff445f';
-            } else {
-                el.card.style.borderLeftColor = '#00ff88';
-                el.progressBar.style.background = '#00ff88';
+            if (el.shownStatus !== status) {
+                el.shownStatus = status;
+                el.card.style.borderLeftColor = status.color;
+                el.progressBar.style.background = status.color;
             }
         }
 

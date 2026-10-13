@@ -55,6 +55,9 @@ export class MenuNavigationRuntime {
         this.onLevel4CloseRequested = typeof options.onLevel4CloseRequested === 'function'
             ? options.onLevel4CloseRequested
             : null;
+        this.onGamepadShortcut = typeof options.onGamepadShortcut === 'function'
+            ? options.onGamepadShortcut
+            : null;
         this.accessContext = options.accessContext && typeof options.accessContext === 'object'
             ? options.accessContext
             : { isOwner: true };
@@ -76,12 +79,19 @@ export class MenuNavigationRuntime {
             onBack: () => {
                 if (this._isLevel4Open() || this.stateMachine?.getState?.() !== MENU_STATE_IDS.MAIN) this._goBackFromCurrent('controller_back');
             },
-            onPreviousTab: () => this._moveFocusByDirection('left'),
-            onNextTab: () => this._moveFocusByDirection('right'),
+            // LB/RB/X/Y first go to the free play map choice while it is on screen (it says if it used the press).
+            onPreviousTab: () => { if (!this._offerGamepadShortcut('LB')) this._moveFocusByDirection('left'); },
+            onNextTab: () => { if (!this._offerGamepadShortcut('RB')) this._moveFocusByDirection('right'); },
+            onX: () => this._offerGamepadShortcut('X'),
+            onY: () => this._offerGamepadShortcut('Y'),
         });
         this._gamepadButtonStateByIndex = this._gamepadPoller.buttonState;
         this._activeSessionType = '';
         this._returnFocusByPanel = new Map();
+    }
+
+    _offerGamepadShortcut(button) {
+        return this.onGamepadShortcut?.(button) === true;
     }
 
     init() {

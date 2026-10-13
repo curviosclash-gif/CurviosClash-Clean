@@ -730,16 +730,25 @@ function createLanHostShellCapability() {
 
 function resolveTuningConsoleCapabilityState() {
     const desktopSurfaceAvailable = hasSingleInstanceLock === true;
-    const available = desktopSurfaceAvailable;
+    // Developer tools only in the development environment (decision E1a): the game from
+    // source, or a packaged build started with --dev-tools / CURVIOS_DEV_TOOLS=1.
+    const developerToolsAllowed = app.isPackaged !== true
+        || process.argv.includes('--dev-tools')
+        || process.env.CURVIOS_DEV_TOOLS === '1';
+    const available = desktopSurfaceAvailable && developerToolsAllowed;
     return Object.freeze({
         contractVersion: TUNING_CONSOLE_CAPABILITY_CONTRACT_VERSION,
         capabilityId: TUNING_CONSOLE_CAPABILITY_ID,
         available,
         accessMode: available ? 'desktop-capability' : 'blocked',
-        reason: available ? 'desktop_surface_enabled' : 'desktop_surface_unavailable',
+        reason: available
+            ? 'desktop_surface_enabled'
+            : (developerToolsAllowed ? 'desktop_surface_unavailable' : 'developer_tools_disabled'),
         message: available
             ? 'Tuning Console ist als Desktop-Capability verfügbar; Expertenpasswort bleibt nur lokale UX-Grenze.'
-            : 'Tuning Console ist für diese Surface nicht verfügbar.',
+            : (developerToolsAllowed
+                ? 'Tuning Console ist für diese Surface nicht verfügbar.'
+                : 'Tuning Console gibt es nur in der Entwicklungsumgebung (Start mit --dev-tools).'),
         passwordGate: 'local-ux-only',
     });
 }

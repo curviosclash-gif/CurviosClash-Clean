@@ -127,16 +127,31 @@ test('intermission selection immediately synchronizes the overlay', () => {
     assert.equal(syncs, 1);
 });
 
-test('only arena-waves emits a neutral bot elimination without a human killer', () => {
-    const events = [];
-    const arenaOwner = {
-        runtimeConfig: { arcade: { enabled: true, runType: 'arena_waves' } },
-        onArcadeGameplayEvent(event) { events.push(event); },
+test('gauntlet emits only neutral uncredited-bot events while arena-waves keeps its existing event', () => {
+    const makeOwner = (arcade) => {
+        const events = [];
+        return { events, runtimeConfig: { arcade }, onArcadeGameplayEvent(event) { events.push(event); } };
     };
+    const arenaOwner = makeOwner({ enabled: true, runType: 'arena_waves' });
     emitArcadeEliminationEvents(arenaOwner, { index: 7, isBot: true }, 'TRAIL_SELF');
-    assert.deepEqual(events, [{ type: 'kill', victimIndex: 7, count: 0, runId: '', botSlot: null, activationGeneration: null }]);
-    emitArcadeEliminationEvents({ ...arenaOwner, runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } } }, { index: 8, isBot: true }, 'TRAIL_SELF');
-    assert.equal(events.length, 1);
+    assert.deepEqual(arenaOwner.events, [{ type: 'kill', victimIndex: 7, count: 0, runId: '', botSlot: null, activationGeneration: null }]);
+
+    const gauntletOwner = makeOwner({ enabled: true, runType: 'gauntlet' });
+    emitArcadeEliminationEvents(gauntletOwner, { index: 8, isBot: true }, 'TRAIL_SELF');
+    assert.deepEqual(gauntletOwner.events, [{ type: 'uncredited_bot_eliminated', victimIndex: 8 }]);
+    assert.equal(Object.hasOwn(gauntletOwner.events[0], 'playerIndex'), false);
+    assert.equal(Object.hasOwn(gauntletOwner.events[0], 'count'), false);
+    assert.equal(Object.hasOwn(gauntletOwner.events[0], 'scoreFactor'), false);
+
+    const disabledOwner = makeOwner({ enabled: false, runType: 'gauntlet' });
+    emitArcadeEliminationEvents(disabledOwner, { index: 9, isBot: true }, 'TRAIL_SELF');
+    const nonGauntletOwner = makeOwner({ enabled: true, runType: 'demolition' });
+    emitArcadeEliminationEvents(nonGauntletOwner, { index: 10, isBot: true }, 'TRAIL_SELF');
+    const playerOwner = makeOwner({ enabled: true, runType: 'gauntlet' });
+    emitArcadeEliminationEvents(playerOwner, { index: 11, isBot: false }, 'TRAIL_SELF');
+    assert.deepEqual(disabledOwner.events, []);
+    assert.deepEqual(nonGauntletOwner.events, []);
+    assert.deepEqual(playerOwner.events, []);
 });
 
 test('demolition keeps the round open after the last defender falls', () => {

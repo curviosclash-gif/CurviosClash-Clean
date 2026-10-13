@@ -91,7 +91,8 @@ test('returning to the menu hides the parcours minimap along with the rest of th
     assert.equal(minimap.hidden, true, 'the minimap canvas does not stay on top of the menu');
 });
 
-test('both sector banners resolve the map name instead of showing its stored key', () => {
+// The score box used to repeat the banner; it is gone (arcade-feedback-dedup.contract.test.mjs).
+test('the sector banner resolves the map name instead of showing its stored key', () => {
     const documentStub = installDocumentStub();
     try {
         const runtime = new HudRuntimeSystem({ game: { ui: { hud: createStubElement('hud') } } });
@@ -101,7 +102,6 @@ test('both sector banners resolve the map name instead of showing its stored key
         } });
         assert.match(runtime._arcadeSectorTransitionOverlay.textContent, /Sektor 1/);
         assert.doesNotMatch(runtime._arcadeSectorTransitionOverlay.textContent, /parcours_assault/i);
-        assert.doesNotMatch(runtime._arcadeScoreHud._transitionBanner.textContent, /parcours_assault/i);
     } finally {
         documentStub.restore();
     }

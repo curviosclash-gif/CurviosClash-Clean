@@ -5,6 +5,7 @@ export function registerSessionMenuEventHandlers(facade, registry) {
     registry.set(MENU_CONTROLLER_EVENT_TYPES.SETTINGS_CHANGED, (event) => facade.onSettingsChanged(event));
     registry.set(MENU_CONTROLLER_EVENT_TYPES.SESSION_TYPE_CHANGE, (event) => facade.handleSessionTypeChange(event));
     registry.set(MENU_CONTROLLER_EVENT_TYPES.MODE_PATH_CHANGE, (event) => facade.handleModePathChange(event));
+    registry.set(MENU_CONTROLLER_EVENT_TYPES.FREE_PLAY_VARIANT_CHANGE, (event) => facade.handleFreePlayVariantChange(event));
     registry.set(MENU_CONTROLLER_EVENT_TYPES.QUICKSTART_LAST_START, () => facade.handleQuickStartLastStart());
     registry.set(MENU_CONTROLLER_EVENT_TYPES.QUICKSTART_EVENT_PLAYLIST_START, () => facade.handleQuickStartEventPlaylistStart());
     registry.set(MENU_CONTROLLER_EVENT_TYPES.QUICKSTART_RANDOM_START, () => facade.handleQuickStartRandomStart());

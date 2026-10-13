@@ -250,10 +250,13 @@ export function handleModePathChangeAction(ctx) {
     }
 
     onSettingsChanged({ changedKeys: Array.from(new Set(changedKeys)) });
-    game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', {
-        trigger: 'mode_path_selected',
-        modePath,
-    });
+    // Switching the variant inside free play keeps the player on the screen they are on.
+    if (event?.stayOnPanel !== true) {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', {
+            trigger: 'mode_path_selected',
+            modePath,
+        });
+    }
 
     const label = modePath === 'fight' ? 'Kampf' : (modePath === 'arcade' ? 'Arcade' : 'Klassisch');
     if (requestedModePath && requestedModePath !== modePath && !getSurfacePort(game).isModePathAllowed(requestedModePath)) {
@@ -261,12 +264,6 @@ export function handleModePathChangeAction(ctx) {
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
     } else if (requestedModePath === 'fight' && !huntFeatureEnabled) {
         game._showStatusToast('Kampf ist deaktiviert. Klassisch wurde gesetzt.', 1500, 'warning');
-    } else if (presetId && keepsOwnValues && modePath !== previousModePath) {
-        game._showStatusToast(
-            `Modus gewählt: ${label} – deine Werte bleiben. Vorlage unter „Vorlagen“ anwenden.`,
-            2200,
-            'info'
-        );
     } else {
         game._showStatusToast(`Modus gewählt: ${label}`, 1200, 'info');
     }

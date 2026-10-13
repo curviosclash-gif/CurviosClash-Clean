@@ -1,0 +1,50 @@
+/*
+ * Menu design tokens, style Q "Schachbrett-Tunnel" (chosen 2026-10-13).
+ *
+ * Only variables live here. The rebuilt menu screens read them; the current menu does not, so linking
+ * this file changes nothing on screen. tests/menu-design-tokens.contract.test.mjs pins the values,
+ * the 16 px text floor and WCAG AA contrast for every text colour pair.
+ *
+ * Rules for screens that use these tokens:
+ *  - A state is never shown by colour alone: add a shape, symbol or text (locked, done, medal, error).
+ *  - Text never goes below 16 px; --menu-scale (menu size setting) only scales upwards from there.
+ *  - The fonts are not bundled yet; until they are, the fallback stacks below apply.
+ */
+:root {
+    --menu-bg: #0a0d18;
+    --menu-bg-2: #151b2e;
+    --menu-surface: #161c2e;
+    --menu-surface-2: #222b44;
+    --menu-line: #46557a;
+    --menu-text: #e9eef8;
+    --menu-muted: #aab5cb;
+    --menu-accent: #2fd6ff;
+    --menu-on-accent: #04121c;
+    --menu-accent-2: #ff7d34;
+    --menu-on-mode: #0a0d18;
+    --menu-mode-classic: #2fd6ff;
+    --menu-mode-arcade: #ff7d34;
+    --menu-mode-fight: #ff5d6c;
+    --menu-ok: #5ee39a;
+    --menu-danger: #ff6b6b;
+    --menu-focus: #ffffff;
+    --menu-focus-width: 3px;
+    --menu-focus-offset: 3px;
+
+    --menu-radius-s: 2px;
+    --menu-radius-m: 3px;
+    --menu-radius-l: 4px;
+    --menu-border: 1px;
+
+    --menu-font-display: 'Chakra Petch', 'Bahnschrift', 'Arial Narrow', sans-serif;
+    --menu-font-body: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+    --menu-display-weight: 700;
+    --menu-display-case: uppercase;
+
+    --menu-surface-pattern: repeating-conic-gradient(#ffffff06 0 25%, transparent 0 50%) 0 0 / 24px 24px;
+    --menu-primary-edge: inset 0 -3px 0 var(--menu-accent-2);
+
+    --menu-scale: 1;
+    --menu-font-size-body: max(16px, calc(16px * var(--menu-scale)));
+    --menu-font-size-button: max(16px, calc(17px * var(--menu-scale)));
+}

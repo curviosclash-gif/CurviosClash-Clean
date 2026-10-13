@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { expect, test } from './helpers.desktop.js';
-import { loadGame, openCustomSubmenu } from './helpers.js';
+import { loadGame, openCustomSubmenu, chooseFreePlayVariant } from './helpers.js';
 
 import { EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 
@@ -27,7 +27,7 @@ test('T65e:a map saved in the desktop user folder shows up in the map menu and s
     // Die Kartenliste entsteht beim Laden; erst ein neuer Start sieht den Ordner.
     await loadGame(page, { forceReload: true });
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+    await chooseFreePlayVariant(page, 'classic');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
 
     const option = page.locator(`#map-select option[value="${MAP_KEY}"]`);
@@ -48,7 +48,7 @@ test('T65e:a map saved in the desktop user folder shows up in the map menu and s
 test('T65f:a map saved in the desktop editor reaches the running game window without a restart', async ({ page, electronApp }, testInfo) => {
     await loadGame(page);
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+    await chooseFreePlayVariant(page, 'classic');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     const bootMarker = await page.evaluate(() => {
         window.__T65F_SAME_PAGE__ = true;
@@ -93,7 +93,7 @@ test('T65f:a map saved in the desktop editor reaches the running game window wit
     // Spieler es tut. Genau dieser Schritt laedt die Karte nach.
     await page.click('#submenu-game:not(.hidden) [data-back]');
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+    await chooseFreePlayVariant(page, 'classic');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await expect(option).toHaveCount(1);
     await expect(option).toContainText(LIVE_MAP_NAME);
@@ -131,7 +131,7 @@ test('T65g:saved maps reach the split setup and deleted maps leave the menus wit
     // Die normale Kartenauswahl kennt die Karte jetzt ebenfalls.
     // The panel's own back button closes an open local module first (no second back button).
     await page.locator('#submenu-custom .submenu-header [data-back]').click();
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+    await chooseFreePlayVariant(page, 'classic');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     const mainOption = page.locator(`#map-select option[value="${SPLIT_MAP_KEY}"]`);
     await expect(mainOption).toHaveCount(1);
@@ -140,7 +140,7 @@ test('T65g:saved maps reach the split setup and deleted maps leave the menus wit
     await rm(mapFile);
     await page.click('#submenu-game:not(.hidden) [data-back]');
     await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+    await chooseFreePlayVariant(page, 'classic');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await expect(mainOption).toHaveCount(0);
     await expect(page.locator('#map-select')).not.toHaveValue('');

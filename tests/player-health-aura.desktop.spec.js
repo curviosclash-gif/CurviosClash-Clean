@@ -1,19 +1,15 @@
 import { test, expect } from './helpers.desktop.js';
-import { loadGame, returnToMenu, selectSessionType, waitForRenderFrames } from './helpers.js';
+import { loadGame, returnToMenu, selectSessionType, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 
 async function startTeamHuntSplitMatch(page, { load = false } = {}) {
     if (load) await loadGame(page);
     await selectSessionType(page, 'splitscreen');
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'team');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await page.evaluate(() => {
         const botSlider = document.getElementById('bot-count');
         botSlider.value = '1';
         botSlider.dispatchEvent(new Event('input', { bubbles: true }));
-
-        const teamToggle = document.getElementById('hunt-team-mode-toggle');
-        teamToggle.checked = true;
-        teamToggle.dispatchEvent(new Event('change', { bubbles: true }));
 
         const teamSize = document.getElementById('hunt-team-size-select');
         teamSize.value = '2';

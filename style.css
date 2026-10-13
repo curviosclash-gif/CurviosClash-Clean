@@ -1102,13 +1102,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     scroll-margin-top: 12px;
 }
 
-[data-menu-action="preset-apply"],
-[data-menu-action="preset-save-open"],
-[data-menu-action="preset-save-fixed"],
-[data-menu-action="preset-delete"] {
-    text-align: left;
-}
-
 #submenu-developer .menu-hint,
 #submenu-multiplayer .menu-hint {
     line-height: 1.4;
@@ -1339,7 +1332,22 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 }
 
 .level2-mode-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Free play: the variant switch sits in the screen header and wraps on narrow screens. */
+#submenu-game .submenu-header {
+    flex-wrap: wrap;
+}
+
+.free-play-variant-group {
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+#free-play-variant-hint {
+    flex-basis: 100%;
+    margin: 0;
 }
 
 .menu-choice-card {
@@ -1386,30 +1394,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     margin: 14px 0 4px;
     font-size: 0.9rem;
     color: #88bbff;
-}
-
-.preset-chip-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 8px;
-}
-
-/* A preset chip shows its name and, below it, what applying it changes. */
-.preset-chip-grid button {
-    display: grid;
-    gap: 3px;
-    text-align: left;
-}
-
-.preset-chip-name {
-    font-weight: 600;
-}
-
-.preset-chip-summary {
-    font-size: 0.8rem;
-    font-weight: 400;
-    opacity: 0.78;
-    white-space: normal;
 }
 
 .menu-preview-card {
@@ -2891,9 +2875,9 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     box-shadow: 0 0 0 1px rgba(110, 230, 255, 0.34), 0 0 26px rgba(90, 220, 255, 0.42), 0 8px 22px rgba(0, 0, 0, 0.32);
 }
 
+/* Sudden death pulses only at the screen edge (#arcade-sudden-death-overlay); the box stays still. */
 #arcade-score-hud.is-sudden-death {
     border-color: rgba(255, 110, 110, 0.6) !important;
-    animation: arcade-sd-pulse 1.05s ease-in-out infinite;
 }
 
 #arcade-score-hud .arcade-score-hud-metric.is-pop {
@@ -2905,14 +2889,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     background: rgba(90, 45, 24, 0.34);
 }
 
-#arcade-score-hud .arcade-score-hud-transition {
-    animation: arcade-transition-in 0.22s ease;
-}
-
-#arcade-score-hud .arcade-score-hud-sd {
-    animation: arcade-sd-banner-pulse 0.95s ease-in-out infinite;
-}
-
 #arcade-sudden-death-overlay {
     position: fixed;
     inset: 0;
@@ -2922,6 +2898,11 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     box-shadow: inset 0 0 46px rgba(255, 30, 30, 0.24);
     animation: arcade-sd-screen-pulse 0.95s ease-in-out infinite;
     opacity: var(--hud-opacity, 1);
+}
+
+/* "Bewegung reduzieren" (game setting or system wish): the red edge stays, the pulse stops. */
+#arcade-sudden-death-overlay.reduced-motion {
+    animation: none;
 }
 
 #arcade-sector-transition-overlay {
@@ -3094,18 +3075,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     0% { transform: scale(1); }
     40% { transform: scale(1.08); }
     100% { transform: scale(1); }
-}
-
-@keyframes arcade-sd-pulse {
-    0% { border-color: rgba(255, 110, 110, 0.5); }
-    50% { border-color: rgba(255, 58, 58, 0.86); }
-    100% { border-color: rgba(255, 110, 110, 0.5); }
-}
-
-@keyframes arcade-sd-banner-pulse {
-    0% { opacity: 0.78; }
-    50% { opacity: 1; }
-    100% { opacity: 0.78; }
 }
 
 @keyframes arcade-sd-screen-pulse {
@@ -3713,15 +3682,6 @@ body:has(#hunt-hud:not(.hidden) #hunt-target-progress:not(.hidden)) #hud-notice-
 
 .hunt-respawn-status.hidden {
     display: none !important;
-}
-
-#fight-tuning-hint[data-tone="fast"],
-#fight-tuning-hint[data-tone="slow"] {
-    color: #ffd166;
-}
-
-#fight-tuning-hint[data-tone="balanced"] {
-    color: #9ff2c7;
 }
 
 #hunt-p1-panel,
@@ -7498,6 +7458,50 @@ body:has(#hunt-hud:not(.hidden) #hunt-target-progress:not(.hidden)) #hud-notice-
 .start-map-details select,
 .start-map-details .secondary-btn {
     min-height: 36px;
+}
+
+.start-map-profile {
+    display: grid;
+    gap: 5px;
+    padding: 8px 10px;
+    border: 1px solid rgba(115, 187, 245, 0.18);
+    border-radius: 10px;
+    background: rgba(7, 19, 34, 0.42);
+}
+
+.start-map-profile.hidden {
+    display: none;
+}
+
+.start-map-profile-heading {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgba(224, 239, 252, 0.92);
+}
+
+.start-map-profile-list {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: rgba(224, 239, 252, 0.82);
+}
+
+.start-map-profile-list li {
+    display: grid;
+    grid-template-columns: 1.3em 1fr;
+    gap: 6px;
+    align-items: baseline;
+}
+
+.start-map-profile-symbol {
+    text-align: center;
+    color: rgba(115, 187, 245, 0.9);
 }
 
 .start-map-choice-strip {

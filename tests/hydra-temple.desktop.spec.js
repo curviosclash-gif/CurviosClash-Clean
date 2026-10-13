@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test } from './helpers.desktop.js';
-import { selectSessionType, waitForLoadedGame } from './helpers.js';
+import { selectSessionType, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 async function captureHydraPose(page, testInfo, pose) {
     const png = await page.evaluate((requestedPose) => {
@@ -60,7 +60,7 @@ test('Hydra-Tempelring starts a three-bot Hunt with independent static and anima
     test.setTimeout(180_000);
     await waitForLoadedGame(page);
     await selectSessionType(page, 'single');
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)');
     await expect(page.locator('#map-select option[value="hydra_temple"]')).toHaveCount(1);
     await page.selectOption('#map-select', 'hydra_temple');

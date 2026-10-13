@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { configurePilot, installControl, maneuver, observe, pilotStatus, readEvents, setPaused, step, stopPilot, updatePilot } from './playtest-control.mjs';
 import * as D from './playtest-driver.mjs';
 import { BALANCING_ACTIONS, BALANCING_MODES, createBalancingStoreForRepo, runBalancingOperation } from './playtest-balancing.mjs';
+import { TELEMETRY_ACTIONS, runTelemetryOperation } from './playtest-telemetry.mjs';
 import { buildCatalog, HELPERS, runHelper } from './playtest-helpers.mjs';
 import { createJobRegistry, JobBusyError } from './playtest-jobs.mjs';
 import {
@@ -356,8 +357,18 @@ async function opCatalog() {
 
 const vec3 = z.array(z.number()).length(3);
 const inputShape = {
-    operation: z.enum(['catalog', 'open', 'observe', 'act', 'pilot', 'scenario', 'job', 'balancing', 'close'])
-        .describe('catalog: what exists. open: start an isolated test session (layout single|lan|with-settings-studio). observe: screen image, UI elements, game state, events, errors, windows, metrics. act: mouse, keyboard, forms, pause/step, windows, test helpers. pilot: direct maneuver or goal flight. scenario: start a fixed test as a job. job: progress or cancel. balancing: per-map balancing values (see balancingAction). close: end the own session.'),
+    operation: z.enum(['catalog', 'open', 'observe', 'act', 'pilot', 'scenario', 'job', 'balancing', 'telemetry', 'close'])
+        .describe('catalog: what exists. open: start an isolated test session (layout single|lan|with-settings-studio). observe: screen image, UI elements, game state, events, errors, windows, metrics. act: mouse, keyboard, forms, pause/step, windows, test helpers. pilot: direct maneuver or goal flight. scenario: start a fixed test as a job. job: progress or cancel. balancing: per-map balancing values (see balancingAction). telemetry: recorded rounds of the open session (see telemetryAction). close: end the own session.'),
+    // telemetry
+    telemetryAction: z.enum(TELEMETRY_ACTIONS).optional().describe('telemetry: overview (key figures, top maps/modes/builds, latest rounds, filter options) or export (file next to the run, format json|csv)'),
+    filters: z.object({
+        buildId: z.string().optional(),
+        mapKey: z.string().optional(),
+        mode: z.string().optional(),
+        controlSource: z.enum(['human', 'idle', 'automation', 'unknown', 'all']).optional(),
+        sinceDays: z.number().int().min(0).max(3650).optional(),
+    }).optional().describe('telemetry: round filters; controlSource defaults to human (only rounds a person flew), all lifts it'),
+    format: z.enum(['json', 'csv']).optional().describe('telemetry export: file format (default json)'),
     // balancing
     balancingAction: z.enum(BALANCING_ACTIONS).optional().describe('balancing: list_maps; get (values with origin mode/map and the inherited value); set field=value; reset field to the inherited value; save the live map layer to data/balancing; discard unsaved live changes; authoritative value=true|false plays the session with map values'),
     scope: z.enum(['file', 'live']).optional().describe('balancing: file = data/balancing without a game (default for get/set/reset), live = the running match of the open session'),
@@ -432,6 +443,7 @@ const server = new McpServer({ name: 'curvios-playtest', version: '2.0.0' }, {
         + 'Arcade: observe state.arcade shows phase, sector and objective; leave an intermission with act click on #btn-arcade-intermission-continue while the game is NOT paused. '
         + 'When open answers busy, open again with queue:true to keep a place in the machine queue. '
         + 'Balancing: operation "balancing" reads and writes per-map values in data/balancing without a session (scope file); with an open session scope live changes the running match, then balancingAction save writes it. '
+        + 'Telemetry: operation "telemetry" reads the recorded rounds of the open session (overview, or export to a file next to the run). '
         + 'Report game bugs separately from tool problems. Call "close" when done; the session closes itself after 10 idle minutes.',
 });
 
@@ -452,6 +464,7 @@ server.registerTool('curvios_playtest', {
             case 'scenario': value = await opScenario(args); break;
             case 'job': value = await opJob(args); break;
             case 'balancing': value = await opBalancing(args); break;
+            case 'telemetry': value = await runTelemetryOperation({ args, getSession: () => sessionFor(args.role), runDir: run?.runDir }); break;
             case 'close': value = await closeRun('closed by the agent'); break;
             default: throw new Error(`unknown operation ${args.operation}`);
         }

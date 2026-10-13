@@ -2,6 +2,7 @@ import { getMapKeyForSector } from '../../state/arcade/ArcadeMapProgression.js';
 import {
     ARCADE_RUN_LEVELUP_REWARDS,
     ARCADE_SECTOR_MODIFIERS,
+    resolveArcadeSectorPressure,
 } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import {
     getArcadeModifierRegistryDescriptor,
@@ -18,7 +19,7 @@ import {
     resolveRuntimeMapPresetLabel,
 } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { getMapPickerMeta } from '../../shared/maps/MapPickerMeta.js';
-import { toSafeInt, toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
+import { createSeededRandom, toSafeInt, toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 
 function createModifierScoreBonusMap() {
     const map = new Map();
@@ -85,6 +86,21 @@ export function resolveArcadeRewardChoices(runtime, sectorIndex) {
     }];
 }
 
+function resolveRouteSeed(runtime) {
+    return typeof runtime?._resolveActiveRunSeed === 'function'
+        ? runtime._resolveActiveRunSeed()
+        : toSafeInt(runtime?._state?.config?.seed, 0);
+}
+
+function shuffleWithRandom(items, randomFn) {
+    const result = [...items];
+    for (let index = result.length - 1; index > 0; index -= 1) {
+        const swap = Math.min(index, Math.floor(randomFn() * (index + 1)));
+        [result[index], result[swap]] = [result[swap], result[index]];
+    }
+    return result;
+}
+
 export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
     const sequence = Array.isArray(runtime._state?.mapSequence) ? runtime._state.mapSequence : [];
     const targetIndex = Math.max(0, toSafeInt(nextSectorIndex, 1) - 1);
@@ -108,8 +124,12 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
             mapKey: normalizedMapKey,
             mapLabel: formatArcadeMapLabel(normalizedMapKey),
             modifierId: normalizedModifierId || null,
-            modifierLabel: modifierMeta?.label || (normalizedModifierId || 'Kein Modifier'),
+            modifierLabel: modifierMeta?.label || (normalizedModifierId || 'Kein Modifikator'),
             modifierEffect: modifierMeta?.effectText || '',
+            // The same values the swap writes into the sector: its score bonus and the pressure
+            // the sector profile derives from the chosen modifier.
+            scoreBonus: resolveArcadeModifierScoreBonus(normalizedModifierId),
+            pressure: encounterEntry ? resolveArcadeSectorPressure(encounterEntry, normalizedModifierId || null) : 0,
             source,
             objectiveLabel: String(encounterEntry?.objectiveId || '').replace(/_/g, ' '),
             squadLabel: String(encounterEntry?.squadId || '').replace(/_/g, ' '),
@@ -135,12 +155,14 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
     const modifierIds = getArcadeModifierRegistryDescriptor().entries
         .map((entry) => String(entry.id || '').trim())
         .filter(Boolean);
+    // Alternatives come from the run seed: deterministic for one run, different between runs.
+    const routeRandom = createSeededRandom(`${resolveRouteSeed(runtime)}-route-${targetIndex + 1}`);
+    const routeMaps = shuffleWithRandom(candidateMaps, routeRandom);
+    const routeModifiers = shuffleWithRandom(modifierIds, routeRandom);
     const altTargetCount = candidateMaps.length > 0 ? 3 : 1;
     for (let i = 0; i < altTargetCount && choices.length < 3; i += 1) {
-        const mapIdx = (targetIndex + i) % Math.max(1, candidateMaps.length);
-        const modifierIdx = (targetIndex + i + 1) % Math.max(1, modifierIds.length);
-        const mapKey = candidateMaps[mapIdx] || baseMapKey;
-        const modifierId = nextSectorIsParcours ? '' : (modifierIds[modifierIdx] || baseModifierId);
+        const mapKey = routeMaps[i % Math.max(1, routeMaps.length)] || baseMapKey;
+        const modifierId = nextSectorIsParcours ? '' : (routeModifiers[i % Math.max(1, routeModifiers.length)] || baseModifierId);
         pushChoice(mapKey, modifierId, 'alt');
     }
 

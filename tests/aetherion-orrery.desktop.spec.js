@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { openCustomSubmenu, returnToMenu, waitForLoadedGame } from './helpers.js';
+import { openCustomSubmenu, returnToMenu, waitForLoadedGame, chooseMenuModePath } from './helpers.js';
 import { writeFile } from 'node:fs/promises';
 
 const MAP_KEY = 'aetherion_orrery';
@@ -9,7 +9,7 @@ const TRACK_COUNT = 13;
 async function startAetherion(page, { botCount = 0, modePath = 'arcade' } = {}) {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.click(`#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]`);
+    await chooseMenuModePath(page, modePath);
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     await page.selectOption('#map-select', MAP_KEY);
     await page.waitForFunction((mapKey) => window.GAME_INSTANCE?.settings?.mapKey === mapKey, MAP_KEY);

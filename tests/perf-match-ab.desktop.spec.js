@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { test, expect } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { openCustomSubmenu, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
 
 const measureSeconds = Number(process.env.PW_PERF_MATCH_SECONDS || 60);
 const warmupSeconds = Number(process.env.PW_PERF_MATCH_WARMUP || 10);
@@ -19,7 +19,7 @@ for (const mapKey of ['standard', 'cherry_grove', 'dandelion_sky']) {
             win.webContents.setBackgroundThrottling(false);
         });
         await openCustomSubmenu(page);
-        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await chooseFreePlayVariant(page, 'ffa');
         await page.waitForSelector('#submenu-game:not(.hidden)');
         await page.selectOption('#map-select', mapKey);
         await page.evaluate(() => {

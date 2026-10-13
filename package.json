@@ -47,6 +47,7 @@
     "check:parcours": "node scripts/check-parcours-routes.mjs",
     "test": "npm run test:contract",
     "telemetry:report": "node scripts/telemetry-report.mjs",
+    "check:release-telemetry": "node scripts/check-release-telemetry-boundary.mjs",
     "test:contract:fast": "node scripts/run-contract-tests.mjs fast",
     "test:contract:coverage": "node scripts/run-contract-tests.mjs fast --coverage",
     "pretest:contract:dist": "npm run build:app",

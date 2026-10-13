@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 
 // Kirschhain is ten blossom trees (about 36 MB of render GLBs, three files decoded at a time) with
@@ -27,7 +27,7 @@ const PICKUP_OWNER_ID = 'cherry-grove-desktop-proof';
 async function startCherryGrove(page) {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
-    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+    await chooseFreePlayVariant(page, 'ffa');
     await page.locator('#submenu-game:not(.hidden)').waitFor({ state: 'visible', timeout: 10_000 });
     expect(
         await page.locator(`#map-select option[value="${MAP_KEY}"]`).count(),

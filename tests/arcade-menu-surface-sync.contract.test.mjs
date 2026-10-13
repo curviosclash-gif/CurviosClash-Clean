@@ -10,21 +10,29 @@ import { createDemolitionMapPlan } from '../src/shared/contracts/DemolitionContr
 import { resolveMapPreview } from '../src/ui/menu/MenuPreviewCatalog.js';
 import { setupArcadeMenuSurface } from '../src/ui/arcade/ArcadeMenuSurface.js';
 import { ARCADE_RANKED_STORAGE_KEY, ARCADE_RANKED_VERSION } from '../src/shared/contracts/ArcadeRankedLeaderboardContract.js';
+import { DEMOLITION_MEDAL_RECORD_STORAGE_KEY } from '../src/shared/contracts/DemolitionMedalRecordContract.js';
 
 const originalDocument = globalThis.document;
+const originalMutationObserver = globalThis.MutationObserver;
+const originalWindow = globalThis.window;
 after(() => {
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;
+    if (originalMutationObserver === undefined) delete globalThis.MutationObserver;
+    else globalThis.MutationObserver = originalMutationObserver;
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
 });
 
 function createFakeDocument() {
     const created = [];
+    let currentDocument = null;
     const element = (tag = 'div') => {
         const classes = new Set();
         const node = {
             tagName: String(tag).toUpperCase(), id: '', type: '', value: '', textContent: '', title: '',
             disabled: false, open: false, hidden: false, style: {}, dataset: {}, attributes: {}, children: [],
-            parentElement: null, ownerDocument: null,
+            parentElement: null, ownerDocument: currentDocument,
             get className() { return [...classes].join(' '); },
             set className(value) { classes.clear(); String(value || '').split(/\s+/).filter(Boolean).forEach((name) => classes.add(name)); },
             classList: {
@@ -56,13 +64,17 @@ function createFakeDocument() {
         created.push(node);
         return node;
     };
+    const mainMenu = element('main');
+    mainMenu.id = 'main-menu';
+    mainMenu.classList.add('hidden');
     const level3Body = element('div');
-    const document = {
+    level3Body.closest = (selector) => selector === '#main-menu' ? mainMenu : null;
+    const document = currentDocument = {
         createElement: element,
         querySelector: (selector) => (selector === '#submenu-game .level3-body' ? level3Body : null),
         getElementById: (id) => created.find((node) => node.id === id) || null,
     };
-    return { document, byId: (id) => created.find((node) => node.id === id) || null };
+    return { document, mainMenu, byId: (id) => created.find((node) => node.id === id) || null };
 }
 
 function createStore(records = {}) {
@@ -75,7 +87,7 @@ function createStore(records = {}) {
     };
 }
 
-function mountSurface({ storeRecords = {}, runtimeState = null, arcade = {} } = {}) {
+function mountSurface({ storeRecords = {}, runtimeState = null, arcade = {}, profileStores = null, initialProfileId = 'p1' } = {}) {
     const fake = createFakeDocument();
     // Clicks render option lists as well, so the fake document stays until the file is done.
     globalThis.document = fake.document;
@@ -85,14 +97,23 @@ function mountSurface({ storeRecords = {}, runtimeState = null, arcade = {} } = 
         mapKey: 'standard', numBots: 3, botDifficulty: 'NORMAL', mode: '1p', gameMode: 'ARCADE',
         vehicles: { PLAYER_1: 'ship5' },
         localSettings: { modePath: 'arcade', sessionType: 'single' },
-        arcade: { seed: 1, runType: 'gauntlet', sectorCount: 5, ...arcade },
+        arcade: { seed: 1, runType: 'gauntlet', scoreModel: 'arcade-score.v4', sectorCount: 5, ...arcade },
     };
     const store = createStore(storeRecords);
-    const profile = { id: 'p1', displayName: 'Pilot' };
+    const stores = profileStores || { p1: store };
+    const profiles = Object.keys(stores).map((id) => ({ id, displayName: `Pilot ${id}` }));
+    let activeProfileId = initialProfileId;
+    const mutationObservers = [];
+    globalThis.MutationObserver = class {
+        constructor(callback) { this.callback = callback; mutationObservers.push(this); }
+        observe() {}
+        disconnect() {}
+    };
+    globalThis.window = { requestAnimationFrame: (callback) => callback() };
     const runtimeAccess = {
-        getActivePlayerProfile: () => profile,
-        getPlayerProfiles: () => [profile],
-        getSettingsStore: () => store,
+        getActivePlayerProfile: () => profiles.find((profile) => profile.id === activeProfileId) || null,
+        getPlayerProfiles: () => profiles,
+        getSettingsStore: () => stores[activeProfileId] || null,
         getArcadeMenuSurfaceState: () => runtimeState,
         showStatusToast: () => {},
         saveSettings: () => {},
@@ -114,7 +135,16 @@ function mountSurface({ storeRecords = {}, runtimeState = null, arcade = {} } = 
         const event = { preventDefault() {}, stopImmediatePropagation() {} };
         for (const handler of handlers.get(target)?.get('click') || []) handler(event);
     };
-    return { byId: fake.byId, click, emitted, settings };
+    const medalLine = () => fake.byId('btn-arcade-demolition-start-inline')?.parentElement?.children
+        .find((node) => node.classList.contains('arcade-demolition-medals-line')) || null;
+    return {
+        byId: fake.byId, click, emitted, settings, medalLine,
+        returnToMenu: (profileId) => {
+            activeProfileId = profileId;
+            fake.mainMenu.classList.remove('hidden');
+            mutationObservers.at(-1)?.callback();
+        },
+    };
 }
 
 test('Abrisskommando plans its maps from the seed the player set last, not the seed at menu start', () => {
@@ -174,11 +204,34 @@ test('a profile without any run still says so', () => {
     assert.equal(menu.byId('arcade-post-run-line').textContent, 'Noch kein Arcade-Run gestartet.');
 });
 
+test('Abrisskommando medal line refreshes for the active profile when the menu returns', () => {
+    const stores = {
+        p1: createStore({ [DEMOLITION_MEDAL_RECORD_STORAGE_KEY]: { version: 1, maps: {
+            eiffel_tower_siege: { medal: 'gold', bestScore: 900 },
+        } } }),
+        p2: createStore({ [DEMOLITION_MEDAL_RECORD_STORAGE_KEY]: { version: 1, maps: {
+            storm_dam_siege: { medal: 'bronze', bestScore: 100 },
+        } } }),
+    };
+    const menu = mountSurface({ profileStores: stores });
+    assert.equal(menu.medalLine()?.textContent, 'Beste Medaillen: Eiffelturm Gold');
+
+    menu.returnToMenu('p2');
+
+    assert.equal(menu.medalLine()?.textContent, 'Beste Medaillen: Sturmdamm Bronze');
+    assert.equal(menu.medalLine()?.classList.contains('hidden'), false);
+});
+
 test('the ranked line says when the chosen settings keep a run off the board', () => {
-    const entry = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 4321, date: '2026-10-01T10:00:00.000Z' };
-    const storeRecords = { [ARCADE_RANKED_STORAGE_KEY]: { schemaVersion: ARCADE_RANKED_VERSION, boards: { 'gauntlet:normal:1-5': [entry] } } };
+    const entry = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 4321, scoreModel: 'arcade-score.v4', date: '2026-10-01T10:00:00.000Z' };
+    const legacyEntry = { ...entry, runId: 'legacy', score: 9999 };
+    const storeRecords = { [ARCADE_RANKED_STORAGE_KEY]: { schemaVersion: ARCADE_RANKED_VERSION, boards: {
+        'gauntlet:normal:1-5': [legacyEntry],
+        'gauntlet:arcade-score.v4:normal:1-5': [entry],
+    } } };
     const standard = mountSurface({ storeRecords }).byId('arcade-ranked-line').textContent;
     assert.match(standard, /4\.321 Punkte/);
+    assert.doesNotMatch(standard, /9\.999 Punkte/, 'legacy scores are retained but not presented as v4');
     assert.doesNotMatch(standard, /nicht gewertet/);
 
     for (const arcade of [{ maxMultiplier: 25 }, { sectorCount: 20 }, { comboDecayPerSecond: 0 }]) {

@@ -17,6 +17,7 @@
     "src/shared/contracts/SecretRoomContract.js",
     "src/shared/contracts/MapUnitContract.js",
     "src/shared/contracts/LobbyVehicleContract.js",
+    "src/shared/contracts/TelemetryExportContract.js",
     "src/shared/utils/CanonicalJson.js"
   ]
 }

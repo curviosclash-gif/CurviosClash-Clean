@@ -4,6 +4,7 @@ import { bindChoiceStripKeys } from './ChoiceStripKeys.js';
 import { createMapChoiceStrip, readMapOptions } from './MapChoiceStrip.js';
 import { applyPreviewCameraFit } from './MapPreviewFraming.js';
 import { createMapPreviewGlbLayer } from './MapPreviewGlbLayer.js';
+import { MENU_PREVIEW_OBSERVED_ROOT_ATTRIBUTES, isMenuPreviewCovered } from './MenuPreviewCover.js';
 import {
     collectPortalPoints,
     collectSpawnPoints,
@@ -369,7 +370,8 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
         const sectionOpen = !ui.mapPickerSection || ui.mapPickerSection.open === true;
         const panel = mount.closest?.('.submenu-panel');
         const panelVisible = !panel || (!panel.classList.contains('hidden') && panel.getAttribute('aria-hidden') !== 'true');
-        return sectionOpen && panelVisible && isMenuShown() && document.visibilityState !== 'hidden';
+        return sectionOpen && panelVisible && isMenuShown() && !isMenuPreviewCovered(mount)
+            && document.visibilityState !== 'hidden';
     }
 
     function syncVisibility() {
@@ -444,7 +446,7 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
     const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => syncRendererSize()) : null;
     resizeObserver?.observe(canvasHost);
     if (menuPanel) visibilityObserver?.observe(menuPanel, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
-    if (menuRoot) visibilityObserver?.observe(menuRoot, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
+    if (menuRoot) visibilityObserver?.observe(menuRoot, { attributes: true, attributeFilter: [...MENU_PREVIEW_OBSERVED_ROOT_ATTRIBUTES] });
 
     syncVisibility();
 

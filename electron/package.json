@@ -72,6 +72,7 @@
           "core/settings/SettingsOverrideRangeContract.js",
           "core/settings/SettingsOverrideRetiredPaths.js",
           "dev/tuning/*.js",
+          "ui/ConfirmButtonArming.js",
           "entities/GeneratedLocalMaps.js",
           "entities/PickupRegistry.js",
           "four-player-planar/FourPlayerPlanarContract.js",

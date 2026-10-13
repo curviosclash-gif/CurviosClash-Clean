@@ -4,16 +4,10 @@ export function resolveDemolitionLocalPlayerCount(settings) {
     const localSettings = settings?.localSettings;
     const sessionType = String(localSettings?.sessionType || '').trim().toLowerCase();
     if (sessionType === 'single') return 1;
-    if (sessionType === 'multiplayer' || sessionType === 'lan' || sessionType === 'online') {
-        const localHumanCount = Number(localSettings?.localHumanCount);
-        return Number.isFinite(localHumanCount) && localHumanCount > 0
-            ? Math.max(1, Math.floor(localHumanCount))
-            : 1;
-    }
+    // Arcade has no network play yet; how many local players a network arcade run gets belongs to that project.
+    if (sessionType === 'multiplayer' || sessionType === 'lan' || sessionType === 'online') return 1;
     if (isFourPlayerPlanarVariant(settings)) return 4;
-    if (settings?.localSettings?.threePlayerSplit?.enabled === true
-        || settings?.mode === '3p'
-        || Number(settings?.localSettings?.humanEntityCount) >= 3) return 3;
+    if (settings?.localSettings?.threePlayerSplit?.enabled === true || settings?.mode === '3p') return 3;
     if (settings?.mode === '2p' || settings?.localSettings?.sessionType === 'splitscreen') return 2;
     return 1;
 }

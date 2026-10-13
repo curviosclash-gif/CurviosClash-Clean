@@ -36,6 +36,7 @@ export class WeaponRaceRuntime {
 
     reset() {
         this.entityManager = null;
+        this._localHumanPlayerIds = new Set();
         this.state = createWeaponRaceState();
         this.phase = 'idle';
         this.rewardBinding = null;
@@ -58,8 +59,9 @@ export class WeaponRaceRuntime {
         this._archivePendingRewards();
         this.entityManager = entityManager;
         const players = Array.isArray(entityManager?.players) ? entityManager.players.filter(Boolean) : [];
-        const human = (Array.isArray(entityManager?.humanPlayers) ? entityManager.humanPlayers : []).find(Boolean)
-            || players.find((entry) => entry?.isBot !== true) || null;
+        const humanPlayers = (Array.isArray(entityManager?.humanPlayers) ? entityManager.humanPlayers : []).filter(Boolean);
+        const human = humanPlayers[0] || players.find((entry) => entry?.isBot !== true) || null;
+        this._localHumanPlayerIds = new Set((humanPlayers.length > 0 ? humanPlayers : (human ? [human] : [])).map(playerId));
         this.state = createWeaponRaceState({
             startedAtMs: this._raceNow(entityManager),
             humanPlayerId: playerId(human),
@@ -514,6 +516,7 @@ export class WeaponRaceRuntime {
     getHudState(now = this._raceNow()) {
         this._followRaceClock();
         const standings = rankWeaponRaceRacers(this.state);
+        for (const row of standings) row.isHuman = this._localHumanPlayerIds.has(row.playerId);
         const human = this.state?.racers?.[this.state.humanPlayerId] || null;
         return {
             runType: WEAPON_RACE_RUN_TYPE,

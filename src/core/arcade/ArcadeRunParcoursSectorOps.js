@@ -19,7 +19,9 @@ export function completeArcadeParcoursSector(runtime, parcoursResult = {}, optio
         type: 'sector_complete',
         elapsed: completionMs > 0 ? completionMs / 1000 : runtime._sectorElapsedSeconds,
     });
-    runtime._state = completeArcadeSector(runtime._state, nowMs);
+    runtime._state = completeArcadeSector(runtime._state, nowMs, {
+        simulatedDurationSec: completionMs > 0 ? completionMs / 1000 : runtime._sectorElapsedSeconds,
+    });
     const map = getRuntimeMapDefinition(runtime._state.currentMapKey);
     const references = (map?.missions || []).filter(m => m.type === 'TIME_TRIAL')
         .map(m => Number(m.params?.target)).filter(value => value > 0 && Number.isFinite(value));

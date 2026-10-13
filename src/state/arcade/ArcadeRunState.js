@@ -239,7 +239,7 @@ export function beginArcadeSector(state, nowMs = Date.now()) {
     };
 }
 
-export function completeArcadeSector(state, nowMs = Date.now()) {
+export function completeArcadeSector(state, nowMs = Date.now(), { simulatedDurationSec = undefined } = {}) {
     if (!state || typeof state !== 'object') return state;
     if (state.phase === ARCADE_RUN_PHASES.FINISHED) return state;
     const maxSectors = Math.max(1, toSafeNumber(state?.config?.sectorCount, 1));
@@ -257,6 +257,22 @@ export function completeArcadeSector(state, nowMs = Date.now()) {
     const sectorEntry = Array.isArray(state.encounterSequence)
         ? state.encounterSequence[Math.max(0, completedSectors - 1)] || null
         : null;
+    const currentObjective = state.objectiveState && typeof state.objectiveState === 'object'
+        && Math.max(0, clampInteger(state.objectiveState.sectorIndex, 0, 99_999, 0)) === completedSectors
+        ? state.objectiveState : null;
+    const objectiveSnapshot = currentObjective ? Object.freeze({
+        sectorIndex: completedSectors,
+        id: String(currentObjective.objectiveId || ''),
+        completed: currentObjective.completed === true,
+        failed: currentObjective.failed === true,
+        timeLimited: currentObjective.timeLimited === true,
+        durationSec: Math.max(0, toSafeNumber(currentObjective.durationSec, 0)),
+        scoreWeight: Math.max(1, toSafeNumber(currentObjective.scoreWeight, 1)),
+        simulatedDurationSec: Math.max(0, toSafeNumber(
+            simulatedDurationSec,
+            Math.max(0, toSafeNumber(currentObjective.elapsedSec, 0)),
+        )),
+    }) : null;
     const lastCompletedSectorResult = Object.freeze({
         sectorIndex: completedSectors,
         sectorPhase: String(state.phase || ''),
@@ -265,6 +281,7 @@ export function completeArcadeSector(state, nowMs = Date.now()) {
         templateId: String(sectorEntry?.templateId || ''),
         encounterId: String(sectorEntry?.encounterId || sectorEntry?.id || sectorEntry?.templateId || ''),
         modifierId: String(sectorEntry?.modifierId || ''),
+        objectiveSnapshot,
     });
     // 61.6.1: Always go to INTERMISSION — FINISHED is set by _finalizeRun when player dies/quits
     return {
