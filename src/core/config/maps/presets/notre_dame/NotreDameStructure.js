@@ -359,7 +359,8 @@ const NOTRE_DAME_PORTALS = [
     { a: [CROSSING_CENTRE, ROOF_RIDGE + 12, -52], b: [CHOIR_CENTRE, GROUND + 20, 0], color: 0xffaa33 },
     // a floats above the ridge like the roof shortcut: at GROUND + 52 it lay inside the roof lead,
     // so every load moved the portal about 27 world units, and ships still came out in the lead.
-    { a: [79, ROOF_RIDGE + 12, 0], b: [-40, NAVE_VAULT + 8, 0], color: 0xaa66ff },
+    // b sits in the attic west of x -44: the collapsing upper fleche sweeps the attic up to there.
+    { a: [79, ROOF_RIDGE + 12, 0], b: [-52, NAVE_VAULT + 8, 0], color: 0xaa66ff },
     { a: [136, GROUND + 16, 0], b: [-159, GROUND + 16, -4], color: 0x44ffbb },
 ];
 
