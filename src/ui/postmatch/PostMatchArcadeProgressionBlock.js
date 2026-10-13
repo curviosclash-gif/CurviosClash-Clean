@@ -1,4 +1,5 @@
 import { formatArcadeStonePackageLabel } from '../../shared/contracts/ArcadeStoneWorkshopContract.js';
+import { resolveArcadeHangarNextGoal } from '../../shared/contracts/ArcadeHangarGuideContract.js';
 
 function textRow(key, label, value) {
     return { key, label, value: String(value || ''), type: 'text' };
@@ -11,6 +12,14 @@ export function buildArcadeProgressionBlock(progression = null) {
     if (!progression || typeof progression !== 'object' || !String(progression.vehicleId || '').trim()) return null;
     const priorLevel = Math.max(1, Math.trunc(Number(progression.priorLevel) || 1));
     const newLevel = Math.max(priorLevel, Math.trunc(Number(progression.newLevel) || priorLevel));
+    const guide = progression.hangarGuide && typeof progression.hangarGuide === 'object'
+        ? {
+            ...progression.hangarGuide,
+            offers: progression.offers ?? progression.hangarGuide.offers,
+            levelGates: progression.levelGates ?? progression.hangarGuide.levelGates,
+        }
+        : null;
+    const nextGoal = guide ? resolveArcadeHangarNextGoal(guide) : null;
     const rows = [
         textRow('vehicle', 'Fahrzeug', progression.vehicleLabel || progression.vehicleId),
         { key: 'xp-earned', label: 'XP in diesem Lauf', value: Math.max(0, Number(progression.xpEarned) || 0), type: 'count' },
@@ -20,6 +29,7 @@ export function buildArcadeProgressionBlock(progression = null) {
             Array.isArray(progression.unlockedStonePackages) ? progression.unlockedStonePackages.map(formatArcadeStonePackageLabel) : null),
         listRow('unlocked-stone-tiers', 'Steinstufe jetzt nutzbar', progression.unlockedStoneTiers),
         listRow('unlocked-cosmetics', 'Neue Kosmetik', progression.unlockedCosmetics),
+        nextGoal ? textRow('next-hangar-goal', 'Nächstes Hangar-Ziel', `${nextGoal.title}${nextGoal.detail ? ` · ${nextGoal.detail}` : ''}`) : null,
     ].filter(Boolean);
     return { id: 'arcade-progression', title: 'Arcade-Fortschritt', kind: 'values', tier: 'detail', rows };
 }

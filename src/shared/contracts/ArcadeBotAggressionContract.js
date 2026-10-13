@@ -1,3 +1,5 @@
+import { ARCADE_DIFFICULTY_TIERS } from './ArcadeDifficultyContract.js';
+
 const DEFAULT_ARCADE_BOT_AGGRESSIVENESS = 0.5;
 
 function clamp(value, min, max) {
@@ -11,6 +13,12 @@ export function normalizeArcadeBotAggressiveness(value, fallback = DEFAULT_ARCAD
     return Number.isFinite(fallbackNumeric)
         ? clamp(fallbackNumeric, 0, 1)
         : DEFAULT_ARCADE_BOT_AGGRESSIVENESS;
+}
+
+/** The authored aggressiveness plus the run tier's aggressionBonus (ARCADE_DIFFICULTY_TIERS). */
+export function resolveArcadeTierAggressiveness(value, tierId) {
+    const bonus = Number(ARCADE_DIFFICULTY_TIERS.find((tier) => tier.id === tierId)?.aggressionBonus) || 0;
+    return normalizeArcadeBotAggressiveness(normalizeArcadeBotAggressiveness(value) + bonus);
 }
 
 export function applyArcadeBotAggressiveness(profile = {}, value) {

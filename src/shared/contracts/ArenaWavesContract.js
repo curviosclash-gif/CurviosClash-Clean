@@ -9,6 +9,10 @@ export const ARENA_WAVES_RUN_TYPE = 'arena_waves';
 export const ARENA_WAVES_COMBAT_PROFILE = 'hunt';
 export const ARENA_WAVES_BOT_CAPACITY = 24;
 export const ARENA_WAVES_INTERVAL_SECONDS = 60;
+// An emptied arena shortens the rest of the wave timer to this window; every skipped second
+// scores twice the survival rate, so clearing fast beats waiting out the minute.
+export const ARENA_WAVES_CLEAR_REMAINDER_SECONDS = 5;
+export const ARENA_WAVES_FAST_CLEAR_POINTS_PER_SECOND = 10;
 export const ARENA_WAVES_MAPS = Object.freeze([
     'notre_dame_arena', 'notre_dame_fire_arena', 'eiffel_tower_siege',
     'burg_falkenwacht_arena', 'reactor_site',
@@ -104,9 +108,10 @@ export function applyArenaWavesChoice(upgrades, choiceId) {
     else if (choice.startsWith('machine_gun:')) next.machineGunId = normalizeArcadeMachineGunId(choice.slice(12));
     return next;
 }
-export function calculateArenaWavesScore({ survivalSeconds = 0, regularKills = 0, eliteKills = 0, completedWaves = [] } = {}) {
+export function calculateArenaWavesScore({ survivalSeconds = 0, regularKills = 0, eliteKills = 0, completedWaves = [], fastClearSeconds = 0 } = {}) {
     const waves = Array.isArray(completedWaves) ? completedWaves : [];
-    return Math.floor(Math.max(0, number(survivalSeconds)))*5 + Math.max(0, Math.trunc(number(regularKills)))*250 + Math.max(0, Math.trunc(number(eliteKills)))*900 + 500 * waves.reduce((sum, wave) => sum + Math.max(0, Math.trunc(number(wave))), 0);
+    return Math.floor(Math.max(0, number(survivalSeconds)))*5 + Math.max(0, Math.trunc(number(regularKills)))*250 + Math.max(0, Math.trunc(number(eliteKills)))*900 + 500 * waves.reduce((sum, wave) => sum + Math.max(0, Math.trunc(number(wave))), 0)
+        + Math.floor(Math.max(0, number(fastClearSeconds))) * ARENA_WAVES_FAST_CLEAR_POINTS_PER_SECOND;
 }
 export function applyArenaWavesMachineGunTuning(config = {}, tuning = 0) {
     const level = clamp(Math.trunc(number(tuning)), 0, 5);

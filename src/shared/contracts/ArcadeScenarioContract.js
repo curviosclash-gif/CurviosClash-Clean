@@ -36,11 +36,13 @@ export function resolveArcadeScenarioObjectiveLabel(objectiveId) {
 function normalizeObjective(source) {
     const id = normalizeId(source?.id);
     if (!Object.prototype.hasOwnProperty.call(OBJECTIVE_LABELS, id)) return null;
+    const safetyTimeoutSec = finiteNumber(source?.safetyTimeoutSec, 0, 0, 600);
     const objective = {
         id,
         label: normalizeString(source?.label, OBJECTIVE_LABELS[id]).trim() || OBJECTIVE_LABELS[id],
         durationSec: finiteNumber(source?.durationSec, 0, 0, 600),
         scoreWeight: finiteNumber(source?.scoreWeight, 1, 1, 3),
+        ...(safetyTimeoutSec > 0 ? { safetyTimeoutSec } : {}),
     };
     if (id === 'destroy_units' || id === 'intercept' || id === 'breach_vault') {
         const kind = normalizeId(source?.unitKind);

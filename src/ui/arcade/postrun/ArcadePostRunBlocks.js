@@ -227,7 +227,7 @@ export function createArcadeIntermissionBlocks(intermission = {}) {
     return [
         createArcadeBlock('arcade-intermission', 'Letzter Sektor', [
             countRow('sector-score', 'Punkte', intermission.lastSectorPoints),
-            countRow('sector-xp', 'XP', intermission.lastSectorXp),
+            countRow('sector-xp', intermission.xpForAllPilots === true ? 'XP gesamt (alle Spieler)' : 'XP', intermission.lastSectorXp),
             textRow('missions', 'Missionen', `${completed}/${total}`),
         ]),
         createArcadeBreakdownBlock(
@@ -254,7 +254,7 @@ export function createArcadeNextSectorBlock(preview = {}) {
     }
     return createArcadeBlock('arcade-next-sector', 'Nächster Sektor', [
         textRow('map', 'Karte', resolveArcadeMapLabel(preview.mapKey, preview.mapLabel)),
-        textRow('modifier', 'Modifier', String(preview.modifierLabel || 'Kein Modifier')),
+        textRow('modifier', 'Modifikator', String(preview.modifierLabel || 'Kein Modifikator')),
         textRow('effect', 'Wirkung', String(preview.modifierEffect || '').trim() || 'Keine zusätzliche Wirkung.'),
     ]);
 }

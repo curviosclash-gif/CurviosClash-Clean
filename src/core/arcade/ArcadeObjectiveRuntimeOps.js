@@ -7,19 +7,16 @@ import {
     updateArcadeObjectiveState,
 } from '../../state/arcade/ArcadeObjectiveState.js';
 import { ARCADE_SECTOR_OBJECTIVES } from '../../entities/directors/ArcadeEncounterCatalog.js';
+import { ARCADE_SCENARIOS } from '../../entities/directors/ArcadeScenarioCatalog.js';
 import { getRuntimeMapCatalog, getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { resolveArcadeSectorObjectiveDefinition } from '../../shared/contracts/ArcadeScenarioContract.js';
+import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
 const ARCADE_MISSION_GENERATOR_VERSION = 'arcade-missions.v2';
 
-export function resolveArcadeObjectiveFailureReason(objectiveState, outcomeReason) {
-    return outcomeReason === 'ARCADE_OBJECTIVE_FAILED'
-        && objectiveState?.objectiveId === 'intercept' && objectiveState.failed === true
-        ? outcomeReason : '';
-}
 
 export function buildArcadeMissionSeed({
-    scoreModel = 'arcade-score.v3',
+    scoreModel = CURRENT_ARCADE_SCORE_MODEL,
     activeSeed = 0,
     sectorIndex = 1,
     encounterId = '',
@@ -28,7 +25,7 @@ export function buildArcadeMissionSeed({
 } = {}) {
     return [
         ARCADE_MISSION_GENERATOR_VERSION,
-        String(scoreModel || 'arcade-score.v3'),
+        String(scoreModel || CURRENT_ARCADE_SCORE_MODEL),
         Math.max(0, Number(activeSeed) || 0),
         Math.max(1, Number(sectorIndex) || 1),
         String(encounterId || templateId || 'sector_intro'),
@@ -39,7 +36,11 @@ export function buildArcadeMissionSeed({
 function resolveObjectiveDefinition(encounterEntry) {
     const normalized = String(encounterEntry?.objectiveId || '').trim().toLowerCase();
     const shared = ARCADE_SECTOR_OBJECTIVES.find((entry) => entry.id === normalized) || null;
-    return resolveArcadeSectorObjectiveDefinition(shared, encounterEntry);
+    const scenario = ARCADE_SCENARIOS.find((entry) => entry.id === encounterEntry?.scenarioId) || null;
+    const scenarioObjective = scenario?.preserveObjective !== true && scenario?.objective?.id === normalized
+        ? scenario.objective
+        : null;
+    return resolveArcadeSectorObjectiveDefinition(scenarioObjective || shared, encounterEntry);
 }
 
 export function assignArcadeSectorRuntimeState(runtime) {
@@ -103,13 +104,20 @@ export function getArcadeObjectiveRuntimeState(runtime) {
 
 export function updateArcadeObjectiveRuntimeState(runtime, event) {
     if (!runtime?._state?.objectiveState) return null;
-    const next = updateArcadeObjectiveState(runtime._state.objectiveState, event);
+    const current = runtime._state.objectiveState;
+    const objectiveEvent = event?.type === 'uncredited_bot_eliminated'
+        && current.objectiveId === 'bounty_hunt'
+        && Number(event.victimIndex) === current.targetPlayerIndex
+        ? { ...event, participants: runtime._getObjectiveParticipants?.() || [] }
+        : event;
+    const next = updateArcadeObjectiveState(current, objectiveEvent);
     runtime._state.objectiveState = next;
     if (!next?.shouldEnd || next.roundEndRequested) return next;
     next.roundEndRequested = true;
+    const objectiveFailed = next.failed === true;
     const accepted = runtime._requestRoundEnd?.({
-        reason: next.objectiveId === 'intercept' && next.failed ? 'ARCADE_OBJECTIVE_FAILED' : 'ARCADE_OBJECTIVE',
-        allowNoWinner: next.objectiveId === 'intercept' && next.failed,
+        reason: objectiveFailed ? 'ARCADE_OBJECTIVE_FAILED' : 'ARCADE_OBJECTIVE',
+        allowNoWinner: objectiveFailed,
         objectiveId: next.objectiveId,
         objective: { ...next },
     }) === true;

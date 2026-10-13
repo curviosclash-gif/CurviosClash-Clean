@@ -10,6 +10,7 @@ import {
     telegraphEndlessSpawn,
 } from './EndlessParcoursBotDirectorOps.js';
 import { canActivateEndlessSlot, countEndlessOccupiedSlots } from './EndlessParcoursWaveOps.js';
+import { resolveHigherArcadeBotDifficulty } from '../directors/ArcadeEncounterCatalog.js';
 
 const BOT_SPAWN_DEFER_SECONDS = 0.5;
 
@@ -72,7 +73,7 @@ export function tryActivateEndlessSlot(runtime, slotState) {
         position: slotState.plannedAnchor,
         direction: runtime._tmpSpawnDirection,
         role: resolveEndlessBotRole(runtime, slotState, { elite }),
-        difficulty: elite || runtime.rankContext?.botStrength?.ai === 'HARD' ? 'HARD' : (runtime.rankContext ? 'NORMAL' : profile.difficulty),
+        difficulty: elite ? 'HARD' : resolveHigherArcadeBotDifficulty(runtime.rankContext?.botStrength?.ai, profile.difficulty),
         life: slotState.life,
         endlessProfile: profile,
     }) === true;

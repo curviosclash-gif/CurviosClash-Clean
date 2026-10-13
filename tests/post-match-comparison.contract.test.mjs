@@ -10,6 +10,7 @@ import {
 } from '../src/ui/postmatch/PostMatchComparisonBlock.js';
 import { buildArcadeProgressionBlock } from '../src/ui/postmatch/PostMatchArcadeProgressionBlock.js';
 import { resolveArcadePostMatchProgression } from '../src/core/arcade/ArcadePostMatchProgression.js';
+import { resolveArcadeHangarNextGoal } from '../src/shared/contracts/ArcadeHangarGuideContract.js';
 import {
     addXp,
     createArcadeVehicleProfile,
@@ -155,4 +156,31 @@ test('W7.6 arcade progression is derived from the bound vehicle profile without 
     const earnedColor = resolveArcadePostMatchProgression(store, { vehicleId: 'ship2', xpEarned: gain, postRunSummary: { colorsUnlocked: ['ion', 'ion'] } });
     assert.deepEqual(earnedColor.unlockedCosmetics, ['Farbe Ion']);
     assert.equal(Object.hasOwn(summary, 'weaponMastery'), false);
+});
+
+test('Arcade post-run forwards the shared Hangar offers and gates into the visible next-goal row', () => {
+    const records = new Map();
+    let writes = 0;
+    const store = {
+        loadJsonRecord(key, fallback) { return records.has(key) ? records.get(key) : fallback; },
+        saveJsonRecord(key, value) { writes += 1; records.set(key, structuredClone(value)); return true; },
+    };
+    const profile = addXp(createArcadeVehicleProfile('ship2', 1), xpForLevel(3), 2).profile;
+    saveVehicleProfiles(store, { ship2: profile });
+    const writesAfterProfileSetup = writes;
+    const summary = resolveArcadePostMatchProgression(store, { vehicleId: 'ship2', xpEarned: 0 });
+    assert.ok(summary.offers.some((offer) => offer.id === 'size-unlock'));
+    assert.ok(summary.levelGates.some((gate) => gate.id === 'next-milestone'));
+    assert.deepEqual(summary.offers, summary.hangarGuide.offers);
+    assert.deepEqual(summary.levelGates, summary.hangarGuide.levelGates);
+    assert.equal(summary.priorLevel, 3, 'the profile level remains the source of the level summary');
+    assert.equal(summary.newLevel, 3);
+    assert.equal(summary.xpEarned, 0);
+    assert.equal(writes, writesAfterProfileSetup, 'post-run guide reads do not persist or mutate Hangar state');
+
+    const selected = resolveArcadeHangarNextGoal(summary.hangarGuide);
+    const block = buildArcadeProgressionBlock(summary);
+    const row = block.rows.find((entry) => entry.key === 'next-hangar-goal');
+    assert.equal(row.label, 'Nächstes Hangar-Ziel');
+    assert.equal(row.value, `${selected.title} · ${selected.detail}`);
 });

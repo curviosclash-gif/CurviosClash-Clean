@@ -69,9 +69,9 @@ test('the real HUD renders course names and the localized survival objective', a
     });
     await expect(page.locator('#arcade-mission-hud')).toContainText('Hauptziel: Überleben');
     await expect(page.locator('#arcade-sector-transition-overlay')).not.toContainText('parcours_assault');
-    await expect(page.locator('#arcade-score-hud .arcade-score-hud-transition')).not.toContainText('parcours_assault');
     await expect(page.locator('#arcade-sector-transition-overlay')).toBeVisible();
-    await expect(page.locator('#arcade-score-hud .arcade-score-hud-transition')).toBeVisible();
+    // The sector start is announced once; the score box no longer carries a second banner.
+    await expect(page.locator('#arcade-score-hud .arcade-score-hud-transition')).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('localized-course-and-objective.png') });
 });
 

@@ -1,11 +1,11 @@
 import { loadArcadeDifficultyProgress, evaluateArcadeDifficultyUnlock, ARCADE_DIFFICULTY_STORAGE_KEY } from '../../shared/contracts/ArcadeDifficultyContract.js';
-import { ARCADE_RANKED_STORAGE_KEY, ARCADE_RANKED_VERSION, insertArcadeRankedResult } from '../../shared/contracts/ArcadeRankedLeaderboardContract.js';
+import { ARCADE_RANKED_STORAGE_KEY, ARCADE_RANKED_VERSION, insertArcadeRankedResult, resolveArcadeRankKey } from '../../shared/contracts/ArcadeRankedLeaderboardContract.js';
 
 /** Existing XP and run records are settled first. These independent writes cannot discard them. */
 export function settleArcadeRunRanking(runtime, result, nowMs = Date.now()) {
     const context = runtime?.rankContext;
     const store = runtime?._rankingStore;
-    if (!context?.ranked || !store || result?.aborted === true) return null;
+    if (!context?.ranked || !resolveArcadeRankKey(context) || !store || result?.aborted === true) return null;
     try {
         const progress = loadArcadeDifficultyProgress(store);
         if (progress.status !== 'unavailable') {

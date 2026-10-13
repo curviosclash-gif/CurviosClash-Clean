@@ -49,7 +49,8 @@ test('the main run stays visible while five specialist modes are grouped one lev
     const { body } = build();
     const group = body.children[0];
     assert.match(group.className, /\barcade-start-group\b/);
-    assert.equal(group.children[0].textContent, 'Lauf starten');
+    // "Run" as in "Arcade Run starten", the result panels and the run statistics (was "Lauf").
+    assert.equal(group.children[0].textContent, 'Run starten');
     const visibleOptions = group.children.filter((child) => child.classList.contains('arcade-start-option'));
     assert.deepEqual(visibleOptions.map((option) => option.children[0].id), ['btn-arcade-start-inline']);
     assert.equal(visibleOptions[0].classList.contains('is-primary'), true);
@@ -104,7 +105,7 @@ test('current status and standalone leaderboard follow the starts before advance
     const metricLabels = stats.children
         .find((child) => child.classList.contains('arcade-hud-shell-grid'))
         .children.map((metric) => metric.children[0].textContent);
-    assert.deepEqual(metricLabels, ['Punkte', 'Max. Multiplikator', 'Sektoren geschafft', 'Beste Combo']);
+    assert.deepEqual(metricLabels, ['Punkte', 'Max. Multiplikator', 'Sektoren geschafft', 'Beste Kombo']);
 });
 
 test('leaderboard keeps accessible table and top-ten toggle hooks', () => {

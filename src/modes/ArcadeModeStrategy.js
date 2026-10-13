@@ -19,6 +19,7 @@ import { applyPlayerCrashDamage } from './HuntCollisionOps.js';
 import { TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
 import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../shared/contracts/EndlessParcoursContract.js';
 import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
+import { ARCADE_DIFFICULTY_TIERS } from '../shared/contracts/ArcadeDifficultyContract.js';
 import { ARCADE_COLLISION_COOLDOWN, ARCADE_COLLISION_DAMAGE, resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
 import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
@@ -76,6 +77,8 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._activeModifierId = null;
         this._slotBonuses = NULL_SLOT_BONUSES;
         this._slotBonusesByVehicle = null;
+        /** Bot strength of the ranked run; set by prepareArcadeRunRanking (ArcadeRunRankingOps). @type {any} */
+        this._botRankBonuses = null;
         /** @type {any} */
         this._runRewardEffects = createDefaultArcadeRunRewardEffects();
         // 61.6.2: Sudden Death state
@@ -321,6 +324,9 @@ export class ArcadeModeStrategy extends GameModeContract {
 
         let healPct = this._sdActive ? SD_INTERMISSION_HEAL_PCT : BASE_INTERMISSION_HEAL_PCT;
         healPct += missionRatio * 0.08;
+        // The run tier (Albtraum) can thin out the heal between sectors.
+        const tierId = this._botRankBonuses?.botStrength?.tierId;
+        healPct *= toSafe(ARCADE_DIFFICULTY_TIERS.find((tier) => tier.id === tierId)?.intermissionHealFactor, 1);
         healPct = Math.max(0, Math.min(0.4, healPct));
 
         const requestedHeal = Math.max(0, Math.round(maxHp * healPct));

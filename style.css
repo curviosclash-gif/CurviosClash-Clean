@@ -2891,9 +2891,9 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     box-shadow: 0 0 0 1px rgba(110, 230, 255, 0.34), 0 0 26px rgba(90, 220, 255, 0.42), 0 8px 22px rgba(0, 0, 0, 0.32);
 }
 
+/* Sudden death pulses only at the screen edge (#arcade-sudden-death-overlay); the box stays still. */
 #arcade-score-hud.is-sudden-death {
     border-color: rgba(255, 110, 110, 0.6) !important;
-    animation: arcade-sd-pulse 1.05s ease-in-out infinite;
 }
 
 #arcade-score-hud .arcade-score-hud-metric.is-pop {
@@ -2905,14 +2905,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     background: rgba(90, 45, 24, 0.34);
 }
 
-#arcade-score-hud .arcade-score-hud-transition {
-    animation: arcade-transition-in 0.22s ease;
-}
-
-#arcade-score-hud .arcade-score-hud-sd {
-    animation: arcade-sd-banner-pulse 0.95s ease-in-out infinite;
-}
-
 #arcade-sudden-death-overlay {
     position: fixed;
     inset: 0;
@@ -2922,6 +2914,11 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     box-shadow: inset 0 0 46px rgba(255, 30, 30, 0.24);
     animation: arcade-sd-screen-pulse 0.95s ease-in-out infinite;
     opacity: var(--hud-opacity, 1);
+}
+
+/* "Bewegung reduzieren" (game setting or system wish): the red edge stays, the pulse stops. */
+#arcade-sudden-death-overlay.reduced-motion {
+    animation: none;
 }
 
 #arcade-sector-transition-overlay {
@@ -3094,18 +3091,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     0% { transform: scale(1); }
     40% { transform: scale(1.08); }
     100% { transform: scale(1); }
-}
-
-@keyframes arcade-sd-pulse {
-    0% { border-color: rgba(255, 110, 110, 0.5); }
-    50% { border-color: rgba(255, 58, 58, 0.86); }
-    100% { border-color: rgba(255, 110, 110, 0.5); }
-}
-
-@keyframes arcade-sd-banner-pulse {
-    0% { opacity: 0.78; }
-    50% { opacity: 1; }
-    100% { opacity: 0.78; }
 }
 
 @keyframes arcade-sd-screen-pulse {
