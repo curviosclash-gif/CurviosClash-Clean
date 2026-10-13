@@ -5,6 +5,12 @@
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 
+function isActiveMatchKernel(kernel) {
+    return kernel?.lifecycle === 'running'
+        || kernel?.lifecycle === 'round_end'
+        || kernel?.lifecycle === 'match_end';
+}
+
 export function createPlayingStateRuntimeAccess(runtime) {
     return createRuntimeAccess(runtime, (game) => {
         const actionPauseMatch = () => {
@@ -29,6 +35,16 @@ export function createPlayingStateRuntimeAccess(runtime) {
         const actionApplyPlayingTimeScaleFromEffects = () => {
             game?._applyPlayingTimeScaleFromEffects?.();
         };
+        const getCurrentMatchKernel = () => (
+            game?.matchSessionRuntimeBridge?.getCurrentMatchKernel?.()
+            || game?.runtimeCoordinator?.getRuntimeHandle?.('matchKernel')
+            || null
+        );
+        const getCurrentMatchKernelAdapter = () => (
+            game?.matchSessionRuntimeBridge?.getCurrentMatchKernelAdapter?.()
+            || game?.runtimeCoordinator?.getRuntimeHandle?.('matchKernelAdapter')
+            || null
+        );
         const getArcadeMenuSurfaceState = () => (
             game?.runtimeBundle?.ports?.arcadePort?.getMenuSurfaceState?.()
             || game?.runtimePorts?.arcadePort?.getMenuSurfaceState?.()
@@ -53,6 +69,8 @@ export function createPlayingStateRuntimeAccess(runtime) {
         actionUpdatePlayingHudTick,
         actionApplyPlayingTimeScaleFromEffects,
         getArcadeMenuSurfaceState,
+        getCurrentMatchKernel,
+        getCurrentMatchKernelAdapter,
         actionSyncArcadeOverlay,
         // Backward-compatible aliases for transitional call sites.
         wasPausePressed: () => game?.input?.wasPressed?.('Escape') === true,
@@ -89,14 +107,13 @@ export class PlayingStateSystem {
         this._arenaWavesOverlayChoiceCount = -1;
         this._fivePortalsFinishedShown = false;
         this._demolitionFinishedShown = false;
-        // V84: optional MatchKernelInteractiveAdapter; when set, simulation tick
-        // is driven through the kernel instead of direct game.* calls.
+        // The active match session owns the only simulation tick through its kernel.
         this._kernelAdapter = null;
     }
 
     /**
-     * setKernelAdapter – attach a MatchKernelInteractiveAdapter for kernel-driven ticks.
-     * Pass null to revert to the legacy direct-call path.
+     * setKernelAdapter – attach the current session's MatchKernelInteractiveAdapter.
+     * Passing null leaves the playing system without an active simulation tick.
      *
      * @param {import('./MatchKernelInteractiveAdapter.js').MatchKernelInteractiveAdapter|null} adapter
      */
@@ -159,11 +176,21 @@ export class PlayingStateSystem {
     }
 
     update(dt) {
-        const entityManager = this.runtimeAccess.getEntityManager?.() || null;
         const renderFrameId = this.runtimeAccess.getRenderFrameId?.() || 0;
 
         if (this.runtimeAccess.getPausePressed?.()) {
             this.runtimeAccess.actionPauseMatch?.();
+            return;
+        }
+
+        const currentAdapter = this.runtimeAccess.getCurrentMatchKernelAdapter?.() || null;
+        const currentKernel = this.runtimeAccess.getCurrentMatchKernel?.() || null;
+        if (
+            !this._kernelAdapter
+            || this._kernelAdapter !== currentAdapter
+            || this._kernelAdapter.kernel !== currentKernel
+            || !isActiveMatchKernel(currentKernel)
+        ) {
             return;
         }
 
@@ -173,19 +200,8 @@ export class PlayingStateSystem {
         if (!arenaWavesUpgradeActive) {
             this.runtimeAccess.actionUpdatePlanarAimAssist?.(dt);
 
-            // V84: drive simulation through MatchKernel when an adapter is present;
-            // fall back to direct calls for backwards compatibility during migration.
-            if (this._kernelAdapter) {
-                this._kernelAdapter.tick(dt, renderFrameId);
-                this._syncHuntOverheatSnapshot();
-            } else {
-                entityManager.update(dt, this.runtimeAccess.getInput?.(), renderFrameId);
-                entityManager?.endlessParcoursRuntime?.update?.(dt);
-                this._syncHuntOverheatSnapshot();
-                this.runtimeAccess.getPowerupManager?.()?.update?.(dt);
-                this.runtimeAccess.getParticles?.()?.update?.(dt);
-                this.runtimeAccess.getArena?.()?.update?.(dt);
-            }
+            this._kernelAdapter.tick(dt, renderFrameId);
+            this._syncHuntOverheatSnapshot();
 
             this.runtimeAccess.actionTickSuddenDeath?.(dt);
             arcadeState = this.runtimeAccess.getArcadeMenuSurfaceState?.() || arcadeState;

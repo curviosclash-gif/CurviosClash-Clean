@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyHeal } from '../combat/CombatPipeline.js';
 import { removePlayerEffect } from '../player/PlayerEffectOps.js';
 import {
     createRepairDroneAssets,
@@ -135,10 +136,7 @@ export class RepairDroneSystem {
     }
 
     _healOwner(owner, amount) {
-        const strategy = this.entityManager?.gameModeStrategy;
-        const result = typeof strategy?.applyHealing === 'function'
-            ? strategy.applyHealing(owner, amount, this.entityManager?.entityRuntimeConfig)
-            : null;
+        const result = applyHeal(this.entityManager, { target: owner, amount });
         if (result?.healed > 0) {
             this.entityManager?._huntScoring?.registerRepairDroneHpRestored?.(owner.index, result.healed);
             this.entityManager?._emitArcadeGameplayEvent?.({

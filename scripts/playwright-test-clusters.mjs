@@ -168,7 +168,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/sky-dome-gradient.desktop.spec.js': ['eiffel_tower'],
     'tests/canyon-sandstorm.desktop.spec.js': ['clockwork_canyon'],
     'tests/sky-ladder.desktop.spec.js': ['sky_ladder', 'standard'],
-    'tests/arcade-wave-three.desktop.spec.js': ['storm_bridge_siege', 'eiffel_tower_siege', 'bloom_core', 'standard'],
+    'tests/arcade-wave-three.desktop.spec.js': ['storm_bridge_siege', 'eiffel_tower_siege', 'bloom_core', 'parcours_pack_v130', 'standard'],
 });
 
 export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([

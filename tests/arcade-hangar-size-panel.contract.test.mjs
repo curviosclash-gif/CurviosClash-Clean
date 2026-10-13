@@ -16,7 +16,7 @@ const { createHangarSizePanel } = await import('../src/ui/hangar/HangarSizePanel
 const { createHangarFormTab } = await import('../src/ui/hangar/HangarFormTab.js');
 const { createArcadeVehicleProfileRecord } = await import('../src/shared/contracts/ArcadeVehicleProfileContract.js');
 const hitboxContract = await import('../src/shared/contracts/ArcadeVehicleHitboxContract.js');
-const { PLAYER_SHIP_PART_CONFIGS } = await import('../src/shared/vehicle-lab/player-ships/index.js');
+const { PLAYER_SHIP_PART_CONFIGS } = await import('../src/shared/vehicles/player-ships/index.js');
 
 function createPanel(extra = {}, saveResult = undefined) {
     const harness = {

@@ -1,5 +1,7 @@
 import { isDestructibleTurret } from '../../../shared/contracts/TurretCombatContract.js';
 import { isStaticTurretRocketThreatTarget } from './StaticTurretTargetingOps.js';
+import { applyHit } from '../../combat/CombatPipeline.js';
+import { TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
 
 const TURRET_MG_COLOR = 0xffb347;
 
@@ -36,15 +38,17 @@ export function applyStaticTurretMgHit(system, turret, target) {
         return;
     }
     if (!owner || typeof target?.takeDamage !== 'function') return;
-    const damageResult = target.takeDamage(turret.damage);
-    owner._emitHuntDamageEvent?.({
+    const damageResult = applyHit(owner, {
         target,
+        amount: turret.damage,
         sourcePlayer: turret.source,
         cause: 'STATIC_TURRET_MG',
-        damageResult,
+        weaponKind: TEAM_WEAPON_KINDS.MACHINE_GUN,
         projectileType: null,
         impactPoint: target.position,
+        nowSeconds: Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
     });
+    if (!damageResult || damageResult.blocked) return;
     const appliedDamage = Math.max(
         0,
         Number(damageResult?.hpApplied) || 0,
@@ -53,12 +57,7 @@ export function applyStaticTurretMgHit(system, turret, target) {
     if (appliedDamage > 0) {
         owner.recorder?.logEvent?.('TURRET_PLAYER_HIT', resolveOwnerIndex(turret), turret.id);
     }
-    if (damageResult?.isDead) {
+    if (damageResult.isDead) {
         owner.recorder?.logEvent?.('TURRET_KILL', resolveOwnerIndex(turret), turret.id);
-        owner._killPlayer?.(target, 'STATIC_TURRET_MG', {
-            killer: turret.source,
-            impactPoint: target.position,
-            projectileType: 'STATIC_TURRET_MG',
-        });
     }
 }

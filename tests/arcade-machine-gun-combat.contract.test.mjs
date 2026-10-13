@@ -5,6 +5,19 @@ import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import { OverheatGunSystem } from '../src/hunt/OverheatGunSystem.js';
 import { resolvePlayerMachineGunConfig } from '../src/hunt/mg/MGConfigResolver.js';
 import { GAMEPLAY_ACTION_RESULT_CODES } from '../src/shared/contracts/GameplayActionResultContract.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+
+const ENTITY_RUNTIME_CONFIG = createEntityRuntimeConfig(null, CONFIG_BASE);
+ENTITY_RUNTIME_CONFIG.HUNT = {
+    ...ENTITY_RUNTIME_CONFIG.HUNT,
+    ...HUNT_CONFIG,
+    ENABLED: true,
+    ACTIVE_MODE: 'HUNT',
+    DEFAULT_MODE: 'HUNT',
+};
 
 function createCombat(machineGunId, distance = 20, angleDegrees = 10) {
     const player = {
@@ -20,19 +33,20 @@ function createCombat(machineGunId, distance = 20, angleDegrees = 10) {
         index: 1,
         alive: true,
         hp: 500,
+        maxHp: 500,
         hitboxRadius: 1.5,
-        damage: [],
         position: new THREE.Vector3(),
-        takeDamage(amount) {
-            this.damage.push(amount);
-            this.hp -= amount;
-            return { isDead: this.hp <= 0 };
-        },
     };
-    const manager = { players: [player], gameModeStrategy: { hasMachineGun: () => true } };
+    const manager = {
+        players: [player, target],
+        entityRuntimeConfig: ENTITY_RUNTIME_CONFIG,
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: ENTITY_RUNTIME_CONFIG }),
+        _emitHuntDamageEvent() {},
+    };
     const runtime = {
         players: [player, target],
-        services: { entityRuntimeConfig: { HUNT: { MG: HUNT_CONFIG.MG } } },
+        services: { entityRuntimeConfig: ENTITY_RUNTIME_CONFIG },
+        combat: { applyPlayerHit: (hit) => applyHit(manager, hit) },
     };
     const system = new OverheatGunSystem(manager, runtime);
     const moveTarget = (range = distance, angle = angleDegrees) => {
@@ -118,17 +132,17 @@ test('real MG aim assist tracks moving targets and real spatial hits use gun fal
             const acquired = fireReady(system, player);
             assert.equal(player.fightAimAssistTarget, target, `${machineGunId} acquired a valid target at ${distance}`);
             assert.equal(acquired.hit, true);
-            assert.equal(target.damage.length, 1);
-            assert.ok(Number.isFinite(target.damage[0]));
-            damagesByDistance.set(distance, target.damage[0]);
+            const firstDamage = 500 - target.hp;
+            assert.ok(Number.isFinite(firstDamage) && firstDamage > 0);
+            damagesByDistance.set(distance, firstDamage);
 
             moveTarget(distance, 15);
             const moved = fireReady(system, player);
             assert.equal(player.fightAimAssistTarget, target, `${machineGunId} retained the moving target at ${distance}`);
             assert.equal(moved.hit, true);
-            assert.equal(target.damage.length, 2);
-            assert.ok(target.damage.every(Number.isFinite));
-            observations.push({ machineGunId, distance, effectiveRange: config.RANGE, damage: [...target.damage] });
+            const totalDamage = 500 - target.hp;
+            assert.ok(Number.isFinite(totalDamage) && totalDamage > firstDamage);
+            observations.push({ machineGunId, distance, effectiveRange: config.RANGE, damage: [firstDamage, totalDamage - firstDamage] });
         }
         assert.ok(damagesByDistance.get(20) > damagesByDistance.get(100), `${machineGunId} applies actual falloff`);
     }
@@ -140,12 +154,12 @@ test('real acquisition rejects invalid or out-of-range targets; Lance reaches fa
     const vectorMiss = fireReady(vector.system, vector.player);
     assert.equal(vector.player.fightAimAssistTarget, null);
     assert.equal(vectorMiss.hit, false);
-    assert.equal(vector.target.damage.length, 0);
+    assert.equal(vector.target.hp, 500);
 
     const vectorConfig = resolvePlayerMachineGunConfig(HUNT_CONFIG.MG, vector.player);
     vector.moveTarget(vectorConfig.RANGE + 5, 0);
     assert.equal(fireReady(vector.system, vector.player).hit, false);
-    assert.equal(vector.target.damage.length, 0);
+    assert.equal(vector.target.hp, 500);
 
     const lance = createCombat('lance_p4', 170, 10);
     const lanceConfig = resolvePlayerMachineGunConfig(HUNT_CONFIG.MG, lance.player);
@@ -153,16 +167,17 @@ test('real acquisition rejects invalid or out-of-range targets; Lance reaches fa
     const lanceHit = fireReady(lance.system, lance.player);
     assert.equal(lance.player.fightAimAssistTarget, lance.target);
     assert.equal(lanceHit.hit, true);
-    assert.equal(lance.target.damage.length, 1);
+    const lanceHp = lance.target.hp;
+    assert.ok(lanceHp < 500);
 
     lance.moveTarget(lanceConfig.RANGE + 5, 0);
     assert.equal(fireReady(lance.system, lance.player).hit, false);
-    assert.equal(lance.target.damage.length, 1);
+    assert.equal(lance.target.hp, lanceHp);
 
     const invalid = createCombat('vector_m7', 40, 0);
     invalid.target.alive = false;
     assert.equal(fireReady(invalid.system, invalid.player).hit, false);
-    assert.equal(invalid.target.damage.length, 0);
+    assert.equal(invalid.target.hp, 500);
 });
 
 test('Glut overheat rises more slowly than Vector in actual player firing', () => {
@@ -180,12 +195,13 @@ test('Arena Waves machine-gun tuning changes the real shot damage of the selecte
     player.arcadeWeaponLoadout.mgLevel = 2;
     player.arenaWavesLoadout = Object.freeze({ machineGunId: 'raptor_r9', mgTuning: 0 });
     assert.equal(fireReady(system, player).ok, true);
-    const before = target.damage.at(-1);
+    const before = 500 - target.hp;
 
     player.arenaWavesLoadout = Object.freeze({ machineGunId: 'raptor_r9', mgTuning: 1 });
     system._lockoutByPlayer[player.index] = 0;
+    target.hp = 500;
     assert.equal(fireReady(system, player).ok, true);
-    const after = target.damage.at(-1);
+    const after = 500 - target.hp;
 
     assert.ok(before > 0);
     assert.ok(Math.abs(after / before - 1.06) < 1e-5, `damage ratio ${after / before}`);

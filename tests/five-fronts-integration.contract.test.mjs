@@ -3,6 +3,18 @@ import test from 'node:test';
 
 import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
 import { PlayingStateSystem } from '../src/core/PlayingStateSystem.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
+import { createMatchKernelInteractiveAdapter } from '../src/core/MatchKernelInteractiveAdapter.js';
+
+function attachKernel(system, runtimeAccess, entityManager) {
+    const kernel = createInteractiveMatchKernel({ simPorts: { entityManager } });
+    kernel.boot();
+    const adapter = createMatchKernelInteractiveAdapter({ game: {}, kernel });
+    system.setKernelAdapter(adapter);
+    runtimeAccess.getCurrentMatchKernel = () => kernel;
+    runtimeAccess.getCurrentMatchKernelAdapter = () => adapter;
+    return kernel;
+}
 import { emitArcadeEliminationEvents } from '../src/entities/runtime/EntityArcadeGameplayEvents.js';
 import { createEntityRuntimeSystems } from '../src/entities/runtime/EntityRuntimeSystemAssembly.js';
 import { createRuntimeProjectionPort } from '../src/shared/runtime/GameRuntimePorts.js';
@@ -62,38 +74,47 @@ test('runtime projection ignores non-arena fallback state', () => {
 test('arena-waves upgrade pauses simulation while keeping HUD and changed overlay state synchronized', () => {
     const calls = [];
     const arenaState = { runType: 'arena_waves', phase: 'upgrade', mapIndex: 2, choices: ['a', 'b', 'c', 'd'] };
-    const system = new PlayingStateSystem({
-        getEntityManager: () => ({ update() { calls.push('entity'); } }),
+    const entityManager = { update() { calls.push('entity'); } };
+    const runtimeAccess = {
+        getEntityManager: () => entityManager,
         getArcadeMenuSurfaceState: () => arenaState,
         actionSyncArcadeOverlay() { calls.push('overlay'); },
         actionTickSuddenDeath() { calls.push('arcade'); },
         actionUpdatePlayingHudTick() { calls.push('hud'); },
         getRuntimeProjectionPort: () => ({ getMatchRuntimeProjection: () => ({}) }),
         actionApplyPlayingTimeScaleFromEffects() { calls.push('effects'); },
-    });
+    };
+    const system = new PlayingStateSystem(runtimeAccess);
+    const kernel = attachKernel(system, runtimeAccess, entityManager);
     system.update(1 / 60);
     system.update(1 / 60);
+    assert.equal(kernel.tickIndex, 0, 'upgrade phase must pause the kernel');
     assert.deepEqual(calls, ['overlay', 'hud', 'hud']);
     arenaState.phase = 'countdown';
     arenaState.choices = [];
     system.update(1 / 60);
+    assert.equal(kernel.tickIndex, 1);
     assert.deepEqual(calls.slice(-5), ['overlay', 'entity', 'arcade', 'hud', 'effects']);
 });
 
 test('demolition completion synchronizes its result overlay once', () => {
     const calls = [];
     const state = { runType: 'demolition', phase: 'finished', postRunSummary: { maps: [] } };
-    const system = new PlayingStateSystem({
-        getEntityManager: () => ({ update() { calls.push('entity'); } }),
+    const entityManager = { update() { calls.push('entity'); } };
+    const runtimeAccess = {
+        getEntityManager: () => entityManager,
         getArcadeMenuSurfaceState: () => state,
         actionSyncArcadeOverlay() { calls.push('overlay'); },
         actionTickSuddenDeath() {},
         actionUpdatePlayingHudTick() {},
         getRuntimeProjectionPort: () => ({ getMatchRuntimeProjection: () => ({}) }),
         actionApplyPlayingTimeScaleFromEffects() {},
-    });
+    };
+    const system = new PlayingStateSystem(runtimeAccess);
+    const kernel = attachKernel(system, runtimeAccess, entityManager);
     system.update(1 / 60);
     system.update(1 / 60);
+    assert.equal(kernel.tickIndex, 2);
     assert.equal(calls.filter((entry) => entry === 'overlay').length, 1);
 });
 
@@ -106,16 +127,31 @@ test('intermission selection immediately synchronizes the overlay', () => {
     assert.equal(syncs, 1);
 });
 
-test('only arena-waves emits a neutral bot elimination without a human killer', () => {
-    const events = [];
-    const arenaOwner = {
-        runtimeConfig: { arcade: { enabled: true, runType: 'arena_waves' } },
-        onArcadeGameplayEvent(event) { events.push(event); },
+test('gauntlet emits only neutral uncredited-bot events while arena-waves keeps its existing event', () => {
+    const makeOwner = (arcade) => {
+        const events = [];
+        return { events, runtimeConfig: { arcade }, onArcadeGameplayEvent(event) { events.push(event); } };
     };
+    const arenaOwner = makeOwner({ enabled: true, runType: 'arena_waves' });
     emitArcadeEliminationEvents(arenaOwner, { index: 7, isBot: true }, 'TRAIL_SELF');
-    assert.deepEqual(events, [{ type: 'kill', victimIndex: 7, count: 0, runId: '', botSlot: null, activationGeneration: null }]);
-    emitArcadeEliminationEvents({ ...arenaOwner, runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } } }, { index: 8, isBot: true }, 'TRAIL_SELF');
-    assert.equal(events.length, 1);
+    assert.deepEqual(arenaOwner.events, [{ type: 'kill', victimIndex: 7, count: 0, runId: '', botSlot: null, activationGeneration: null }]);
+
+    const gauntletOwner = makeOwner({ enabled: true, runType: 'gauntlet' });
+    emitArcadeEliminationEvents(gauntletOwner, { index: 8, isBot: true }, 'TRAIL_SELF');
+    assert.deepEqual(gauntletOwner.events, [{ type: 'uncredited_bot_eliminated', victimIndex: 8 }]);
+    assert.equal(Object.hasOwn(gauntletOwner.events[0], 'playerIndex'), false);
+    assert.equal(Object.hasOwn(gauntletOwner.events[0], 'count'), false);
+    assert.equal(Object.hasOwn(gauntletOwner.events[0], 'scoreFactor'), false);
+
+    const disabledOwner = makeOwner({ enabled: false, runType: 'gauntlet' });
+    emitArcadeEliminationEvents(disabledOwner, { index: 9, isBot: true }, 'TRAIL_SELF');
+    const nonGauntletOwner = makeOwner({ enabled: true, runType: 'demolition' });
+    emitArcadeEliminationEvents(nonGauntletOwner, { index: 10, isBot: true }, 'TRAIL_SELF');
+    const playerOwner = makeOwner({ enabled: true, runType: 'gauntlet' });
+    emitArcadeEliminationEvents(playerOwner, { index: 11, isBot: false }, 'TRAIL_SELF');
+    assert.deepEqual(disabledOwner.events, []);
+    assert.deepEqual(nonGauntletOwner.events, []);
+    assert.deepEqual(playerOwner.events, []);
 });
 
 test('demolition keeps the round open after the last defender falls', () => {

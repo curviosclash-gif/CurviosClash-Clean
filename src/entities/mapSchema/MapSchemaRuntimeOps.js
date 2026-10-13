@@ -387,6 +387,9 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             // Fog distances are world units and its height terms anchor units, which this map
             // scales (scaleAuthoredAnchors), so the stored form passes through unchanged.
             ...(normalized.lighting ? { lighting: normalized.lighting } : null),
+            // Same rule: the far plane is world units, the fog layer's heights anchor units.
+            ...(normalized.cameraFar ? { cameraFar: normalized.cameraFar } : null),
+            ...(normalized.fogLayer ? { fogLayer: normalized.fogLayer } : null),
         },
         warnings,
         mapDocument: normalized,

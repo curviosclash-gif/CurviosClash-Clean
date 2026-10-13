@@ -8,6 +8,7 @@ import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import { grantShield } from '../src/hunt/HealthSystem.js';
 import { resolvePlayerMachineGunConfig } from '../src/hunt/mg/MGConfigResolver.js';
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import {
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
@@ -20,18 +21,30 @@ const arcadeConfig = { ...DEFAULT_ENTITY_RUNTIME_CONFIG,
     HUNT: { ...DEFAULT_ENTITY_RUNTIME_CONFIG.HUNT, ACTIVE_MODE: 'ARCADE' } };
 
 function rocketHit(ownerExtra = {}) {
+    const damageEvents = [];
+    const world = {
+        gameModeStrategy: new ArcadeModeStrategy({ runType: 'arena_waves', combatProfile: 'hunt' }),
+        _emitHuntDamageEvent(event) { damageEvents.push(event); },
+    };
     const system = { entityRuntimeConfig: arcadeConfig, getTurrets: () => [],
         onProjectileHit() {}, onProjectilePowerup() {}, onProjectileDamage() {} };
+    system.runtimeContext = { combat: { applyPlayerHit: (hit) => applyHit(world, hit) } };
     const resolver = new ProjectileHitResolver(system);
     const hits = { direct: [], blast: [] };
     const target = (index, x, list) => ({ alive: true, index, hitboxRadius: 1.5,
+        hp: 100, maxHp: 100,
         position: new THREE.Vector3(x, 0, 0),
-        takeDamage(amount) { list.push(amount); return { isDead: false }; } });
+    });
+    system.onProjectileDamage = (victim, _owner, _type, result) => {
+        const list = victim.index === 1 ? hits.direct : hits.blast;
+        list.push(result.hpApplied + result.absorbedByShield);
+    };
     const owner = { index: 0, isBot: false, alive: true, position: new THREE.Vector3(-50, 0, 0), ...ownerExtra };
     const projectile = { type: 'ROCKET_MEDIUM', owner, radius: 0.5, ignoresTrails: true,
         position: new THREE.Vector3(), velocity: new THREE.Vector3(1, 0, 0) };
-    resolver.resolveProjectileOutcome(projectile, [owner, target(1, 0, hits.direct), target(2, 5, hits.blast)], null, {});
-    return hits;
+    const players = [owner, target(1, 0, hits.direct), target(2, 5, hits.blast)];
+    resolver.resolveProjectileOutcome(projectile, players, null, {});
+    return { ...hits, damageEvents, players };
 }
 
 test('rocket level adds to nose damage in the real direct and blast paths; bot factor remains', () => {
@@ -48,6 +61,9 @@ test('rocket level adds to nose damage in the real direct and blast paths; bot f
     const built = rocketHit(player);
     assert.ok(Math.abs(built.direct[0] - plain.direct[0] * 1.23) < 1e-9);
     assert.ok(built.blast[0] > plain.blast[0]);
+    assert.equal(plain.damageEvents.length, 2, 'direct hit and splash each emit one pipeline damage event');
+    assert.equal(plain.players[1].hp, 100 - plain.direct[0]);
+    assert.equal(plain.players[2].hp, 100 - plain.blast[0]);
     const bot = { vehicleId: 'ship1', isBot: true };
     applyArcadeBuildToPlayer(bot, null, true);
     assert.equal(bot.arcadeRocketDamageMultiplier, undefined);

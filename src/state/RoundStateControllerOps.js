@@ -8,6 +8,8 @@ import {
 } from '../shared/contracts/GameStateIds.js';
 import { isRoundEndInputLocked } from './RoundEndInputLockOps.js';
 
+export const DEFAULT_ROUND_PAUSE_SECONDS = 3;
+
 function normalizeDt(value) {
     return Math.max(0, Number(value) || 0);
 }
@@ -22,7 +24,7 @@ function normalizeBool(value) {
 }
 
 export function deriveRoundEndControllerTransition(roundEndOutcome, options = {}) {
-    const defaultRoundPause = normalizePause(options.defaultRoundPause, 3);
+    const defaultRoundPause = normalizePause(options.defaultRoundPause, DEFAULT_ROUND_PAUSE_SECONDS);
     return {
         roundPause: defaultRoundPause,
         nextState: normalizeGameStateId(roundEndOutcome?.state, GAME_STATE_IDS.ROUND_END),

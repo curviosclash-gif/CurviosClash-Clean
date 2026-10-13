@@ -71,7 +71,8 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
     const humanPlayerCount = normalizeCount(inputs.humanPlayerCount);
     const totalBots = normalizeCount(inputs.totalBots);
     const requiredWins = normalizeRequiredWins(inputs.winsNeeded);
-    const canWinMatch = humanPlayerCount > 1 || totalBots > 0;
+    const soloObjectiveWinner = winner && (reason === 'TIME_LIMIT' || reason === 'PARCOURS_COMPLETE');
+    const canWinMatch = humanPlayerCount > 1 || totalBots > 0 || !!soloObjectiveWinner;
     const matchWinner = canWinMatch ? (safePlayers.find((player) => player
         && player.entitySlotActive !== false
         && (!winnerTeamId || player.teamId === winnerTeamId)

@@ -42,6 +42,65 @@ export function getShieldMaxHp(config = null) {
     return Math.max(1, toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40));
 }
 
+/**
+ * Apply an already-normalized amount to the shield and HP pools without mode policy.
+ * @param {object} player
+ * @param {number} amount
+ * @param {{ignoreShield?: boolean, shieldMaxHp?: number, hpFallback?: number, hpBefore?: number}} [options]
+ * @returns {{absorbedByShield: number, hpApplied: number, remainingHp: number, isDead: boolean, damageContact: boolean}}
+ */
+export function applyShieldAndHpDamage(player, amount, {
+    ignoreShield = false,
+    shieldMaxHp,
+    hpFallback,
+    hpBefore = Math.max(0, toSafeNumber(player?.hp, 0)),
+} = {}) {
+    const resolvedShieldMaxHp = Number.isFinite(shieldMaxHp)
+        ? shieldMaxHp
+        : (Number.isFinite(Number(player?.maxShieldHp)) ? Number(player.maxShieldHp) : 40);
+    const resolvedHpFallback = Number.isFinite(hpFallback)
+        ? hpFallback
+        : (Number.isFinite(Number(player?.maxHp)) ? Number(player.maxHp) : 0);
+    let remainingDamage = amount;
+    let absorbedByShield = 0;
+    if (!ignoreShield && player.shieldHP > 0) {
+        absorbedByShield = Math.min(player.shieldHP, remainingDamage);
+        player.shieldHP = Math.max(0, player.shieldHP - absorbedByShield);
+        remainingDamage -= absorbedByShield;
+        if (absorbedByShield > 0) {
+            const feedbackValue = Math.min(1, Math.max(0.2, absorbedByShield / Math.max(1, resolvedShieldMaxHp)));
+            player.shieldHitFeedback = Math.max(player.shieldHitFeedback || 0, feedbackValue);
+        }
+        if (player.shieldHP <= 0) player.hasShield = false;
+    }
+
+    const damageContact = absorbedByShield > 0 || remainingDamage > 0;
+    if (remainingDamage > 0) {
+        player.hp = Math.max(0, toSafeNumber(player.hp, resolvedHpFallback) - remainingDamage);
+    }
+    const remainingHp = Math.max(0, toSafeNumber(player.hp, 0));
+    return {
+        absorbedByShield,
+        hpApplied: Math.max(0, hpBefore - remainingHp),
+        remainingHp: player.hp,
+        isDead: player.hp <= 0,
+        damageContact,
+    };
+}
+
+/**
+ * Apply positive healing up to an already-resolved mode-specific HP maximum.
+ * @param {object} player
+ * @param {number} amount
+ * @param {number} maxHp
+ * @returns {{healed: number, hp: number}}
+ */
+export function applyCappedHealing(player, amount, maxHp) {
+    const before = Math.max(0, toSafeNumber(player.hp, maxHp));
+    player.hp = Math.min(maxHp, before + amount);
+    return { healed: player.hp - before, hp: player.hp };
+}
+
 export function resetPlayerHealth(player, config = null) {
     const activeConfig = resolveConfig(config, player);
     if (!player) return null;
@@ -109,37 +168,22 @@ export function applyDamage(player, amount, options = {}, config = null) {
         };
     }
 
-    let remainingDamage = requestedDamage;
-    let absorbedByShield = 0;
-    const ignoreShield = !!options.ignoreShield;
-    if (!ignoreShield && player.shieldHP > 0) {
-        absorbedByShield = Math.min(player.shieldHP, remainingDamage);
-        player.shieldHP = Math.max(0, player.shieldHP - absorbedByShield);
-        remainingDamage -= absorbedByShield;
-        if (absorbedByShield > 0) {
-            const feedbackValue = Math.min(1, Math.max(0.2, absorbedByShield / Math.max(1, player.maxShieldHp || getShieldMaxHp(activeConfig))));
-            player.shieldHitFeedback = Math.max(player.shieldHitFeedback || 0, feedbackValue);
-        }
-        if (player.shieldHP <= 0) {
-            player.hasShield = false;
-        }
-    }
-
-    const damageContact = absorbedByShield > 0 || remainingDamage > 0;
-    if (remainingDamage > 0) {
-        player.hp = Math.max(0, toSafeNumber(player.hp, player.maxHp) - remainingDamage);
-    }
-    if (damageContact) {
+    const damageResult = applyShieldAndHpDamage(player, requestedDamage, {
+        ignoreShield: !!options.ignoreShield,
+        shieldMaxHp: player.maxShieldHp || getShieldMaxHp(activeConfig),
+        hpFallback: player.maxHp,
+        hpBefore,
+    });
+    if (damageResult.damageContact) {
         player.lastDamageTimestamp = toSafeNumber(options.nowSeconds, resolveHealthClockSeconds(player));
     }
 
-    const hpApplied = Math.max(0, hpBefore - Math.max(0, toSafeNumber(player.hp, 0)));
     return {
         applied: requestedDamage,
-        absorbedByShield,
-        hpApplied,
-        remainingHp: player.hp,
-        isDead: player.hp <= 0,
+        absorbedByShield: damageResult.absorbedByShield,
+        hpApplied: damageResult.hpApplied,
+        remainingHp: damageResult.remainingHp,
+        isDead: damageResult.isDead,
     };
 }
 
@@ -158,9 +202,7 @@ export function applyHealing(player, amount, config = null) {
     }
 
     const maxHp = Math.max(1, toSafeNumber(player.maxHp, getPlayerMaxHp(activeConfig)));
-    const before = Math.max(0, toSafeNumber(player.hp, maxHp));
-    player.hp = Math.min(maxHp, before + healing);
-    return { healed: player.hp - before, hp: player.hp };
+    return applyCappedHealing(player, healing, maxHp);
 }
 
 export function updatePlayerHealthRegen(player, dt, config = null, nowSeconds = resolveHealthClockSeconds(player)) {

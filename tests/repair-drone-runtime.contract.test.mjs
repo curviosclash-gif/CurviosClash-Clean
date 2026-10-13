@@ -3,9 +3,11 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { RepairDroneSystem } from '../src/entities/systems/RepairDroneSystem.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 
 function createWorld() {
     const removed = [];
+    const events = [];
     let restoredHp = 0;
     const player = {
         index: 0,
@@ -13,6 +15,7 @@ function createWorld() {
         alive: true,
         hp: 50,
         maxHp: 100,
+        spawnProtectionTimer: 3,
         position: new THREE.Vector3(4, 2, 8),
         quaternion: new THREE.Quaternion(),
         activeEffects: [{ type: 'REPAIR_DRONE', remaining: 20 }],
@@ -35,17 +38,12 @@ function createWorld() {
             addToScene() {},
             removeFromScene(root) { removed.push(root); },
         },
-        gameModeStrategy: {
-            applyHealing(target, amount) {
-                const before = target.hp;
-                target.hp = Math.min(target.maxHp, target.hp + amount);
-                return { healed: target.hp - before, hp: target.hp };
-            },
-        },
+        gameModeStrategy: new HuntModeStrategy(),
+        _emitArcadeGameplayEvent(event) { events.push(event); },
         _mapUnitSystem: { units: [nearTank, hostileTank, farTank] },
         _huntScoring: { registerRepairDroneHpRestored(_playerIndex, hp) { restoredHp += hp; } },
     };
-    return { manager, player, nearTank, hostileTank, farTank, removed, get restoredHp() { return restoredHp; } };
+    return { manager, player, nearTank, hostileTank, farTank, removed, events, get restoredHp() { return restoredHp; } };
 }
 
 test('the repair drone heals its own escort tank but not an enemy normal tank', () => {
@@ -61,6 +59,8 @@ test('the repair drone heals its own escort tank but not an enemy normal tank', 
     assert.equal(drone.hp, 20);
     assert.equal(drone.position.distanceTo(player.position) <= 5, true, 'the drone stays beside its owner');
     assert.equal(player.hp, 53, 'the owner receives 3 HP per second');
+    assert.equal(world.events.length, 1, 'one actual owner heal publishes one health update');
+    assert.deepEqual(world.events[0], { type: 'health_update', playerIndex: 0, hp: 53, maxHp: 100 });
     assert.equal(nearTank.hp, 95, 'a nearby escort tank receives 5 HP per second');
     assert.equal(hostileTank.hp, 60, 'a nearby enemy normal tank is not healed');
     assert.equal(farTank.hp, 70, 'distant tanks are not repaired');

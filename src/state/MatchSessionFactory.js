@@ -10,6 +10,7 @@ import {
     toSafeInt,
 } from './match-session/MatchSessionMapOps.js';
 import { createInteractiveMatchKernel } from './MatchKernel.js';
+import { DEFAULT_ROUND_PAUSE_SECONDS } from './RoundStateControllerOps.js';
 import {
     buildEntityManagerSetupOptions,
     disposeMatchSessionSystems,
@@ -488,7 +489,7 @@ export function wireInitializedMatchRuntime({
                 // over; whether the match is decided depends on scores and winsNeeded and is
                 // derived downstream by the round state controller. RoundStateTickSystem hands
                 // that decision to the kernel, so only round end can be signalled here.
-                kernel.signalRoundEnd({ roundPause: 3 });
+                kernel.signalRoundEnd({ roundPause: DEFAULT_ROUND_PAUSE_SECONDS });
                 if (typeof onRoundEnd === 'function') {
                     onRoundEnd(winner, outcome);
                 }

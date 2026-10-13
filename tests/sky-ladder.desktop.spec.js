@@ -49,7 +49,7 @@ test('Himmelsleiter starts from the arcade menu and climbs four parcours through
             hasFinish: true,
         }));
         expect(state.rings).toBeGreaterThanOrEqual(12);
-        await expect(page.locator('#arcade-score-hud')).toContainText(`Map ${index + 1}/4`);
+        await expect(page.locator('#arcade-score-hud')).toContainText(`Karte ${index + 1}/4`);
 
         await page.evaluate((mapIndex) => {
             const runtime = window.GAME_INSTANCE.runtimeFacade._arcadeSupport.fivePortalsRuntime;

@@ -25,7 +25,7 @@ export const MISSION_TYPES = Object.freeze({
     }),
     KILL_COUNT: freezeMissionType({
         id: 'KILL_COUNT',
-        label: 'Eliminate',
+        label: 'Gegner ausschalten',
         icon: 'crosshair',
         defaultParams: { target: 5 },
         check: (progress) => (progress.kills || 0) >= (progress.target || 5),
@@ -33,7 +33,7 @@ export const MISSION_TYPES = Object.freeze({
     }),
     COLLECT_ITEMS: freezeMissionType({
         id: 'COLLECT_ITEMS',
-        label: 'Collect',
+        label: 'Items sammeln',
         icon: 'gem',
         defaultParams: { target: 3 },
         check: (progress) => (progress.collected || 0) >= (progress.target || 3),
@@ -41,7 +41,7 @@ export const MISSION_TYPES = Object.freeze({
     }),
     SURVIVE_DURATION: freezeMissionType({
         id: 'SURVIVE_DURATION',
-        label: 'Survive',
+        label: 'Überleben',
         icon: 'clock',
         defaultParams: { target: 45 },
         check: (progress) => (progress.survived || 0) >= (progress.target || 45),
@@ -49,15 +49,15 @@ export const MISSION_TYPES = Object.freeze({
     }),
     REACH_PORTAL: freezeMissionType({
         id: 'REACH_PORTAL',
-        label: 'Reach Exit',
+        label: 'Ausgang erreichen',
         icon: 'portal',
         defaultParams: {},
         check: (progress) => progress.reached === true,
-        format: (progress) => progress.reached ? 'Done' : 'Find the exit portal',
+        format: (progress) => progress.reached ? 'Geschafft' : 'Ausgangsportal finden',
     }),
     TIME_TRIAL: freezeMissionType({
         id: 'TIME_TRIAL',
-        label: 'Speed Run',
+        label: 'Zeitrennen',
         icon: 'stopwatch',
         defaultParams: { target: 30 },
         check: (progress) => progress.elapsed > 0 && progress.elapsed <= (progress.target || 30),
@@ -66,11 +66,11 @@ export const MISSION_TYPES = Object.freeze({
     // 61.3.1 — New mission types
     NO_DAMAGE: freezeMissionType({
         id: 'NO_DAMAGE',
-        label: 'No Damage',
+        label: 'Ohne Treffer',
         icon: 'shield',
         defaultParams: {},
         check: (progress) => progress.sectorCompleted === true && progress.hitCount === 0,
-        format: (progress) => (progress.hitCount || 0) === 0 ? 'Untouched' : `Hits: ${progress.hitCount}`,
+        format: (progress) => (progress.hitCount || 0) === 0 ? 'Unversehrt' : `Treffer: ${progress.hitCount}`,
     }),
     MULTI_KILL: freezeMissionType({
         id: 'MULTI_KILL',
@@ -82,7 +82,7 @@ export const MISSION_TYPES = Object.freeze({
     }),
     TRAIL_MASTER: freezeMissionType({
         id: 'TRAIL_MASTER',
-        label: 'Trail Master',
+        label: 'Spurmeister',
         icon: 'trail',
         defaultParams: { target: 100 },
         check: (progress) => (progress.metersSafe || 0) >= (progress.target || 100),
@@ -91,19 +91,19 @@ export const MISSION_TYPES = Object.freeze({
     // 61.3.2 — Additional new mission types
     ITEM_CHAIN: freezeMissionType({
         id: 'ITEM_CHAIN',
-        label: 'Item Chain',
+        label: 'Item-Kette',
         icon: 'chain',
         defaultParams: { target: 3 },
         check: (progress) => (progress.chain || 0) >= (progress.target || 3),
-        format: (progress) => `${Math.min(progress.chain || 0, progress.target || 3)}/${progress.target || 3} chain`,
+        format: (progress) => `${Math.min(progress.chain || 0, progress.target || 3)}/${progress.target || 3} Kette`,
     }),
     CLOSE_CALL: freezeMissionType({
         id: 'CLOSE_CALL',
-        label: 'Close Call',
+        label: 'Knapp entkommen',
         icon: 'heartbeat',
         defaultParams: { target: 3 },
         check: (progress) => (progress.count || 0) >= (progress.target || 3),
-        format: (progress) => `${Math.min(progress.count || 0, progress.target || 3)}/${progress.target || 3} survived`,
+        format: (progress) => `${Math.min(progress.count || 0, progress.target || 3)}/${progress.target || 3} überstanden`,
     }),
 });
 

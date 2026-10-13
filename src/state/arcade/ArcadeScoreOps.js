@@ -2,10 +2,9 @@ import { ARCADE_RUN_PHASES, createArcadeRunRecords, createArcadeRunState } from 
 import { toSafeNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
 import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
-const SURVIVAL_LATE_THRESHOLD_SEC = 30;
-// No objective lasts longer than 55 s; past 90 s a sector only grows by keeping the last bot alive.
-const SURVIVAL_MAX_DURATION_SEC = 90;
-const SURVIVAL_LATE_BONUS_CAP = 2000;
+const SURVIVAL_POINTS_PER_SECOND = 5;
+const OBJECTIVE_TIME_BONUS_PER_SECOND = 10;
+const DEFAULT_UNTIMED_OBJECTIVE_SCORE_WINDOW_SEC = 90;
 
 /** Base score per sector template — harder templates reward more. */
 const SECTOR_BASE_SCORES = Object.freeze({
@@ -16,7 +15,7 @@ const SECTOR_BASE_SCORES = Object.freeze({
 });
 
 /** Points per kill, multiplied by the current multiplier. */
-const KILL_SCORE_BASE = 35;
+const KILL_SCORE_BASE = 60;
 const PARCOURS_SCORE = Object.freeze({ completion: 500, checkpoint: 25, time: 1000, precision: 200, referenceMs: 60000 });
 
 /** Fractional combo increments per in-game action (61.2.1). */
@@ -173,7 +172,7 @@ export function applyComboAction(scoreState = null, event = null, config = null)
     };
 }
 
-export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTemplateId = '', parcours = null } = {}) {
+export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTemplateId = '', parcours = null, objective = null } = {}) {
     if (sectorTemplateId === 'sector_parcours') {
         const timeMs = Number(parcours?.completionTimeMs);
         const referenceMs = Math.max(1, toSafeNumber(parcours?.referenceTimeMs, PARCOURS_SCORE.referenceMs));
@@ -191,12 +190,22 @@ export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTempla
     // 61.1.1 — Dynamic base score per sector template
     const base = SECTOR_BASE_SCORES[sectorTemplateId] || SECTOR_BASE_SCORES.sector_intro;
 
-    // Reward survival after 30 seconds with a capped quadratic bonus.
-    const dur = Math.min(SURVIVAL_MAX_DURATION_SEC, telemetry.duration);
-    const linearPart = dur * 10;
-    const lateBonusSec = Math.max(0, dur - SURVIVAL_LATE_THRESHOLD_SEC);
-    const lateBonus = Math.min(SURVIVAL_LATE_BONUS_CAP, Math.round(lateBonusSec * lateBonusSec * 0.8));
-    const survival = Math.round(linearPart + lateBonus);
+    const timedObjective = objective?.timeLimited === true;
+    const authoredDuration = Number(objective?.durationSec);
+    const targetDuration = timedObjective && Number.isFinite(authoredDuration) && authoredDuration > 0
+        ? authoredDuration
+        : DEFAULT_UNTIMED_OBJECTIVE_SCORE_WINDOW_SEC;
+    const reportedDuration = Number(objective?.simulatedDurationSec ?? telemetry.duration);
+    const duration = Math.max(0, Number.isFinite(reportedDuration) ? reportedDuration : 0);
+    const scoredDuration = Math.min(targetDuration, duration);
+    const survival = Math.round(scoredDuration * SURVIVAL_POINTS_PER_SECOND);
+    // The completion bonus falls faster than survival rises, so waiting cannot raise
+    // the score for an otherwise identical successful sector.
+    const completedObjective = typeof objective?.id === 'string' && objective.id.length > 0
+        && objective.completed === true && objective.failed !== true;
+    const time = completedObjective
+        ? Math.round(Math.max(0, targetDuration - scoredDuration) * OBJECTIVE_TIME_BONUS_PER_SECOND)
+        : 0;
 
     // 61.1.2 — Kill-based scoring
     const kills = telemetry.kills * KILL_SCORE_BASE;
@@ -206,7 +215,7 @@ export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTempla
         ? 90
         : Math.max(0, 60 - telemetry.itemUses * 12);
     const penalty = (telemetry.selfCollisions * 80) + (telemetry.stuckEvents * 60);
-    const total = Math.max(0, base + survival + kills + cleanSector + risk - penalty);
+    const total = Math.max(0, base + survival + kills + cleanSector + risk - penalty + time);
     return {
         base,
         survival,
@@ -214,7 +223,7 @@ export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTempla
         cleanSector,
         risk,
         penalty,
-        completion: 0, checkpoints: 0, time: 0, precision: 0,
+        completion: 0, checkpoints: 0, time, precision: 0,
         total,
     };
 }
@@ -264,7 +273,6 @@ export function applyArcadeSectorScore(runState, payload = null, {
     const sectorEntry = sectorSeq[Math.max(0, completedSectors - 1)] || null;
     const sectorTemplateId = String(sectorEntry?.templateId || '');
     const scoreBonus = Math.max(0, toSafeNumber(sectorEntry?.scoreBonus, 0));
-    const breakdown = computeArcadeSectorScoreBreakdown(payload, { sectorTemplateId, parcours: sectorResult?.parcours });
     // 61.4.2: apply modifier scoreBonus as a multiplier on top of the sector total
     // 61.5.2: apply bossMultiplier for the final boss sector (doubles sector score)
     const bonusMultiplier = 1 + scoreBonus;
@@ -272,10 +280,19 @@ export function applyArcadeSectorScore(runState, payload = null, {
     const objectiveState = runState.objectiveState && typeof runState.objectiveState === 'object'
         ? runState.objectiveState
         : null;
-    const objectiveMultiplier = objectiveState?.completed === true
-        && Math.max(0, clampInteger(objectiveState.sectorIndex, 0, 99_999, 0)) === completedSectors
-        ? Math.max(1, toSafeNumber(objectiveState.scoreWeight, 1))
+    const objectiveSnapshot = sectorResult?.objectiveSnapshot || null;
+    const objectiveForScore = objectiveSnapshot || (Math.max(0, clampInteger(objectiveState?.sectorIndex, 0, 99_999, 0)) === completedSectors
+        ? objectiveState : null);
+    const objectiveMultiplier = objectiveForScore?.completed === true
+        && objectiveForScore?.failed !== true
+        && Math.max(0, clampInteger(objectiveForScore.sectorIndex, 0, 99_999, 0)) === completedSectors
+        ? Math.max(1, toSafeNumber(objectiveForScore.scoreWeight, 1))
         : 1;
+    const breakdown = computeArcadeSectorScoreBreakdown(payload, {
+        sectorTemplateId,
+        parcours: sectorResult?.parcours,
+        objective: objectiveForScore,
+    });
     const masteryScoreMultiplier = 1 + resolveMasteryPct(masteryPerks, 'scoreBonusPct') / 100;
     const sectorPoints = Math.round(
         Math.max(0, breakdown.total)

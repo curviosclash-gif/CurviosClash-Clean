@@ -4,6 +4,7 @@ import {
     createArcadeSectorScorePresentation,
 } from '../../shared/contracts/ArcadeScorePresentationContract.js';
 import { resolveArcadeModifierMeta } from '../../shared/contracts/ArcadeModifierContract.js';
+import { formatPlayerDisplayLabel, PLAYER_LABEL_STYLES } from '../../shared/contracts/PlayerDisplayLabelContract.js';
 import { ArcadeEndlessHudSection } from './ArcadeEndlessHudSection.js';
 import { resolveArcadeMapLabel } from './postrun/ArcadePostRunBlocks.js';
 import { formatArenaWavesMachineGunLabel } from './ArenaWavesOverlayTexts.js';
@@ -74,6 +75,14 @@ function setNodeText(node, text) {
     }
 }
 
+// Prefer the runtime's local-player identity; keep the old single-HUD fallback for legacy rows.
+function formatRacerLabel(row, humanPlace) {
+    const isBot = typeof row?.isHuman === 'boolean'
+        ? !row.isHuman
+        : Number(row?.place) !== Number(humanPlace);
+    return formatPlayerDisplayLabel({ index: Number(row?.playerId), isBot }, { style: PLAYER_LABEL_STYLES.LONG });
+}
+
 function formatTimerMs(value) {
     const totalSec = Math.max(0, Math.floor(toSafeNumber(value, 0) / 1000));
     const mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
@@ -106,10 +115,7 @@ export class ArcadeScoreHUD {
         this._modifierLabel = null;
         this._modifierEffect = null;
         this._suddenDeathBanner = null;
-        this._transitionBanner = null;
-        this._transitionVisibleUntilMs = 0;
         this._comboPopUntilMs = 0;
-        this._lastSectorIndex = 0;
         this._lastCombo = 0;
         this._build();
         this._ghostStatus = createElement('div', 'arcade-ghost-status');
@@ -151,7 +157,7 @@ export class ArcadeScoreHUD {
         const metricLine = createElement('div', 'arcade-score-hud-metrics');
         this._metricLine = metricLine;
         metricLine.style.cssText = 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;font-size:11px;';
-        const comboMetric = this._createMetric(metricLine, 'Combo', '0');
+        const comboMetric = this._createMetric(metricLine, 'Kombo', '0');
         this._comboMetricWrap = comboMetric.wrap;
         this._comboValue = comboMetric.value;
         this._comboDecayValue = createElement('span', 'arcade-score-hud-combo-decay');
@@ -213,7 +219,7 @@ export class ArcadeScoreHUD {
         ].join(';');
         const modifierText = createElement('div', 'arcade-score-hud-modifier-text');
         modifierText.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
-        this._modifierLabel = createElement('strong', 'arcade-score-hud-modifier-label', 'Kein Modifier aktiv');
+        this._modifierLabel = createElement('strong', 'arcade-score-hud-modifier-label', 'Kein Modifikator aktiv');
         this._modifierLabel.style.cssText = 'font-size:12px;';
         this._modifierEffect = createElement('span', 'arcade-score-hud-modifier-effect', 'Standard-Sektor ohne Zusatz-Effekt');
         this._modifierEffect.style.cssText = 'font-size:11px;color:#9eb8cf;';
@@ -225,9 +231,6 @@ export class ArcadeScoreHUD {
         this._suddenDeathBanner = createElement('div', 'arcade-score-hud-sd hidden', 'Sudden Death 00:00');
         this._suddenDeathBanner.style.cssText = 'padding:6px 8px;border-radius:6px;border:1px solid rgba(255,120,120,0.45);background:rgba(80,0,0,0.42);font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;';
 
-        this._transitionBanner = createElement('div', 'arcade-score-hud-transition hidden', '');
-        this._transitionBanner.style.cssText = 'padding:6px 8px;border-radius:6px;border:1px solid rgba(140,220,255,0.4);background:rgba(18,44,62,0.55);font-size:11px;font-weight:600;';
-
         this._container.appendChild(scoreLine);
         this._container.appendChild(metricLine);
         this._container.appendChild(this._endlessSection.element);
@@ -235,7 +238,6 @@ export class ArcadeScoreHUD {
         this._container.appendChild(breakdown);
         this._container.appendChild(this._modifierWrap);
         this._container.appendChild(this._suddenDeathBanner);
-        this._container.appendChild(this._transitionBanner);
         this._parent.appendChild(this._container);
         // The player bars sit under this box, which grows with modifier, waves and banners. The
         // height is reported unscaled: the CSS applies --hud-scale, which no resize reports.
@@ -289,14 +291,13 @@ export class ArcadeScoreHUD {
         const isFivePortals = String(hudState.runType || '') === 'five_portals';
         const isWeaponRace = String(hudState.runType || '') === 'weapon_race';
         const isDemolition = String(hudState.runType || '') === 'demolition';
-        setNodeText(this._scoreLabel, isFivePortals ? 'Map-Zeit' : (isWeaponRace ? 'Waffenrennen' : 'Punkte'));
+        setNodeText(this._scoreLabel, isFivePortals ? 'Kartenzeit' : (isWeaponRace ? 'Waffenrennen' : 'Punkte'));
         if (isDemolition) {
             if (this._metricLine) this._metricLine.style.display = 'none';
             this._endlessSection?.hide();
             if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
             if (this._modifierWrap) this._modifierWrap.style.display = 'none';
             this._suddenDeathBanner?.classList?.add('hidden');
-            this._transitionBanner?.classList?.add('hidden');
             this._arenaWavesSection.style.display = 'block';
             setNodeText(this._scoreValue, formatRounded(score.total));
             const mapCount = Math.max(1, Number(hudState.mapCount) || 3);
@@ -316,14 +317,13 @@ export class ArcadeScoreHUD {
             if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
             if (this._modifierWrap) this._modifierWrap.style.display = 'none';
             this._suddenDeathBanner?.classList?.add('hidden');
-            this._transitionBanner?.classList?.add('hidden');
             this._arenaWavesSection.style.display = 'block';
             setNodeText(this._scoreValue, `${hudState.place || '-'}/${hudState.racerCount || 5}`);
             const grace = hudState.phase === 'grace'
                 ? `\nZielphase ${Math.ceil(Math.max(0, Number(hudState.graceRemainingMs) || 0) / 1000)} s`
                 : '';
             const leaders = (hudState.standings || []).slice(0, 5)
-                .map((row) => `${row.place}. Fahrer ${row.playerId}${row.result === 'DNF' ? ` · CP ${row.checkpointIndex}` : ` · ${formatTimerMs(row.finishTimeMs)}`}`)
+                .map((row) => `${row.place}. ${formatRacerLabel(row, hudState.place)}${row.result === 'DNF' ? ` · CP ${row.checkpointIndex}` : ` · ${formatTimerMs(row.finishTimeMs)}`}`)
                 .join('\n');
             this._arenaWavesSection.textContent = `Checkpoint ${hudState.checkpoint || 0}/${hudState.checkpointCount || 9}\nWaffe ${hudState.weaponId || 'MG'}${grace}${leaders ? `\n${leaders}` : ''}`;
             return;
@@ -334,13 +334,12 @@ export class ArcadeScoreHUD {
             if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
             if (this._modifierWrap) this._modifierWrap.style.display = 'none';
             this._suddenDeathBanner?.classList?.add('hidden');
-            this._transitionBanner?.classList?.add('hidden');
             this._arenaWavesSection.style.display = 'block';
             setNodeText(this._scoreValue, formatTimerMs(hudState.currentTimeMs));
             const mapCount = Math.max(1, Number(hudState.mapCount) || 5);
             const mapNumber = Math.min(mapCount, Math.max(1, Number(hudState.mapIndex || 0) + 1));
             const status = hudState.phase === 'portal' ? '\nZiel erreicht · Goldenes Portal durchfliegen' : '';
-            this._arenaWavesSection.textContent = `Map ${mapNumber}/${mapCount}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
+            this._arenaWavesSection.textContent = `Karte ${mapNumber}/${mapCount}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
             return;
         }
         if (isArenaWaves) {
@@ -349,7 +348,6 @@ export class ArcadeScoreHUD {
             if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
             if (this._modifierWrap) this._modifierWrap.style.display = 'none';
             this._suddenDeathBanner?.classList?.add('hidden');
-            this._transitionBanner?.classList?.add('hidden');
             this._arenaWavesSection.style.display = 'block';
             setNodeText(this._scoreValue, formatRounded(score.total));
             const kills = hudState.kills || {};
@@ -366,7 +364,6 @@ export class ArcadeScoreHUD {
             if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
             if (this._modifierWrap) this._modifierWrap.style.display = 'none';
             this._suddenDeathBanner?.classList?.add('hidden');
-            this._transitionBanner?.classList?.add('hidden');
             return;
         }
         this._endlessSection?.hide();
@@ -433,7 +430,7 @@ export class ArcadeScoreHUD {
             this._modifierWrap.style.borderTopColor = 'rgba(120,190,255,0.24)';
         } else {
             setNodeText(this._modifierIcon, '--');
-            setNodeText(this._modifierLabel, 'Kein Modifier aktiv');
+            setNodeText(this._modifierLabel, 'Kein Modifikator aktiv');
             setNodeText(this._modifierEffect, 'Standard-Sektor ohne Zusatz-Effekt');
             this._modifierWrap.style.borderTopColor = 'rgba(255,255,255,0.14)';
         }
@@ -446,15 +443,8 @@ export class ArcadeScoreHUD {
             }
         }
         this._container?.classList?.toggle('is-sudden-death', isSuddenDeath);
-
-        if (sectorIndex > 0 && sectorIndex !== this._lastSectorIndex) {
-            this._transitionVisibleUntilMs = nowMs + 1400;
-            const mapKey = String(hudState.currentMapKey || '').trim() || 'unknown';
-            setNodeText(this._transitionBanner, `Sektor ${sectorIndex} | ${resolveArcadeMapLabel(mapKey)}`);
-        }
-        this._lastSectorIndex = sectorIndex;
-        const transitionVisible = nowMs < this._transitionVisibleUntilMs;
-        this._transitionBanner?.classList?.toggle('hidden', !transitionVisible);
+        // The sector start is announced once, by HudRuntimeSystem's centred banner. A second banner
+        // in this box made it grow and pushed the player bars below it down for 1.4 s.
         const showDetails = phase === 'paused' || phase === 'round_end';
         if (this._breakdownWrap) {
             this._breakdownWrap.style.display = showDetails ? 'grid' : 'none';
@@ -488,10 +478,7 @@ export class ArcadeScoreHUD {
         this._modifierLabel = null;
         this._modifierEffect = null;
         this._suddenDeathBanner = null;
-        this._transitionBanner = null;
-        this._transitionVisibleUntilMs = 0;
         this._comboPopUntilMs = 0;
-        this._lastSectorIndex = 0;
         this._lastCombo = 0;
         this._visible = false;
     }

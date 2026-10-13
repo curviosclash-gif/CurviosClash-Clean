@@ -5,6 +5,8 @@
 // ============================================
 
 import { GameModeContract } from './GameModeContract.js';
+import { applyCappedHealing, applyShieldAndHpDamage } from '../hunt/HealthSystem.js';
+import { applyHeal } from '../entities/combat/CombatPipeline.js';
 import { isPickupTypeAllowedForMode, pickWeightedPickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import {
@@ -14,8 +16,10 @@ import {
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 import { HuntModeStrategy } from './HuntModeStrategy.js';
 import { applyPlayerCrashDamage } from './HuntCollisionOps.js';
+import { TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
 import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../shared/contracts/EndlessParcoursContract.js';
 import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
+import { ARCADE_DIFFICULTY_TIERS } from '../shared/contracts/ArcadeDifficultyContract.js';
 import { ARCADE_COLLISION_COOLDOWN, ARCADE_COLLISION_DAMAGE, resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
 import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
@@ -73,9 +77,10 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._activeModifierId = null;
         this._slotBonuses = NULL_SLOT_BONUSES;
         this._slotBonusesByVehicle = null;
+        /** Bot strength of the ranked run; set by prepareArcadeRunRanking (ArcadeRunRankingOps). @type {any} */
+        this._botRankBonuses = null;
         /** @type {any} */
         this._runRewardEffects = createDefaultArcadeRunRewardEffects();
-        this._roundScores = {};
         // 61.6.2: Sudden Death state
         this._sdActive = false;
         this._sdAccumulatedSeconds = 0;
@@ -87,6 +92,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._runType = String(options.runType || 'gauntlet').trim().toLowerCase();
         this._isDailyChallenge = options.isDailyChallenge === true;
         this._combatProfile = resolveArcadeRunCombatProfile(this._runType, options.combatProfile);
+        this._regenHealWorld = { strategy: this };
         this._huntCombat = this._combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE || this._combatProfile === ARENA_WAVES_COMBAT_PROFILE
             ? new HuntModeStrategy({
                 entityRuntimeConfig: options.entityRuntimeConfig,
@@ -113,62 +119,12 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     _resetRunTransientState() {
-        this._roundScores = {};
         this.exitSuddenDeath();
         this.setActiveModifier(null);
         this.setSectorType(null);
         this.setScenarioId(null);
         this.applyVehicleUpgrades(null);
         this.applyRunRewardEffects(null);
-    }
-
-    /**
-     * recordScore – accumulate a score delta for a player index during the run.
-     * Called by Arcade-specific game logic (sectors, kills, survival ticks).
-     */
-    recordScore(playerIndex, delta) {
-        const idx = Number(playerIndex);
-        if (!Number.isFinite(idx)) return;
-        this._roundScores[idx] = (this._roundScores[idx] || 0) + (Number.isFinite(delta) ? delta : 0);
-    }
-
-    computeRoundResult(players, context) {
-        const scores = {};
-        for (const p of (players || [])) {
-            if (p && p.playerIndex != null) {
-                const idx = p.playerIndex;
-                scores[idx] = {
-                    accumulatedScore: this._roundScores[idx] ?? 0,
-                    alive: !!p.alive,
-                    hp: toSafe(p.hp, 0),
-                };
-            }
-        }
-        // Arcade: highest accumulated score wins the round; ties prefer alive player.
-        let winner = null;
-        let best = -Infinity;
-        for (const [idx, s] of Object.entries(scores)) {
-            const effective = s.accumulatedScore + (s.alive ? 1000 : 0);
-            if (effective > best) { best = effective; winner = Number(idx); }
-        }
-        return { modeType: this.modeType, winner, scores, roundIndex: context?.roundIndex ?? 0 };
-    }
-
-    computeMatchResult(players, roundResults, _context) {
-        void players;
-        // Arcade typically has a single run (no multi-round), aggregate total scores.
-        const totalScores = {};
-        for (const r of (roundResults || [])) {
-            for (const [idx, s] of Object.entries(r?.scores || {})) {
-                totalScores[idx] = (totalScores[idx] || 0) + (s?.accumulatedScore ?? 0);
-            }
-        }
-        let winnerIndex = null;
-        let maxScore = -Infinity;
-        for (const [idx, score] of Object.entries(totalScores)) {
-            if (score > maxScore) { maxScore = score; winnerIndex = Number(idx); }
-        }
-        return { modeType: this.modeType, winnerIndex, totalScores, roundResults: roundResults || [] };
     }
 
     // 61.8.1: Apply vehicle upgrade slot bonuses (turning, speed, max HP)
@@ -327,37 +283,33 @@ export class ArcadeModeStrategy extends GameModeContract {
             return { applied: 0, absorbedByShield: 0, remainingHp: Math.max(0, toSafe(player.hp, 0)), isDead: toSafe(player.hp, 0) <= 0 };
         }
 
-        let remaining = dmg;
-        let absorbed = 0;
-        if (!options?.ignoreShield && player.shieldHP > 0) {
-            absorbed = Math.min(player.shieldHP, remaining);
-            player.shieldHP = Math.max(0, player.shieldHP - absorbed);
-            remaining -= absorbed;
-            if (absorbed > 0) {
-                const shieldMax = Math.max(1, player.maxShieldHp || DEFAULT_SHIELD_HP);
-                player.shieldHitFeedback = Math.max(player.shieldHitFeedback || 0, Math.min(1, Math.max(0.2, absorbed / shieldMax)));
-            }
-            if (player.shieldHP <= 0) player.hasShield = false;
-        }
-
-        if (remaining > 0) player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - remaining);
+        const damageResult = applyShieldAndHpDamage(player, dmg, {
+            ignoreShield: !!options?.ignoreShield,
+            shieldMaxHp: player.maxShieldHp || DEFAULT_SHIELD_HP,
+            hpFallback: player.maxHp,
+        });
         // Every hit pauses the regen, also one the shield absorbs completely (as in the Hunt profile).
         player.lastDamageTimestamp = toSafe(options?.nowSeconds, resolveArcadeSimulationSeconds(this.isNormalArcadeRun() ? player.entityManager : null, this._nowSeconds()));
 
-        return { applied: dmg, absorbedByShield: absorbed, remainingHp: player.hp, isDead: player.hp <= 0 };
+        return {
+            applied: dmg,
+            absorbedByShield: damageResult.absorbedByShield,
+            remainingHp: damageResult.remainingHp,
+            isDead: damageResult.isDead,
+        };
     }
 
-    applyHealing(player, amount) {
+    applyHealing(player, amount, _config = null, cause = null) {
         if (this._huntCombat) return this._huntCombat.applyHealing(player, amount);
         if (!player) return { healed: 0, hp: 0 };
         // 61.6.2: No healing in Sudden Death
-        if (this._sdActive) return { healed: 0, hp: Math.max(0, toSafe(player.hp, 0)) };
+        if (this._sdActive && cause !== 'ARCADE_INTERMISSION') {
+            return { healed: 0, hp: Math.max(0, toSafe(player.hp, 0)) };
+        }
         const heal = Math.max(0, toSafe(amount, 0));
         if (heal <= 0) return { healed: 0, hp: toSafe(player.hp, 0) };
         const maxHp = Math.max(1, toSafe(player.maxHp, DEFAULT_MAX_HP));
-        const before = Math.max(0, toSafe(player.hp, maxHp));
-        player.hp = Math.min(maxHp, before + heal);
-        return { healed: player.hp - before, hp: player.hp };
+        return applyCappedHealing(player, heal, maxHp);
     }
 
     // 68.3.3: Intermission healing with mission/reward scaling.
@@ -372,18 +324,18 @@ export class ArcadeModeStrategy extends GameModeContract {
 
         let healPct = this._sdActive ? SD_INTERMISSION_HEAL_PCT : BASE_INTERMISSION_HEAL_PCT;
         healPct += missionRatio * 0.08;
+        // The run tier (Albtraum) can thin out the heal between sectors.
+        const tierId = this._botRankBonuses?.botStrength?.tierId;
+        healPct *= toSafe(ARCADE_DIFFICULTY_TIERS.find((tier) => tier.id === tierId)?.intermissionHealFactor, 1);
         healPct = Math.max(0, Math.min(0.4, healPct));
 
         const requestedHeal = Math.max(0, Math.round(maxHp * healPct));
-        const hpBefore = Math.max(0, toSafe(player.hp, maxHp));
-        let healed = 0;
-        if (this._sdActive) {
-            player.hp = Math.min(maxHp, hpBefore + requestedHeal);
-            healed = Math.max(0, player.hp - hpBefore);
-        } else {
-            const healResult = this.applyHealing(player, requestedHeal);
-            healed = Math.max(0, toSafe(healResult.healed, 0));
-        }
+        const healResult = applyHeal({ strategy: this }, {
+            target: player,
+            amount: requestedHeal,
+            cause: 'ARCADE_INTERMISSION',
+        });
+        const healed = Math.max(0, toSafe(healResult?.healed, 0));
 
         let shieldGranted = 0;
         const spill = Math.max(0, requestedHeal - healed);
@@ -448,7 +400,17 @@ export class ArcadeModeStrategy extends GameModeContract {
         const drain = ((this._huntCombat ? null : this._getAggregatedModifierEffects())?.hpDrainPerSecond || 0) * Math.max(0, dt);
         if (drain > 0) return this._applyModifierDamage(player, drain, 'HEAT_STRESS', entityManager);
         if (!this.isNormalArcadeRun()) return null;
-        return updateArcadeBaseRegen(player, dt, resolveArcadeSimulationSeconds(entityManager || player.entityManager, this._nowSeconds()), this._sdActive);
+        const activeManager = entityManager || player.entityManager;
+        const healWorld = activeManager?.gameModeStrategy || activeManager?.strategy
+            ? activeManager
+            : this._regenHealWorld;
+        return updateArcadeBaseRegen(
+            player,
+            dt,
+            resolveArcadeSimulationSeconds(activeManager, this._nowSeconds()),
+            this._sdActive,
+            healWorld,
+        );
     }
 
     // 61.4.1: boost_tax — drains HP while boosting
@@ -515,18 +477,12 @@ export class ArcadeModeStrategy extends GameModeContract {
         const wallDamage = this.resolveCollisionDamage('WALL');
         // Keep collision damage on the active mode strategy so modifiers and shields
         // use the same Arcade health rules as every other damage source.
-        const damageResult = this.applyDamage(player, wallDamage);
         player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
-        entityManager._emitHuntDamageEvent({
-            target: player,
-            sourcePlayer: null,
-            cause: 'WALL',
-            hitNormal: arenaCollision.normal || null,
-            damageResult,
+        const damageResult = entityManager._applyModeDamage(player, wallDamage, 'WALL', {
+            hitNormal: arenaCollision?.normal || null,
             impactPoint: player.position,
         });
         if (damageResult.isDead) {
-            entityManager._killPlayer(player, 'WALL');
             return true;
         }
         entityManager._pushPlayerOutOfCollision?.(
@@ -540,7 +496,6 @@ export class ArcadeModeStrategy extends GameModeContract {
         return applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, {
             damage: this.resolveCollisionDamage('PLAYER_CRASH'),
             cooldown: this.resolveCollisionCooldown('PLAYER_CRASH'),
-            dealDamage: (target, amount) => this.applyDamage(target, amount),
         });
     }
 
@@ -548,16 +503,17 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (this._huntCombat) {
             return this._huntCombat.handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager);
         }
-        const damageResult = this.applyDamage(player, this.resolveCollisionDamage('TRAIL'));
-        entityManager._emitHuntDamageEvent({
-            target: player,
-            sourcePlayer,
-            cause: trailCause,
-            damageResult,
-            impactPoint: player.position,
-        });
+        const damageResult = entityManager._applyModeDamage(
+            player,
+            this.resolveCollisionDamage('TRAIL'),
+            trailCause,
+            {
+                sourcePlayer,
+                weaponKind: TEAM_WEAPON_KINDS.TRAIL,
+                impactPoint: player.position,
+            }
+        );
         if (damageResult.isDead) {
-            entityManager._killPlayer(player, trailCause, { killer: sourcePlayer || null });
             return true;
         }
         return false;
@@ -571,18 +527,6 @@ export class ArcadeModeStrategy extends GameModeContract {
     resolveRocketProjectileParams(type, config) {
         return (this._huntCombat || (type === 'ROCKET_GUIDED' ? new HuntModeStrategy({ entityRuntimeConfig: config }) : null))?.resolveRocketProjectileParams(type, config) || null;
     }
-    resolveProjectileHitOnPlayer(target, projectile, players, system) {
-        if (this._huntCombat) {
-            return this._huntCombat.resolveProjectileHitOnPlayer(target, projectile, players, system);
-        }
-        if (target.hasShield) {
-            target.hasShield = false;
-        } else {
-            target.applyPowerup(projectile.type, { sourcePlayerIndex: projectile.owner?.index });
-            system?.onProjectilePowerup?.(target, projectile);
-        }
-    }
-
     // --- Spawning ---
     isRespawnEnabled() { return false; }
 

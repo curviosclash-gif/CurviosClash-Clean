@@ -11,7 +11,7 @@ import {
 } from '../src/shared/contracts/VehiclePartStyleContract.js';
 import { ModularVehicleMesh } from '../src/shared/vehicle-lab/ModularVehicleMeshBridge.js';
 import { normalizeArcadeVehicleProfileRecord } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
-import { listPlayerShipPartDonors } from '../src/shared/vehicle-lab/player-ships/index.js';
+import { listPlayerShipPartDonors } from '../src/shared/vehicles/player-ships/index.js';
 import { RuntimeModularVehicleMesh } from '../src/entities/runtime-modular-vehicle-mesh.js';
 import { applyArcadeRuntimeCosmetics } from '../src/core/arcade/ArcadeRuntimeCosmeticOps.js';
 import { HangarVehicleAssembly } from '../src/ui/hangar/HangarVehicleAssembly.js';

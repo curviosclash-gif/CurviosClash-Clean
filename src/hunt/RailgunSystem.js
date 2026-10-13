@@ -9,6 +9,7 @@ import {
     nextPlayerArcadeWeaponColor,
     resolveArcadeWeaponColor,
 } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { applyHit } from '../entities/combat/CombatPipeline.js';
 
 export const RAILGUN_CAUSE = 'RAILGUN';
 // Beams kept for the network: more than can land between two snapshots.
@@ -209,11 +210,17 @@ export class RailgunSystem {
                 target.takeDamage?.(damage, { sourcePlayer: player, cause: RAILGUN_CAUSE });
                 continue;
             }
-            const damageResult = target.takeDamage(damage);
-            owner?._emitHuntDamageEvent?.({ target, sourcePlayer: player, cause: RAILGUN_CAUSE, damageResult, impactPoint: target.position });
-            if (damageResult?.isDead) {
-                owner?._killPlayer?.(target, 'PROJECTILE', { killer: player, impactPoint: target.position, projectileType: RAILGUN_CAUSE });
-            }
+            applyHit(owner, {
+                target,
+                amount: damage,
+                sourcePlayer: player,
+                cause: RAILGUN_CAUSE,
+                weaponKind: TEAM_WEAPON_KINDS.ITEM_PROJECTILE,
+                projectileType: RAILGUN_CAUSE,
+                impactPoint: target.position,
+                deathCause: 'PROJECTILE',
+                nowSeconds: Math.max(0, Number(owner?._simulationClockMs) || 0) * 0.001,
+            });
         }
         // Where the beam ends on destructible geometry, it hits that too.
         if (wallSource && wallPoint) {

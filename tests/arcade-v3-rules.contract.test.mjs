@@ -97,7 +97,7 @@ test('parcours rewards completion, logical checkpoints, speed and precision with
     assert.equal(score(NaN).time, 0);
     assert.equal(score(0).time, 0);
     assert.equal(score(300000).time, 0);
-    assert.equal(computeArcadeSectorScoreBreakdown({ duration: 60 }, { sectorTemplateId: 'sector_intro' }).survival, 1320);
+    assert.equal(computeArcadeSectorScoreBreakdown({ duration: 60 }, { sectorTemplateId: 'sector_intro' }).survival, 300);
 });
 
 test('Daily runtime fixes gameplay settings while preserving the personal source and controls', () => {

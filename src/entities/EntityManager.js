@@ -20,6 +20,7 @@ import { updateEntityCameras } from './runtime/EntityCameraUpdateOps.js';
 import { clearEndlessBotRuntimeIdentity, resetEndlessBotRuntimeIdentity } from './endless/EndlessBotRuntimeIdentityOps.js';
 import { countArcadeSelfTrailSkip } from './systems/lifecycle/ArcadePartCollisionOps.js';
 import { bindMapFeedback } from './effects/MapFeedbackBindings.js';
+import { applyHit } from './combat/CombatPipeline.js';
 
 function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -385,24 +386,14 @@ export class EntityManager {
 
     _applyModeDamage(player, amount, cause = 'UNKNOWN', options = {}) {
         if (!player || player.alive === false) return null;
-        const damageResult = this.gameModeStrategy?.applyDamage?.(player, amount, options) || null;
-        if (!damageResult) return null;
-        if (options?.emitDamageEvent !== false) {
-            this._emitHuntDamageEvent({
-                target: player,
-                sourcePlayer: options?.sourcePlayer || null,
-                cause,
-                damageResult,
-                impactPoint: options?.impactPoint || player.position || null,
-            });
-        }
-        if (damageResult.isDead) {
-            this._killPlayer(player, cause, {
-                killer: options?.sourcePlayer || null,
-                impactPoint: options?.impactPoint || player.position || null,
-            });
-        }
-        return damageResult;
+        return applyHit(this, {
+            ...options,
+            target: player,
+            amount,
+            cause,
+            sourcePlayer: options?.sourcePlayer || null,
+            impactPoint: options?.impactPoint || player.position || null,
+        });
     }
 
     _killPlayer(player, cause = 'UNKNOWN', options = {}) {

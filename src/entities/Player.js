@@ -7,12 +7,8 @@ import { Trail } from './Trail.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { createGameplayCameraState } from '../shared/contracts/CameraModeContract.js';
 import { isValidVehicleId, VEHICLE_DEFINITIONS, getVehicleDefinition } from './vehicle-registry.js';
-import {
-    applyDamage,
-    applyHealing,
-    resetPlayerHealth,
-    updatePlayerHealthRegen,
-} from '../hunt/HealthSystem.js';
+import { resetPlayerHealth, updatePlayerHealthRegen } from '../hunt/HealthSystem.js';
+import { applyHeal, applyHit } from './combat/CombatPipeline.js';
 import {
     applyPlayerPowerup,
     removePlayerEffect,
@@ -37,6 +33,11 @@ import { PlayerController } from './player/PlayerController.js';
 import { createPlayerView } from './player/createPlayerView.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../four-player-planar/FourPlayerPlanarPhysics.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
+
+function normalizeLegacyHealthNumber(value, fallback = 0) {
+    const amount = value == null ? NaN : Number(value);
+    return Number.isFinite(amount) ? amount : fallback;
+}
 
 export class Player {
     constructor(renderer, index, color, isBot = false, options = {}) {
@@ -403,22 +404,23 @@ export class Player {
     }
 
     takeDamage(amount, options = {}) {
-        // Walls, trails, hazards and turrets already skip a protected vehicle; weapon hits land here.
-        if ((this.spawnProtectionTimer || 0) > 0) return { applied: 0, absorbedByShield: 0, hpApplied: 0, remainingHp: this.hp, isDead: this.hp <= 0 };
         const clockMs = this.entityManager?._simulationClockMs;
-        return applyDamage(this, amount, Number.isFinite(clockMs) && options.nowSeconds == null ? { ...options, nowSeconds: Math.max(0, clockMs) * 0.001 } : options);
+        // Without a match clock the stamp stays undefined, so HealthSystem keeps its wall clock fallback (8a2a3b8d).
+        const nowSeconds = normalizeLegacyHealthNumber(options?.nowSeconds, Number.isFinite(clockMs) ? Math.max(0, clockMs) / 1000 : NaN);
+        return applyHit(this.entityManager || this, {
+            ...(options && typeof options === 'object' ? options : {}),
+            target: this,
+            amount: Math.max(0, normalizeLegacyHealthNumber(amount)),
+            nowSeconds: Number.isFinite(nowSeconds) ? nowSeconds : undefined,
+            emitDamageEvent: false, killOnDeath: false,
+        });
     }
 
     heal(amount) {
-        const strategy = this.entityManager?.gameModeStrategy || null;
-        return typeof strategy?.applyHealing === 'function'
-            ? strategy.applyHealing(this, amount, this.entityRuntimeConfig)
-            : applyHealing(this, amount);
+        return applyHeal(this.entityManager || this, { target: this, amount: Math.max(0, normalizeLegacyHealthNumber(amount)) });
     }
 
-    isDead() {
-        return !this.alive || this.hp <= 0;
-    }
+    isDead() { return !this.alive || this.hp <= 0; }
 
     getDirection(out = null) {
         if (out) {

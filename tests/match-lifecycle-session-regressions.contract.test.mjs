@@ -2,12 +2,47 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { MatchLifecycleSessionOrchestrator } from '../src/state/MatchLifecycleSessionOrchestrator.js';
+import { MatchSessionRuntimeBridge } from '../src/core/MatchSessionRuntimeBridge.js';
+import { createGameRuntimeBundle } from '../src/core/runtime/GameRuntimeBundle.js';
+import { PlayingStateSystem } from '../src/core/PlayingStateSystem.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
 
 // Moved from tests/core-targeted-regressions.spec.js (P3): every dependency of the
 // orchestrator is hand-built here, so the tests never needed a browser. In the
 // desktop profile the spec loaded them via `import('/src/...')`, which cannot
 // resolve against the built dist-app renderer.
 
+test('MatchSessionRuntimeBridge attaches the current kernel adapter and disposes it on clear', () => {
+    let entityTicks = 0;
+    const entityManager = { players: [], update() { entityTicks += 1; } };
+    const powerupManager = { update() {} };
+    const particles = { update() {} };
+    const arena = { update() {} };
+    const bundle = createGameRuntimeBundle();
+    const playingStateSystem = new PlayingStateSystem({});
+    const game = { runtimeBundle: bundle, playingStateSystem };
+    const bridge = new MatchSessionRuntimeBridge({ game, runtimeBundle: bundle });
+    game.matchSessionRuntimeBridge = bridge;
+    const kernel = createInteractiveMatchKernel({ simPorts: { entityManager, powerupManager, particles, arena } });
+    kernel.boot();
+
+    bridge.applyInitializedMatchSession({
+        session: { entityManager, powerupManager, particles, arena, effectiveMapKey: 'standard' },
+        kernel,
+    });
+
+    const adapter = bridge.getCurrentMatchKernelAdapter();
+    assert.ok(adapter);
+    assert.equal(adapter.kernel, kernel);
+    assert.equal(playingStateSystem.getKernelAdapter(), adapter);
+    assert.equal(bridge.getCurrentMatchKernel(), kernel);
+    bridge.clearMatchSessionRefs();
+    assert.equal(bridge.getCurrentMatchKernelAdapter(), null);
+    assert.equal(playingStateSystem.getKernelAdapter(), null);
+    assert.equal(bridge.getCurrentMatchKernel(), null);
+    assert.equal(kernel.lifecycle, 'disposed');
+    assert.equal(entityTicks, 0, 'attach and detach do not create simulation ticks');
+});
 test('V74.3 Stale async session init disposes replaced prepared match before apply', async () => {
     let resolveFirstInit = null;
     let prepareCalls = 0;

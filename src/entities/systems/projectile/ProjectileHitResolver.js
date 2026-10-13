@@ -59,6 +59,33 @@ export class ProjectileHitResolver {
         this._tmpVec = this.system?._tmpVec || null;
     }
 
+    _applyPlayerDamage(target, projectile, amount, weaponKind) {
+        const runtimeContext = this.system?.runtimeContext;
+        const applyPlayerHit = runtimeContext?.combat?.applyPlayerHit;
+        if (typeof applyPlayerHit !== 'function') return null;
+        const nowMs = Number(runtimeContext.callbacks?.getSimulationNowMs?.());
+        const hit = {
+            target,
+            amount,
+            sourcePlayer: projectile?.owner || null,
+            cause: projectile?.type || 'PROJECTILE',
+            weaponKind,
+            projectileType: projectile?.type || null,
+            impactPoint: projectile?.position || target?.position || null,
+            deathCause: 'PROJECTILE',
+        };
+        if (Number.isFinite(nowMs)) hit.nowSeconds = Math.max(0, nowMs) * 0.001;
+        const damageResult = applyPlayerHit(hit);
+        const effectiveDamage = Math.max(0, Number(damageResult?.hpApplied) || 0)
+            + Math.max(0, Number(damageResult?.absorbedByShield) || 0);
+        if (damageResult && damageResult.blocked == null && effectiveDamage > 0) {
+            this.system?.onProjectileDamage?.(
+                target, projectile?.owner || null, projectile?.type || 'PROJECTILE', damageResult, projectile
+            );
+        }
+        return damageResult;
+    }
+
     detonateProjectile(projectile, position = projectile?.position, color = 0xffff00) {
         if (!isRocketTierType(projectile?.type) || projectile.detonated) return false;
         projectile.detonated = true;
@@ -184,8 +211,7 @@ export class ProjectileHitResolver {
                 if (blocker?.hit && Number(blocker.distance) < distance - 0.0001) continue;
             }
             const damage = Math.max(1, Number(projectile.blastDamage) || 50);
-            const damageResult = target.takeDamage?.(damage);
-            this.system?.onProjectileDamage?.(target, owner, projectile.type, damageResult, projectile);
+            this._applyPlayerDamage(target, projectile, damage, TEAM_WEAPON_KINDS.ITEM_PROJECTILE);
         }
         this.system?.onProjectileHit?.(projectile.position, 0xffb347, owner, projectile);
         return true;
@@ -214,9 +240,10 @@ export class ProjectileHitResolver {
                 projectile.owner,
                 damageAtCenter * damageFalloff
             )));
-            const damageResult = target.takeDamage(explosionDamage);
+            // Apply the impulse while the target is still alive; the pipeline finalizes a
+            // lethal hit immediately, whereas the legacy damage callback ran after knockback.
             applyExplosionKnockback(target, projectile.position, damageFalloff, this.system);
-            this.system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
+            this._applyPlayerDamage(target, projectile, explosionDamage, TEAM_WEAPON_KINDS.ROCKET);
         }
     }
 
@@ -314,8 +341,7 @@ export class ProjectileHitResolver {
             for (const player of players || []) {
                 if (!player?.alive || isSpawnProtected(player)) continue;
                 if (!this._isProjectileSweepTouchingTarget(projectile, player)) continue;
-                const result = player.takeDamage?.(24);
-                this.system?.onProjectileDamage?.(player, projectile.owner, projectile.type, result, projectile);
+                this._applyPlayerDamage(player, projectile, 24, TEAM_WEAPON_KINDS.ITEM_PROJECTILE);
                 this.system?.onProjectileHit?.(projectile.position, 0xff6b21, projectile.owner, projectile);
                 return true;
             }
@@ -367,9 +393,8 @@ export class ProjectileHitResolver {
                     p => p && p.alive && Number(p.index) === trailOwnerIndex
                 );
                 if (trailOwner && trailOwner !== projectile.owner) {
-                    const damageResult = trailOwner.takeDamage(trailHit.overflowDamage);
-                    this.system?.onProjectileDamage?.(
-                        trailOwner, projectile.owner, projectile.type, damageResult, projectile
+                    this._applyPlayerDamage(
+                        trailOwner, projectile, trailHit.overflowDamage, resolveProjectileWeaponKind(projectile)
                     );
                 }
             }
@@ -417,9 +442,8 @@ export class ProjectileHitResolver {
                     projectile.owner,
                     resolveRocketDamage(projectile, this.system)
                 );
-                const damageResult = target.takeDamage(damage);
+                this._applyPlayerDamage(target, projectile, damage, TEAM_WEAPON_KINDS.ROCKET);
                 this.system?.onProjectilePowerup?.(target, projectile);
-                this.system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
                 this._applyRocketExplosion(projectile, players, target);
             } else if (target.hasShield) {
                 target.hasShield = false;
@@ -437,8 +461,7 @@ export class ProjectileHitResolver {
                     projectile.owner,
                     Math.max(1, Number(getPickupDefinition('MINE')?.damage) || 25)
                 );
-                const damageResult = target.takeDamage(damage);
-                this.system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
+                this._applyPlayerDamage(target, projectile, damage, TEAM_WEAPON_KINDS.ROCKET);
             } else {
                 target.applyPowerup(projectile.type, {
                     sourcePlayerIndex: Number.isInteger(projectile.owner?.index)

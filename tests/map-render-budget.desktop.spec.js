@@ -2,7 +2,8 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test } from './helpers.desktop.js';
 import { loadGame } from './helpers.js';
-import { listRenderBudgetMapKeys } from './helpers/render-budget-maps.mjs';
+import { listRenderBudgetMapKeys, readRenderBudget } from './helpers/render-budget-maps.mjs';
+import { checkRenderBudget } from '../scripts/render-budget-ops.mjs';
 
 // Render budget probe for every map a player can pick. It counts what one frame asks of the GPU
 // at fixed camera stations (draw calls, triangles) and what the scene carries (lights by kind,
@@ -13,8 +14,13 @@ import { listRenderBudgetMapKeys } from './helpers/render-budget-maps.mjs';
 // PW_RENDER_BUDGET_CALIBRATE=1 additionally plays the map with four bots and records the real
 // frame rate. Only run that on the target PC with nothing else on the GPU; it feeds the budget.
 // PW_RENDER_BUDGET_OUT=<file> appends one JSON line per map.
+//
+// Without calibration each map is held to its entry in scripts/architecture/map-render-budgets.json
+// (a ratchet: values may go down, never up). Write that file from a calibration with
+// `node scripts/summarize-render-budget.mjs <calibration.ndjson> --write-budget <file>`.
 
 const calibrate = process.env.PW_RENDER_BUDGET_CALIBRATE === '1';
+const renderBudget = readRenderBudget();
 const RENDER_SIZE = Object.freeze({ width: 1920, height: 1080 });
 const CALIBRATION = Object.freeze({ bots: 4, warmupMs: 5000, windowMs: 20000 });
 
@@ -75,7 +81,9 @@ function countFrame(page) {
         const insetX = (b.maxX - b.minX) * 0.45;
         const insetZ = (b.maxZ - b.minZ) * 0.45;
         const sideY = b.minY + (b.maxY - b.minY) * 0.3;
-        const stations = [];
+        // "game" keeps the chase camera of the round start: the view the calibration frame rate was
+        // measured from. Like "spawn" it depends on the rolled spawn and is never budgeted.
+        const stations = [{ id: 'game', keep: true }];
         if (spawn) stations.push({ id: 'spawn', from: [spawn.x, spawn.y, spawn.z] });
         stations.push(
             { id: 'north', from: [center.x, sideY, center.z - insetZ] },
@@ -91,17 +99,105 @@ function countFrame(page) {
         const previousAutoReset = three.info.autoReset;
         three.info.autoReset = false;
         const frames = [];
+
+        // Pixel cost: the target PC is bound by shaded pixels, which draw calls and triangles do
+        // not show. Each station is drawn once more with flat stand-in materials that write their
+        // material class into one colour channel (R lit PBR, G other lit, B unlit); transparent
+        // layers add up. Results are layers per pixel of each class, independent of the GPU.
+        // Alpha-tested foliage is drawn as full quads here, so leafy maps read somewhat high.
+        const PIXEL_STEP = 16;
+        const COST_WIDTH = 480;
+        const COST_HEIGHT = 270;
+        let costTools = null;
+        const findCostTools = () => {
+            let Basic = null;
+            let Target = null;
+            r.scene.traverse((node) => {
+                const list = Array.isArray(node.material) ? node.material : [node.material];
+                for (const material of list) if (!Basic && material?.isMeshBasicMaterial) Basic = material.constructor;
+                if (!Target && node.isLight && node.shadow?.map) Target = node.shadow.map.constructor;
+            });
+            if (!Basic || !Target) return null;
+            return {
+                Basic, target: new Target(COST_WIDTH, COST_HEIGHT), pixels: new Uint8Array(COST_WIDTH * COST_HEIGHT * 4),
+                standIns: new Map(), clearColor: new Basic().color,
+            };
+        };
+        const costClass = (material) => {
+            if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) return 0;
+            if (material.isMeshLambertMaterial || material.isMeshPhongMaterial || material.isMeshToonMaterial) return 1;
+            return 2;
+        };
+        const standIn = (material) => {
+            let replacement = costTools.standIns.get(material);
+            if (!replacement) {
+                const channel = [0, 0, 0];
+                channel[costClass(material)] = PIXEL_STEP / 255;
+                replacement = new costTools.Basic({
+                    fog: false, toneMapped: false, side: material.side,
+                    transparent: !!material.transparent, depthTest: material.depthTest !== false,
+                    depthWrite: material.transparent ? false : material.depthWrite !== false,
+                    blending: material.transparent ? 2 : 0, // AdditiveBlending : NoBlending
+                    alphaTest: material.alphaTest || 0, alphaMap: material.alphaMap || null,
+                });
+                replacement.color.setRGB(channel[0], channel[1], channel[2]);
+                costTools.standIns.set(material, replacement);
+            }
+            return replacement;
+        };
+        const measurePixelCost = () => {
+            costTools ||= findCostTools();
+            if (!costTools) return null;
+            const swapped = [];
+            r.scene.traverseVisible((node) => {
+                if (!node.isMesh || !node.material) return;
+                swapped.push([node, node.material]);
+                node.material = Array.isArray(node.material) ? node.material.map(standIn) : standIn(node.material);
+            });
+            const previousTarget = three.getRenderTarget();
+            const previousClearAlpha = three.getClearAlpha();
+            three.getClearColor(costTools.clearColor);
+            const previousBackground = r.scene.background;
+            r.scene.background = null;
+            three.setRenderTarget(costTools.target);
+            three.setClearColor(0x000000, 0);
+            three.clear(true, true, true);
+            three.render(r.scene, camera);
+            three.readRenderTargetPixels(costTools.target, 0, 0, COST_WIDTH, COST_HEIGHT, costTools.pixels);
+            three.setRenderTarget(previousTarget);
+            three.setClearColor(costTools.clearColor, previousClearAlpha);
+            r.scene.background = previousBackground;
+            for (const [node, material] of swapped) node.material = material;
+            const sums = [0, 0, 0];
+            for (let index = 0; index < costTools.pixels.length; index += 4) {
+                sums[0] += costTools.pixels[index];
+                sums[1] += costTools.pixels[index + 1];
+                sums[2] += costTools.pixels[index + 2];
+            }
+            const perPixel = (sum) => Math.round((sum / PIXEL_STEP / (COST_WIDTH * COST_HEIGHT)) * 1000) / 1000;
+            return { pbr: perPixel(sums[0]), lit: perPixel(sums[1]), unlit: perPixel(sums[2]) };
+        };
+
         for (const station of stations) {
-            const [x, y, z] = station.from;
-            const flatDistance = Math.hypot(center.x - x, center.z - z);
-            const target = station.target
-                || (flatDistance < 1 ? { x: x + extent, y, z } : { x: center.x, y, z: center.z });
-            camera.position.set(x, y, z);
-            camera.lookAt(target.x, target.y, target.z);
-            camera.updateMatrixWorld(true);
+            if (!station.keep) {
+                const [x, y, z] = station.from;
+                const flatDistance = Math.hypot(center.x - x, center.z - z);
+                const target = station.target
+                    || (flatDistance < 1 ? { x: x + extent, y, z } : { x: center.x, y, z: center.z });
+                camera.position.set(x, y, z);
+                camera.lookAt(target.x, target.y, target.z);
+                camera.updateMatrixWorld(true);
+            }
             three.info.reset();
             r.render();
-            frames.push({ id: station.id, calls: three.info.render.calls, triangles: three.info.render.triangles });
+            frames.push({
+                id: station.id, calls: three.info.render.calls, triangles: three.info.render.triangles,
+                pixelCost: measurePixelCost(),
+            });
+        }
+        if (costTools) {
+            costTools.target.dispose();
+            for (const replacement of costTools.standIns.values()) replacement.dispose();
         }
         three.info.autoReset = previousAutoReset;
         camera.position.copy(savedPosition);
@@ -243,6 +339,15 @@ for (const mapKey of listRenderBudgetMapKeys()) {
         expect(counts.glbLoadError, `${mapKey}: the map world must load`).toBeNull();
         for (const frame of counts.frames) {
             expect(frame.calls, `${mapKey} ${frame.id}: a station must draw something`).toBeGreaterThan(0);
+        }
+        if (!calibrate) {
+            const entry = renderBudget.maps[mapKey];
+            expect(entry, `${mapKey}: no render budget yet; calibrate on the target PC (see this file's header)`).toBeTruthy();
+            const verdict = checkRenderBudget(counts, entry);
+            if (verdict.lowerable.length) {
+                console.log(`[render-budget] ${mapKey} got cheaper, lower its budget: ${JSON.stringify(verdict.lowerable)}`);
+            }
+            expect(verdict.exceeded, `${mapKey}: render budget exceeded (the target PC is GPU-bound at 1080p)`).toEqual([]);
         }
         if (record.play) {
             expect(record.play.dimensions).toEqual([RENDER_SIZE.width, RENDER_SIZE.height]);

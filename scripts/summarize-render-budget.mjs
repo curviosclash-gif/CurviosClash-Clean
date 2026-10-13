@@ -3,9 +3,16 @@
 // table per map. With several lines per map it reports whether the counts repeated exactly,
 // which is the precondition for guarding them on another machine.
 //   node scripts/summarize-render-budget.mjs <file.ndjson> [--csv]
-import { readFileSync } from 'node:fs';
+//   node scripts/summarize-render-budget.mjs <calibration.ndjson> <recheck.ndjson>... --write-budget scripts/architecture/map-render-budgets.json
+// Budgets need at least two runs: counts of animated maps differ between identical runs.
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { buildRenderBudget } from './render-budget-ops.mjs';
+
+// The frame rate the target PC (Intel UHD 630, 1080p, shipped quality) should reach; decided 12.10.2026.
+const TARGET_FPS = 30;
 
 const COUNT_KEYS = ['maxCalls', 'maxTriangles', 'textures', 'geometries', 'programs'];
 
@@ -63,12 +70,24 @@ function format(value) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    const [file, flag] = process.argv.slice(2);
-    if (!file) {
-        console.error('usage: node scripts/summarize-render-budget.mjs <file.ndjson> [--csv]');
+    const args = process.argv.slice(2);
+    const files = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--write-budget');
+    const flag = args.find((arg) => arg.startsWith('--'));
+    const budgetOut = flag === '--write-budget' ? args[args.indexOf(flag) + 1] : '';
+    if (files.length === 0 || (flag === '--write-budget' && !budgetOut)) {
+        console.error('usage: node scripts/summarize-render-budget.mjs <file.ndjson>... [--csv | --write-budget <file.json>]');
         process.exit(2);
     }
-    const rows = summarizeRecords(readRecords(readFileSync(file, 'utf8')))
+    const records = files.flatMap((file) => readRecords(readFileSync(file, 'utf8')));
+    if (flag === '--write-budget') {
+        const gpu = records.find((record) => record.play?.gpu)?.play.gpu || 'unknown';
+        const measuredAt = records.map((record) => record.measuredAt).sort().pop()?.slice(0, 10) || '';
+        const budget = buildRenderBudget(records, { targetFps: TARGET_FPS, measuredOn: gpu, measuredAt });
+        writeFileSync(budgetOut, `${JSON.stringify(budget, null, 2)}\n`, 'utf8');
+        console.log(`[render-budget] wrote ${Object.keys(budget.maps).length} maps to ${budgetOut}`);
+        process.exit(0);
+    }
+    const rows = summarizeRecords(records)
         .sort((a, b) => (a.fps ?? Infinity) - (b.fps ?? Infinity) || b.maxCalls - a.maxCalls);
     const columns = Object.keys(rows[0] || { mapKey: '' });
     const separator = flag === '--csv' ? ';' : '\t';

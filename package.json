@@ -43,6 +43,7 @@
     "typecheck:architecture": "tsc -p tsconfig.architecture.json && node scripts/check-product-typecheck-ratchet.mjs",
     "typecheck:contracts": "tsc -p tsconfig.contracts.json",
     "check:architecture": "node scripts/check-architecture-boundaries.mjs && node scripts/check-architecture-ratchet.mjs && node scripts/check-runtime-determinism.mjs && node scripts/check-runtime-encoding.mjs && node scripts/check-editor-path-drift.mjs",
+    "check:player-health-boundary": "node scripts/check-player-health-boundary.mjs",
     "check:parcours": "node scripts/check-parcours-routes.mjs",
     "test": "npm run test:contract",
     "telemetry:report": "node scripts/telemetry-report.mjs",

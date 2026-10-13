@@ -12,11 +12,13 @@ import { getCustomMapConversionScale } from '../src/entities/CustomMapLoader.js'
 import { parseMapJSON, toArenaMapDefinition } from '../src/entities/MapSchema.js';
 import { resolveMapLighting } from '../src/shared/contracts/MapLightingContract.js';
 import { EditorMapManager } from '../editor/js/EditorMapManager.js';
+import { bindEditorBackdropControls } from '../editor/js/ui/EditorBackdropControls.js';
 import {
     BACKDROP_ID_PREFIX,
     PRESET_EDITOR_UNITS_PER_MAP_UNIT,
     convertPresetToEditorDocument,
     exportPlacementsInPresetFormat,
+    isBackdropObject,
     listBackdropPresets,
 } from '../editor/js/EditorPresetBackdrop.js';
 
@@ -54,6 +56,78 @@ test('the backdrop list holds the built-in maps with a world model, all converte
         const { document } = convertPresetToEditorDocument(entry.key, MAP_PRESET_CATALOG[entry.key], { mapScale: MAP_SCALE });
         assert.equal(getCustomMapConversionScale(document).scale, PRESET_EDITOR_UNITS_PER_MAP_UNIT, entry.key);
     }
+});
+
+test('a block-only catalog map is offered and round-trips authored geometry through the editor', () => {
+    const preset = MAP_PRESET_CATALOG.glass_serpent;
+    assert.ok(preset);
+    assert.equal(preset.glbModels?.length || 0, 0);
+    assert.ok(preset.obstacles.length > 0);
+
+    const entries = listBackdropPresets(MAP_PRESET_CATALOG);
+    assert.ok(entries.some((entry) => entry.key === 'glass_serpent'));
+
+    const { document } = convertPresetToEditorDocument('glass_serpent', preset, { mapScale: MAP_SCALE });
+    assert.equal(getCustomMapConversionScale(document).scale, PRESET_EDITOR_UNITS_PER_MAP_UNIT);
+    assert.deepEqual(
+        [document.arenaSize.width, document.arenaSize.height, document.arenaSize.depth],
+        preset.size.map((value) => value * PRESET_EDITOR_UNITS_PER_MAP_UNIT),
+    );
+    assert.equal(document.glbModels.length, 0);
+    assert.ok(document.hardBlocks.length + document.foamBlocks.length + document.tunnels.length > 0);
+    const firstHardBlock = preset.obstacles.find((obstacle) => !obstacle.shape && obstacle.kind !== 'foam');
+    assert.equal(document.hardBlocks[0].width, firstHardBlock.size[0] * PRESET_EDITOR_UNITS_PER_MAP_UNIT);
+    assert.ok(document.portals.length > 0);
+    assert.equal(document.items.length, preset.items.length);
+    assert.equal(document.botSpawns.length, preset.botSpawns.length);
+
+    const { mapManager, load } = createEditor();
+    const arenaSize = load(document);
+    assert.ok(mapManager.getObjectCount() > 0);
+    // Every block, tube, portal and item of the game map is backdrop: locked on load, left out
+    // of a copy unless asked for.
+    const placed = mapManager.core.objectsContainer.children;
+    assert.ok(placed.filter((object) => !String(object.userData.type).startsWith('spawn')).every(isBackdropObject));
+    const copy = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
+    for (const key of ['obstacles', 'portals', 'items', 'gates']) assert.equal(copy[key], undefined, `${key} copied along`);
+    const ownBlock = mapManager.createMesh('hard', null, 350, 700, -1050, 70, { sizeX: 70, sizeY: 70, sizeZ: 70 });
+    const withOwnBlock = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
+    assert.equal(withOwnBlock.obstacles.length, 1);
+    near(withOwnBlock.obstacles[0].pos[0], 10, 'own block x in map units');
+
+    mapManager.removeObject(ownBlock, { updateUi: false });
+    const exported = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE, includeBackdrop: true });
+    const signature = (obstacle) => JSON.stringify({
+        kind: obstacle.kind || 'hard',
+        shape: obstacle.shape || '',
+        pos: obstacle.pos?.map((value) => Math.round(value * 1e6) / 1e6) || [],
+        size: obstacle.size?.map((value) => Math.round(value * 1e6) / 1e6) || [],
+        start: obstacle.start?.map((value) => Math.round(value * 1e6) / 1e6) || [],
+        end: obstacle.end?.map((value) => Math.round(value * 1e6) / 1e6) || [],
+        radius: Number.isFinite(Number(obstacle.radius)) ? Math.round(Number(obstacle.radius) * 1e6) / 1e6 : null,
+    });
+    assert.deepEqual(exported.obstacles.map(signature).sort(), preset.obstacles.map(signature).sort());
+    assert.equal(exported.portals.length, preset.portals.length);
+    assert.equal(exported.items.length, preset.items.length);
+    assert.equal(exported.botSpawns.length, preset.botSpawns.length);
+    assert.equal(exported.glbModels, undefined);
+    near(exported.playerSpawn.x, preset.playerSpawn.x, 'player spawn x');
+    near(exported.playerSpawn.y, preset.playerSpawn.y, 'player spawn y');
+    near(exported.playerSpawn.z, preset.playerSpawn.z, 'player spawn z');
+});
+test('invalid block-only sizes are rejected without dereferencing a missing GLB list', () => {
+    assert.throws(
+        () => convertPresetToEditorDocument('invalid-block-map', { obstacles: [{ pos: [0, 0, 0], size: [1, 1, 1] }] }),
+        /size of three numbers/,
+    );
+    assert.throws(
+        () => convertPresetToEditorDocument('invalid-block-map', {
+            size: [Number.NaN, 10, 10],
+            obstacles: [{ pos: [0, 0, 0], size: [1, 1, 1] }],
+        }),
+        /size of three numbers/,
+    );
+    assert.equal(listBackdropPresets({ invalid: { size: [Number.NaN, 10, 10], obstacles: [{}] } }).length, 0);
 });
 
 test('the toybox backdrop round-trips its world and spawns through the editor export', () => {
@@ -96,6 +170,62 @@ test('a map without scaled anchors keeps its spawns in world units both ways', (
     near(exported.playerSpawn.x, 30, 'spawn x back in world units');
     near(exported.botSpawns[0].z, 60, 'bot z back in world units');
     assert.equal(exported.scaleAuthoredAnchors, undefined);
+});
+
+test('aircraft and turrets placed on a map without scaled anchors are handed out in world units', () => {
+    const preset = {
+        size: [100, 40, 100],
+        glbModels: [{ id: 'w', url: 'assets/maps/w/glb/w.glb', position: [0, 0, 0] }],
+        playerSpawn: { x: 0, y: 9, z: 0 },
+    };
+    const { document } = convertPresetToEditorDocument('plain', preset, { mapScale: MAP_SCALE });
+    const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
+    document.aircraft = [{ id: 'jet_1', jetId: 'ship1', x: 10 * units, y: 20 * units, z: -30 * units, scale: 2 * units }];
+    document.staticTurrets = [{ id: 'turret_1', pos: [4 * units, 5 * units, 6 * units], range: 20 * units }];
+    const { mapManager, load } = createEditor();
+    const arenaSize = load(document);
+
+    // The editor map scales its anchors, so the match puts these at map units x MAP_SCALE; the
+    // preset does not, so it has to state that world position itself.
+    const exported = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
+    near(exported.aircraft[0].x, 10 * MAP_SCALE, 'aircraft x in world units');
+    near(exported.aircraft[0].z, -30 * MAP_SCALE, 'aircraft z in world units');
+    near(exported.aircraft[0].scale, 2 * MAP_SCALE, 'aircraft scale in world units');
+    near(exported.staticTurrets[0].pos[1], 5 * MAP_SCALE, 'turret y in world units');
+    near(exported.staticTurrets[0].range, 20 * MAP_SCALE, 'turret range in world units');
+
+    const scaled = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset: { ...preset, scaleAuthoredAnchors: true }, mapScale: MAP_SCALE });
+    near(scaled.aircraft[0].x, 10, 'aircraft x stays in map units for a map that scales anchors');
+});
+
+test('a reopened map still copies placements with its backdrop map\'s anchor rule', async () => {
+    const preset = MAP_PRESET_CATALOG.toybox_titan;
+    assert.equal(preset.scaleAuthoredAnchors, true);
+    const { document } = convertPresetToEditorDocument('toybox_titan', preset, { mapScale: MAP_SCALE });
+    const first = createEditor();
+    const savedJson = first.mapManager.generateJSONExport(first.load(document));
+
+    // Reopened in a fresh editor: nothing but the saved file says which game map it was built on.
+    const reopened = createEditor();
+    const arenaSize = reopened.load(JSON.parse(savedJson));
+    const previousDocument = globalThis.document;
+    globalThis.document = { createElement: () => ({}) };
+    try {
+        const editor = {
+            core: reopened.mapManager.core,
+            dom: { jsonOutput: { value: '' } },
+            mapManager: reopened.mapManager,
+            getArenaSizeForExport: () => arenaSize,
+            notify: () => {},
+        };
+        bindEditorBackdropControls(editor);
+        const copied = JSON.parse(await editor.copyPlacementsInPresetFormat());
+        assert.equal(copied.scaleAuthoredAnchors, true);
+        near(copied.playerSpawn.x, preset.playerSpawn.x, 'spawn x in the preset\'s map units');
+        near(copied.playerSpawn.z, preset.playerSpawn.z, 'spawn z in the preset\'s map units');
+    } finally {
+        globalThis.document = previousDocument;
+    }
 });
 
 /** Lighting of the map the match builds from an editor export. */

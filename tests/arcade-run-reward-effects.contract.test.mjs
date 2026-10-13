@@ -5,6 +5,8 @@ import {
     deriveArcadeRunRewardEffects,
 } from '../src/shared/contracts/ArcadeRunRewardEffectsContract.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
+import { applyHeal } from '../src/entities/combat/CombatPipeline.js';
+import { EntityRuntimeContext } from '../src/entities/runtime/EntityRuntimeContext.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
 import { ARCADE_RUN_PHASES } from '../src/state/arcade/ArcadeRunState.js';
 
@@ -96,4 +98,45 @@ test('portal rewards cumulatively strengthen shield conversion', () => {
 
     assert.equal(result.requestedHeal, 12);
     assert.equal(result.shieldGranted, 9);
+});
+
+test('intermission healing uses the shared heal boundary while Sudden Death keeps its narrow exception', () => {
+    const strategy = new ArcadeModeStrategy();
+    strategy.enterSuddenDeath();
+    const player = {
+        alive: true,
+        hp: 50,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
+    };
+    const calls = [];
+    const runtimeContext = new EntityRuntimeContext();
+    runtimeContext.strategy = strategy;
+    const applyHealing = strategy.applyHealing.bind(strategy);
+    strategy.applyHealing = (...args) => {
+        calls.push(args);
+        return applyHealing(...args);
+    };
+
+    assert.deepEqual(applyHeal(runtimeContext, { target: player, amount: 20, cause: 'REGEN' }), {
+        healed: 0,
+        hp: 50,
+        blocked: null,
+    });
+    const result = strategy.applyIntermissionHealing(player, {});
+
+    assert.equal(result.requestedHeal, 4);
+    assert.equal(result.healed, 4);
+    assert.equal(player.hp, 54);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0][3], 'REGEN');
+    assert.equal(calls[1][3], 'ARCADE_INTERMISSION');
+
+    player.hp = 99;
+    const capped = strategy.applyIntermissionHealing(player, {});
+    assert.equal(capped.requestedHeal, 4);
+    assert.equal(capped.healed, 1);
+    assert.equal(player.hp, 100);
+    assert.equal(capped.shieldGranted, 2);
 });

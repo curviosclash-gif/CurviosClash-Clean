@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARCADE_HANGAR_GUIDE_STORAGE_KEY, ARCADE_HANGAR_GUIDE_SCHEMA_VERSION, createArcadeHangarGuideRecord, loadArcadeHangarGuideRecord, saveArcadeHangarGuideRecord, finishArcadeHangarTutorial, resolveArcadeHangarNextGoal, toArcadeGuideTimeMs } from '../src/shared/contracts/ArcadeHangarGuideContract.js';
+import { ARCADE_HANGAR_GUIDE_STORAGE_KEY, ARCADE_HANGAR_GUIDE_SCHEMA_VERSION, createArcadeHangarGuideRecord, loadArcadeHangarGuideRecord, saveArcadeHangarGuideRecord, finishArcadeHangarTutorial, resolveArcadeHangarNextGoal, toArcadeGuideTimeMs, createArcadeHangarGuideSnapshot } from '../src/shared/contracts/ArcadeHangarGuideContract.js';
 import { createHangarGuideSnapshot } from '../src/ui/hangar/HangarGuideSnapshot.js';
 import { ARCADE_STONE_WORKSHOP_STORAGE_KEY, ARCADE_STONE_SLOT_IDS, createArcadeStoneWorkshopRecord } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
 import { arcadeVehicleXpForLevel } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
@@ -57,6 +57,10 @@ test('snapshot never writes or invents stone goals when the pool cannot be read'
     assert.equal(resolveArcadeHangarNextGoal(snapshot).id,'size-unlock');
     const missing=store();const fresh=createHangarGuideSnapshot({store:missing,profile,profiles:{},draft:{stoneSlots:{}},previousVisitAt:0});
     assert.equal(fresh.stones.unplacedCount,3);assert.equal(resolveArcadeHangarNextGoal(fresh).id,'place-stone');assert.equal(missing.writes,0);
+});
+
+test('Hangar keeps its existing snapshot entry point as the shared contract implementation',()=>{
+    assert.equal(createHangarGuideSnapshot, createArcadeHangarGuideSnapshot);
 });
 
 test('shrinking never manufactures free size steps; only later achievements are new',()=>{

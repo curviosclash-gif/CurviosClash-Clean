@@ -75,6 +75,35 @@ test('round end and draw keep short german sentences', () => {
     assert.equal(draw.messageSub, 'Nächste Runde in 3...');
 });
 
+test('a solo objective winner reaches match end, while solo elimination remains a round end', () => {
+    for (const reason of ['TIME_LIMIT', 'PARCOURS_COMPLETE']) {
+        const winner = makePlayer(0, 3);
+        const outcome = deriveRoundEndOutcome([winner], {
+            winner,
+            reason,
+            humanPlayerCount: 1,
+            totalBots: 0,
+            winsNeeded: 3,
+        });
+
+        assert.equal(outcome.state, GAME_STATE_MATCH_END, `${reason} ends the solo match at its win target`);
+        assert.equal(outcome.canWinMatch, true);
+        assert.equal(outcome.matchWinner, winner);
+    }
+
+    const soloWinner = makePlayer(0, 3);
+    const soloElimination = deriveRoundEndOutcome([soloWinner], {
+        winner: soloWinner,
+        reason: 'ELIMINATION',
+        humanPlayerCount: 1,
+        totalBots: 0,
+        winsNeeded: 3,
+    });
+    assert.equal(soloElimination.state, GAME_STATE_ROUND_END);
+    assert.equal(soloElimination.canWinMatch, false);
+    assert.equal(soloElimination.matchWinner, null);
+});
+
 test('team objective results name the team and ignore departed match winners', () => {
     const players = [
         { ...makePlayer(0, 3), teamId: 'ALPHA', entitySlotActive: false },

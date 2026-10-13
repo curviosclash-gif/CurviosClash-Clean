@@ -5,6 +5,20 @@ import {
     createPlayingStateRuntimeAccess,
     PlayingStateSystem,
 } from '../src/core/PlayingStateSystem.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
+import { createMatchKernelInteractiveAdapter } from '../src/core/MatchKernelInteractiveAdapter.js';
+
+function attachKernel(game, system) {
+    const kernel = createInteractiveMatchKernel({ simPorts: { entityManager: game.entityManager } });
+    kernel.boot();
+    const adapter = createMatchKernelInteractiveAdapter({ game, kernel });
+    game.matchSessionRuntimeBridge = {
+        getCurrentMatchKernel: () => kernel,
+        getCurrentMatchKernelAdapter: () => adapter,
+    };
+    system.setKernelAdapter(adapter);
+    return kernel;
+}
 
 /**
  * Stands in for Game during one playing tick with an active slow motion.
@@ -41,16 +55,22 @@ function createGame({ endRoundInTick }) {
 
 test('a round that ends inside a slow-motion tick leaves the clock at full speed', () => {
     const game = createGame({ endRoundInTick: true });
-    new PlayingStateSystem(createPlayingStateRuntimeAccess(game)).update(1 / 60);
+    const system = new PlayingStateSystem(createPlayingStateRuntimeAccess(game));
+    const kernel = attachKernel(game, system);
+    system.update(1 / 60);
 
+    assert.equal(kernel.tickIndex, 1);
     assert.equal(game.state, 'ROUND_END');
     assert.equal(game.timeScale, 1, 'countdown and result board must not run in slow motion');
 });
 
 test('slow motion still applies while the round keeps running', () => {
     const game = createGame({ endRoundInTick: false });
-    new PlayingStateSystem(createPlayingStateRuntimeAccess(game)).update(1 / 60);
+    const system = new PlayingStateSystem(createPlayingStateRuntimeAccess(game));
+    const kernel = attachKernel(game, system);
+    system.update(1 / 60);
 
+    assert.equal(kernel.tickIndex, 1);
     assert.equal(game.state, 'PLAYING');
     assert.equal(game.timeScale, 0.05);
 });

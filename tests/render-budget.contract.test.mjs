@@ -5,7 +5,51 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 import { getMapPickerMeta } from '../src/shared/maps/MapPickerMeta.js';
 import { HEAVY_DIAGNOSTIC_CLUSTERS } from '../scripts/playwright-test-clusters.mjs';
 import { summarizeRecords } from '../scripts/summarize-render-budget.mjs';
-import { listRenderBudgetMapKeys } from './helpers/render-budget-maps.mjs';
+import { buildRenderBudget, checkRenderBudget } from '../scripts/render-budget-ops.mjs';
+import { listRenderBudgetMapKeys, readRenderBudget } from './helpers/render-budget-maps.mjs';
+
+test('every pickable map has a complete render budget and no stale entry remains', () => {
+    const budget = readRenderBudget();
+    assert.equal(budget.targetFps, 30);
+    assert.match(budget.measuredOn, /UHD Graphics 630/, 'budgets are calibrated on the target PC');
+    assert.deepEqual(Object.keys(budget.maps).sort(), listRenderBudgetMapKeys().sort());
+    for (const [key, entry] of Object.entries(budget.maps)) {
+        assert.equal(entry.transparent, undefined, `${key}: transparent meshes are too noisy to budget`);
+        for (const field of ['maxCalls', 'maxTriangles', 'pointLights', 'shadowCasters', 'referenceFps']) {
+            assert.ok(Number.isFinite(entry[field]) && entry[field] >= 0, `${key}.${field}`);
+        }
+        assert.equal(entry.belowTargetFps, entry.referenceFps < budget.targetFps, `${key}.belowTargetFps`);
+    }
+});
+
+function probe({ spawnCalls = 10, calls = 100, triangles = 50_000, point = 1 } = {}) {
+    return {
+        frames: [
+            { id: 'game', calls: spawnCalls, triangles: 1 },
+            { id: 'spawn', calls: spawnCalls, triangles: 1 },
+            { id: 'north', calls, triangles },
+        ],
+        lights: { point },
+        meshes: { shadowCasters: 10, transparent: 20 },
+    };
+}
+
+test('the budget check ignores the rolled spawn and game stations and allows only the stated tolerance', () => {
+    const entry = { maxCalls: 100, maxTriangles: 50_000, pointLights: 1, shadowCasters: 10 };
+    assert.deepEqual(checkRenderBudget(probe({ spawnCalls: 999 }), entry), { exceeded: [], lowerable: [] });
+    assert.deepEqual(checkRenderBudget(probe({ calls: 115 }), entry).exceeded, []);
+    assert.deepEqual(checkRenderBudget(probe({ calls: 116 }), entry).exceeded.map((item) => item.key), ['maxCalls']);
+    assert.deepEqual(checkRenderBudget(probe({ point: 2 }), entry).exceeded.map((item) => item.key), ['pointLights']);
+    assert.deepEqual(checkRenderBudget(probe({ calls: 50 }), entry).lowerable.map((item) => item.key), ['maxCalls']);
+});
+
+test('a budget built from several runs keeps the highest counts and the lowest frame rate', () => {
+    const record = (calls, fps) => ({ mapKey: 'standard', counts: probe({ calls }), play: { fps } });
+    const budget = buildRenderBudget([record(100, 40), record(104, 28.04)], { targetFps: 30, measuredOn: 'x', measuredAt: 'y' });
+    assert.equal(budget.maps.standard.maxCalls, 104);
+    assert.equal(budget.maps.standard.referenceFps, 28);
+    assert.equal(budget.maps.standard.belowTargetFps, true);
+});
 
 test('the render budget covers exactly the maps a player can pick', () => {
     const keys = listRenderBudgetMapKeys();

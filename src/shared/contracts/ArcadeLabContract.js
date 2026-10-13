@@ -3,7 +3,7 @@ import { normalizeVehicleLabConfig, VEHICLE_LAB_CONFIG_LIMITS } from './VehicleL
 import { buildArcadeHitboxShape, ARCADE_HITBOX_MAX_BOXES } from './ArcadeVehicleHitboxContract.js';
 import { ARCADE_PART_SIZE_GROUPS } from './ArcadeVehicleSizeContract.js';
 import { resolveArcadePartCostBasis } from './ArcadeBlueprintContract.js';
-import { getPlayerShipPartConfig, listPlayerShipPartDonors } from '../vehicle-lab/player-ships/index.js';
+import { getPlayerShipPartConfig, listPlayerShipPartDonors } from '../vehicles/player-ships/index.js';
 import { measureArcadeLabHullVolume } from './ArcadeHullVolumeContract.js';
 export { measureArcadeLabHullVolume } from './ArcadeHullVolumeContract.js';
 

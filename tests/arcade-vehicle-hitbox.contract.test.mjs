@@ -19,8 +19,8 @@ import { resolveArcadeWallHitboxScale } from '../src/shared/contracts/ArcadeVehi
 import { resolveArcadePartSizeFactors } from '../src/shared/contracts/ArcadeVehicleSizeContract.js';
 import { resolveArcadeSizedPartStyle } from '../src/shared/contracts/ArcadeVehicleBuildContract.js';
 import { applyVehiclePartStyle, measureVehiclePartBounds } from '../src/shared/contracts/VehiclePartStyleContract.js';
-import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicle-lab/player-ships/index.js';
-import { VEHICLE_PRESETS } from '../src/shared/vehicle-lab/VehiclePresets.js';
+import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicles/player-ships/index.js';
+import { VEHICLE_PRESETS } from '../src/shared/vehicles/VehiclePresets.js';
 import { createVehicleMesh, getVehicleIds, getVehicleModularConfig } from '../src/entities/vehicle-registry.js';
 import {
     applyArcadePartHitbox,

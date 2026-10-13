@@ -15,6 +15,7 @@ import {
     resolveWeaponFanProjectileCount,
 } from './WeaponFanOps.js';
 import { nextPlayerArcadeWeaponColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { applyHit } from '../entities/combat/CombatPipeline.js';
 
 function getMgConfig(source = null) {
     return resolveEntityRuntimeConfig(source)?.HUNT?.MG || {};
@@ -37,6 +38,14 @@ function createLegacyRuntimeContext(entityManager) {
         getTrailSpatialIndex: () => entityManager.getTrailSpatialIndex?.() || entityManager._trailSpatialIndex || null,
         lifecycle: {
             killPlayer: (player, cause = 'UNKNOWN', options = {}) => entityManager._killPlayer?.(player, cause, options),
+        },
+        combat: {
+            applyPlayerHit: (hit) => applyHit(entityManager, {
+                ...hit,
+                nowSeconds: Number.isFinite(hit?.nowSeconds)
+                    ? hit.nowSeconds
+                    : Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001,
+            }),
         },
         events: {
             emitHuntDamageEvent: (event) => entityManager._emitHuntDamageEvent?.(event),

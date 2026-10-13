@@ -177,6 +177,33 @@ function callRuntimeIntent(game, methodName, options = undefined) {
     return resolvedAdapter.adapter?.[methodName]?.(options);
 }
 
+function callMatchRestartIntent(game, matchStatePort, invoke) {
+    const authorization = matchStatePort?.authorizeMatchRestart?.() || null;
+    if (game?.state === GAME_STATE_IDS.MATCH_END && !authorization) return false;
+    const cancelAuthorization = () => {
+        if (authorization) matchStatePort?.cancelMatchRestartAuthorization?.(authorization);
+    };
+    let result;
+    try {
+        result = invoke();
+    } catch (error) {
+        cancelAuthorization();
+        throw error;
+    }
+    if (!authorization) return result;
+    if (result && typeof result.then === 'function') {
+        return Promise.resolve(result).then((value) => {
+            cancelAuthorization();
+            return value;
+        }, (error) => {
+            cancelAuthorization();
+            throw error;
+        });
+    }
+    cancelAuthorization();
+    return result;
+}
+
 export function createSettingsPort(game) {
     return {
         getSettings: () => game?.settings || null,
@@ -239,14 +266,15 @@ export function createUiFeedbackPort(game) {
     };
 }
 
-export function createSessionPort(game) {
+export function createSessionPort(game, matchStatePort = createMatchStatePort(game)) {
     return {
         getGame: () => game || null,
         getState: () => game?.state || null,
         setState(state) {
-            if (game) {
-                game.state = state;
-            }
+            return matchStatePort?.applyLifecycleTransition?.(
+                { state },
+                { allowAuthorizedMatchRestart: false }
+            ) === true;
         },
         getEntityManager: () => getRuntimeState(game)?.entityManager || null,
         clearLastRoundGhost() {
@@ -306,7 +334,7 @@ export function createInputPort(game) {
     };
 }
 
-export function createLifecyclePort(game) {
+export function createLifecyclePort(game, matchStatePort = null) {
     return {
         initializeSession() {
             return callRuntimeIntent(game, 'initializeSession');
@@ -324,7 +352,11 @@ export function createLifecyclePort(game) {
             return callRuntimeIntent(game, 'startArcadeRunIfEnabled');
         },
         restartRound() {
-            return callRuntimeIntent(game, 'restartRound');
+            return callMatchRestartIntent(
+                game,
+                matchStatePort,
+                () => callRuntimeIntent(game, 'restartRound')
+            );
         },
         returnToMenu(options = undefined) {
             return callRuntimeIntent(game, 'returnToMenu', options);
@@ -332,10 +364,14 @@ export function createLifecyclePort(game) {
     };
 }
 
-export function createRuntimeIntentPort(game) {
+export function createRuntimeIntentPort(game, matchStatePort = null) {
     return {
         startMatch(options = undefined) {
-            return callRuntimeIntent(game, 'startMatch', options);
+            return callMatchRestartIntent(
+                game,
+                matchStatePort,
+                () => callRuntimeIntent(game, 'startMatch', options)
+            );
         },
         pauseMatch(options = undefined) {
             return callRuntimeIntent(game, 'pauseMatch', options);
@@ -399,11 +435,11 @@ export function createRuntimeProjectionPort(game) {
 export function createRuntimePorts(game) {
     const settingsPort = createSettingsPort(game);
     const uiFeedbackPort = createUiFeedbackPort(game);
-    const sessionPort = createSessionPort(game);
+    const matchStatePort = createMatchStatePort(game);
+    const sessionPort = createSessionPort(game, matchStatePort);
     const renderPort = createRenderPort(game);
     const inputPort = createInputPort(game);
-    const matchStatePort = createMatchStatePort(game);
-    const lifecyclePort = createLifecyclePort(game);
+    const lifecyclePort = createLifecyclePort(game, matchStatePort);
     const arcadePort = createArcadePort({
         getRuntimeCoordinator: () => getRuntimeCoordinator(game),
         getRuntimeFacade: () => getRuntimeFacade(game),
@@ -412,9 +448,13 @@ export function createRuntimePorts(game) {
         getRuntimeCoordinator: () => getRuntimeCoordinator(game),
         getRuntimeFacade: () => getRuntimeFacade(game),
     });
-    const runtimeIntentPort = createRuntimeIntentPort(game);
+    const runtimeIntentPort = createRuntimeIntentPort(game, matchStatePort);
     const runtimeProjectionPort = createRuntimeProjectionPort(game);
-    const matchUiPort = createMatchUiPort(game);
+    const baseMatchUiPort = createMatchUiPort(game);
+    const matchUiPort = {
+        ...baseMatchUiPort,
+        startRound: () => matchStatePort.withMatchRestartTransition(baseMatchUiPort.startRound),
+    };
     return {
         settingsPort,
         uiFeedbackPort,

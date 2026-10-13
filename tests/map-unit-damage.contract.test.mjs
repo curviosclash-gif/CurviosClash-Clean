@@ -5,7 +5,9 @@ import * as THREE from 'three';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { TargetableRegistry } from '../src/entities/systems/TargetableRegistry.js';
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
+import { EntityManager } from '../src/entities/EntityManager.js';
 import { createEntityRuntimeSystems } from '../src/entities/runtime/EntityRuntimeSystemAssembly.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { CONFIG_BASE } from '../src/core/Config.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
@@ -33,10 +35,11 @@ function createWorld({ units = [TANK], players = [] } = {}) {
     const damageEvents = [];
     const destroyed = [];
     const manager = {
-        gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy(),
         arena: { checkCollisionFast: () => false, currentMapDefinition: { mapUnits: units } },
         players,
         humanPlayers: players,
+        _applyModeDamage: EntityManager.prototype._applyModeDamage,
         _emitHuntDamageEvent: (event) => damageEvents.push(event),
         _killPlayer: (player, cause, options) => { player.alive = false; kills.push({ player, cause, options }); },
         _huntScoring: { registerUnitDestroyed: (index) => destroyed.push(index) },
@@ -73,9 +76,9 @@ test('the blast hurts everyone near, falls off to the edge and credits the destr
     const { system, kills, damageEvents } = createWorld({ players: [shooter, near, dying, safe] });
     system.units[0].takeDamage(999, { sourcePlayer: shooter, cause: 'ROCKET_MEGA' });
 
-    assert.equal(shooter.taken.length, 0, 'the shooter stood outside the 20 unit radius');
-    assert.equal(Math.round(near.taken[0]), 30, '10 units out: 40 x (1 - 0.5 x 10/20)');
-    assert.equal(safe.taken.length, 0, 'spawn protection holds');
+    assert.equal(shooter.hp, 100, 'the shooter stood outside the 20 unit radius');
+    assert.equal(Math.round(100 - near.hp), 30, '10 units out: 40 x (1 - 0.5 x 10/20)');
+    assert.equal(safe.hp, 100, 'spawn protection holds');
     assert.equal(kills.length, 1);
     assert.equal(kills[0].player, dying);
     assert.equal(kills[0].options.killer, shooter);
@@ -153,4 +156,30 @@ test('blowing yourself up with the tank is no kill for anyone', () => {
     assert.equal(kills.length, 1);
     assert.equal(kills[0].player, shooter);
     assert.equal(kills[0].options.killer, null);
+});
+
+test('a tank explosion spares teammates while retaining self and enemy blast damage', () => {
+    const source = createPlayer(0, [0, 2.1, 3], 5);
+    source.teamId = 'ALPHA';
+    const teammate = createPlayer(1, [0, 2.1, 4], 5);
+    teammate.teamId = 'ALPHA';
+    const enemy = createPlayer(2, [0, 2.1, 5], 5);
+    enemy.teamId = 'BRAVO';
+    const { system, kills, damageEvents } = createWorld({ players: [source, teammate, enemy] });
+
+    system.units[0].takeDamage(999, { sourcePlayer: source, cause: 'ROCKET_MEGA' });
+
+    assert.equal(source.alive, false, 'the blast still damages its source');
+    assert.equal(teammate.alive, true, 'an allied player is spared');
+    assert.equal(teammate.hp, 5);
+    assert.equal(enemy.alive, false, 'an enemy remains vulnerable');
+    assert.deepEqual(kills.map(({ player, cause, options }) => ({ player, cause, killer: options.killer, projectileType: options.projectileType })), [
+        { player: source, cause: 'PROJECTILE', killer: null, projectileType: 'TANK_EXPLOSION' },
+        { player: enemy, cause: 'PROJECTILE', killer: source, projectileType: 'TANK_EXPLOSION' },
+    ]);
+    assert.deepEqual(damageEvents.map(({ target, sourcePlayer, cause, projectileType }) => ({ target, sourcePlayer, cause, projectileType })), [
+        { target: source, sourcePlayer: source, cause: 'TANK_EXPLOSION', projectileType: 'TANK_EXPLOSION' },
+        { target: enemy, sourcePlayer: source, cause: 'TANK_EXPLOSION', projectileType: 'TANK_EXPLOSION' },
+    ]);
+    assert.equal(damageEvents.every((event) => event.cause === 'TANK_EXPLOSION'), true);
 });

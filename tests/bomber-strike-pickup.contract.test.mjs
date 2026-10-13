@@ -16,6 +16,9 @@ import {
 import { getPickupDefinition } from '../src/entities/PickupRegistry.js';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { CONFIG_BASE } from '../src/core/Config.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { createEntityRuntimeSupport } from '../src/entities/runtime/EntityRuntimeSupportAssembly.js';
 import { createEntityRuntimeSystems } from '../src/entities/runtime/EntityRuntimeSystemAssembly.js';
 
@@ -35,36 +38,50 @@ function createPlayer(index, x = 0) {
 function createWorld() {
     const caller = createPlayer(0);
     const enemy = createPlayer(1);
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    const damageEvents = [];
+    const kills = [];
     const manager = {
         huntEnabled: true,
         isFightOutcomeAuthority: true,
-        gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
+        entityRuntimeConfig,
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig }),
         arena: {
             bounds: { minX: -45, maxX: 45, minY: 0, maxY: 60, minZ: -45, maxZ: 45 },
             currentMapDefinition: { mapUnits: [] },
         },
         players: [caller, enemy], humanPlayers: [caller],
         particles: { spawnExplosion() {}, spawnHit() {} },
-        _emitHuntDamageEvent() {}, _killPlayer() {}, _notifyPlayerFeedback() {},
+        _emitHuntDamageEvent(event) { damageEvents.push(event); },
+        _killPlayer(target, cause, options) {
+            target.alive = false;
+            target.hp = 0;
+            kills.push({ target, cause, options });
+        },
+        _notifyPlayerFeedback() {},
     };
+    manager.damageEvents = damageEvents;
+    manager.kills = kills;
     manager.arena.getCollisionInfo = (position) => position.y <= 0
         ? { hit: true, kind: 'floor' } : null;
     manager.arena.raycast = () => ({ hit: false });
     manager._projectileSystem = new ProjectileSystem({
+        entityRuntimeConfig,
         getArena: () => manager.arena,
         getPlayers: () => manager.players,
+        getStrategy: () => manager.gameModeStrategy,
         onProjectileHit: () => {},
-        onProjectileDamage: (target, source, type, damageResult, projectile) => {
-            manager._emitHuntDamageEvent({ target, sourcePlayer: source, cause: type, damageResult, impactPoint: projectile.position });
-            if (damageResult?.isDead) manager._killPlayer(target, 'PROJECTILE', { killer: source, impactPoint: projectile.position, projectileType: type });
-        },
+    });
+    manager._projectileSystem.setRuntimeContext({
+        callbacks: { getSimulationNowMs: () => 1250 },
+        combat: { applyPlayerHit: (hit) => applyHit(manager, hit) },
     });
     caller.entityManager = manager;
     enemy.entityManager = manager;
     const system = new MapUnitSystem(manager);
     manager._mapUnitSystem = system;
     system.startRound();
-    return { manager, system, caller, enemy };
+    return { manager, system, caller, enemy, damageEvents, kills };
 }
 
 test('the bomber strike is a rare combat pickup', () => {
@@ -207,15 +224,30 @@ function createAssembledHuntWorld() {
     manager._projectileSystem = support.projectileSystem;
     const systems = createEntityRuntimeSystems(manager, support.runtimeContext, support);
     systems.mapUnitSystem.startRound();
-    return { manager, caller, combat: systems.huntCombatSystem, mapUnits: systems.mapUnitSystem };
+    return {
+        manager, caller, combat: systems.huntCombatSystem, mapUnits: systems.mapUnitSystem,
+        support, damageEvents: manager.damageEvents,
+    };
 }
 
 test('using the bomber item through the assembled HUNT runtime calls five bombers', () => {
-    const { caller, combat, mapUnits } = createAssembledHuntWorld();
+    const { manager, caller, combat, mapUnits, support, damageEvents } = createAssembledHuntWorld();
+    assert.equal(manager._projectileSystem.runtimeContext, support.runtimeContext, 'projectiles bind the assembled combat port');
     const result = combat.useInventoryItem(caller);
     assert.equal(result.ok, true, `the HUNT item key triggers the strike, got: ${result.reason}`);
     assert.deepEqual(caller.inventory, [], 'a successful strike consumes the item');
     assert.equal(mapUnits.units.filter((unit) => unit.summoned).length, 5, 'five bombers take off');
+    const enemy = manager.players[1];
+    enemy.hp = 1;
+    manager._projectileSystem.spawnBomberBomb(
+        caller, new THREE.Vector3(), new THREE.Vector3(), { damage: 50, blastRadius: 15 },
+    );
+    manager._projectileSystem.update(0.01);
+    assert.equal(enemy.alive, false, 'the assembled projectile port finalizes bomber damage');
+    assert.equal(damageEvents.length, 1, 'the bomber publishes one pipeline damage event');
+    assert.equal(manager.kills.length, 1, 'the bomber death is finalized once');
+    assert.equal(manager.kills[0].cause, 'PROJECTILE');
+    assert.equal(manager.kills[0].options.killer, caller);
 });
 
 test('a refused bomber strike through the assembled HUNT runtime keeps the item', () => {
@@ -231,7 +263,7 @@ test('a refused bomber strike through the assembled HUNT runtime keeps the item'
 });
 
 test('bomber blast checks 3D distance, solid cover, allies, source and spawn protection', () => {
-    const { manager, caller, enemy } = createWorld();
+    const { manager, caller, enemy, damageEvents } = createWorld();
     const ally = createPlayer(2, 0);
     ally.teamId = caller.teamId;
     const protectedEnemy = createPlayer(3, 0);
@@ -259,6 +291,7 @@ test('bomber blast checks 3D distance, solid cover, allies, source and spawn pro
     assert.ok(enemy.hp < 100, 'an unobstructed enemy in range takes blast damage');
     assert.equal(enemy.hp, 50, 'the default blast preserves the configured 50 damage throughout its radius');
     assert.equal(caller.hp, 100, 'the item source is protected from its own bomb');
+    assert.equal(damageEvents.length, 1, 'only the unobstructed enemy publishes damage');
 });
 
 test('an expired bomb without physical contact is removed without an explosion or damage', () => {

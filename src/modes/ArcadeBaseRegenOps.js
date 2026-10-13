@@ -13,6 +13,7 @@ import {
     ARCADE_BASE_REGEN_PCT_PER_SECOND,
     ARCADE_MIN_REGEN_DELAY_S,
 } from '../shared/contracts/ArcadeVehicleBalanceContract.js';
+import { applyHeal } from '../entities/combat/CombatPipeline.js';
 
 /**
  * Simulation clock of the entity manager in seconds; without one the fallback (strategy clock).
@@ -48,7 +49,7 @@ export function stampArcadeHitOnSimulationClock(player, result, options, isNorma
  * @param {boolean} suddenDeathActive Sudden Death blocks every heal
  * @returns {null}
  */
-export function updateArcadeBaseRegen(player, dt, nowSeconds, suddenDeathActive) {
+export function updateArcadeBaseRegen(player, dt, nowSeconds, suddenDeathActive, world = null) {
     if (!player || suddenDeathActive) return null;
     const hp = Number(player.hp);
     const maxHp = Number(player.maxHp);
@@ -57,6 +58,8 @@ export function updateArcadeBaseRegen(player, dt, nowSeconds, suddenDeathActive)
     const delay = Number.isFinite(buildDelay) ? Math.max(ARCADE_MIN_REGEN_DELAY_S, buildDelay) : ARCADE_BASE_REGEN_DELAY_S;
     const lastHit = Number(player.lastDamageTimestamp);
     if (Number.isFinite(lastHit) && nowSeconds - lastHit < delay) return null;
-    player.hp = Math.min(maxHp, hp + maxHp * (ARCADE_BASE_REGEN_PCT_PER_SECOND / 100) * Math.max(0, Number(dt) || 0));
+    const healAmount = Math.min(maxHp - hp,
+        maxHp * (ARCADE_BASE_REGEN_PCT_PER_SECOND / 100) * Math.max(0, Number(dt) || 0));
+    if (healAmount > 0) applyHeal(world, { target: player, amount: healAmount });
     return null;
 }

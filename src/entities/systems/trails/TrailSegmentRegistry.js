@@ -82,6 +82,15 @@ export class TrailSegmentRegistry {
         entry.toY = data.toY;
         entry.toZ = data.toZ;
         entry.radius = data.radius;
+        // The collision query rejects most segments on this radius-grown box before the exact distance.
+        // The segment never moves after registration, so the box is computed once here, with the very
+        // expressions the query used per call, instead of on every probe.
+        entry.boundsMinX = Math.min(data.fromX, data.toX) - data.radius;
+        entry.boundsMaxX = Math.max(data.fromX, data.toX) + data.radius;
+        entry.boundsMinY = Math.min(data.fromY, data.toY) - data.radius;
+        entry.boundsMaxY = Math.max(data.fromY, data.toY) + data.radius;
+        entry.boundsMinZ = Math.min(data.fromZ, data.toZ) - data.radius;
+        entry.boundsMaxZ = Math.max(data.fromZ, data.toZ) + data.radius;
         entry.ownerTrail = data.ownerTrail || null;
         entry.maxHp = Math.max(1, Number(data.maxHp) || Number(data.hp) || 1);
         entry.hp = Math.max(0, Number(data.hp) || entry.maxHp);

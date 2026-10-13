@@ -15,7 +15,6 @@ export function bindEditorBackdropControls(editor) {
     if (!editor?.core) return;
     const dom = editor.dom || {};
     let catalog = null;
-    editor.backdrop = null;
 
     // Loaded on demand: a static import of the whole preset catalog would join the editor's
     // start-up chunk order, which has broken the desktop boot before (cross-chunk TDZ).
@@ -39,7 +38,13 @@ export function bindEditorBackdropControls(editor) {
             return null;
         });
 
-    const hasBackdrop = () => editor.core.objectsContainer.children.some(isBackdropObject);
+    // The map document names the built-in map it was built on, so this survives save and reopen.
+    const resolveBackdropPreset = async () => {
+        const key = editor.mapManager?.mapDocumentMeta?.editorBackdrop;
+        if (!key) return null;
+        const presets = catalog || await catalogReady;
+        return presets?.[key] || null;
+    };
 
     // Like a pilot at the start: in the player spawn, looking level towards the map centre.
     const lookFromPlayerSpawn = () => {
@@ -82,7 +87,6 @@ export function bindEditorBackdropControls(editor) {
             }
             editor.refreshLayerState?.();
         });
-        editor.backdrop = { key, preset };
         editor.enableGameView?.();
         editor.refreshGameView?.();
         editor.selectObject(null);
@@ -93,8 +97,9 @@ export function bindEditorBackdropControls(editor) {
 
     const copyPlacements = async () => {
         if (!editor.mapManager) return '';
+        const preset = await resolveBackdropPreset();
         const placements = exportPlacementsInPresetFormat(editor.mapManager, editor.getArenaSizeForExport(), {
-            preset: hasBackdrop() ? editor.backdrop?.preset : null,
+            preset,
             mapScale: getRuntimeMapScale(1),
         });
         const text = JSON.stringify(placements, null, 2);

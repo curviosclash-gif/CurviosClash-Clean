@@ -17,6 +17,13 @@ test('sichtbare GLB-Karten laden echte 3D-Vorschauen nach', async ({ page }) => 
     }), { entry: firstEntry, assetId: firstEntry.subType });
     expect(initial).toEqual({ previewReady: false, assetState: 'idle' });
 
+    // Windows up to 1200 px wide start with the build dock collapsed (EditorLayoutControls), which
+    // hides the category tabs; a 1024x768 screen gives such a window. Open it like an author does.
+    const dockToggle = page.locator('#btnDockCollapse');
+    if (await dockToggle.getAttribute('aria-pressed') === 'true') {
+        await dockToggle.click();
+        await expect(dockToggle).toHaveAttribute('aria-pressed', 'false');
+    }
     await page.locator('#dockCategoryTabs [data-category-id="glb"]').click();
     const firstCard = page.locator(`#dockCards [data-entry-id="${firstEntry.id}"]`);
     await expect(firstCard).toBeVisible();
