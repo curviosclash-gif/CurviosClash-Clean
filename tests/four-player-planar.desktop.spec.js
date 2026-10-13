@@ -30,8 +30,13 @@ async function startVariant(page, mode, botCount, { configureRoll = false } = {}
         element.dispatchEvent(new Event('input', { bubbles: true }));
     }, botCount);
     await page.locator('[data-four-player-planar-start]').click();
-    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
-        && window.GAME_INSTANCE?.entityManager?.players?.length >= 4);
+    // PLAYING can be seen before the module's first update of this match; until then the hidden HUD
+    // still holds the previous match's text. Wait until the HUD counts this match's participants.
+    await page.waitForFunction(() => {
+        const players = window.GAME_INSTANCE?.entityManager?.players?.length || 0;
+        return window.GAME_INSTANCE?.state === 'PLAYING' && players >= 4
+            && document.querySelector('#four-player-planar-hud [data-fpp-rank]')?.textContent === `Rang 1/${players}`;
+    });
 }
 
 test('four-player planar starts Classic and Hunt with four keyboard humans, optional bots, HUD and clean return', async ({ page }) => {
