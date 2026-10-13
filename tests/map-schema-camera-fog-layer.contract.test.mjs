@@ -65,6 +65,16 @@ test('a map without the fields, or with broken ones, stays without them', () => 
     }
 });
 
+test('a huge view distance is capped, so the depth buffer keeps its precision', async () => {
+    const { MAP_CAMERA_FAR_MAX } = await import('../src/shared/contracts/MapLightingContract.js');
+    assert.ok(MAP_CAMERA_FAR_MAX >= MAP_PRESET_CATALOG.reactor_site.cameraFar);
+    const parsed = parseMapJSON(JSON.stringify({ arenaSize: ARENA, cameraFar: 1e9 })).map;
+    assert.equal(parsed.cameraFar, MAP_CAMERA_FAR_MAX);
+    const editor = createEditor();
+    const saved = JSON.parse(editor.mapManager.generateJSONExport(editor.load({ arenaSize: ARENA, cameraFar: 1e9 })));
+    assert.equal(saved.cameraFar, MAP_CAMERA_FAR_MAX);
+});
+
 test('the editor keeps both fields when a map is saved and reopened', () => {
     const first = createEditor();
     const saved = JSON.parse(first.mapManager.generateJSONExport(first.load({ arenaSize: ARENA, cameraFar: 2000, fogLayer: FOG_LAYER })));
