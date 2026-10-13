@@ -59,6 +59,19 @@ export class TrailCollisionQuery {
             skipRecent: -1,
             pairs: [],
         };
+        this._globalCandidateCache = {
+            grid: null,
+            version: -1,
+            gridSize: 0,
+            players: null,
+            excludePlayerIndex: -2,
+            skipRecent: -1,
+            ownTrail: null,
+            ownWriteIndex: -1,
+            ownMaxSegments: -1,
+            byCell: new Map(),
+            pool: [],
+        };
     }
 
     _debugTrailCollision(tag, payload) {
@@ -215,11 +228,102 @@ export class TrailCollisionQuery {
         return result.entry ? result : null;
     }
 
+    // The bot flight guard rolls out up to ten paths per bot and tick and asks this query at
+    // every rollout step; neighbouring steps share their 3x3 neighbourhood. The deduped and
+    // owner-filtered candidates of a neighbourhood are gathered once in the original scan order
+    // and reused until anything the filter reads changes, so every probe gets the same answer.
+    _globalCandidatesFor(registry, cellX, cellZ, players, excludePlayerIndex, skipRecent) {
+        const cache = this._globalCandidateCache;
+        const ownTrail = players[excludePlayerIndex]?.trail || null;
+        const ownWriteIndex = ownTrail ? ownTrail.writeIndex : -1;
+        const ownMaxSegments = ownTrail ? ownTrail.maxSegments : -1;
+        if (cache.grid !== registry.spatialGrid
+            || cache.version !== registry.version
+            || cache.gridSize !== registry.gridSize
+            || cache.players !== players
+            || cache.excludePlayerIndex !== excludePlayerIndex
+            || cache.skipRecent !== skipRecent
+            || cache.ownTrail !== ownTrail
+            || cache.ownWriteIndex !== ownWriteIndex
+            || cache.ownMaxSegments !== ownMaxSegments) {
+            for (const list of cache.byCell.values()) {
+                list.length = 0;
+                cache.pool.push(list);
+            }
+            cache.byCell.clear();
+            cache.grid = registry.spatialGrid;
+            cache.version = registry.version;
+            cache.gridSize = registry.gridSize;
+            cache.players = players;
+            cache.excludePlayerIndex = excludePlayerIndex;
+            cache.skipRecent = skipRecent;
+            cache.ownTrail = ownTrail;
+            cache.ownWriteIndex = ownWriteIndex;
+            cache.ownMaxSegments = ownMaxSegments;
+        }
+
+        const centerKey = (cellX + GRID_KEY_OFFSET) * GRID_KEY_STRIDE + (cellZ + GRID_KEY_OFFSET);
+        let list = cache.byCell.get(centerKey);
+        if (list) return list;
+        list = cache.pool.length > 0 ? cache.pool.pop() : [];
+        const queryStamp = this._nextGlobalQueryStamp();
+        for (let i = 0; i < CELL_OFFSETS_3X3.length; i++) {
+            const [dx, dz] = CELL_OFFSETS_3X3[i];
+            const cell = registry.spatialGrid.get((cellX + dx + GRID_KEY_OFFSET) * GRID_KEY_STRIDE + (cellZ + dz + GRID_KEY_OFFSET));
+            if (!cell) continue;
+            for (const seg of cell) {
+                if (!seg || seg.destroyed) continue;
+                if (seg._globalTrailQueryStamp === queryStamp) continue;
+                seg._globalTrailQueryStamp = queryStamp;
+                if (seg.playerIndex === excludePlayerIndex) {
+                    if (ownTrail && seg.ownerTrail === ownTrail) {
+                        const dist = (ownTrail.writeIndex - 1 - seg.segmentIdx + ownTrail.maxSegments) % ownTrail.maxSegments;
+                        if (dist < skipRecent) continue;
+                    }
+                    if (shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
+                }
+                list.push(seg);
+            }
+        }
+        cache.byCell.set(centerKey, list);
+        return list;
+    }
+
     // cellRange 1 is the classic 3x3 neighbourhood; the Arcade part hitbox asks wider
     // spheres (radius > gridSize) and passes ceil(radius / gridSize). Same scan order.
     checkGlobalCollision(position, radius, excludePlayerIndex = -1, skipRecent = 0, playerRef = null, cellRange = 1) {
         const registry = this.getRegistry();
         if (!registry) return null;
+        // Debug telemetry logs skipped candidates per probe, so it keeps the uncached scan.
+        if (cellRange === 1 && !this.debugTelemetry.enabled) {
+            const candidates = this._globalCandidatesFor(
+                registry,
+                Math.floor(position.x / registry.gridSize),
+                Math.floor(position.z / registry.gridSize),
+                this.getPlayers(),
+                excludePlayerIndex,
+                skipRecent
+            );
+            for (let i = 0; i < candidates.length; i++) {
+                const seg = candidates[i];
+                if (seg.destroyed) continue;
+                if (!this._segmentIntersectsSphere(seg, position, radius, this._tmpClosestPointData)) continue;
+                if (playerRef && playerRef.isSphereInOBB) {
+                    this._tmpClosestPoint.set(
+                        this._tmpClosestPointData.closestX,
+                        this._tmpClosestPointData.closestY,
+                        this._tmpClosestPointData.closestZ
+                    );
+                    const queryRadius = Math.max(0, Number(radius) || 0);
+                    const effectiveRadius = Math.max(0, Number(seg.radius) || 0) + queryRadius;
+                    if (!playerRef.isSphereInOBB(this._tmpClosestPoint, effectiveRadius)) continue;
+                }
+                this._trailCollisionResult.hit = true;
+                this._trailCollisionResult.playerIndex = seg.playerIndex;
+                return this._trailCollisionResult;
+            }
+            return null;
+        }
         const cellX = Math.floor(position.x / registry.gridSize);
         const cellZ = Math.floor(position.z / registry.gridSize);
         const players = this.getPlayers();
