@@ -308,7 +308,10 @@ export function handleLevel4OpenAction(ctx) {
     }
     game.settings.localSettings.toolsState.level4ReturnTarget = requestedReturnTarget;
     game.ui?.level4Drawer?.setAttribute?.('data-level4-return-target', requestedReturnTarget);
-    game.uiManager?.menuNavigationRuntime?.showPanel?.(requestedReturnTarget === 'lobby' ? 'submenu-multiplayer' : 'submenu-game', { trigger: 'open_level4' });
+    // Opened from the start screen the drawer lies over the start screen itself, not over free play.
+    if (requestedReturnTarget !== 'main') {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.(requestedReturnTarget === 'lobby' ? 'submenu-multiplayer' : 'submenu-game', { trigger: 'open_level4' });
+    }
     if (validSectionIds.has(requestedSectionId)) {
         game.settings.localSettings.toolsState.activeSection = requestedSectionId;
         game.uiManager?.setLevel4Section?.(requestedSectionId, { persist: true, focus: false });

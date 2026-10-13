@@ -71,7 +71,7 @@ function resolveExclusionZoneText(state) {
     if (phase === 'GRACE') {
         return `ABSCHUSSZONE · ${Math.max(0, Math.ceil(Number(state?.countdownSeconds) || 0))} s`;
     }
-    if (phase === 'SALVO') return `ABSCHUSSZONE · STUFE ${String(state?.stage || 'WEAK')}`;
+    if (phase === 'SALVO') return `ABSCHUSSZONE · STUFE ${{ WEAK: 'SCHWACH', MEDIUM: 'MITTEL', HEAVY: 'SCHWER' }[String(state?.stage || 'WEAK').toUpperCase()] || String(state?.stage || '')}`;
     return '';
 }
 

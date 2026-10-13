@@ -42,12 +42,19 @@ function resolveProgressFraction(entry, isObjective = false) {
     return 0;
 }
 
+// Sector objectives outside the scenario catalog still show German names to the player.
+const SECTOR_OBJECTIVE_LABELS = Object.freeze({
+    bounty_hunt: 'Kopfgeldjagd',
+    clean_sector: 'Sektor säubern',
+    hazard_lane: 'Gefahrenschneise',
+});
+
 export function resolveArcadeMissionObjectiveLabel(objective) {
     const id = String(objective?.objectiveId || '').trim().toLowerCase();
     const label = String(objective?.label || '').trim();
     const catalogLabel = ARCADE_SECTOR_OBJECTIVES.find((entry) => entry.id === id)?.label;
     if (label && label !== catalogLabel) return label;
-    return resolveArcadeScenarioObjectiveLabel(id) || label || id.replace(/_/g, ' ');
+    return resolveArcadeScenarioObjectiveLabel(id) || SECTOR_OBJECTIVE_LABELS[id] || label || id.replace(/_/g, ' ');
 }
 
 export class ArcadeMissionHUD {
