@@ -507,7 +507,7 @@ export class HUD {
         }
         const detail = phase === 'GRACE'
             ? `${Math.max(0, Math.ceil(Number(state?.countdownSeconds) || 0))} s`
-            : `STUFE ${String(state?.stage || 'WEAK')}`;
+            : `STUFE ${{ WEAK: 'SCHWACH', MEDIUM: 'MITTEL', HEAVY: 'SCHWER' }[String(state?.stage || 'WEAK').toUpperCase()] || String(state?.stage || '')}`;
         this._setText(this.exclusionZoneStatus, `ABSCHUSSZONE · ${detail}`);
         this._setClassFlag(this.exclusionZoneStatus, 'salvo', phase === 'SALVO');
     }

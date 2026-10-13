@@ -42,11 +42,11 @@ function resolveProgressFraction(entry, isObjective = false) {
     return 0;
 }
 
-// German names for the sector objectives that no scenario uses (the scenario contract names the rest).
+// Sector objectives outside the scenario catalog still show German names to the player.
 const SECTOR_OBJECTIVE_LABELS = Object.freeze({
     bounty_hunt: 'Kopfgeldjagd',
-    clean_sector: 'Sauberer Flug',
-    hazard_lane: 'Gefahrenzone',
+    clean_sector: 'Sektor säubern',
+    hazard_lane: 'Gefahrenschneise',
 });
 
 export function resolveArcadeMissionObjectiveLabel(objective) {

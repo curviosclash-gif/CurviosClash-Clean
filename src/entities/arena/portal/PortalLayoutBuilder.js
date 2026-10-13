@@ -494,7 +494,7 @@ export class PortalLayoutBuilder {
             ? asPositiveNumber(portalConfig.MIN_PAIR_DISTANCE_PLANAR, 4)
             : asPositiveNumber(portalConfig.MIN_PAIR_DISTANCE, 15);
         if (posA.distanceToSquared(posB) < minPairDistance * minPairDistance) {
-            this._warnPortalLayout('Portal pair was skipped because its endpoints are too close.');
+            this._warnPortalLayout('Ein Portalpaar fehlt, weil seine Enden zu nah beieinander liegen.');
             return false;
         }
 
@@ -505,7 +505,7 @@ export class PortalLayoutBuilder {
                 || posA.distanceToSquared(portal.posB) < endpointClearanceSq
                 || posB.distanceToSquared(portal.posA) < endpointClearanceSq
                 || posB.distanceToSquared(portal.posB) < endpointClearanceSq) {
-                this._warnPortalLayout('Portal pair was skipped because an endpoint overlaps another portal.');
+                this._warnPortalLayout('Ein Portalpaar fehlt, weil ein Ende ein anderes Portal überdeckt.');
                 return false;
             }
         }
@@ -520,7 +520,7 @@ export class PortalLayoutBuilder {
             for (const directionSign of [-1, 1]) {
                 this._tmpVec2.copy(position).addScaledVector(forward, PORTAL_EXIT_OFFSET * directionSign);
                 if (this.arena.checkCollision(this._tmpVec2, arrivalRadius)) {
-                    this._warnPortalLayout('Portal pair was skipped because an oriented exit is blocked.');
+                    this._warnPortalLayout('Ein Portalpaar fehlt, weil ein gerichteter Ausgang verbaut ist.');
                     return false;
                 }
             }

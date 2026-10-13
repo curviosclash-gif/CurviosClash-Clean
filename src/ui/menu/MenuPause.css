@@ -148,7 +148,8 @@
 .menu-q-pause {
     position: absolute;
     inset: 0;
-    z-index: 10;
+    /* Above the HUD top bar and crosshair (they reach 100-102), below the result board (120). */
+    z-index: 110;
     display: grid;
     place-items: center;
     padding: 20px;
