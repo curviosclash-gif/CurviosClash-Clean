@@ -60,7 +60,6 @@ export const GAME_RUNTIME_LEGACY_ALIAS_SPECS = Object.freeze([
     { key: 'matchSessionRuntimeBridge', target: BUNDLE_TARGET_COMPONENTS, migration: LEGACY_ALIAS_MIGRATION.REPLACE_BY_PORT },
     { key: 'gameLoop', target: BUNDLE_TARGET_COMPONENTS, migration: LEGACY_ALIAS_MIGRATION.REPLACE_BY_PORT },
     { key: 'buildInfoController', target: BUNDLE_TARGET_COMPONENTS, migration: LEGACY_ALIAS_MIGRATION.KEEP },
-    { key: 'menuExpertLoginRuntime', target: BUNDLE_TARGET_COMPONENTS, migration: LEGACY_ALIAS_MIGRATION.KEEP },
     { key: 'config', target: BUNDLE_TARGET_STATE, migration: LEGACY_ALIAS_MIGRATION.REPLACE_BY_PORT },
     { key: 'runtimeConfig', target: BUNDLE_TARGET_STATE, migration: LEGACY_ALIAS_MIGRATION.REPLACE_BY_PORT },
     { key: 'activeGameMode', target: BUNDLE_TARGET_STATE, migration: LEGACY_ALIAS_MIGRATION.REPLACE_BY_PORT },

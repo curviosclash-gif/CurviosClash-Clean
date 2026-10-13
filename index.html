@@ -104,15 +104,13 @@
 
                     <div class="menu-utility-shell menu-side-links" role="navigation" aria-label="Weitere Bereiche">
                         <button type="button" id="btn-main-tutorial" class="secondary-btn menu-tutorial-entry" data-menu-text-id="menu.utility.tutorial.label">Steuerung lernen</button>
-                        <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
-                            data-level4-section="utilities" data-level4-return-target="main" data-menu-text-id="menu.utility.tools.label">Werkzeuge</button>
-                        <button type="button" id="btn-open-expert" class="secondary-btn expert-entry-btn"
-                            data-menu-step-target="submenu-expert" data-menu-text-id="menu.panels.expert.title">Expertenbereich</button>
-                        <button type="button" id="btn-expert-lock-quick"
-                            class="secondary-btn secondary-btn-spaced hidden" data-menu-text-id="menu.utility.lock.label">Sperren</button>
+                        <button type="button" id="btn-main-tools" class="secondary-btn menu-utility-btn"
+                            data-menu-step-target="submenu-tools" data-menu-text-id="menu.utility.tools.label">Werkzeuge</button>
                     </div>
 
                     <div class="menu-stage-footer">
+                        <button type="button" id="btn-main-info" class="secondary-btn menu-info-link"
+                            data-menu-step-target="submenu-info" data-menu-text-id="menu.info.link.label">Info</button>
                         <button type="button" id="btn-quit-game" class="secondary-btn menu-quit-btn" data-menu-visibility-key="quitButton"
                             data-menu-text-id="menu.utility.quit.label" hidden>Beenden</button>
                     </div>
@@ -613,9 +611,6 @@
                                 <button type="button" id="level4-tab-tools" class="level4-section-tab"
                                     data-level4-section-target="tools" role="tab" aria-controls="level4-section-tools"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.tools.label">Spieler</button>
-                                <button type="button" id="level4-tab-utilities" class="level4-section-tab"
-                                    data-level4-section-target="utilities" role="tab" aria-controls="level4-section-utilities"
-                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.utilities.label">Werkzeuge</button>
                             </div>
                             <div class="level4-section-stack">
                         <section id="level4-section-controls" class="level4-section-panel" data-level4-section="controls"
@@ -936,17 +931,23 @@
                             <p id="profile-transfer-status" class="menu-hint" role="status" aria-live="polite">Noch nichts übertragen.</p>
                         </div>
                         </section>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                        <section id="level4-section-utilities" class="level4-section-panel" data-level4-section="utilities"
-                            role="tabpanel" aria-labelledby="level4-tab-utilities" aria-hidden="true">
-                        <div class="menu-section">
-                            <h2 class="section-title section-title-with-info"
-                                aria-description="Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration.">
-                                Werkzeuge
-                                <button type="button" class="menu-info-hint"
-                                    aria-label="Hinweis: Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration."
-                                    title="Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration.">i</button>
-                            </h2>
+                <!-- ======= SUBMENU: WERKZEUGE ======= -->
+                <div id="submenu-tools" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-tools-title" aria-hidden="true" data-menu-panel="tools">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-tools-title" class="submenu-title" data-menu-text-id="menu.tools.title">Werkzeuge</h2>
+                    </div>
+                    <div class="submenu-body">
+                        <div class="menu-section tools-authoring-card">
+                            <h3 class="section-title" data-menu-text-id="menu.tools.authoring.title">Selber bauen</h3>
+                            <p class="menu-hint">Öffnet die Editoren in einem eigenen Fenster.</p>
                             <div class="btn-group secondary-btn-spaced">
                                 <button type="button" id="btn-open-editor" class="secondary-btn"
                                     data-menu-action="open-map-editor" data-menu-text-id="menu.level4.tools.map_editor.label">
@@ -957,59 +958,14 @@
                                     Fahrzeug-Werkstatt öffnen
                                 </button>
                             </div>
-                            <textarea id="config-share-input" rows="6" placeholder="Config-Code oder JSON"></textarea>
-                            <div class="btn-group secondary-btn-spaced">
-                                <button type="button" id="btn-config-export-code" class="secondary-btn"
-                                    data-menu-text-id="menu.tools.export_code.label">Code exportieren</button>
-                                <button type="button" id="btn-config-export-json" class="secondary-btn"
-                                    data-menu-text-id="menu.tools.export_json.label">JSON exportieren</button>
-                            </div>
-                            <button type="button" id="btn-config-import" class="secondary-btn secondary-btn-spaced"
-                                data-menu-text-id="menu.tools.import.label">Importieren</button>
-                            <p id="config-share-status" class="menu-hint">Kein Import/Export ausgeführt.</p>
                         </div>
-                        </section>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ======= SUBMENU: EXPERT ======= -->
-                <div id="submenu-expert" class="submenu-panel hidden" role="region"
-                    aria-labelledby="submenu-expert-title" aria-hidden="true" data-menu-panel="expert">
-                    <div class="submenu-header">
-                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
-                            Zurück</button>
-                        <h2 id="submenu-expert-title" class="submenu-title" data-menu-text-id="menu.expert.locked.title">Expertenbereich</h2>
-                    </div>
-                    <div class="submenu-body">
-                        <p id="expert-login-status" class="menu-field-hint" role="status" aria-live="polite">
-                            Debugfunktionen sind lokal gesperrt.
-                        </p>
-                        <div id="expert-locked-state">
-                            <div class="menu-section expert-auth-card">
-                                <label for="expert-password-input" data-menu-text-id="menu.expert.password.label">Passwort</label>
-                                <input type="password" id="expert-password-input" inputmode="numeric" maxlength="4" autocomplete="off"
-                                    placeholder="Vierstelliger Code">
-                                <div class="btn-group secondary-btn-spaced">
-                                    <button type="button" id="btn-expert-unlock" class="secondary-btn" data-menu-text-id="menu.expert.unlock.label">Freischalten</button>
-                                    <button type="button" id="btn-expert-cancel" class="secondary-btn" data-menu-text-id="menu.expert.cancel.label">Abbrechen</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="expert-unlocked-state" class="hidden">
-                            <div class="menu-section expert-panel-card">
-                                <div class="expert-panel-header">
-                                    <h2 class="section-title" data-menu-text-id="menu.panels.expert.title">Expertenbereich</h2>
-                                    <button type="button" id="btn-expert-lock" class="secondary-btn" data-menu-text-id="menu.utility.lock.label">Sperren</button>
-                                </div>
-                                <div id="build-info" class="build-info build-info--expert"></div>
-                                <div class="expert-panel-actions">
-                                    <button type="button" id="btn-open-debug" class="secondary-btn secondary-btn-spaced"
-                                        data-menu-step-target="submenu-debug" data-menu-text-id="menu.developer.open_debug.label">
-                                        Debug / Info öffnen
-                                    </button>
-                                </div>
+                        <!-- Nur in der Entwicklungsumgebung sichtbar (MenuVisibilityContract: developerTools). -->
+                        <div id="tools-developer-block" class="tools-developer-block" data-menu-visibility-key="developerTools" hidden>
+                            <div class="menu-section">
+                                <h3 class="section-title" data-menu-text-id="menu.tools.developer.title">Entwicklerwerkzeuge</h3>
+                                <p class="menu-hint" data-menu-visibility-key="tuningConsoleHint" hidden>Taste F7 öffnet die Tuning-Konsole mit Telemetrie, Balancing und Voreinstellungen.</p>
+                                <p class="debug-hint">Drücke <kbd>O</kbd> im Spiel für FPS-Overlay</p>
+                                <p class="debug-hint">Drücke <kbd>P</kbd> im Spiel für Grafik-Toggle</p>
                             </div>
                             <div id="expert-tuning" class="menu-section expert-tuning-card">
                                 <h3 class="section-title">Feineinstellungen</h3>
@@ -1036,6 +992,36 @@
                                 <input type="range" id="bot-heuristic-survival-slider" min="0" max="100" step="1" value="50">
                                 <p class="menu-hint">50 bewahrt das bisherige Verhalten. Gilt nur für Bots mit dem Bot-Typ „Heuristik“.</p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: INFO ======= -->
+                <div id="submenu-info" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-info-title" aria-hidden="true" data-menu-panel="info">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-info-title" class="submenu-title" data-menu-text-id="menu.info.title">Info</h2>
+                    </div>
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <h3 class="section-title" data-menu-text-id="menu.debug.build.title">Build-Information</h3>
+                            <div id="build-info" class="build-info"></div>
+                            <div id="build-info-detail" class="build-info-detail"></div>
+                            <button type="button" id="btn-copy-build" class="secondary-btn secondary-btn-spaced" data-menu-action="copy-build-info" data-menu-text-id="menu.debug.build.copy.label">
+                                Kopieren
+                            </button>
+                        </div>
+                        <div class="menu-section info-keys-card">
+                            <h3 class="section-title" data-menu-text-id="menu.info.keys.title">Tastenübersicht</h3>
+                            <ul class="info-key-list">
+                                <li><kbd>Esc</kbd> Pause und Menü</li>
+                                <li><kbd>O</kbd> FPS-Anzeige</li>
+                                <li><kbd>P</kbd> Grafik umschalten</li>
+                                <li><kbd>F8</kbd> Cinematic-Aufnahme starten, <kbd>F9</kbd> stoppen</li>
+                            </ul>
+                            <p class="menu-hint">Die Flugsteuerung stellst du unter Einstellungen &rsaquo; Steuerung ein.</p>
                         </div>
                     </div>
                 </div>
@@ -1283,57 +1269,6 @@
                             <button type="button" class="secondary-btn" data-menu-action="level4-open"
                                 data-level4-section="advanced_map" data-menu-text-id="menu.panels.portals.open.label">Karten-Details öffnen</button>
                         </div>
-                    </div>
-                </div>
-
-                <!-- ======= SUBMENU: DEBUG / INFO ======= -->
-                <div id="submenu-debug" class="submenu-panel hidden" role="region" aria-labelledby="submenu-debug-title"
-                    aria-hidden="true" data-menu-panel="debug">
-                    <div class="submenu-header">
-                        <button type="button" class="back-btn" data-back data-back-target="submenu-expert" data-menu-action="back" aria-label="Zurück zum Expertenbereich">←
-                            Zurück</button>
-                        <h2 id="submenu-debug-title" class="submenu-title" data-menu-text-id="menu.debug.title">ℹ️ Debug / Info</h2>
-                    </div>
-
-                    <div class="submenu-body">
-                        <div class="menu-section">
-                            <h2 class="section-title" data-menu-text-id="menu.debug.build.title">Build-Information</h2>
-                            <div id="build-info-detail" class="build-info-detail"></div>
-                            <button type="button" id="btn-copy-build" class="secondary-btn secondary-btn-spaced" data-menu-action="copy-build-info" data-menu-text-id="menu.debug.build.copy.label">
-                                Build-Info kopieren
-                            </button>
-                        </div>
-                        <div class="menu-section">
-                            <p class="debug-hint">Drücke <kbd>O</kbd> im Spiel für FPS-Overlay</p>
-                            <p class="debug-hint">Drücke <kbd>P</kbd> im Spiel für Grafik-Toggle</p>
-                        </div>
-                        <section id="developer-telemetry-panel" class="menu-section developer-telemetry-panel" aria-labelledby="developer-telemetry-title">
-                            <h2 id="developer-telemetry-title" class="section-title">Lokale Telemetrie</h2>
-                            <label class="developer-telemetry-consent">
-                                <input type="checkbox" id="telemetry-collection-toggle" checked>
-                                Anonyme lokale Telemetrie erfassen
-                            </label>
-                            <p class="debug-hint">Bleibt auf diesem Gerät. Keine Übertragung an externe Dienste.</p>
-                            <div class="developer-telemetry-filters" aria-label="Telemetrie filtern">
-                                <label>Build<select id="telemetry-filter-build"><option value="">Alle</option></select></label>
-                                <label>Map<select id="telemetry-filter-map"><option value="">Alle</option></select></label>
-                                <label>Modus<select id="telemetry-filter-mode"><option value="">Alle</option></select></label>
-                                <label>Steuerung<select id="telemetry-filter-control"><option value="human" selected>Nur echtes Spiel</option><option value="">Alle</option><option value="idle">Unbedient</option><option value="automation">Automatisch</option><option value="unknown">Unbekannt</option></select></label>
-                                <label>Zeitraum<select id="telemetry-filter-period"><option value="">Gesamt</option><option value="1">24 Stunden</option><option value="7">7 Tage</option><option value="30">30 Tage</option></select></label>
-                            </div>
-                            <div class="developer-telemetry-actions">
-                                <button type="button" id="btn-telemetry-refresh" class="secondary-btn">Aktualisieren</button>
-                                <button type="button" id="btn-telemetry-export-json" class="secondary-btn">JSON exportieren</button>
-                                <button type="button" id="btn-telemetry-export-csv" class="secondary-btn">CSV exportieren</button>
-                                <button type="button" id="btn-telemetry-reset" class="secondary-btn">Daten zurücksetzen</button>
-                            </div>
-                            <p id="telemetry-status" class="debug-hint" role="status" aria-live="polite"></p>
-                            <div id="developer-telemetry-dashboard" class="developer-telemetry-dashboard"></div>
-                            <details>
-                                <summary>Rohdaten</summary>
-                                <pre id="developer-telemetry-output" class="developer-telemetry-output">Keine Telemetrie vorhanden.</pre>
-                            </details>
-                        </section>
                     </div>
                 </div>
 

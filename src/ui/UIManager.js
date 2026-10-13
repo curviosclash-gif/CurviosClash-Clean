@@ -112,13 +112,9 @@ export class UIManager {
             ? game.menuStateMachine
             : new MenuStateMachine({ initialState: MENU_STATE_IDS.MAIN });
         this.menuNavigationRuntime = null;
-        this.menuExpertLoginRuntime = game?.menuExpertLoginRuntime || null;
         this._uiDisposers = [];
         this._developerNavButtons = Array.from(document.querySelectorAll(
             '[data-submenu="submenu-developer"], [data-menu-target="submenu-developer"], [data-menu-step-target="submenu-developer"]'
-        ));
-        this._debugNavButtons = Array.from(document.querySelectorAll(
-            '[data-submenu="submenu-debug"], [data-menu-target="submenu-debug"], [data-menu-step-target="submenu-debug"]'
         ));
         this._developerPanel = document.getElementById('submenu-developer');
         this._debugHintNodes = Array.isArray(this.ui.debugHints) ? this.ui.debugHints : [];
@@ -134,7 +130,7 @@ export class UIManager {
 
         const controllerPortDeps = { manager: this, game };
         this._startSync = new UIStartSyncController({ ui: this.ui, manager: this, port: createStartSetupControllerPortFromManager({ ...controllerPortDeps, settingsManager: this.settingsManager, getMapDefinitions: () => this._getGameplayConfig()?.MAPS || {} }) });
-        this._navLifecycle = new UINavigationLifecycleController({ ui: this.ui, manager: this, port: createNavigationLifecyclePortFromManager({ ...controllerPortDeps, menuExpertLoginRuntime: this.menuExpertLoginRuntime, profileManager: this.profileManager }) });
+        this._navLifecycle = new UINavigationLifecycleController({ ui: this.ui, manager: this, port: createNavigationLifecyclePortFromManager({ ...controllerPortDeps, profileManager: this.profileManager }) });
     }
 
     // ------------------------------------------------------------------
@@ -146,11 +142,6 @@ export class UIManager {
         this._startSync.setupMapSelect();
         this._startSync.setupStartSetupControls();
         this._navLifecycle.setupMenuNavigation();
-        this._navLifecycle.setupExpertLoginBindings();
-        if (this.menuExpertLoginRuntime) {
-            this.menuExpertLoginRuntime.onStateChanged = () => this._navLifecycle.handleExpertStateChanged();
-            this.menuExpertLoginRuntime.bindUi(this.ui);
-        }
         this.syncAll();
         this.updateContext();
     }
@@ -623,9 +614,6 @@ export class UIManager {
     // ------------------------------------------------------------------
 
     dispose() {
-        if (this.menuExpertLoginRuntime) {
-            this.menuExpertLoginRuntime.onStateChanged = null;
-        }
         this._startSync.dispose();
         this._navLifecycle.dispose();
         this._disposeDisposerList(this._uiDisposers);

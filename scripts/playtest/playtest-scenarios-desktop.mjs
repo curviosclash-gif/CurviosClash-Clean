@@ -181,9 +181,10 @@ export function scenarioEditorRoundTrip(run, session, context) {
     const mapKey = `editor_${mapName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     return runSteps(session, context, async (steps) => {
         let editor = null;
-        await steps.run('open the map editor from the utilities drawer', async () => {
+        await steps.run('open the map editor from the tools screen', async () => {
             await toMainMenu(session);
-            await openLevel4Drawer(session.page, { section: 'utilities' });
+            await session.page.locator('#btn-main-tools').click({ timeout: 10_000 });
+            await session.page.locator('#submenu-tools:not(.hidden)').waitFor({ timeout: 10_000 });
             const popup = session.page.waitForEvent('popup', { timeout: 30_000 });
             await session.page.locator('#btn-open-editor').click({ timeout: 10_000 });
             editor = await popup;

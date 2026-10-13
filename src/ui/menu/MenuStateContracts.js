@@ -88,7 +88,6 @@ export const LEVEL4_SECTION_IDS = Object.freeze({
     HUD: 'hud',
     ADVANCED_MAP: 'advanced_map',
     TOOLS: 'tools',
-    UTILITIES: 'utilities',
 });
 /** @type {Set<string>} */
 const VALID_LEVEL4_SECTION_SET = new Set(Object.values(LEVEL4_SECTION_IDS));

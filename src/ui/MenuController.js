@@ -3,6 +3,7 @@ import { addChangedKeys, changedKeySetToArray } from './SettingsChangeSetOps.js'
 import { setupMenuGameplayBindings } from './menu/MenuGameplayBindings.js';
 import { bindMenuFreePlayControls } from './menu/MenuFreePlayBindings.js';
 import { bindMenuQuitControl } from './menu/MenuQuitBindings.js';
+import { bindMenuToolsScreen } from './menu/MenuToolsBindings.js';
 import { bindMenuHudAppearanceControls } from './menu/MenuHudAppearanceBindings.js';
 import { setupMenuProfileBindings } from './menu/MenuProfileBindings.js';
 import { setupMenuControlBindings } from './menu/MenuControlBindings.js';
@@ -150,6 +151,7 @@ export class MenuController {
         setupMenuGameplayBindings(bindingContext);
         bindMenuFreePlayControls(bindingContext);
         bindMenuQuitControl(bindingContext);
+        bindMenuToolsScreen(bindingContext);
         bindMenuHudAppearanceControls(bindingContext);
         setupMenuProfileBindings(bindingContext);
         setupMenuControlBindings(bindingContext);

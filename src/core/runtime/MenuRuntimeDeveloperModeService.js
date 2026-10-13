@@ -10,10 +10,8 @@ function resolveDeveloperFailureMessage(result, fallbackMessage) {
         return 'Nur der Host darf diese Einstellung ändern.';
     case 'hidden_for_player':
         return 'Diese Einstellung ist für Mitspieler ausgeblendet.';
-    case 'expert_login_required':
-        return 'Expertenmodus ist gesperrt.';
-    case 'expert_surface_policy':
-        return 'Expertenmodus ist auf dieser Surface nicht verfügbar.';
+    case 'developer_tools_disabled':
+        return 'Entwicklerfunktionen gibt es nur in der Entwicklungsumgebung.';
     case 'locked':
         return 'Developer-Funktion ist derzeit gesperrt.';
     case 'unknown_text_id':

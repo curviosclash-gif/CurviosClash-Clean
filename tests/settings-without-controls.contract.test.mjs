@@ -24,8 +24,8 @@ function createHarness() {
 const input = (id, value = '') => ({ id, value: String(value), checked: false, min: '', max: '', step: '' });
 const label = () => ({ textContent: '' });
 
-test('the expert area carries the arcade fine values and the bot heuristic', () => {
-    const expert = html.match(/<div id="expert-unlocked-state"[\s\S]*?<!-- ======= SUBMENU: BENUTZERDEFINIERT/)?.[0] || '';
+test('the developer block of the tools screen carries the arcade fine values and the bot heuristic', () => {
+    const expert = html.match(/<div id="tools-developer-block"[\s\S]*?<!-- ======= SUBMENU: INFO/)?.[0] || '';
     for (const id of ['arcade-intermission-slider', 'arcade-combo-decay-slider', 'arcade-replay-hooks-toggle',
         'bot-heuristic-profile-select', 'bot-heuristic-aggression-slider', 'bot-heuristic-survival-slider']) {
         assert.match(expert, new RegExp(`id="${id}"`), id);

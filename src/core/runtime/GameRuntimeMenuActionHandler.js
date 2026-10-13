@@ -1,8 +1,5 @@
 import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import {
-    handleConfigExportCodeAction,
-    handleConfigExportJsonAction,
-    handleConfigImportAction,
     applyMenuPresetAction,
     saveMenuPresetAction,
     deleteMenuPresetAction,
@@ -23,7 +20,6 @@ import {
     handleDeveloperVisibilityChangeAction,
 } from './MenuRuntimeDeveloperModeService.js';
 import {
-    SESSION_SWITCH_CHANGED_KEYS,
     handleLevel3ResetAction,
     handleLevel4CloseAction,
     handleLevel4OpenAction,
@@ -125,24 +121,6 @@ export class GameRuntimeMenuActionHandler {
 
     handleLevel4Reset() {
         handleLevel4ResetAction(this._createSessionContext());
-    }
-
-    handleConfigExportCode() {
-        handleConfigExportCodeAction(this._facade?.game);
-    }
-
-    handleConfigExportJson() {
-        handleConfigExportJsonAction(this._facade?.game);
-    }
-
-    handleConfigImport(event) {
-        const game = this._facade?.game;
-        handleConfigImportAction({
-            game,
-            inputValue: String(event?.inputValue || game?.ui?.configShareInput?.value || ''),
-            onSettingsChanged: (payload) => this._facade?.onSettingsChanged?.(payload),
-            sessionSwitchChangedKeys: SESSION_SWITCH_CHANGED_KEYS,
-        });
     }
 
     applyMenuPreset(event) {

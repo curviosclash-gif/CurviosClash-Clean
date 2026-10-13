@@ -57,26 +57,6 @@ export function bindMenuExtrasButtons(ctx) {
         ctx.registerDisposer?.(() => confirmation.dispose());
     }
 
-    if (ui.exportConfigCodeButton) {
-        bind(ui.exportConfigCodeButton, 'click', () => {
-            emit(eventTypes.CONFIG_EXPORT_CODE);
-        });
-    }
-
-    if (ui.exportConfigJsonButton) {
-        bind(ui.exportConfigJsonButton, 'click', () => {
-            emit(eventTypes.CONFIG_EXPORT_JSON);
-        });
-    }
-
-    if (ui.importConfigButton) {
-        bind(ui.importConfigButton, 'click', () => {
-            emit(eventTypes.CONFIG_IMPORT, {
-                inputValue: String(ui.configShareInput?.value || ''),
-            });
-        });
-    }
-
     if (ui.openEditorButton) {
         bind(ui.openEditorButton, 'click', () => {
             const featureAccess = resolveSurfaceFeatureLaunchGuard(

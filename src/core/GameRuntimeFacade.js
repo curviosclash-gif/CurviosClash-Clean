@@ -446,18 +446,6 @@ export class GameRuntimeFacade {
         return this.menuActionHandler.handleLevel4Reset();
     }
 
-    handleConfigExportCode() {
-        return this.menuActionHandler.handleConfigExportCode();
-    }
-
-    handleConfigExportJson() {
-        return this.menuActionHandler.handleConfigExportJson();
-    }
-
-    handleConfigImport(event) {
-        return this.menuActionHandler.handleConfigImport(event);
-    }
-
     applyMenuPreset(event) {
         return this.menuActionHandler.applyMenuPreset(event);
     }

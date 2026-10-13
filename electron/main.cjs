@@ -163,6 +163,8 @@ const RECORDING_VIDEO_EXPORT_REQUEST_CONTRACT_VERSION = 'recording-video-export-
 const RECORDING_VIDEO_EXPORT_CAPABILITY_ID = 'recording-video-export-save';
 const TUNING_CONSOLE_CAPABILITY_CONTRACT_VERSION = 'tuning-console-capability.v1';
 const TUNING_CONSOLE_CAPABILITY_ID = 'developer-tuning-console';
+// Hands the development environment to the renderer (the menu shows developer tools only there).
+const DEVELOPER_ENVIRONMENT_ARGUMENT = '--curvios-developer-environment';
 const TUNING_CONSOLE_HOTKEY = 'F7';
 const DESKTOP_RENDERER_DIST_DIR_NAME = 'dist-app';
 const DESKTOP_TEST_RENDERER_DIST_DIR_NAME = 'dist-app-test';
@@ -577,6 +579,7 @@ async function createWindow() {
             webPreferences: createSecureWindowWebPreferences({
                 preload: path.join(__dirname, 'preload.cjs'),
                 backgroundThrottling: false,
+                additionalArguments: isDeveloperEnvironment() ? [DEVELOPER_ENVIRONMENT_ARGUMENT] : [],
             }),
         },
     }));
@@ -726,6 +729,13 @@ function createLanHostShellCapability() {
             return getSignalingDiagnosticsSnapshot();
         },
     });
+}
+
+// Same rule as the F7 console below: from source, or a packaged build started with --dev-tools.
+function isDeveloperEnvironment() {
+    return app.isPackaged !== true
+        || process.argv.includes('--dev-tools')
+        || process.env.CURVIOS_DEV_TOOLS === '1';
 }
 
 function resolveTuningConsoleCapabilityState() {
