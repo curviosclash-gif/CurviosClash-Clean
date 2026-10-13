@@ -1041,7 +1041,7 @@ export class ArcadeRunRuntime {
             this._state = completeArcadeSector(this._state, nowMs, {
                 simulatedDurationSec: this._sectorElapsedSeconds,
             });
-            if (objectiveFailed && this._state.phase === ARCADE_RUN_PHASES.VICTORY) this._state = { ...this._state, phase: ARCADE_RUN_PHASES.FINISHED, victory: null, intermission: null };
+            if (objectiveFailed && this._state.phase === ARCADE_RUN_PHASES.VICTORY) this._state = { ...this._state, phase: ARCADE_RUN_PHASES.FINISHED, victory: null, intermission: null, finaleFailed: true };
             else this._prepareIntermission(nowMs);
         }
         const runFinished = this._state.phase === ARCADE_RUN_PHASES.FINISHED;
