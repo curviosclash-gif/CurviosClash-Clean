@@ -112,7 +112,7 @@ export async function performUiAction(session, spec) {
 }
 
 /**
- * Leaves a running match through the pause menu like a player: "Hauptmenü" (or
+ * Leaves a running match through the pause menu like a player: "Match verlassen" (or
  * "Verbindung trennen") only arms on the first click and ends the match on the second.
  */
 export async function leaveMatchFromPauseMenu(page, { timeoutMs = 10_000 } = {}) {

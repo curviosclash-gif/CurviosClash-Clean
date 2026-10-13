@@ -203,7 +203,7 @@ test('MatchFlowUiController prepares presentation and input without creating a m
     assert.equal(typeof controller.sessionOrchestrator.createMatchSession, 'undefined');
 });
 
-test('MatchFlowUiController shows a generic loading state when a map has no GLB source', () => {
+test('MatchFlowUiController shows the loading state with a tip when a map has no GLB source', () => {
     const controller = new MatchFlowUiController({
         game: {
             runtimeConfig: { session: { mapKey: 'empty' } },
@@ -215,7 +215,7 @@ test('MatchFlowUiController shows a generic loading state when a map has no GLB 
     const state = controller._resolveMatchLoadingUiState();
 
     assert.equal(state.visibility.messageOverlayHidden, false);
-    assert.equal(state.messageSub, 'Arena wird vorbereitet');
+    assert.match(state.messageSub, /^Tipp: /);
 });
 
 test('MatchStartRuntimeService ignores a late session init after cancellation', async () => {

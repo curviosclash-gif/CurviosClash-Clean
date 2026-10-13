@@ -41,7 +41,7 @@ function createPauseDom() {
     return { doc, overlay, resume, settings, menu, canvas, ui: { pauseOverlay: overlay, pauseResumeButton: resume } };
 }
 
-test('opening the pause dialog moves focus to Weiterspielen and closing it gives focus back', () => {
+test('opening the pause dialog moves focus to Fortsetzen and closing it gives focus back', () => {
     const dom = createPauseDom();
     dom.canvas.focus();
 
@@ -96,7 +96,7 @@ test('the gamepad navigates and activates the pause dialog buttons', () => {
         press(runtime, pad, 13);
         assert.equal(dom.doc.activeElement, dom.settings, 'D-pad down reaches Einstellungen');
         press(runtime, pad, 13);
-        assert.equal(dom.doc.activeElement, dom.menu, 'and Hauptmenü');
+        assert.equal(dom.doc.activeElement, dom.menu, 'and Match verlassen');
         press(runtime, pad, 12);
         assert.equal(dom.doc.activeElement, dom.settings, 'D-pad up goes back');
         press(runtime, pad, 0);

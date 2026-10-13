@@ -18,6 +18,7 @@ import {
 } from '../../shared/contracts/MatchUiStateContract.js';
 
 const GAMEPAD_SLOT_COUNT = 4;
+const DEFAULT_MENU_LABEL = 'Menü';
 
 const CONTINUE_LABELS = {
     [CONTINUE_PROMPT_PHASES.ROUND_END]: 'Weiter',
@@ -67,9 +68,11 @@ export class PostMatchContinuePrompt {
             ? options.getGamepads
             : () => globalThis.navigator?.getGamepads?.() || null;
         this._readControls = typeof options.getControls === 'function' ? options.getControls : () => null;
+        // Names the menu button after where it leads ("Zur Lobby", ...); empty keeps "Menü".
+        this._readMenuLabel = typeof options.getMenuLabel === 'function' ? options.getMenuLabel : () => '';
         this._state = normalizeContinuePromptState(null);
         // Memo of what the DOM already shows, so an unchanged frame writes nothing.
-        this._shown = { hidden: null, phase: '', canContinue: null, waiting: null, progress: null, padHint: null };
+        this._shown = { hidden: null, phase: '', canContinue: null, waiting: null, progress: null, padHint: null, menuLabel: null };
         this._handleMenuClick = () => this._onMenu();
         this._build();
     }
@@ -141,6 +144,13 @@ export class PostMatchContinuePrompt {
         this.continueButton.style.setProperty('--progress', progress);
     }
 
+    _applyMenuLabel() {
+        const label = String(this._readMenuLabel() || DEFAULT_MENU_LABEL);
+        if (this._shown.menuLabel === label) return;
+        this._shown.menuLabel = label;
+        this.menuButton.textContent = label;
+    }
+
     _applyGamepadHint() {
         const text = resolveGamepadPauseHintText(this._readGamepads(), this._readControls());
         if (this._shown.padHint === text) return;
@@ -166,6 +176,7 @@ export class PostMatchContinuePrompt {
         this._applyPhase(state.phase);
         this._applyCanContinue(state.canContinue);
         this._applyProgress(state);
+        this._applyMenuLabel();
         this._applyGamepadHint();
         return state;
     }
@@ -179,10 +190,11 @@ export class PostMatchContinuePrompt {
 /**
  * Only the menu button needs the runtime port; continue travels as an input intent.
  */
-export function createPostMatchContinuePrompt({ container, runtimePort, getControls }) {
+export function createPostMatchContinuePrompt({ container, runtimePort, getControls, getMenuLabel }) {
     return new PostMatchContinuePrompt({
         container,
         getControls,
+        getMenuLabel,
         onMenu: () => runtimePort?.returnToMenu?.({ reason: 'post_match_menu_button' }),
     });
 }

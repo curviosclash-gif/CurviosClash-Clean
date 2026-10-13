@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="src/ui/menu/Leuchtspuren.css">
     <link rel="stylesheet" href="src/ui/menu/MenuTokens.css">
+    <link rel="stylesheet" href="src/ui/menu/MenuPause.css">
     <script type="importmap">
     {
         "imports": {
@@ -1636,12 +1637,20 @@
                 <div id="message-stats" class="hidden" aria-live="polite"></div>
                 <div id="message-actions" class="hidden"></div>
             </div>
-            <div id="pause-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Spiel pausiert">
-                <div id="pause-title">PAUSE</div>
-                <div id="pause-actions">
-                    <button type="button" id="btn-pause-resume" class="start-btn">Fortsetzen</button>
-                    <button type="button" id="btn-pause-settings" class="secondary-btn">Einstellungen</button>
-                    <button type="button" id="btn-pause-menu" class="secondary-btn">Men&uuml;</button>
+            <div id="pause-overlay" class="menu-q-pause hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+                <div class="menu-q-scrim"></div>
+                <div class="menu-q-pause__card menu-q-panel">
+                    <h2 class="menu-q-title" id="pause-title">Pause</h2>
+                    <p id="pause-notice" class="menu-q-hint" role="status" hidden></p>
+                    <div id="pause-actions" class="menu-q-pause__actions">
+                        <button type="button" id="btn-pause-resume" class="menu-q-btn menu-q-btn--primary" data-primary>Fortsetzen</button>
+                        <button type="button" id="btn-pause-restart" class="menu-q-btn" data-menu-visibility-key="pauseRestart">Neu starten</button>
+                        <button type="button" id="btn-pause-controls" class="menu-q-btn" aria-expanded="false" aria-controls="pause-controls">Steuerung anzeigen</button>
+                        <div id="pause-controls" class="menu-q-controls" role="group" aria-label="Steuerung" hidden></div>
+                        <button type="button" id="btn-pause-settings" class="menu-q-btn">Einstellungen</button>
+                        <button type="button" id="btn-pause-menu" class="menu-q-btn" aria-describedby="pause-menu-hint">Match verlassen</button>
+                        <p id="pause-menu-hint" class="menu-q-btn__sub">zur&uuml;ck zur Spielauswahl</p>
+                    </div>
                 </div>
             </div>
         </div>

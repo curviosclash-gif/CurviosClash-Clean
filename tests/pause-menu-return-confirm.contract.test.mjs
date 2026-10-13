@@ -1,8 +1,8 @@
 // ============================================
-// pause-menu-return-confirm.contract.test.mjs - Pause-Menü: "Hauptmenü" beendete das laufende
+// pause-menu-return-confirm.contract.test.mjs - Pause-Menü: "Match verlassen" beendete das laufende
 // Match mit einem einzigen Klick (Menüprüfung 28.09.2026, H4). Der Knopf folgt jetzt dem
 // zweistufigen Muster der übrigen zerstörerischen Knöpfe (ConfirmButtonArming). Weil derselbe
-// Knopf seine Beschriftung wechselt ("Hauptmenü" / "Verbindung trennen"), darf das Abbrechen der
+// Knopf seine Beschriftung wechselt ("Match verlassen" / "Verbindung trennen"), darf das Abbrechen der
 // Rückfrage die gerade gültige Beschriftung nicht überschreiben.
 // ============================================
 import assert from 'node:assert/strict';
@@ -32,7 +32,7 @@ function createPausedMatch() {
         pauseResumeButton: createButton('Fortsetzen'),
         pauseSettingsButton: createButton('Einstellungen'),
         // index.html ships "Menü"; the controller relabels it while the match runs.
-        pauseMenuButton: createButton('Menü'),
+        pauseMenuButton: createButton('Match verlassen'),
     };
     const returns = [];
     const game = { state: 'PAUSED', ui, uiManager: { closePauseSettings: () => false } };
@@ -46,14 +46,14 @@ function createPausedMatch() {
     return { controller, ui, returns };
 }
 
-test('one click on "Hauptmenü" only asks; the second click ends the match', () => {
+test('one click on "Match verlassen" only asks; the second click ends the match', () => {
     const { controller, ui, returns } = createPausedMatch();
-    assert.equal(ui.pauseMenuButton.textContent, 'Hauptmenü');
+    assert.equal(ui.pauseMenuButton.textContent, 'Match verlassen');
 
     ui.pauseMenuButton.click();
     assert.equal(returns.length, 0, 'a single click must not end the running match');
     assert.equal(ui.pauseMenuButton.getAttribute('data-confirm-armed'), 'true', 'the first click arms the confirmation');
-    assert.notEqual(ui.pauseMenuButton.textContent, 'Hauptmenü', 'the armed button says what the next click does');
+    assert.notEqual(ui.pauseMenuButton.textContent, 'Match verlassen', 'the armed button says what the next click does');
 
     ui.pauseMenuButton.click();
     assert.equal(returns.length, 1, 'the confirming click returns to the menu');
@@ -75,7 +75,7 @@ test('resuming while the question is open drops it, so the next pause asks again
     const { controller, ui, returns } = createPausedMatch();
     ui.pauseMenuButton.click();
     controller.applyPauseProjection();
-    assert.equal(ui.pauseMenuButton.textContent, 'Hauptmenü');
+    assert.equal(ui.pauseMenuButton.textContent, 'Match verlassen');
     assert.equal(ui.pauseMenuButton.getAttribute('data-confirm-armed'), null, 'a new pause starts unarmed');
     ui.pauseMenuButton.click();
     assert.equal(returns.length, 0, 'the first click of the new pause only asks');

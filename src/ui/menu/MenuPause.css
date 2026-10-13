@@ -1,0 +1,242 @@
+/*
+ * Pause window in style Q "Schachbrett-Tunnel" (menu rebuild, stage 3). Reads only the --menu-* tokens
+ * from MenuTokens.css. The pause is a dialog over the running match: resume (primary), restart and
+ * leave (both two-step), a foldable key overview, and the settings window.
+ *
+ * A state is never shown by colour alone: the armed two-step button gets another text, a "!" sign
+ * and a dashed border; the open key overview is announced through aria-expanded and its own button text.
+ */
+
+/* hidden must win against the display values of the blocks below */
+[class*="menu-q-"][hidden] {
+    display: none;
+}
+
+.menu-q-scrim {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--menu-bg) 78%, transparent);
+}
+
+.menu-q-panel {
+    background: var(--menu-surface-pattern), var(--menu-surface);
+    border: var(--menu-border) solid var(--menu-line);
+    border-radius: var(--menu-radius-l);
+    color: var(--menu-text);
+    font-family: var(--menu-font-body);
+    font-size: var(--menu-font-size-body);
+    line-height: 1.45;
+}
+
+.menu-q-title {
+    margin: 0;
+    font-family: var(--menu-font-display);
+    font-weight: var(--menu-display-weight);
+    text-transform: var(--menu-display-case);
+    letter-spacing: .04em;
+    line-height: 1.1;
+    color: var(--menu-text);
+    text-wrap: balance;
+}
+
+.menu-q-hint {
+    margin: 0;
+    font-size: var(--menu-font-size-body);
+    color: var(--menu-muted);
+}
+
+.menu-q-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 16px;
+    font-family: var(--menu-font-display);
+    font-size: var(--menu-font-size-button);
+    font-weight: var(--menu-display-weight);
+    text-transform: var(--menu-display-case);
+    letter-spacing: .04em;
+    text-align: left;
+    color: var(--menu-text);
+    background: var(--menu-surface-2);
+    border: var(--menu-border) solid var(--menu-line);
+    border-radius: var(--menu-radius-m);
+    cursor: pointer;
+}
+
+.menu-q-btn:hover {
+    border-color: var(--menu-accent);
+}
+
+.menu-q-btn:focus-visible {
+    outline: var(--menu-focus-width) solid var(--menu-focus);
+    outline-offset: var(--menu-focus-offset);
+}
+
+.menu-q-btn--primary {
+    color: var(--menu-on-accent);
+    background: var(--menu-accent);
+    border-color: var(--menu-accent);
+    box-shadow: var(--menu-primary-edge);
+}
+
+.menu-q-btn--primary:hover {
+    border-color: var(--menu-text);
+}
+
+.menu-q-btn[aria-expanded="true"] {
+    border-color: var(--menu-accent);
+    box-shadow: inset 0 -4px 0 var(--menu-accent);
+}
+
+.menu-q-btn:disabled,
+.menu-q-btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: .6;
+    border-style: dashed;
+}
+
+/* Two-step question: the game sets data-confirm-armed after the first press and swaps the text. */
+.menu-q-btn[data-confirm-armed="true"] {
+    border: 2px dashed var(--menu-danger);
+    background: var(--menu-surface);
+}
+
+.menu-q-btn[data-confirm-armed="true"]::before {
+    content: '!';
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    flex: none;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* Second line under a button, e.g. where "Match verlassen" leads */
+.menu-q-btn__sub {
+    display: block;
+    margin: 0;
+    font-family: var(--menu-font-body);
+    font-size: var(--menu-font-size-body);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--menu-muted);
+}
+
+.menu-q-key {
+    display: inline-block;
+    min-width: 32px;
+    padding: 0 6px;
+    font-family: var(--menu-font-body);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 28px;
+    text-align: center;
+    color: var(--menu-text);
+    background: var(--menu-bg-2);
+    border: var(--menu-border) solid var(--menu-line);
+    border-radius: var(--menu-radius-s);
+}
+
+/* ================= Pause ================= */
+.menu-q-pause {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    pointer-events: auto;
+}
+
+.menu-q-pause.hidden {
+    display: none;
+}
+
+.menu-q-pause__card {
+    position: relative;
+    width: min(480px, 100%);
+    max-height: calc(100% - 40px);
+    overflow: auto;
+    display: grid;
+    gap: 12px;
+    padding: 20px;
+    box-shadow: 0 12px 34px color-mix(in srgb, var(--menu-bg) 80%, transparent);
+}
+
+.menu-q-pause__card .menu-q-title {
+    font-size: max(40px, calc(44px * var(--menu-scale)));
+}
+
+.menu-q-pause__actions {
+    display: grid;
+    gap: 8px;
+}
+
+.menu-q-pause__actions .menu-q-btn {
+    width: 100%;
+    min-height: 52px;
+}
+
+.menu-q-pause__actions .menu-q-btn__sub {
+    margin-top: -4px;
+}
+
+/* "Steuerung anzeigen" folds a short key overview open in the same window */
+.menu-q-controls {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+    border: var(--menu-border) solid var(--menu-line);
+    border-radius: var(--menu-radius-m);
+    background: var(--menu-bg-2);
+    font-size: var(--menu-font-size-body);
+}
+
+.menu-q-controls__title {
+    margin: 0;
+    font-family: var(--menu-font-display);
+    font-weight: 600;
+    text-transform: var(--menu-display-case);
+    color: var(--menu-muted);
+}
+
+.menu-q-controls__list {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    align-items: center;
+}
+
+.menu-q-controls__list dd {
+    margin: 0;
+    display: flex;
+    gap: 4px;
+}
+
+.menu-q-controls__pad {
+    margin: 0;
+    color: var(--menu-muted);
+}
+
+/* The text under the title: pad lost, host paused */
+.menu-q-pause__card .host-paused-overlay,
+.menu-q-pause__card #pause-notice:not([hidden]) {
+    padding: 8px 12px;
+    border: var(--menu-border) dashed var(--menu-danger);
+    border-radius: var(--menu-radius-m);
+    color: var(--menu-text);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .menu-q-btn {
+        transition: background-color .12s, border-color .12s;
+    }
+}

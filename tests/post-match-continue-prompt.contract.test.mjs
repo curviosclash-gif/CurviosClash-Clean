@@ -408,3 +408,30 @@ test('the continue button is the continue intent, the menu button never is', () 
         );
     });
 });
+// ---------------------------------------------------------------------------
+// Menu button name (menu rebuild, stage 3): it says where it leads
+// ---------------------------------------------------------------------------
+
+test('the menu button is named after the situation and follows a change', () => {
+    withDom((dom) => {
+        const container = dom.createElement('div');
+        let label = 'Zur Lobby';
+        const prompt = new PostMatchContinuePrompt({ container, onMenu: () => {}, getMenuLabel: () => label });
+        prompt.apply(promptState());
+        assert.equal(actionButton(container, 'menu').textContent, 'Zur Lobby');
+        label = 'Zur Arcade-Reise';
+        prompt.apply(promptState());
+        assert.equal(actionButton(container, 'menu').textContent, 'Zur Arcade-Reise');
+    });
+});
+
+test('without a situation the menu button keeps its plain name and an unchanged frame writes nothing', () => {
+    withDom((dom) => {
+        const { container, prompt } = mountPrompt(dom);
+        prompt.apply(promptState());
+        assert.equal(actionButton(container, 'menu').textContent, 'Menü');
+        const before = dom.writes.count;
+        prompt.apply(promptState());
+        assert.equal(dom.writes.count, before);
+    });
+});
