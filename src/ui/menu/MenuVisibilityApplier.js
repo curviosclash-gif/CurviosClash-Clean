@@ -16,7 +16,7 @@ export function applyMenuVisibility(root, result) {
     if (!root || !result) return;
     const elements = root.querySelectorAll(`[${KEY_ATTRIBUTE}]`);
     for (let i = 0; i < elements.length; i++) {
-        const element = elements[i];
+        const element = /** @type {HTMLElement} */ (elements[i]);
         const key = element.getAttribute(KEY_ATTRIBUTE);
         if (!(key in result.visible)) continue;
         const visible = result.visible[key] === true;
