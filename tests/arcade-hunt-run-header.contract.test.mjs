@@ -11,6 +11,7 @@ registerMapCatalogConfigSource({ MAPS: { notre_dame_arena: { name: 'Notre-Dame A
 
 const { HuntHUD } = await import('../src/ui/HuntHUD.js');
 const { ArcadeScoreHUD } = await import('../src/ui/arcade/ArcadeScoreHUD.js');
+const { WeaponRaceRuntime } = await import('../src/core/arcade/WeaponRaceRuntime.js');
 
 function element() {
     const classes = new Set();
@@ -88,6 +89,46 @@ test('the Five Fronts score box shows the map name, not the internal key', () =>
         });
         assert.match(hud._arenaWavesSection.textContent, /Karte 1\/5: Notre-Dame Arena/);
         assert.doesNotMatch(hud._arenaWavesSection.textContent, /notre_dame_arena/);
+    } finally {
+        if (previousDocument === undefined) delete globalThis.document;
+        else globalThis.document = previousDocument;
+    }
+});
+
+test('weapon race HUD labels every local human by identity across rank changes', () => {
+    const previousDocument = globalThis.document;
+    globalThis.document = { createElement: () => element(), getElementById: () => null };
+    try {
+        const firstHuman = { index: 2, isBot: false };
+        const secondHuman = { index: 0, isBot: false };
+        const bot = { index: 3, isBot: true };
+        const entityManager = {
+            players: [firstHuman, secondHuman, bot],
+            humanPlayers: [firstHuman, secondHuman],
+            _projectileSystem: { clearForOwner() {} },
+        };
+        const runtime = new WeaponRaceRuntime();
+        const hud = new ArcadeScoreHUD(element());
+        hud.update(runtime.start({ entityManager }));
+
+        assert.match(hud._arenaWavesSection.textContent, /1\. Spieler 1/);
+        assert.match(hud._arenaWavesSection.textContent, /2\. Spieler 3/);
+        assert.match(hud._arenaWavesSection.textContent, /3\. Bot 4/);
+
+        runtime.handleCheckpoint({ playerIndex: 3, checkpointId: 'CP03_MG' });
+        hud.update(runtime.getHudState());
+        assert.match(hud._arenaWavesSection.textContent, /1\. Bot 4/);
+        assert.match(hud._arenaWavesSection.textContent, /2\. Spieler 1/);
+        assert.match(hud._arenaWavesSection.textContent, /3\. Spieler 3/);
+
+        runtime.start({ entityManager: {
+            players: [firstHuman, bot],
+            humanPlayers: [firstHuman],
+            _projectileSystem: { clearForOwner() {} },
+        } });
+        hud.update(runtime.getHudState());
+        assert.match(hud._arenaWavesSection.textContent, /1\. Spieler 3/);
+        assert.match(hud._arenaWavesSection.textContent, /2\. Bot 4/);
     } finally {
         if (previousDocument === undefined) delete globalThis.document;
         else globalThis.document = previousDocument;

@@ -264,6 +264,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
             refs.details.open = false;
             return;
         }
+        refs.refreshDemolitionMedalLine();
         const hasOpenSetupSection = Array.from(
             level3Body.querySelectorAll('details[data-start-section][open]')
         ).some((section) => section !== refs.details
@@ -425,7 +426,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         emit(eventTypes.START_MATCH, { borrowedSettings });
     };
 
-    bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, () => activeSeed, arcadeProfiles, runtimeAccess);
+    refs.refreshDemolitionMedalLine = bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, () => activeSeed, arcadeProfiles, runtimeAccess) || (() => {});
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });

@@ -117,6 +117,37 @@ test('sector scenarios use their own map; parcours scenarios keep the course obj
     }
 });
 
+test('non-daily long plans cap Storm once and keep late scenarios varied across every difficulty tier', () => {
+    const lateScenarioIds = new Set(['worm_hunt', 'bomber_alarm', 'bridge_convoy']);
+    const allowedLateIds = new Set([...lateScenarioIds, 'storm_flood']);
+    const tiers = ['easy', 'normal', 'hard', 'nightmare'];
+    const baselineScenariosBySeed = new Map();
+    for (const difficulty of tiers) {
+        const observedLateIds = new Set();
+        let stormRuns = 0;
+        for (let index = 0; index < 48; index += 1) {
+            const seed = 'scenario-cadence-' + index;
+            const options = { seed, sectorCount: 13, difficulty };
+            const plan = buildArcadeSectorPlan(options);
+            assert.deepEqual(plan, buildArcadeSectorPlan(options), `${difficulty}/${seed}: same seed stays deterministic`);
+            assert.ok(plan.sequence.filter((entry) => entry.scenarioId === 'storm_flood').length <= 1, `${difficulty}/${seed}: Storm appears at most once`);
+            if (plan.sequence.some((entry) => entry.scenarioId === 'storm_flood')) stormRuns += 1;
+            const scenarioIds = plan.sequence.map((entry) => entry.scenarioId || null);
+            if (difficulty === tiers[0]) baselineScenariosBySeed.set(seed, scenarioIds);
+            else assert.deepEqual(scenarioIds, baselineScenariosBySeed.get(seed), `${difficulty}/${seed}: tier preserves the seeded scenario draw`);
+            for (const sectorNumber of [7, 11]) {
+                const entry = plan.sequence[sectorNumber - 1];
+                if (!entry.scenarioId) continue;
+                assert.ok(allowedLateIds.has(entry.scenarioId), entry.scenarioId + ' is an authored late-sector scenario');
+                assert.equal(entry.mapKeyLocked, true);
+                if (lateScenarioIds.has(entry.scenarioId)) observedLateIds.add(entry.scenarioId);
+            }
+        }
+        assert.ok(stormRuns > 0, `${difficulty}: the established Storm scenario remains available`);
+        assert.ok(observedLateIds.size >= 2, `${difficulty}: later slots offer variety beyond Storm-only`);
+    }
+});
+
 test('daily plans keep the v1 scenario pool and do not consume new slot randomness', () => {
     const plan = buildArcadeSectorPlan({ seed: 'daily-compatibility', sectorCount: 12, dailyChallenge: true });
     assert.equal(plan.sequence.some((entry) => ['spiessrutenlauf', 'bomber_alarm'].includes(entry.scenarioId)), false);
@@ -127,15 +158,34 @@ test('daily plans keep the v1 scenario pool and do not consume new slot randomne
         { seed: 6, scenarios: [null, null, 'storm_flood', null, null], maps: ['crossfire', 'foam_forest', 'storm_dam_siege', 'parcours_rift_sprint', 'neon_abyss'] },
     ];
     for (const expected of legacySeeds) {
-        const actual = buildArcadeSectorPlan({ seed: expected.seed, sectorCount: 5, dailyChallenge: true }).sequence;
-        assert.deepEqual(actual.map((entry) => entry.scenarioId || null), expected.scenarios);
-        assert.deepEqual(actual.map((entry) => entry.mapKey), expected.maps);
+        for (const difficulty of ['easy', 'normal', 'hard', 'nightmare']) {
+            const actual = buildArcadeSectorPlan({ seed: expected.seed, sectorCount: 5, dailyChallenge: true, difficulty }).sequence;
+            assert.deepEqual(actual.map((entry) => entry.scenarioId || null), expected.scenarios, `${difficulty}: legacy Daily scenario sequence stays fixed for seed ${expected.seed}`);
+            assert.deepEqual(actual.map((entry) => entry.mapKey), expected.maps, `${difficulty}: legacy Daily map sequence stays fixed for seed ${expected.seed}`);
+        }
     }
     const runtimePlan = buildArcadeEncounterPlan({
         arcade: { seed: 'daily-compatibility', sectorCount: 12, dailyChallenge: true },
         session: { mapKey: 'standard' },
     });
     assert.equal(runtimePlan.sequence.some((entry) => ['spiessrutenlauf', 'bomber_alarm'].includes(entry.scenarioId)), false);
+});
+
+test('daily runtime maps retain their historical seed selection across difficulty tiers', () => {
+    const legacySeeds = [
+        { seed: 4, runtimeMaps: ['crossfire', 'foam_forest', 'standard', 'parcours_rift_sprint', 'hydra_temple'] },
+        { seed: 6, runtimeMaps: ['foam_forest', 'crossfire', 'storm_dam_siege', 'micro_maw', 'maze'] },
+    ];
+    for (const expected of legacySeeds) {
+        for (const difficulty of ['easy', 'normal', 'hard', 'nightmare']) {
+            const plan = buildArcadeSectorPlan({ seed: expected.seed, sectorCount: 5, dailyChallenge: true, difficulty });
+            assert.deepEqual(
+                resolveMapSequence(plan, expected.seed, MAP_PRESET_CATALOG),
+                expected.runtimeMaps,
+                `${difficulty}: legacy Daily runtime maps stay fixed for seed ${expected.seed}`,
+            );
+        }
+    }
 });
 
 test('the finale is sometimes a boss scenario, decided by the seed alone', () => {
@@ -309,6 +359,34 @@ test('destroy_units ends the sector without its bonus when time runs out, unless
     assert.equal(late.failed, false);
     assert.equal(late.progressText, 'Kreatur 0/1');
     assert.equal(doesArcadeObjectiveHoldRound(createArcadeObjectiveState({ id: 'survive_window', durationSec: 55 })), true);
+});
+
+test('Vault and Hydra objectives keep untimed scoring and carry a separate bounded safety clock', () => {
+    for (const id of ['vault_breaker', 'hydra_finale']) {
+        const entry = ARCADE_SCENARIOS.find((scenario) => scenario.id === id);
+        assert.equal(entry.objective.durationSec, 0, `${id} retains its authored untimed score reference`);
+        assert.equal(entry.objective.safetyTimeoutSec, 120, `${id} has the bounded safety limit`);
+        const legacyEntry = {
+            scenarioId: id,
+            objectiveId: entry.objective.id,
+            objective: {
+                id: entry.objective.id,
+                label: entry.objective.label,
+                unitKind: entry.objective.unitKind,
+                count: entry.objective.count,
+                durationSec: 0,
+                scoreWeight: entry.objective.scoreWeight,
+            },
+        };
+        const resolved = resolveArcadeSectorObjectiveDefinition(entry.objective, legacyEntry);
+        assert.equal(resolved.durationSec, 0);
+        assert.equal(resolved.safetyTimeoutSec, 120, 'a previously materialized plan inherits the new safety policy without rerolling');
+    }
+
+    const normalized = normalizeArcadeScenario({
+        id: 'bounded_test', mapKey: 'standard', objective: { id: 'destroy_units', safetyTimeoutSec: 900 },
+    });
+    assert.equal(normalized.objective.safetyTimeoutSec, 600, 'the contract clamps safety values to its bounded range');
 });
 
 test('scenario parameters override the shared objective definition', () => {

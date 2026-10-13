@@ -75,9 +75,11 @@ function setNodeText(node, text) {
     }
 }
 
-// Weapon race rows carry only the seat index; the human is the row on the HUD's own place.
+// Prefer the runtime's local-player identity; keep the old single-HUD fallback for legacy rows.
 function formatRacerLabel(row, humanPlace) {
-    const isBot = Number(row?.place) !== Number(humanPlace);
+    const isBot = typeof row?.isHuman === 'boolean'
+        ? !row.isHuman
+        : Number(row?.place) !== Number(humanPlace);
     return formatPlayerDisplayLabel({ index: Number(row?.playerId), isBot }, { style: PLAYER_LABEL_STYLES.LONG });
 }
 

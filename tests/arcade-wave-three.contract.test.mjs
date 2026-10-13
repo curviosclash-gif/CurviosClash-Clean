@@ -7,8 +7,12 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 import { BLOOM_CORE_FINAL_OPEN_SECONDS } from '../src/core/config/maps/presets/bloom_core.js';
 import { createArcadeObjectiveState, updateArcadeObjectiveState } from '../src/state/arcade/ArcadeObjectiveState.js';
 import { updateArcadeObjectiveRuntimeState } from '../src/core/arcade/ArcadeObjectiveRuntimeOps.js';
-import { requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
+import { buildObjectiveParticipants, requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
+import { ArcadeRoundStateController } from '../src/state/arcade/ArcadeRoundStateController.js';
+import { RoundStateController } from '../src/state/RoundStateController.js';
+import { resetPlayerHealth } from '../src/hunt/HealthSystem.js';
+import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { MapDestructibleSystem } from '../src/entities/systems/MapDestructibleSystem.js';
@@ -20,6 +24,8 @@ import { ArenaExpansionController } from '../src/entities/arena/ArenaExpansionCo
 import { normalizeMapUnit } from '../src/shared/contracts/MapUnitContract.js';
 import { placeMapGlbModel, worldMeshBounds } from './helpers/placed-glb-model.mjs';
 import { resolveHuntObjectiveText } from '../src/ui/HuntMatchStatusHelpers.js';
+import { killPlayer } from '../src/entities/EntityPlayerDeathOps.js';
+import { ObjectiveTargetMarkerSystem } from '../src/entities/systems/ObjectiveTargetMarkerSystem.js';
 
 const scenario = (id) => ARCADE_SCENARIOS.find((entry) => entry.id === id);
 const SEEDS = { bridge_convoy: 16, vault_breaker: 9, bloom_escape: 5 };
@@ -78,6 +84,142 @@ test('wave three scenarios reach sector three through their deterministic normal
     }
 });
 
+test('an uncredited bounty target death retargets through the live runtime and marker seam', () => {
+    const human = { index: 0, alive: true, isBot: false, hp: 100, maxHp: 100, kill() { this.alive = false; } };
+    const bots = [1, 2, 3].map((index) => ({
+        index, alive: true, isBot: true, isArcadeCompanion: false, hp: 100, maxHp: 100,
+        kill() { this.alive = false; },
+    }));
+    const players = [human, ...bots];
+    const events = [];
+    const manager = {
+        players,
+        humanPlayers: [human],
+        runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } },
+        gameModeStrategy: { hasScoring: () => false },
+        _respawnSystem: { onPlayerDied() {} },
+        _eventBus: { emitPlayerDied() {} },
+        _objectiveTargetMarkerSystem: null,
+    };
+    manager._objectiveTargetMarkerSystem = new ObjectiveTargetMarkerSystem(manager);
+    const strategy = new ArcadeModeStrategy();
+    const run = new ArcadeRunRuntime({
+        strategy,
+        getObjectiveParticipants: () => buildObjectiveParticipants(manager),
+    });
+    run.configure({ arcade: { enabled: true, seed: 42, sectorCount: 5 } });
+    const plan = buildArcadeSectorPlan({ seed: 42, sectorCount: 5 });
+    plan.sequence[0] = { ...plan.sequence[0], objectiveId: 'bounty_hunt' };
+    run.startRun({ strategy, encounterPlan: plan });
+    const initialScore = run.getStateSnapshot().score.total;
+    const sync = () => syncArcadeObjectiveIntoEntities(manager, run.getStateSnapshot().objectiveState);
+    manager.onArcadeGameplayEvent = (event) => {
+        events.push(event);
+        run.applyGameplayEvent(event);
+        sync();
+    };
+    sync();
+    assert.equal(run.getStateSnapshot().objectiveState.targetPlayerIndex, 1);
+    assert.equal(manager._objectiveTargetMarkerSystem.getTargetIndex(), 1);
+
+    killPlayer(manager, bots[0], 'SCRIPTED');
+    let objectiveState = run.getStateSnapshot().objectiveState;
+    assert.equal(objectiveState.targetPlayerIndex, 2);
+    assert.equal(objectiveState.completed, false);
+    assert.equal(manager._objectiveTargetMarkerSystem.getTargetIndex(), 2);
+    assert.equal(events.at(-1).type, 'uncredited_bot_eliminated');
+    assert.equal(events.at(-1).victimIndex, 1);
+    assert.equal(Object.hasOwn(events.at(-1), 'playerIndex'), false);
+    assert.equal(Object.hasOwn(events.at(-1), 'count'), false);
+    assert.equal(events.filter((event) => event.type === 'kill').length, 0);
+    assert.equal(run.getStateSnapshot().score.total, initialScore);
+
+    killPlayer(manager, bots[2], 'SCRIPTED');
+    assert.equal(run.getStateSnapshot().objectiveState.targetPlayerIndex, 2, 'a different uncredited death cannot retarget the active mark');
+
+    killPlayer(manager, bots[1], 'PROJECTILE', { killer: human });
+    objectiveState = run.getStateSnapshot().objectiveState;
+    assert.equal(objectiveState.completed, true);
+    assert.equal(objectiveState.targetPlayerIndex, 2, 'completion records the credited target');
+    assert.equal(manager._objectiveTargetMarkerSystem.getTargetIndex(), null);
+    assert.equal(events.filter((event) => event.type === 'kill').length, 1);
+    assert.equal(events.at(-1).playerIndex, human.index);
+});
+
+test('a bounty remains active with no target when every eligible bot dies uncredited', () => {
+    const human = { index: 0, alive: true, isBot: false, hp: 100, maxHp: 100, kill() { this.alive = false; } };
+    const bot = { index: 1, alive: true, isBot: true, hp: 100, maxHp: 100, kill() { this.alive = false; } };
+    const manager = {
+        players: [human, bot],
+        humanPlayers: [human],
+        runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } },
+        gameModeStrategy: { hasScoring: () => false },
+        _respawnSystem: { onPlayerDied() {} },
+        _eventBus: { emitPlayerDied() {} },
+        _objectiveTargetMarkerSystem: null,
+    };
+    manager._objectiveTargetMarkerSystem = new ObjectiveTargetMarkerSystem(manager);
+    const strategy = new ArcadeModeStrategy();
+    const run = new ArcadeRunRuntime({
+        strategy,
+        getObjectiveParticipants: () => buildObjectiveParticipants(manager),
+    });
+    run.configure({ arcade: { enabled: true, seed: 42, sectorCount: 5 } });
+    const plan = buildArcadeSectorPlan({ seed: 42, sectorCount: 5 });
+    plan.sequence[0] = { ...plan.sequence[0], objectiveId: 'bounty_hunt' };
+    run.startRun({ strategy, encounterPlan: plan });
+    manager.onArcadeGameplayEvent = (event) => {
+        run.applyGameplayEvent(event);
+        syncArcadeObjectiveIntoEntities(manager, run.getStateSnapshot().objectiveState);
+    };
+    syncArcadeObjectiveIntoEntities(manager, run.getStateSnapshot().objectiveState);
+    killPlayer(manager, bot, 'SCRIPTED');
+
+    const objectiveState = run.getStateSnapshot().objectiveState;
+    assert.equal(objectiveState.targetPlayerIndex, null);
+    assert.equal(objectiveState.targetLabel, '');
+    assert.equal(objectiveState.completed, false);
+    assert.equal(objectiveState.failed, false);
+    assert.equal(manager._objectiveTargetMarkerSystem.getTargetIndex(), null);
+    assert.equal(run.getPhase(), 'sector_active');
+});
+
+test('preserved Parcours scenarios keep their real objective through runtime assignment and completion', () => {
+    const strategy = new ArcadeModeStrategy();
+    const run = new ArcadeRunRuntime({ strategy, now: () => 100000 });
+    run.configure({ arcade: { enabled: true, seed: 9, sectorCount: 5 } });
+    const plan = buildArcadeSectorPlan({ seed: 9, sectorCount: 5 });
+    run.startRun({ strategy, encounterPlan: plan });
+    const pilot = { index: 0, isBot: false, alive: true, hp: 100, maxHp: 100 };
+
+    for (let sector = 1; sector < 4; sector += 1) {
+        const result = run.deriveRoundEndPlan({
+            players: [pilot],
+            inputs: { reason: 'ARCADE_OBJECTIVE' },
+            baseController: new RoundStateController(),
+        });
+        assert.equal(result?.outcome?.state, 'ROUND_END');
+        run.handleRoundEndTelemetry({ state: 'ROUND_END', duration: 1, kills: 1 });
+        run.beginNextSector();
+    }
+
+    const snapshot = run.getStateSnapshot();
+    const entry = snapshot.encounterSequence[3];
+    const profile = run.getSectorRuntimeProfile(4);
+    assert.equal(snapshot.sectorIndex, 4);
+    assert.equal(entry.scenarioId, 'spiessrutenlauf');
+    assert.equal(entry.objectiveId, 'parcours_run');
+    assert.equal(profile.parcoursEnabled, true);
+    assert.equal(run.isCurrentSectorParcours(), true);
+    assert.equal(snapshot.objectiveState, null, 'Parcours completion remains owned by its real progress system');
+
+    run.tickGameplay(120);
+    assert.equal(run.getStateSnapshot().objectiveState, null, 'there is no fallback survival deadline holding this sector');
+    const completion = run.completeParcoursSector({ parcours: { completionTimeMs: 1200, success: true } });
+    assert.equal(completion?.outcome?.reason, 'PARCOURS_COMPLETE');
+    assert.equal(run.getPhase(), 'intermission');
+    assert.equal(run.getStateSnapshot().completedSectors, 4);
+});
 test('new Hunt-weapon scenarios show their mission rule while normal Hunt keeps elimination', () => {
     const details = { killLimit: 10, timeText: '', matchPointText: '' };
     for (const [id, label] of [['bridge_convoy', 'Konvoi'], ['vault_breaker', 'Tresorknacker']]) {
@@ -166,43 +308,175 @@ test('environmental convoy destruction counts once while uncredited kills do not
     } finally { h.units.dispose(); }
 });
 
-test('first convoy arrival fails once without awarding the living pilot a win', () => {
-    const h = createHarness('bridge_convoy');
+test('Vault and Hydra safety timeouts follow the objective failure path without awarding success', () => {
+    const makeRun = (id, sectorCount) => {
+        const h = createHarness(id);
+        const strategy = new ArcadeModeStrategy();
+        const run = new ArcadeRunRuntime({ strategy, now: () => 100000 });
+        run.configure({ arcade: { enabled: true, seed: SEEDS[id] || 7, sectorCount } });
+        const plan = buildArcadeSectorPlan({ seed: SEEDS[id] || 7, sectorCount });
+        plan.sequence[0] = { ...plan.sequence[0], scenarioId: id, objectiveId: h.entry.objective.id,
+            objective: h.entry.objective, slot: h.entry.slot, mapKey: h.entry.mapKey };
+        run.startRun({ strategy, encounterPlan: plan });
+        run._requestRoundEnd = (request) => requestObjectiveRoundEnd(h.manager, request);
+        syncArcadeObjectiveIntoEntities(h.manager, run.getStateSnapshot().objectiveState);
+        const controller = new ArcadeRoundStateController({ arcadeRuntime: run, baseController: new RoundStateController() });
+        return { ...h, run, controller };
+    };
+
+    const vault = makeRun('vault_breaker', 5);
     try {
+        vault.run.tickGameplay(119);
+        assert.equal(vault.round.resolve().shouldEnd, false, 'the clock does not fail before its safety deadline');
+        vault.run.tickGameplay(1);
+        const timeout = vault.round.resolve();
+        assert.equal(timeout.reason, 'ARCADE_OBJECTIVE_FAILED');
+        assert.equal(timeout.winner, null);
+        const result = vault.controller.deriveOnRoundEndPlan([vault.human], { reason: timeout.reason });
+        const objective = vault.run.getStateSnapshot().objectiveState;
+        assert.equal(result.outcome.state, 'ROUND_END');
+        assert.equal(vault.run.getPhase(), 'intermission');
+        assert.equal(vault.run.getStateSnapshot().completedSectors, 1);
+        assert.equal(objective.failed, true);
+        assert.equal(objective.completed, false);
+        assert.match(result.outcome.messageText, /Sektor 1\/5 verloren.*Zielzeit abgelaufen/);
+        vault.run.handleRoundEndTelemetry({ state: 'ROUND_END', duration: 120, kills: 0 });
+        assert.equal(vault.run.getStateSnapshot().lastCompletedSectorResult.objectiveSnapshot.failed, true);
+        assert.equal(vault.run.getStateSnapshot().lastSectorSummary.breakdown.time, 0);
+        assert.equal(vault.run.getIntermissionState().breakdown.time, 0);
+        assert.equal(vault.controller.deriveRoundEndTick({ dt: 0, roundPause: 0 }).action, 'START_ROUND');
+        assert.equal(vault.run.getStateSnapshot().sectorIndex, 2);
+    } finally {
+        vault.units.dispose();
+    }
+
+    const hydra = makeRun('hydra_finale', 1);
+    try {
+        hydra.run.tickGameplay(120);
+        const timeout = hydra.round.resolve();
+        assert.equal(timeout.reason, 'ARCADE_OBJECTIVE_FAILED');
+        const result = hydra.controller.deriveOnRoundEndPlan([hydra.human], { reason: timeout.reason });
+        assert.equal(result.outcome.state, 'MATCH_END');
+        assert.equal(hydra.run.getPhase(), 'finished');
+        assert.equal(hydra.run.getStateSnapshot().victory, null);
+        assert.equal(hydra.run.getIntermissionState(), null);
+        assert.match(result.outcome.messageText, /Run beendet.*Zielzeit abgelaufen/);
+    } finally {
+        hydra.units.dispose();
+    }
+
+    const success = makeRun('vault_breaker', 5);
+    try {
+        success.run.tickGameplay(119);
+        success.run.applyGameplayEvent({ type: 'structure_destroyed', segmentKind: 'leg_lower' });
+        success.run.applyGameplayEvent({ type: 'unit_destroyed', unitKind: 'boss', count: 1 });
+        const outcome = success.round.resolve();
+        assert.equal(outcome.reason, 'ARCADE_OBJECTIVE');
+        const result = success.controller.deriveOnRoundEndPlan([success.human], { reason: outcome.reason });
+        assert.equal(success.run.getStateSnapshot().objectiveState.completed, true);
+        assert.equal(success.run.getStateSnapshot().objectiveState.failed, false);
+        assert.equal(success.run.getPhase(), 'intermission');
+        assert.match(result.outcome.messageText, /Sektor 1\/5 abgeschlossen/);
+    } finally {
+        success.units.dispose();
+    }
+});
+
+test('convoy arrival loses one sector, advances through intermission, and leaves death and abort terminal', () => {
+    const h = createHarness('bridge_convoy');
+    const strategy = new ArcadeModeStrategy();
+    const makeRun = (sectorCount = 5) => {
+        const run = new ArcadeRunRuntime({ strategy, now: () => 100000 });
+        run.configure({ arcade: { enabled: true, seed: SEEDS.bridge_convoy, sectorCount } });
+        const plan = buildArcadeSectorPlan({ seed: SEEDS.bridge_convoy, sectorCount });
+        plan.sequence[0] = { ...plan.sequence[0], objectiveId: 'intercept', objective: h.entry.objective };
+        run.startRun({ strategy, encounterPlan: plan });
+        return run;
+    };
+    try {
+        const run = makeRun();
+        run._requestRoundEnd = (request) => requestObjectiveRoundEnd(h.manager, request);
+        h.manager.onArcadeGameplayEvent = (event) => {
+            h.events.push(event);
+            run.applyGameplayEvent(event);
+            syncArcadeObjectiveIntoEntities(h.manager, run.getStateSnapshot().objectiveState);
+        };
+        syncArcadeObjectiveIntoEntities(h.manager, run.getStateSnapshot().objectiveState);
         h.units.startRound();
         h.units.units[0].speed = 100000;
         h.units.update(1);
         const arrived = h.units.units[0];
         assert.equal(arrived.goalReached, true);
         assert.deepEqual(arrived.groundPosition.toArray(), arrived.path.at(-1));
-        const position = arrived.groundPosition.clone();
-        h.units.update(2);
-        assert.ok(arrived.groundPosition.equals(position));
         assert.equal(h.events.filter((event) => event.type === 'unit_goal_reached').length, 1);
-        assert.equal(h.runtime._state.objectiveState.failed, true);
+        assert.equal(run.getStateSnapshot().objectiveState.failed, true);
         assert.equal(h.round.resolve().winner, null);
         assert.equal(h.round.resolve().reason, 'ARCADE_OBJECTIVE_FAILED');
+        const arrivalPosition = arrived.groundPosition.clone();
+        h.units.update(2);
+        assert.ok(arrived.groundPosition.equals(arrivalPosition));
+        assert.equal(h.events.filter((event) => event.type === 'unit_goal_reached').length, 1);
 
-        const strategy = new ArcadeModeStrategy();
-        const run = new ArcadeRunRuntime({ strategy, now: () => 100000 });
-        run.configure({ arcade: { enabled: true, seed: SEEDS.bridge_convoy, sectorCount: 5 } });
-        const plan = buildArcadeSectorPlan({ seed: SEEDS.bridge_convoy, sectorCount: 5 });
-        plan.sequence[0] = { ...plan.sequence[0], objectiveId: 'intercept', objective: h.entry.objective };
-        run.startRun({ strategy, encounterPlan: plan });
-        run.applyGameplayEvent({ type: 'unit_goal_reached', unitKind: 'tank' });
-        const result = run.deriveRoundEndPlan({ players: [h.human], inputs: { reason: h.round.resolve().reason }, baseController: {} });
-        assert.equal(result.outcome.state, 'MATCH_END');
-        assert.equal(run.getPhase(), 'finished');
-        assert.equal(run.getStateSnapshot().completedSectors, 0);
-        assert.equal(run.getIntermissionState(), null);
-        assert.match(result.outcome.messageText, /Konvoi durchgebrochen/);
-        run.startRun({ strategy, encounterPlan: plan });
-        assert.equal(run.getStateSnapshot().objectiveState.failed, false);
-        assert.equal(run.getStateSnapshot().objectiveState.unitsDestroyed, 0);
-        assert.equal(run.getStateSnapshot().completedSectors, 0);
+        const baseController = new RoundStateController();
+        const controller = new ArcadeRoundStateController({ arcadeRuntime: run, baseController });
+        Object.assign(h.human, { hp: 62, maxHp: 100, shieldHP: 12, maxShieldHp: 40, hasShield: true });
+        const result = controller.deriveOnRoundEndPlan([h.human], { reason: h.round.resolve().reason });
+        assert.equal(result.outcome.state, 'ROUND_END');
+        assert.equal(result.outcome.reason, 'ARCADE_OBJECTIVE_FAILED');
+        assert.equal(result.transition.nextState, 'ROUND_END');
+        assert.equal(run.getPhase(), 'intermission');
+        assert.equal(run.getStateSnapshot().completedSectors, 1);
+        assert.ok(run.getIntermissionState());
+        assert.match(result.outcome.messageText, /Sektor 1\/5 verloren.*Konvoi durchgebrochen/);
+
+        run.handleRoundEndTelemetry({ state: 'ROUND_END', duration: 5, kills: 1 });
+        const sector = run.getStateSnapshot().lastCompletedSectorResult;
+        assert.equal(sector.objectiveSnapshot.failed, true);
+        assert.equal(sector.objectiveSnapshot.completed, false);
+        assert.equal(run.getStateSnapshot().lastSectorSummary.breakdown.time, 0);
+        assert.equal(run.getIntermissionState().breakdown.time, 0);
+        assert.equal(controller.deriveRoundEndTick({ dt: 0, roundPause: 0 }).action, 'START_ROUND');
+        assert.equal(run.getPhase(), 'sector_active');
+        assert.equal(run.getStateSnapshot().sectorIndex, 2);
+        h.human.hasShield = false;
+        resetPlayerHealth(h.human, { ...DEFAULT_ENTITY_RUNTIME_CONFIG, HUNT: { ...DEFAULT_ENTITY_RUNTIME_CONFIG.HUNT, ENABLED: true, ACTIVE_MODE: 'ARCADE', DEFAULT_MODE: 'ARCADE' } });
+        assert.equal(h.human.hp, 100, 'spawn resets to base HP before the intermission carry is applied');
+        assert.equal(h.human.shieldHP, 0);
+        const intermissionEffects = run.applyPendingIntermissionEffects({ players: [h.human] });
+        assert.equal(intermissionEffects.playersRestored, 1, 'failed convoy sectors preserve captured pilot vitals across the real round restart');
+        assert.ok(intermissionEffects.healedTotal > 0, 'the existing normal Arcade intermission heal still applies after restoring vitals');
+        assert.equal(h.human.hp, 62 + intermissionEffects.healedTotal);
+        assert.ok(h.human.hp < h.human.maxHp, 'the failure transition does not silently full-heal the pilot');
+        assert.equal(h.human.shieldHP, 12, 'the captured shield survives the failed-sector transition');
+        assert.equal(h.human.hasShield, true);
+
+        const dead = makeRun();
+        const death = dead.deriveRoundEndPlan({ players: [{ ...h.human, alive: false, hp: 0 }], inputs: { reason: 'ARCADE_OBJECTIVE_FAILED' }, baseController });
+        assert.equal(death.outcome.state, 'MATCH_END');
+        assert.equal(death.outcome.reason, 'ELIMINATION');
+        assert.equal(dead.getPhase(), 'finished');
+        assert.equal(dead.getIntermissionState(), null);
+
+        const aborted = makeRun();
+        const abort = aborted.deriveRoundEndPlan({ players: [h.human], inputs: { reason: 'RUN_ABORT' }, baseController });
+        assert.equal(abort.outcome.state, 'MATCH_END');
+        assert.equal(abort.outcome.reason, 'RUN_ABORT');
+        assert.equal(aborted.getPhase(), 'finished');
+        assert.equal(aborted.getIntermissionState(), null);
+
+        const finalRun = makeRun(1);
+        finalRun.applyGameplayEvent({ type: 'unit_goal_reached', unitKind: 'tank' });
+        const finalFailure = finalRun.deriveRoundEndPlan({ players: [h.human], inputs: { reason: 'ARCADE_OBJECTIVE_FAILED' }, baseController });
+        assert.equal(finalFailure.outcome.state, 'MATCH_END');
+        assert.equal(finalFailure.outcome.reason, 'ARCADE_OBJECTIVE_FAILED');
+        assert.equal(finalRun.getPhase(), 'finished');
+        assert.equal(finalRun.getStateSnapshot().completedSectors, 1);
+        assert.equal(finalRun.getStateSnapshot().victory, null);
+        assert.equal(finalRun.getIntermissionState(), null);
+        assert.match(finalFailure.outcome.messageText, /Sektor 1\/1 verloren.*Run beendet/);
+        assert.doesNotMatch(finalFailure.outcome.messageText, /Run geschafft/);
     } finally { h.units.dispose(); }
 });
-
 test('convoy replica follows arrival snapshots without emitting an objective or taking host damage', () => {
     const host = createHarness('bridge_convoy');
     const replica = createHarness('bridge_convoy');

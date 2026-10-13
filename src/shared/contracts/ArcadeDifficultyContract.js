@@ -84,6 +84,9 @@ export function createArcadeRankContext({ runId, runType, vehicleId, profile, st
     const customSettings = hasCustomArcadeScoreSettings(runType, runSettings);
     return Object.freeze({
         runId: String(runId || ''), runType, vehicleId, vehicleLevel, levelRange: resolveArcadeLevelRange(vehicleLevel),
+        // Preserve the model that the caller actually supplied. Missing/legacy settings must not
+        // be silently promoted to the current score model by this rank-context boundary.
+        scoreModel: typeof runSettings?.scoreModel === 'string' ? runSettings.scoreModel.trim() : '',
         tierId: runType === 'five_portals' ? 'any' : tierId,
         portalChainId: runType === 'five_portals' ? normalizePortalChainId(portalChainId) : '',
         strengthScaled,

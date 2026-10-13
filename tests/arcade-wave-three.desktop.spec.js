@@ -91,9 +91,15 @@ function readScenario(page) {
             mapKey: game.runtimeConfig.session.mapKey,
             mode: manager.gameModeStrategy.modeType, pickupMode: manager.gameModeStrategy.getPickupModeType(),
             botCount: manager.bots.length,
-            objectiveId: objective?.objectiveId, objectiveStatus: objective?.status,
+            objectiveStatePresent: Boolean(objective), objectiveId: objective?.objectiveId, objectiveStatus: objective?.status,
+            objectiveFailed: objective?.failed === true, objectiveCompleted: objective?.completed === true,
+            lastSectorTimeBonus: run.lastSectorSummary?.breakdown?.time ?? null,
+            hasIntermission: Boolean(run.intermission),
             objectiveDuration: objective?.durationSec, breached: objective?.breachComplete === true,
             stoppedTanks: objective?.unitsDestroyed || 0,
+            mapClock: Number(manager.arena?.glbAnimationElapsedSeconds) || 0,
+            lowerLegBreakAtSeconds: manager.getMapDestructibleSystem?.().getState?.().events?.find((event) => event.kind === 'leg_lower')?.atSeconds ?? null,
+            vaultUnlockAtSeconds: manager._secretRoomSystem?.getRooms?.().find((entry) => entry.room.id === 'vault')?.unlockSeconds ?? null,
             vaultOpen: manager.arena.portals.find((portal) => portal.roomId === 'vault')?.active === true,
             expansionStage: expansion?.state?.stageIndex ?? -1,
             expansionPhase: expansion?.state?.phase || '',
@@ -131,21 +137,27 @@ test('Arcade wave three: destroy the bridge convoy and return to ordinary Arcade
     await expect.poll(() => readScenario(page)).toMatchObject({ scenarioId: '', pickupMode: 'ARCADE' });
 });
 
-test('Arcade wave three: first convoy arrival terminates the run despite a living pilot', async ({ page }, testInfo) => {
+test('Arcade wave three: a convoy breakthrough loses one sector and continues with a living pilot', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await startScenario(page, 'bridge_convoy');
-    // Advance the actual map-unit movement, with its authored routes and speeds. The fastest
-    // tank arrives first; the objective uses the resulting runtime event to fail the run.
+    // Advance the actual map-unit movement; the authored fastest tank triggers the failed objective.
     await page.evaluate(() => window.GAME_INSTANCE.entityManager._mapUnitSystem.update(40));
     await expect.poll(() => readScenario(page)).toMatchObject({
-        state: 'MATCH_END', phase: 'finished', objectiveStatus: 'failed', completedSectors: 2,
+        state: 'ROUND_END', phase: 'intermission', objectiveStatus: 'failed',
+        objectiveFailed: true, objectiveCompleted: false, completedSectors: 3,
+        lastSectorTimeBonus: 0, hasIntermission: true,
     });
     expect(await page.evaluate(() => window.GAME_INSTANCE.entityManager.humanPlayers[0].alive)).toBe(true);
-    await expect(page.locator('#message-text')).toContainText('Konvoi durchgebrochen');
-    await expect(page.locator('#btn-arcade-intermission-continue')).not.toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath('bridge-convoy-failure.png') });
+    await expect(page.locator('#message-text')).toContainText('Sektor 3/5 verloren');
+    await expect(page.locator('#btn-arcade-intermission-continue')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('bridge-convoy-failure-intermission.png') });
+    await page.click('#btn-arcade-intermission-continue');
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex === 4);
+    await expect.poll(() => readScenario(page)).toMatchObject({
+        sectorIndex: 4, completedSectors: 3, scenarioId: '', pickupMode: 'ARCADE',
+    });
 });
-
 test('Arcade wave three: the vault requires a leg, opens its portal, then accepts the boss kill', async ({ page }, testInfo) => {
     test.setTimeout(240_000);
     await startScenario(page, 'vault_breaker');
@@ -162,7 +174,17 @@ test('Arcade wave three: the vault requires a leg, opens its portal, then accept
         system.applySegmentHit(leg.id, 100000, { sourcePlayer: manager.humanPlayers[0] });
     });
     await expect.poll(() => readScenario(page)).toMatchObject({ breached: true, objectiveStatus: 'active' });
-    await expect.poll(() => readScenario(page), { timeout: 15_000 }).toMatchObject({ vaultOpen: true, state: 'PLAYING' });
+    await page.waitForFunction(() => {
+        const game = window.GAME_INSTANCE;
+        const manager = game?.entityManager;
+        const portal = manager?.arena?.portals?.find((entry) => entry.roomId === 'vault');
+        const room = manager?._secretRoomSystem?.getRooms?.().find((entry) => entry.room.id === 'vault');
+        const mapClock = Number(manager?.arena?.glbAnimationElapsedSeconds) || 0;
+        return game?.state === 'PLAYING' && room?.open === true && portal?.active === true
+            && Number.isFinite(room.unlockSeconds) && mapClock >= room.unlockSeconds;
+    }, null, { timeout: 15_000 }).catch(async (error) => {
+        throw new Error(String(error.message) + '\nVault map-clock diagnostic: ' + JSON.stringify(await readScenario(page)));
+    });
     const travel = await page.evaluate(() => {
         const arena = window.GAME_INSTANCE.entityManager.arena;
         const portal = arena.portals.find((entry) => entry.roomId === 'vault');
@@ -181,6 +203,35 @@ test('Arcade wave three: the vault requires a leg, opens its portal, then accept
     await page.screenshot({ path: testInfo.outputPath('vault-boss-defeated.png') });
 });
 
+test('Arcade wave three: the real Vault safety clock fails the sector and continues', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    await startScenario(page, 'vault_breaker');
+    await expect.poll(() => readScenario(page)).toMatchObject({ objectiveId: 'breach_vault', objectiveStatus: 'active' });
+    const plannedNextSector = await page.evaluate(() => {
+        const sequence = window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime._state.encounterSequence;
+        const entry = sequence[3];
+        return { scenarioId: entry.scenarioId, templateId: entry.templateId, mapKey: entry.mapKey, objectiveId: entry.objectiveId, combatProfile: entry.combatProfile };
+    });
+    expect(plannedNextSector).toEqual({ scenarioId: 'spiessrutenlauf', templateId: 'sector_parcours', mapKey: 'mirror_docks', objectiveId: 'parcours_run', combatProfile: 'hunt' });
+    await page.screenshot({ path: testInfo.outputPath('vault-safety-clock-active.png') });
+    await page.evaluate(() => window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.tickGameplay(120));
+    await expect.poll(() => readScenario(page)).toMatchObject({
+        state: 'ROUND_END', phase: 'intermission', objectiveStatus: 'failed',
+        objectiveFailed: true, objectiveCompleted: false, completedSectors: 3,
+        lastSectorTimeBonus: 0, hasIntermission: true,
+    });
+    expect(await page.evaluate(() => window.GAME_INSTANCE.entityManager.humanPlayers[0].alive)).toBe(true);
+    await expect(page.locator('#message-text')).toContainText('Zielzeit abgelaufen');
+    await expect(page.locator('#btn-arcade-intermission-continue')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('vault-safety-clock-intermission.png') });
+    await page.click('#btn-arcade-intermission-continue');
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex === 4);
+    await expect.poll(() => readScenario(page)).toMatchObject({
+        sectorIndex: 4, completedSectors: 3, scenarioId: plannedNextSector.scenarioId,
+        mapKey: plannedNextSector.mapKey, objectiveStatePresent: false, pickupMode: 'HUNT',
+    });
+});
 test('Arcade wave three: bloom survives all real timed expansions and ends at the final opening', async ({ page }, testInfo) => {
     test.setTimeout(300_000);
     await startScenario(page, 'bloom_escape');

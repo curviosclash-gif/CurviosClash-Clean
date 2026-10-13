@@ -124,7 +124,7 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
             mapKey: normalizedMapKey,
             mapLabel: formatArcadeMapLabel(normalizedMapKey),
             modifierId: normalizedModifierId || null,
-            modifierLabel: modifierMeta?.label || (normalizedModifierId || 'Kein Modifier'),
+            modifierLabel: modifierMeta?.label || (normalizedModifierId || 'Kein Modifikator'),
             modifierEffect: modifierMeta?.effectText || '',
             // The same values the swap writes into the sector: its score bonus and the pressure
             // the sector profile derives from the chosen modifier.

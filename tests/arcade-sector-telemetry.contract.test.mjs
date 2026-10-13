@@ -11,8 +11,8 @@ import {
 } from '../src/state/arcade/ArcadeRunState.js';
 import { XP_REWARD_TABLE } from '../src/state/arcade/ArcadeVehicleProfile.js';
 
-/** Points per kill in the arcade sector score (ArcadeScoreOps KILL_SCORE_BASE). */
-const KILL_SCORE_BASE = 35;
+/** Points per kill in arcade-score.v4 (ArcadeScoreOps KILL_SCORE_BASE). */
+const KILL_SCORE_BASE = 60;
 const HUMAN_KILLS = 3;
 const BOT_KILLS = 5;
 

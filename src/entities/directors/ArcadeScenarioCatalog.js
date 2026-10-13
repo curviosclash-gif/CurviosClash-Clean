@@ -82,7 +82,7 @@ const RAW_ARCADE_SCENARIOS = [
         briefing: 'Schieße zuerst ein Turmbein weg. Das Portal zum Tresor öffnet sich danach; besiege den Boss darin.',
         slot: 'sector', mapKey: 'eiffel_tower_siege', combatProfile: 'hunt', botCount: 0,
         minSector: 3, maxSector: 6,
-        objective: { id: 'breach_vault', label: 'Bein brechen · Boss besiegen', unitKind: 'boss', count: 1, durationSec: 0, scoreWeight: 1.6 },
+        objective: { id: 'breach_vault', label: 'Bein brechen · Boss besiegen', unitKind: 'boss', count: 1, durationSec: 0, safetyTimeoutSec: 120, scoreWeight: 1.6 },
     },
     {
         id: 'bloom_escape',
@@ -100,7 +100,7 @@ const RAW_ARCADE_SCENARIOS = [
         mapKey: 'hydra_temple',
         combatProfile: 'hunt',
         squadId: 'striker_tri',
-        objective: { id: 'destroy_units', label: 'Hydra besiegen', unitKind: 'creature', count: 1, durationSec: 0, scoreWeight: 1.5 },
+        objective: { id: 'destroy_units', label: 'Hydra besiegen', unitKind: 'creature', count: 1, durationSec: 0, safetyTimeoutSec: 120, scoreWeight: 1.5 },
         minSector: 3,
     },
 ];
@@ -127,6 +127,7 @@ const SCENARIO_SECTOR_OFFSET = 3;
 const FINALE_SCENARIO_CHANCE = 0.5;
 const PARCOURS_SCENARIO_CHANCE = 0.5;
 const MIN_SECTORS_FOR_SCENARIOS = 3;
+const LATE_SECTOR_SCENARIO_IDS = new Set(['worm_hunt', 'bomber_alarm', 'bridge_convoy']);
 
 function pick(pool, randomFn) {
     if (pool.length === 0) return null;
@@ -138,11 +139,17 @@ function pick(pool, randomFn) {
  * `randomFn` must be a stream of its own: drawing from the plan stream would reshuffle every
  * sector after the first scenario.
  */
-export function resolveArcadeScenarioForSector({ sectorNumber, sectorCount, isBoss, isParcours, allowedScenarioIds }, randomFn) {
+export function resolveArcadeScenarioForSector({
+    sectorNumber, sectorCount, isBoss, isParcours, allowedScenarioIds, excludedScenarioIds, allowLateSectorScenarios = false,
+}, randomFn) {
     if (sectorCount < MIN_SECTORS_FOR_SCENARIOS || sectorNumber < MIN_SECTORS_FOR_SCENARIOS) return null;
     const allowedIds = allowedScenarioIds instanceof Set ? allowedScenarioIds : null;
-    const inRange = (scenario) => sectorNumber >= scenario.minSector && sectorNumber <= scenario.maxSector
-        && (!allowedIds || allowedIds.has(scenario.id));
+    const excludedIds = excludedScenarioIds instanceof Set ? excludedScenarioIds : null;
+    const inRange = (scenario) => sectorNumber >= scenario.minSector
+        && (sectorNumber <= scenario.maxSector
+            || (allowLateSectorScenarios && LATE_SECTOR_SCENARIO_IDS.has(scenario.id)))
+        && (!allowedIds || allowedIds.has(scenario.id))
+        && (!excludedIds || !excludedIds.has(scenario.id));
     if (isParcours) {
         if (randomFn() >= PARCOURS_SCENARIO_CHANCE) return null;
         return pick(ARCADE_SCENARIOS.filter((scenario) => scenario.slot === 'parcours' && inRange(scenario)), randomFn);

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { ARCADE_COMPANION_KILL_SCORE_FACTOR } from '../src/shared/contracts/ArcadeCompanionContract.js';
 import { emitArcadeEliminationEvents } from '../src/entities/runtime/EntityArcadeGameplayEvents.js';
 import { applyComboAction } from '../src/state/arcade/ArcadeScoreOps.js';
-import { createArcadeObjectiveState } from '../src/state/arcade/ArcadeObjectiveState.js';
+import { createArcadeObjectiveState, updateArcadeObjectiveState } from '../src/state/arcade/ArcadeObjectiveState.js';
 import { buildObjectiveParticipants } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
 import { createArcadeRankContext } from '../src/shared/contracts/ArcadeDifficultyContract.js';
 import { resolveArcadeRankKey } from '../src/shared/contracts/ArcadeRankedLeaderboardContract.js';
@@ -20,15 +20,37 @@ function eventOwner() {
     return { events, players: [human, enemy, rival, companion], runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } }, onArcadeGameplayEvent: (event) => events.push(event) };
 }
 
-test('a companion kill reaches the run flagged with the half score factor, a squad kill does not', () => {
+test('a companion kill is credited at half weight while an uncredited bot death stays neutral', async () => {
     const owner = eventOwner();
     emitArcadeEliminationEvents(owner, enemy, 'PROJECTILE', { killer: companion });
     emitArcadeEliminationEvents(owner, companion, 'PROJECTILE', { killer: rival });
-    assert.equal(owner.events.length, 1, 'only the companion kill counts');
+    const creditedKills = owner.events.filter((event) => event.type === 'kill');
+    const neutralDeaths = owner.events.filter((event) => event.type === 'uncredited_bot_eliminated');
+    assert.equal(creditedKills.length, 1, 'only the credited companion kill counts as a kill');
     assert.deepEqual(
-        [owner.events[0].type, owner.events[0].victimIndex, owner.events[0].companion, owner.events[0].scoreFactor],
-        ['kill', enemy.index, true, ARCADE_COMPANION_KILL_SCORE_FACTOR],
+        [creditedKills[0].victimIndex, creditedKills[0].companion, creditedKills[0].scoreFactor],
+        [enemy.index, true, ARCADE_COMPANION_KILL_SCORE_FACTOR],
     );
+    assert.equal(neutralDeaths.length, 1, 'the rival killing a companion is observable without receiving kill credit');
+    const neutralDeath = neutralDeaths[0];
+    assert.deepEqual(Object.keys(neutralDeath).sort(), ['type', 'victimIndex']);
+    assert.equal(neutralDeath.victimIndex, companion.index);
+    assert.equal(Object.hasOwn(neutralDeath, 'playerIndex'), false);
+    assert.equal(Object.hasOwn(neutralDeath, 'count'), false);
+    assert.equal(Object.hasOwn(neutralDeath, 'scoreFactor'), false);
+
+    const participants = buildObjectiveParticipants(owner);
+    const bounty = createArcadeObjectiveState({ id: 'bounty_hunt', durationSec: 50 }, { participants });
+    const objectiveAfterNeutralDeath = updateArcadeObjectiveState(bounty, neutralDeath);
+    assert.equal(objectiveAfterNeutralDeath.targetPlayerIndex, enemy.index, 'a companion cannot be the bounty target');
+    assert.equal(objectiveAfterNeutralDeath.completed, false, 'the neutral companion death cannot complete the bounty');
+
+    const scoreBefore = { combo: 2, comboAccum: 0.5, multiplier: 2 };
+    assert.deepEqual(applyComboAction(scoreBefore, neutralDeath, { maxMultiplier: 8 }), scoreBefore);
+    const { createArcadeColorProgress, trackArcadeColorEvent } = await import('../src/shared/contracts/ArcadeColorProgressContract.js');
+    const colorProgress = createArcadeColorProgress({ runType: 'gauntlet', humanIndices: [human.index] });
+    assert.deepEqual(trackArcadeColorEvent(colorProgress, neutralDeath), []);
+    assert.equal(colorProgress.players[human.index].kills, 0, 'neutral bot deaths do not advance player color progress');
 });
 
 test('a companion kill grows the combo at half the rate of a human kill', () => {
