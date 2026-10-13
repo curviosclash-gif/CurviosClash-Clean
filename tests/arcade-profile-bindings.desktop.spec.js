@@ -54,7 +54,7 @@ async function openProfileManager(page) {
         await expect(page.locator('#menu-nav')).toBeVisible();
     }
     await expect(page.locator('#menu-nav')).toBeVisible();
-    await page.locator('[data-menu-action="level4-open"][data-level4-section="tools"][data-menu-text-id="menu.utility.profiles.label"]').click();
+    await page.locator('#btn-main-player').click();
     await expect(page.locator('#level4-section-tools')).toBeVisible();
     await expect(page.locator('#player-profile-name')).toBeVisible();
 }

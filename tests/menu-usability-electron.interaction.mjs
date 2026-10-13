@@ -48,7 +48,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
                 else delete navigator.getGamepads;
             }
         }, index);
-        await expect(page.locator('#btn-quick-last-settings')).toContainText('Sofort spielen');
+        await expect(page.locator('#btn-quick-last-settings')).toContainText('Weiterspielen');
         await expect(page.locator('#quick-last-summary')).toContainText('Schwer');
         await capture('home');
         await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -83,7 +83,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         assert.ok(reachability.count >= 10);
         assert.deepEqual(reachability.missing, []);
 
-        const settingsEntry = page.locator('.menu-utility-shell [data-level4-section="controls"]');
+        const settingsEntry = page.locator('.menu-top-right .menu-settings-entry');
         await settingsEntry.click();
         await expect(page.locator('#submenu-level4')).toBeVisible();
         await page.locator('#level4-tab-audio').click();

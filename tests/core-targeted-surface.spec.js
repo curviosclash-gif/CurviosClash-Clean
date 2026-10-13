@@ -3033,7 +3033,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(railState.startVisible).toBeTruthy();
         expect(railState.summaryBlocks).toBeGreaterThanOrEqual(4);
         expect(railState.summaryWhiteSpace).toBe('normal');
-        expect(railState.visibleSummaryBlocks).toEqual(['Spielstil', 'Karte', 'Flugzeug', 'Regeln']);
+        expect(railState.visibleSummaryBlocks).toEqual(['Spielart', 'Karte', 'Flugzeug', 'Regeln']);
 
         await page.click('.start-step-tab[data-start-section-target="vehicle"]');
         await expect(page.locator('#btn-start')).toBeInViewport();

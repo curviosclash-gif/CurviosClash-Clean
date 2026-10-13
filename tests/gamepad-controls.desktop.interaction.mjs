@@ -31,7 +31,7 @@ test('desktop controller editor swaps bindings and persists them across reload',
         app = await _electron.launch({ executablePath: requireElectron('electron'), args: [boot], env });
         const page = await app.firstWindow();
         await page.waitForSelector('#main-menu[data-shell-ready="true"]', { timeout: 60_000 });
-        await page.locator('.menu-utility-shell [data-level4-section=controls]').click();
+        await page.locator('.menu-top-right [data-level4-section=controls]').click();
         const editor = page.locator('#keybind-global [data-gamepad-editor]');
         await expect(editor).toBeVisible();
         await expect(editor.locator('[data-gamepad-action]')).toHaveCount(11);
@@ -62,7 +62,7 @@ test('desktop controller editor swaps bindings and persists them across reload',
         await page.waitForFunction(() => window.GAME_INSTANCE?.settingsDirty === false);
         await page.reload();
         await page.waitForSelector('#main-menu[data-shell-ready="true"]');
-        await page.locator('.menu-utility-shell [data-level4-section=controls]').click();
+        await page.locator('.menu-top-right [data-level4-section=controls]').click();
         await expect(assignment).toHaveValue('controller-controller');
         await expect(invertPitch).not.toBeChecked();
         await expect(invertPitchP3).not.toBeChecked();

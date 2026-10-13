@@ -69,6 +69,7 @@ export function createGameUiRefs(doc = document) {
         sessionButtons: Array.from(doc.querySelectorAll('.nav-btn[data-session-type]')),
         modePathButtons: Array.from(doc.querySelectorAll('.mode-path-btn[data-mode-path]')),
         freePlayEntryButton: doc.getElementById('btn-free-play'),
+        quitGameButton: doc.getElementById('btn-quit-game'),
         freePlayVariantButtons: Array.from(doc.querySelectorAll('[data-free-play-variant]')),
         freePlayVariantHint: doc.getElementById('free-play-variant-hint'),
         freePlayOnlyElements: Array.from(doc.querySelectorAll('[data-free-play-only]')),

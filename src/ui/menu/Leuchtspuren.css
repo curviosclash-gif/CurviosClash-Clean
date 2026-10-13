@@ -23,7 +23,22 @@
 #main-menu:not([data-menu-depth="1"]) .menu-trail-scene { display: none; }
 #main-menu[data-menu-depth="1"] .menu-hero-shell { position: relative; display: flex; flex-direction: column; align-items: center; padding: 22px 0 10px; }
 #main-menu[data-menu-depth="1"] #main-menu-title { font-size: clamp(36px, 4.6vw, 68px); letter-spacing: .015em; margin: 22px 0 16px; }
-#main-menu[data-menu-depth="1"] #player-profile-summary { position: absolute; top: -15px; right: 0; color: #c3d4e7; }
+/* Stage with dock: player and settings sit top right, the side links beside "Weiterspielen", the dock below. */
+#main-menu[data-menu-depth="1"] .menu-top-right { position: absolute; top: -15px; right: 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+#main-menu .menu-top-right .secondary-btn { width: auto; margin: 0; min-height: 44px; padding: 8px 14px; background: rgba(5, 20, 39, .7); border-color: var(--lobby-line); color: #c3d4e7; }
+#main-menu .menu-stage-footer { display: flex; justify-content: flex-end; margin-top: 12px; }
+#main-menu .menu-quit-btn { width: auto; margin: 0; min-height: 44px; padding: 8px 16px; background: transparent; }
+#main-menu .menu-quit-btn[data-confirm-armed="true"] { border-color: #ff6b6b; color: #ffd1d1; }
+#main-menu:not([data-menu-depth="1"]) .menu-stage-footer { display: none; }
+@media (min-width: 1000px) {
+    #main-menu[data-menu-depth="1"] .menu-shell { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 220px); column-gap: 24px; grid-template-areas: "top top" "primary side" "dock dock" "footer footer"; align-items: center; }
+    #main-menu[data-menu-depth="1"] .menu-stage-top { grid-area: top; }
+    #main-menu[data-menu-depth="1"] .menu-primary-action { grid-area: primary; }
+    #main-menu[data-menu-depth="1"] .menu-side-links { grid-area: side; flex-direction: column; align-items: stretch; border-top: 0; border-left: 1px solid var(--lobby-line); padding: 0 0 0 16px; margin-bottom: 26px; }
+    #main-menu[data-menu-depth="1"] .menu-dock { grid-area: dock; }
+    #main-menu[data-menu-depth="1"] .menu-stage-footer { grid-area: footer; }
+    #main-menu[data-menu-depth="1"] .menu-primary-start { width: 100%; }
+}
 #main-menu[data-menu-depth="1"] .menu-primary-action { display: flex; justify-content: center; margin: 0 0 26px; }
 #main-menu[data-menu-depth="1"] .menu-primary-start { width: min(650px, 76%); min-height: 108px; border: 1px solid #27d6ff; border-radius: 14px; background: linear-gradient(135deg, #00a8ed, #008acf); box-shadow: 0 5px 30px #009ed530; }
 #main-menu .menu-primary-start-label { font-size: clamp(22px, 2.2vw, 32px); }
