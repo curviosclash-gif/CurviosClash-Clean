@@ -102,6 +102,7 @@ export class SettingsStore {
             ? [...options.menuPresetsStorageLegacyKeys]
             : [...MENU_PRESETS_STORAGE_LEGACY_KEYS];
         this.persistenceStatus = createInitialPersistenceStatus();
+        this.unsupportedSettingsVersion = null;
     }
 
     _recordPersistenceResult(channel, result) {
@@ -154,6 +155,14 @@ export class SettingsStore {
         };
     }
 
+    _futureSettingsVersion(settings) {
+        const savedVersion = Number(settings?.settingsVersion);
+        const supportedVersion = Number(this.createDefaultSettings()?.settingsVersion);
+        return Number.isFinite(savedVersion) && Number.isFinite(supportedVersion) && savedVersion > supportedVersion
+            ? savedVersion
+            : null;
+    }
+
     loadSettings() {
         try {
             const saved = this.storagePlatform.readJson(
@@ -161,6 +170,12 @@ export class SettingsStore {
                 this.settingsStorageLegacyKeys,
                 null
             );
+            const futureVersion = this._futureSettingsVersion(saved);
+            if (futureVersion !== null) {
+                this.unsupportedSettingsVersion = futureVersion;
+                return this._createCanonicalSettingsPersistenceState(saved).canonicalSettings;
+            }
+            this.unsupportedSettingsVersion = null;
             const persistenceState = this._createCanonicalSettingsPersistenceState(saved);
             if (persistenceState.didNormalize) {
                 const writeBack = this.storagePlatform.writeJson(
@@ -187,6 +202,24 @@ export class SettingsStore {
 
     saveSettings(settings) {
         const persistenceState = this._createCanonicalSettingsPersistenceState(settings);
+        const futureVersion = this._futureSettingsVersion(settings);
+        const supportedVersion = Number(this.createDefaultSettings()?.settingsVersion);
+        const storedFutureVersion = Number(this.unsupportedSettingsVersion);
+        const stillUnsupported = Number.isFinite(storedFutureVersion) && storedFutureVersion > supportedVersion;
+        if (futureVersion !== null || stillUnsupported) {
+            const rejectedVersion = futureVersion ?? storedFutureVersion;
+            const result = this._recordPersistenceResult('settings', createPersistenceResult(
+                false,
+                'unsupported_schema_version',
+                {
+                    key: this.settingsStorageKey,
+                    settingsVersion: rejectedVersion,
+                    supportedVersion,
+                }
+            ));
+            return { ...result, canonicalSettings: persistenceState.canonicalSettings };
+        }
+        this.unsupportedSettingsVersion = null;
         const result = this.storagePlatform.writeJson(
             this.settingsStorageKey,
             persistenceState.canonicalSettings

@@ -58,6 +58,26 @@ test('SettingsManager repairs primitive persisted settings with the fresh profil
     assert.deepEqual(storagePlatform.getRecord(STORAGE_KEYS.settings), loadedSettings);
 });
 
+test('SettingsManager preserves future settings versions across load and save attempts', () => {
+    const defaults = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() }).createDefaultSettings();
+    const futureSettings = {
+        ...defaults,
+        settingsVersion: defaults.settingsVersion + 1,
+        futureFeatureSettings: { enabled: true, values: ['new-client-only'] },
+    };
+    const storagePlatform = createMemoryStoragePlatform({ [STORAGE_KEYS.settings]: futureSettings });
+    const manager = new SettingsManager({ storagePlatform });
+
+    const loadedSettings = manager.loadSettings();
+    assert.equal(loadedSettings.settingsVersion, defaults.settingsVersion);
+    assert.deepEqual(storagePlatform.getRecord(STORAGE_KEYS.settings), futureSettings, 'load does not downgrade the stored record');
+
+    const saved = manager.saveSettings(loadedSettings);
+    assert.equal(saved.success, false);
+    assert.equal(saved.reason, 'unsupported_schema_version');
+    assert.deepEqual(storagePlatform.getRecord(STORAGE_KEYS.settings), futureSettings, 'save cannot overwrite the newer snapshot');
+});
+
 test('SettingsManager partial snapshots preserve current invert-pitch and vehicle defaults', () => {
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
     const defaults = manager.createDefaultSettings();
