@@ -322,6 +322,40 @@ test('V85.2 arcade persistence migrates missing schemas and preserves future rec
     assert.equal(loadoutStore.saved?.schemaVersion, 'arcade-vehicle-loadouts.v1');
 });
 
+test('vehicle loadout presets preserve and do not overwrite unsupported future schemas', () => {
+    const futureRecord = {
+        schemaVersion: 'arcade-vehicle-loadouts.v9',
+        presets: [{
+            presetId: 'future-preset',
+            vehicleId: 'ship5',
+            name: 'Future preset',
+            upgrades: { core: 'T3' },
+            updatedAtMs: 1234,
+        }],
+        futureMetadata: { format: 'newer-app' },
+    };
+    const loadoutStore = {
+        data: structuredClone(futureRecord),
+        saved: null,
+        loadJsonRecord() {
+            return this.data;
+        },
+        saveJsonRecord(_key, value) {
+            this.saved = value;
+            this.data = value;
+        },
+    };
+
+    const presetStore = createVehicleManagerLoadoutPresetStore({ store: loadoutStore });
+
+    assert.deepEqual(presetStore.listPresets('ship5'), []);
+    assert.equal(presetStore.loadPreset('ship5', 'future-preset'), null);
+    assert.equal(presetStore.savePreset('ship5', 'Local preset', { core: 'T2' }), null);
+    assert.equal(presetStore.deletePreset('ship5', 'future-preset'), false);
+    assert.equal(loadoutStore.saved, null);
+    assert.deepEqual(loadoutStore.data, futureRecord);
+});
+
 test('B04 F2 preset import blocks invalid upgrade slots and tiers before profile apply', () => {
     const profile = {
         schemaVersion: 'arcade-vehicle-profile.v1',
