@@ -1118,19 +1118,23 @@
                     </div>
                     <div id="multiplayer-inline-stub" class="lobby-surface">
                         <div id="multiplayer-connection-controls" data-connection-intent="join">
-                                    <div class="mp-intent-choices" role="group" aria-label="Mehrspieler starten">
-                                        <button type="button" class="secondary-btn" data-connection-intent-target="host" data-requires-cap="host" aria-pressed="false">Spiel erstellen</button>
-                                        <button type="button" class="secondary-btn active" data-connection-intent-target="join" aria-pressed="true">Spiel beitreten</button>
+                                    <div class="mp-intent-choices mp-intent-cards" role="group" aria-label="Mehrspieler starten">
+                                        <button type="button" class="secondary-btn mp-intent-card" data-connection-intent-target="host" data-requires-cap="host" aria-pressed="false">
+                                            <span class="mp-intent-title">Spiel erstellen</span>
+                                            <span class="mp-intent-copy">Du bist Gastgeber, legst die Regeln fest und teilst den Code; lokale Mitspieler sind wählbar.</span>
+                                        </button>
+                                        <button type="button" class="secondary-btn mp-intent-card active" data-connection-intent-target="join" aria-pressed="true">
+                                            <span class="mp-intent-title">Spiel beitreten</span>
+                                            <span class="mp-intent-copy">Gib den Code ein oder wähle eine offene Lobby.</span>
+                                        </button>
                                     </div>
-                                    <p class="mp-host-help">Erstelle eine Lobby und teile anschließend den Code mit deinen Mitspielern.</p>
-                                    <p class="mp-join-help">Wähle eine Lobby oder gib den Code deiner Mitspieler ein.</p>
                                     <div class="mp-host-fields">
-                                        <label for="multiplayer-host-local-player-count">Lokale Spieler am Host</label>
+                                        <label for="multiplayer-host-local-player-count">Lokale Spieler am Bildschirm des Gastgebers</label>
                                         <select id="multiplayer-host-local-player-count">
                                             <option value="1">1 Spieler · Vollbild</option>
                                             <option value="2">2 Spieler · Geteilter Bildschirm</option>
                                         </select>
-                                        <p class="menu-hint">Nur der Host teilt den Bildschirm; LAN-Gäste spielen im Vollbild.</p>
+                                        <p class="menu-hint">Nur der Gastgeber teilt den Bildschirm; LAN-Gäste spielen im Vollbild.</p>
                                     </div>
                                     <div class="mp-transport-fields">
                                     <p id="multiplayer-transport-hint" class="menu-hint">Verbindung: LAN</p>
@@ -1145,7 +1149,7 @@
                                     <div id="multiplayer-open-lobbies-controls" class="hidden">
                                         <label id="multiplayer-open-lobbies-label" for="multiplayer-lobby-search" data-menu-text-id="menu.level3.multiplayer.open_lobbies.label">Offene Lobbys</label>
                                         <div class="mp-lobby-search-row">
-                                            <input type="text" id="multiplayer-lobby-search" placeholder="Suchen: Host, Code, Karte, Spielstil"
+                                            <input type="text" id="multiplayer-lobby-search" placeholder="Suchen: Gastgeber, Code, Karte, Spielart"
                                                 autocomplete="off" spellcheck="false">
                                             <button type="button" id="btn-multiplayer-lobbies-refresh" class="secondary-btn">
                                                 Aktualisieren
@@ -1165,7 +1169,7 @@
                                     <div class="mp-join-fields">
                                     <details id="multiplayer-manual-address" class="multiplayer-manual-address">
                                         <summary>Manuelle LAN-Adresse</summary>
-                                        <label for="multiplayer-host-address" data-menu-text-id="menu.level3.multiplayer.host_address.label">Host-Adresse</label>
+                                        <label for="multiplayer-host-address" data-menu-text-id="menu.level3.multiplayer.host_address.label">Adresse des Gastgebers</label>
                                         <input type="text" id="multiplayer-host-address" maxlength="96" placeholder="localhost:9090"
                                             autocomplete="off" spellcheck="false">
                                     </details>
@@ -1206,11 +1210,19 @@
                                     </div>
                                 <section class="lobby-match-card" aria-labelledby="lobby-match-title">
                                     <h3 id="lobby-match-title">Match-Einstellungen</h3>
-                                    <div id="lobby-map-preview-mount" class="lobby-map-preview"></div>
-                                    <dl id="lobby-match-summary" class="lobby-match-facts" aria-live="polite"></dl>
-                                    <button type="button" id="btn-lobby-edit-match" class="secondary-btn"
-                                        data-menu-step-target="submenu-game">Match ändern</button>
-                                    <p id="lobby-host-settings-hint" class="menu-hint hidden">Der Host legt die Match-Einstellungen fest.</p>
+                                    <div class="lobby-tabs" role="tablist" aria-label="Spielart der Lobby">
+                                        <button type="button" id="lobby-tab-fight" class="lobby-tab" role="tab" data-lobby-tab="fight"
+                                            aria-selected="true" aria-controls="lobby-tabpanel-fight">Kampf</button>
+                                        <button type="button" id="lobby-tab-arcade" class="lobby-tab" role="tab" data-lobby-tab="arcade"
+                                            data-menu-visibility-key="lobbyArcadeTab" aria-selected="false" disabled>Arcade <span class="lobby-tab-note">kommt bald</span></button>
+                                    </div>
+                                    <div id="lobby-tabpanel-fight" class="lobby-tabpanel" role="tabpanel" aria-labelledby="lobby-tab-fight">
+                                        <div id="lobby-map-preview-mount" class="lobby-map-preview"></div>
+                                        <dl id="lobby-match-summary" class="lobby-match-facts" aria-live="polite"></dl>
+                                        <button type="button" id="btn-lobby-edit-match" class="secondary-btn"
+                                            data-menu-step-target="submenu-game" data-menu-visibility-key="matchRulesEditable">Regeln ändern</button>
+                                        <p id="lobby-host-settings-hint" class="menu-hint hidden">Nur der Gastgeber ändert die Regeln.</p>
+                                    </div>
                                 </section>
                             </div>
                         </div>

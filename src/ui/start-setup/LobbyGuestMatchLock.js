@@ -9,7 +9,7 @@
 // match rules goes into this list.
 
 export const GUEST_LOCKED_LEVEL4_SECTIONS = Object.freeze([]);
-export const LOBBY_GUEST_LOCK_HINT = 'Der Host legt die Match-Einstellungen fest.';
+export const LOBBY_GUEST_LOCK_HINT = 'Nur der Gastgeber ändert die Regeln.';
 
 export function isLobbyGuestMatchLocked(state, isMultiplayerSession) {
     return isMultiplayerSession === true && state?.joined === true && state?.isHost !== true;

@@ -1,6 +1,9 @@
+import { deriveFreePlayVariant } from '../../shared/contracts/FreePlayVariantContract.js';
+import { FREE_PLAY_VARIANT_LABELS } from '../../shared/contracts/FreePlayMapChoiceContract.js';
 import { resolveMapPreview } from '../menu/MenuPreviewCatalog.js';
 import { applyLobbyGuestMatchLock, isLobbyGuestMatchLocked } from './LobbyGuestMatchLock.js';
 import { syncLobbyNameField } from './LobbyNameField.js';
+import { resolveLobbyRole, resolveLobbyTabs, syncLobbyTabs } from './LobbyMatchTabs.js';
 
 export function resolveLobbyStatus(state) {
     if (state?.connectionPhase === 'reconnecting') return `Verbindung wird wiederhergestellt (${state.reconnectAttempt}/${state.reconnectMaxAttempts}) …`;
@@ -15,17 +18,33 @@ export function resolveLobbyStatus(state) {
     const waiting = (state.members || []).filter((member) => !member.isHost && !member.ready);
     if (waiting.length > 1) return `Warte auf ${waiting.length} Teilnehmer`;
     if (waiting.length) return `Warte auf ${waiting[0].name || waiting[0].actorId || 'Spieler'}`;
-    return state.isHost ? 'Alle sind bereit. Du kannst starten.' : 'Alle sind bereit. Warte auf den Host.';
+    return state.isHost ? 'Alle sind bereit. Du kannst starten.' : 'Alle sind bereit. Warte auf den Gastgeber.';
+}
+
+const LOBBY_MODE_LABELS = { normal: 'Klassisch', fight: 'Kampf', arcade: 'Arcade', quick_action: 'Schnellstart' };
+
+// Fight lobbies name their variant (Einzelkampf, Team, Flaggen, Eskorte). Older peers send no
+// match summary, so their variant stays unnamed instead of guessed.
+function resolveLobbyGameKind(metadata) {
+    const modePath = metadata?.modePath;
+    const summary = metadata?.matchSummary;
+    if (modePath === 'fight' && summary) {
+        const variant = deriveFreePlayVariant({
+            localSettings: { modePath },
+            hunt: { teamMode: summary.teamMode === true, teamObjective: summary.teamObjective },
+        });
+        return `Kampf · ${FREE_PLAY_VARIANT_LABELS[variant] || 'Einzelkampf'}`;
+    }
+    return LOBBY_MODE_LABELS[modePath];
 }
 
 export function resolveLobbyMatchFacts(metadata) {
     const summary = metadata?.matchSummary;
     const unavailable = 'Nicht verfügbar';
-    const mode = { normal: 'Klassisch', fight: 'Kampf', arcade: 'Arcade', quick_action: 'Schnellstart' }[metadata?.modePath];
     const difficulty = { EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' }[summary?.botDifficulty];
     const targets = { wins: 'Siege', kills: 'Abschüsse', sectors: 'Sektoren', points: 'Punkte', lives: 'Leben pro Spieler', flags: 'Flaggen', escort: 'Sekunden Eskorte' };
     return [
-        ['Spielstil', mode || unavailable],
+        ['Spielart', resolveLobbyGameKind(metadata) || unavailable],
         ['Karte', metadata?.mapKey ? resolveMapPreview(metadata.mapKey).name : unavailable],
         ['Bots', summary?.numBots != null ? `${summary.numBots} · ${difficulty || unavailable}` : unavailable],
         ['Spielziel', summary?.targetKind && summary.targetValue != null
@@ -52,11 +71,14 @@ export function syncLobbyScreen(ui, state, isMultiplayerSession) {
     if (panel?.dataset) {
         panel.dataset.lobbyJoined = String(joined);
         panel.dataset.lobbyHost = String(host);
+        panel.dataset.lobbyRole = resolveLobbyRole(joined, host);
     }
     const toggle = (element, visible) => element?.classList?.toggle('hidden', !visible);
     toggle(ui.multiplayerLeaveLobbyButton, joined);
-    toggle(ui.lobbyEditMatchButton, host);
-    toggle(ui.lobbyHostSettingsHint, joined && !host);
+    const tabState = resolveLobbyTabs(resolveLobbyRole(joined, host));
+    syncLobbyTabs(panel, tabState);
+    toggle(ui.lobbyEditMatchButton, joined);
+    toggle(ui.lobbyHostSettingsHint, tabState.guestHint);
     applyLobbyGuestMatchLock(panel?.ownerDocument || ui.level4Drawer?.ownerDocument, isLobbyGuestMatchLocked(state, isMultiplayerSession));
     syncLobbyNameField(ui, state, joined);
     toggle(ui.lobbyRetrySettingsButton, host && !!state.settingsSyncError);

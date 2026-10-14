@@ -42,7 +42,7 @@ function toRow(lobby) {
     if (!lobbyCode) return null;
     const row = {
         lobbyCode,
-        hostName: String(lobby?.hostName || '').trim() || 'Unbekannter Host',
+        hostName: String(lobby?.hostName || '').trim() || 'Unbekannter Gastgeber',
         modeLabel: resolveOpenLobbyModeLabel(lobby?.modePath),
         mapLabel: resolveOpenLobbyMapLabel(lobby?.mapKey),
         memberCount: Math.max(0, Math.floor(Number(lobby?.memberCount) || 0)),

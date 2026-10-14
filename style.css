@@ -8860,15 +8860,28 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     min-height: 48px;
     white-space: normal;
 }
-.mp-host-help, .mp-join-help {
+.mp-intent-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 6px;
+    min-height: 96px;
+    padding: 16px 18px;
+    text-align: left;
+}
+.mp-intent-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+.mp-intent-copy {
     font-size: 0.85rem;
-    line-height: 1.5;
-    margin-bottom: 10px;
+    line-height: 1.4;
+    font-weight: 400;
+    opacity: 0.85;
 }
 #multiplayer-connection-controls[data-connection-intent="host"] .mp-join-fields,
-#multiplayer-connection-controls[data-connection-intent="host"] .mp-join-help,
 #multiplayer-connection-controls[data-connection-intent="host"] #btn-multiplayer-join,
-#multiplayer-connection-controls[data-connection-intent="join"] .mp-host-help,
 #multiplayer-connection-controls[data-connection-intent="join"] .mp-host-fields,
 #multiplayer-connection-controls[data-connection-intent="join"] #btn-multiplayer-host {
     display: none;
@@ -8953,8 +8966,6 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
         align-items: start;
     }
     #multiplayer-connection-controls > .mp-intent-choices,
-    #multiplayer-connection-controls > .mp-host-help,
-    #multiplayer-connection-controls > .mp-join-help,
     #multiplayer-connection-controls > .btn-group {
         grid-column: 1 / -1;
         margin: 0;

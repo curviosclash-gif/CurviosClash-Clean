@@ -99,7 +99,14 @@
 #submenu-multiplayer .multiplayer-connection-details { margin-top: 12px; color: var(--lobby-muted); font-size: 12px; }
 #submenu-multiplayer #multiplayer-connection-controls { max-width: 850px; margin: 8px auto 22px; padding: 24px; background: var(--lobby-panel); border: 1px solid var(--lobby-line); border-radius: 14px; }
 #submenu-multiplayer .mp-intent-choices .secondary-btn { min-height: 54px; }
-#submenu-multiplayer .mp-host-help, #submenu-multiplayer .mp-join-help { color: var(--lobby-muted); }
+#submenu-multiplayer .mp-intent-card { min-height: 104px; }
+#submenu-multiplayer .mp-intent-copy { color: var(--lobby-muted); }
+.lobby-tabs { display: flex; gap: 8px; margin: 0 0 12px; border-bottom: 1px solid var(--lobby-line); }
+.lobby-tab { appearance: none; background: transparent; color: var(--lobby-text); border: 1px solid transparent; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0; padding: 9px 16px; min-height: 40px; font: inherit; font-weight: 700; cursor: pointer; }
+.lobby-tab[aria-selected="true"] { border-bottom-color: var(--menu-theme-accent, #3acbff); }
+.lobby-tab:disabled { cursor: not-allowed; opacity: .6; }
+.lobby-tab-note { margin-left: 6px; font-size: 12px; font-weight: 400; color: var(--lobby-muted); }
+.lobby-tab-note[hidden] { display: none; }
 @media (max-height: 800px) and (min-width: 1000px) {
     #main-menu[data-menu-depth="1"] .menu-shell { padding-top: 10px; padding-bottom: 12px; }
     #main-menu[data-menu-depth="1"] .menu-hero-shell { padding-top: 8px; }

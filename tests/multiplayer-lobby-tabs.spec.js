@@ -105,7 +105,7 @@ test.describe('T20d1-T20d2: Multiplayer-Lobby ueber zwei Tabs', () => {
             await page.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
 
             // The map picker lives in the match setup screen, which the host reaches from the
-            // lobby through "Match aendern" and leaves again through "Zur Lobby".
+            // lobby through "Regeln aendern" and leaves again through "Zur Lobby".
             await page.click('#btn-lobby-edit-match');
             await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
             const selectedMapKey = await page.evaluate(() => {

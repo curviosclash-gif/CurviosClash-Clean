@@ -17,7 +17,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
     const boot = path.join(artifacts, 'boot.cjs');
     // Isolate saves and Electron caches without relying on Windows profile variables.
     await fs.writeFile(boot, `const {app}=require('electron');app.setPath('appData',${JSON.stringify(artifacts)});require(${JSON.stringify(path.resolve('electron/main.cjs'))});`);
-    const env = { ...process.env, PW_RUN_TAG: `menu-${Date.now()}`, CURVIOS_ELECTRON_SHOW_WINDOW: '1' };
+    const env = { ...process.env, PW_RUN_TAG: `menu-${Date.now()}`, CURVIOS_ELECTRON_SHOW_WINDOW: '1', CURVIOS_E2E_RENDERER: '1' };
     delete env.ELECTRON_RUN_AS_NODE;
     const app = await _electron.launch({ executablePath: requireElectron('electron'), args: [boot], env });
     console.log(`Menu screenshots and isolated profile: ${artifacts}`);
@@ -205,11 +205,16 @@ test('desktop LAN lobby creates, joins, readies, starts and leaves through menu 
             await fs.mkdir(profile);
             const boot = path.join(profile, 'boot.cjs');
             await fs.writeFile(boot, 'const {app}=require("electron");app.setPath("appData",' + JSON.stringify(profile) + ');require(' + JSON.stringify(path.resolve('electron/main.cjs')) + ');');
-            const env = { ...process.env, PW_RUN_TAG: 'menu-lan-' + role + Date.now(), CURVIOS_ELECTRON_SHOW_WINDOW: '1' };
+            const env = { ...process.env, PW_RUN_TAG: 'menu-lan-' + role + Date.now(), CURVIOS_ELECTRON_SHOW_WINDOW: '1', CURVIOS_E2E_RENDERER: '1' };
             delete env.ELECTRON_RUN_AS_NODE;
             apps.push(await _electron.launch({ executablePath: requireElectron('electron'), args: [boot], env }));
         }
         const [host, client] = await Promise.all(apps.map((app) => app.firstWindow()));
+        for (const [role, page] of [['host', host], ['client', client]]) {
+            page.on('console', (message) => {
+                if (message.type() === 'error') console.error(`[LAN ${role}] ${message.text()}`);
+            });
+        }
         for (const page of [host, client]) {
             await page.waitForSelector('#main-menu[data-shell-ready="true"]', { timeout: 60_000 });
             await page.locator('[data-session-type="multiplayer"]').click();
@@ -254,9 +259,16 @@ test('desktop LAN lobby creates, joins, readies, starts and leaves through menu 
         await expect(host.locator('#btn-lobby-edit-match')).toBeFocused();
         await expect(host.locator('#lobby-map-preview-mount')).toHaveAttribute('data-preview-status', 'ready');
         await expect(client.locator('#lobby-match-summary')).toContainText('Leicht');
+        await expect(host.locator('#lobby-tab-fight')).toHaveAttribute('aria-selected', 'true');
+        await expect(client.locator('#lobby-tab-arcade')).toBeDisabled();
+        await expect(client.locator('#lobby-tab-arcade')).toContainText('kommt bald');
+        await expect(client.locator('#btn-lobby-edit-match')).toBeDisabled();
+        await expect(client.locator('#lobby-host-settings-hint')).toHaveText('Nur der Gastgeber ändert die Regeln.');
+        await expect(host.locator('#btn-lobby-edit-match')).toBeEnabled();
         await expect(client.locator('#multiplayer-ready-toggle')).not.toBeChecked();
         await expect(host.locator('#btn-multiplayer-start')).toBeDisabled();
         assert.equal(await client.evaluate(() => window.GAME_INSTANCE.settings.mapKey), personalMap);
+        await client.screenshot({ path: path.join(artifacts, 'lobby-guest.png') });
         for (const size of [[1280, 720], [1600, 900], [1920, 1080]]) {
             await apps[0].evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), size);
             await expect(host.locator('#btn-multiplayer-start')).toBeInViewport();
@@ -268,6 +280,34 @@ test('desktop LAN lobby creates, joins, readies, starts and leaves through menu 
         await expect(host.locator('#btn-multiplayer-start')).toBeEnabled({ timeout: 15_000 });
         await host.locator('#btn-multiplayer-start').click();
         for (const page of [host, client]) await expect(page.locator('#main-menu')).toBeHidden({ timeout: 30_000 });
+        for (const page of [host, client]) {
+            await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.state), { timeout: 30_000 }).toBe('PLAYING');
+        }
+        for (const page of [client, host]) {
+            await page.evaluate(() => window.GAME_INSTANCE._returnToMenu());
+            await expect(page.locator('#main-menu')).toBeVisible();
+        }
+        // A cancelled match must leave the same room ready for a fresh host start.
+        await client.locator('#multiplayer-ready-toggle').check();
+        await expect(host.locator('#btn-multiplayer-start')).toBeEnabled({ timeout: 15_000 });
+        await host.locator('#btn-multiplayer-start').click();
+        try {
+            for (const page of [host, client]) {
+                await expect(page.locator('#main-menu')).toBeHidden({ timeout: 30_000 });
+                await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.state), { timeout: 30_000 }).toBe('PLAYING');
+            }
+        } catch (error) {
+            const states = await Promise.all([host, client].map((page) => page.evaluate(() => ({
+                state: window.GAME_INSTANCE?.state,
+                lobby: window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.(),
+                status: document.querySelector('#multiplayer-status')?.textContent,
+                toast: document.querySelector('#status-toast')?.textContent,
+            }))));
+            await fs.writeFile(path.join(artifacts, 'round-restart-failure.json'), JSON.stringify(states, null, 2));
+            await host.screenshot({ path: path.join(artifacts, 'round-restart-host.png') });
+            await client.screenshot({ path: path.join(artifacts, 'round-restart-client.png') });
+            throw error;
+        }
         for (const page of [client, host]) {
             await page.evaluate(() => window.GAME_INSTANCE._returnToMenu());
             await expect(page.locator('#main-menu')).toBeVisible();

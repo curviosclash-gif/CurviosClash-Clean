@@ -8,7 +8,7 @@ import {
     mergeOpenLobbyRoster,
 } from './OpenLobbyRoster.js';
 
-export const OPEN_LOBBY_EMPTY_TEXT = 'Keine Lobby im Netzwerk gefunden — der Host muss eine Lobby erstellen, oder gib den Code direkt ein.';
+export const OPEN_LOBBY_EMPTY_TEXT = 'Keine Lobby im Netzwerk gefunden — der Gastgeber muss eine Lobby erstellen, oder gib den Code direkt ein.';
 const NO_MATCH_TEXT = 'Keine Lobby passt zur Suche.';
 // Two lines per row fit the narrow join column: host and state on top, the match below.
 const CELLS = Object.freeze([

@@ -95,7 +95,7 @@ function renderMultiplayerMembers(ui, sessionState, hasActiveLobbySession) {
         const localSeatLabel = member?.isHost === true && Number(sessionState?.localPlayerCount) >= 2
             ? ' · 2 lokale Spieler'
             : '';
-        name.textContent = `${displayName}${member?.isHost === true ? ' · Host' : ''}${localSeatLabel}${member?.isLocal === true ? ' · Du' : ''}`;
+        name.textContent = `${displayName}${member?.isHost === true ? ' · Gastgeber' : ''}${localSeatLabel}${member?.isLocal === true ? ' · Du' : ''}`;
 
         const ready = doc.createElement('span');
         ready.className = `mp-ready-indicator${member?.ready === true ? ' is-ready' : ''}`;
@@ -154,12 +154,12 @@ function createSummaryBlocks({
             ? ` | ${resolvedMultiplayerSessionState.readyCount}/${resolvedMultiplayerSessionState.memberCount} bereit`
             : '';
         const roleSummary = hasActiveLobbySession
-            ? (resolvedMultiplayerSessionState.isHost ? 'Host' : surfaceEntryCopy.multiplayerClientRoleLabel)
+            ? (resolvedMultiplayerSessionState.isHost ? 'Gastgeber' : surfaceEntryCopy.multiplayerClientRoleLabel)
             : '';
         const connectionSummary = hasActiveLobbySession
             ? (resolvedMultiplayerSessionState.pendingMatchCommandId
                 ? 'Startsignal gesendet'
-                : (resolvedMultiplayerSessionState.connected ? 'verbunden' : 'Warte auf Host'))
+                : (resolvedMultiplayerSessionState.connected ? 'verbunden' : 'Warte auf Gastgeber'))
             : '';
         summaryBlocks.push({
             label: 'Lobby',
@@ -337,8 +337,8 @@ export function syncStartSetupMultiplayerUi({
         ui.multiplayerHostAddressInput.disabled = !isMultiplayerSession || !isLanTransportSelected;
         ui.multiplayerHostAddressInput.readOnly = hasActiveLobbySession;
         ui.multiplayerHostAddressInput.title = hasActiveLobbySession
-            ? 'Die Host-Adresse ist für die aktive Sitzung festgelegt.'
-            : (isLanTransportSelected ? '' : 'Die Host-Adresse wird nur für den Beitritt im LAN verwendet.');
+            ? 'Die Adresse des Gastgebers ist für die aktive Sitzung festgelegt.'
+            : (isLanTransportSelected ? '' : 'Die Adresse des Gastgebers wird nur für den Beitritt im LAN verwendet.');
     }
     if (ui.multiplayerManualAddress) {
         const showManualAddress = isMultiplayerSession
@@ -397,14 +397,14 @@ export function syncStartSetupMultiplayerUi({
             ? 'Match wird gestartet …'
             : (isHost
                 ? 'Match starten'
-                : 'Warte auf Host');
+                : 'Warte auf Gastgeber');
         ui.multiplayerStartMatchButton.title = pendingMatchStart
             ? 'Das Startsignal wurde an die Lobby gesendet.'
             : (isHost
                 ? (resolvedMultiplayerSessionState?.playerCount < 2
                     ? 'Mindestens zwei Spieler werden benötigt.'
                     : 'Alle Mitspieler müssen bereit sein.')
-                : 'Der Host startet das Match.');
+                : 'Der Gastgeber startet das Match.');
     }
     renderMultiplayerMembers(ui, resolvedMultiplayerSessionState, hasActiveLobbySession);
     if (ui.multiplayerLobbyState) {
@@ -413,7 +413,7 @@ export function syncStartSetupMultiplayerUi({
             ui.multiplayerLobbyState.textContent = 'Lobbystatus: inaktiv';
         } else if (hasActiveLobbySession) {
             const roleLabel = resolvedMultiplayerSessionState.isHost
-                ? 'Host'
+                ? 'Gastgeber'
                 : surfaceEntryCopy.multiplayerClientRoleLabel;
             const connectionLabel = resolvedMultiplayerSessionState.connectionPhase === 'reconnecting'
                 ? `Verbindung wird wiederhergestellt (${resolvedMultiplayerSessionState.reconnectAttempt}/${resolvedMultiplayerSessionState.reconnectMaxAttempts})`
@@ -421,7 +421,7 @@ export function syncStartSetupMultiplayerUi({
                 ? 'Startsignal gesendet'
                 : (resolvedMultiplayerSessionState.connected
                     ? 'verbunden'
-                    : (resolvedMultiplayerSessionState.isHost ? 'Host aktiv' : 'Warte auf Host')));
+                    : (resolvedMultiplayerSessionState.isHost ? 'Gastgeber aktiv' : 'Warte auf Gastgeber')));
             const transportSuffix = sessionContract.isLegacyTransport === true
                 ? ` | ${sessionContract.transportAudienceLabel}`
                 : '';

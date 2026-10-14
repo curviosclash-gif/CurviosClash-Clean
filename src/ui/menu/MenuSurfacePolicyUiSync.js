@@ -174,13 +174,13 @@ export function syncMenuSurfacePolicyUi({
     }
     if (ui.multiplayerHostButton) {
         ui.multiplayerHostButton.textContent = surfaceEntryCopy?.hostButtonLabel
-            || resolveMenuText('menu.multiplayer.inline.host.label', 'Host');
+            || resolveMenuText('menu.multiplayer.inline.host.label', 'Gastgeber');
         ui.multiplayerHostButton.title = surfaceEntryCopy?.hostButtonTitle || '';
         ui.multiplayerHostButton.disabled = surfaceEntryCopy?.hostActionAvailable === false;
     }
     if (ui.multiplayerJoinButton) {
         ui.multiplayerJoinButton.textContent = surfaceEntryCopy?.joinButtonLabel
-            || resolveMenuText('menu.multiplayer.inline.join.label', 'Join');
+            || resolveMenuText('menu.multiplayer.inline.join.label', 'Beitreten');
         ui.multiplayerJoinButton.title = surfaceEntryCopy?.joinButtonTitle || '';
     }
 
