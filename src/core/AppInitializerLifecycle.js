@@ -29,6 +29,12 @@ const logger = createLogger('AppInitializer');
 let domReadyHandlerAttached = false;
 let mountQueue = Promise.resolve();
 let detachGracefulCloseHandler = null;
+let currentGameInstance = null;
+
+function shouldPublishRuntimeGlobals() {
+    return import.meta.env?.DEV === true
+        || (typeof __CURVIOS_E2E__ !== 'undefined' && __CURVIOS_E2E__ === true);
+}
 
 /**
  * @returns {RuntimeWindow}
@@ -80,6 +86,7 @@ function clearPublishedRuntimeHandles(runtimeWindow) {
  */
 export function releasePublishedRuntimeHandles(game, runtimeFacade, debugApi) {
     const runtimeWindow = getRuntimeWindow();
+    if (currentGameInstance === game) currentGameInstance = null;
     if (runtimeWindow.GAME_INSTANCE === game) runtimeWindow.GAME_INSTANCE = null;
     if (runtimeWindow.GAME_RUNTIME === runtimeFacade) runtimeWindow.GAME_RUNTIME = null;
     if (runtimeWindow.GAME_DEBUG === debugApi) runtimeWindow.GAME_DEBUG = null;
@@ -189,19 +196,23 @@ async function disposeRuntimeGameInstance(game) {
     }
 }
 
-async function mountGameInstance(createGame) {
+async function mountGameInstance(createGame, { publishRuntimeGlobals = shouldPublishRuntimeGlobals() } = {}) {
     const runtimeWindow = getRuntimeWindow();
-    const previousGame = runtimeWindow.GAME_INSTANCE;
+    const previousGame = currentGameInstance
+        || (publishRuntimeGlobals ? runtimeWindow.GAME_INSTANCE : null);
     if (previousGame) {
         releaseGracefulCloseHandler();
-        clearPublishedRuntimeHandles(runtimeWindow);
+        if (publishRuntimeGlobals) clearPublishedRuntimeHandles(runtimeWindow);
         await disposeRuntimeGameInstance(previousGame);
     }
 
     const game = createGame();
-    runtimeWindow.GAME_INSTANCE = game;
-    runtimeWindow.GAME_RUNTIME = game.runtimeFacade;
-    runtimeWindow.GAME_DEBUG = game.debugApi;
+    currentGameInstance = game;
+    if (publishRuntimeGlobals) {
+        runtimeWindow.GAME_INSTANCE = game;
+        runtimeWindow.GAME_RUNTIME = game.runtimeFacade;
+        runtimeWindow.GAME_DEBUG = game.debugApi;
+    }
     // Wire shell-level lifecycle events (Electron graceful-close handshake) to the
     // game's canonical dispose port so that window-close always triggers the same
     // finalizing -> match_finalized -> menu_opened path used for in-game exits.
@@ -262,13 +273,14 @@ export function resetAppInitializerForTests() {
     domReadyHandlerAttached = false;
     mountQueue = Promise.resolve();
     releaseGracefulCloseHandler();
+    currentGameInstance = null;
 }
 
 export function waitForAppInitializerIdle() {
     return mountQueue;
 }
 
-export function mountGameInstanceForTests(createGame) {
-    mountQueue = mountQueue.then(() => mountGameInstance(createGame));
+export function mountGameInstanceForTests(createGame, { publishRuntimeGlobals = true } = {}) {
+    mountQueue = mountQueue.then(() => mountGameInstance(createGame, { publishRuntimeGlobals }));
     return mountQueue;
 }
