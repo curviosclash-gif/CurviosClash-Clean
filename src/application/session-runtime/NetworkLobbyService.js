@@ -106,8 +106,7 @@ export class NetworkLobbyService {
         this._shareAddress = '';
         this._lastNotifiedMatchCommandId = '';
         this._lastEndedMatchCommandId = '';
-        this._hostGeneration = 0;
-        this._joinGeneration = 0;
+        this._operationGeneration = 0;
         this._sessionStateProjection = createNetworkLobbySessionStateProjection({
             transport: this.transport,
         });
@@ -278,8 +277,7 @@ export class NetworkLobbyService {
     }
 
     async host(options = {}) {
-        const hostGeneration = this._hostGeneration = this._hostGeneration + 1;
-        this._joinGeneration += 1;
+        const hostGeneration = ++this._operationGeneration;
         const actorId = normalizeString(options.actorId, 'Host');
         const name = normalizeString(options.name, actorId);
         this._actorId = actorId;
@@ -287,9 +285,7 @@ export class NetworkLobbyService {
         this._connectionPhase = 'connecting';
         this._hostSettingsSnapshot = deepClone(options.settingsSnapshot ?? this._hostSettingsSnapshot);
         const resolvedUrl = await tryResolveNetworkLobbyUrl(() => this._resolveHostSignalingUrl());
-        if (hostGeneration !== this._hostGeneration) {
-            return this._fail('Lobby-Erstellung abgebrochen.', 'host_cancelled');
-        }
+        if (hostGeneration !== this._operationGeneration) return this._fail('Lobby-Erstellung abgebrochen.', 'host_cancelled');
         if (resolvedUrl.error) {
             this._connectionPhase = 'disconnected';
             return this._fail(
@@ -310,22 +306,16 @@ export class NetworkLobbyService {
                 metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, name),
             });
         } catch (error) {
-            if (hostGeneration !== this._hostGeneration) {
-                return this._fail('Lobby-Erstellung abgebrochen.', 'host_cancelled');
-            }
+            if (hostGeneration !== this._operationGeneration) return this._fail('Lobby-Erstellung abgebrochen.', 'host_cancelled');
             this._connectionPhase = 'disconnected';
             const message = error instanceof Error ? error.message : 'Lobby konnte nicht erstellt werden.';
             return this._fail(message, normalizeString(error?.code, 'lobby_create_failed'));
         }
-        if (hostGeneration !== this._hostGeneration) {
-            return this._fail('Lobby-Erstellung abgebrochen.', 'host_cancelled');
-        }
+        if (hostGeneration !== this._operationGeneration) return this._fail('Lobby-Erstellung abgebrochen.', 'host_cancelled');
 
         const sessionState = this.getSessionState();
         this._shareAddress = await this._resolveShareAddress(signalingUrl);
-        if (hostGeneration !== this._hostGeneration) {
-            return this._fail('Lobby-Erstellung abgebrochen.', 'host_cancelled');
-        }
+        if (hostGeneration !== this._operationGeneration) return this._fail('Lobby-Erstellung abgebrochen.', 'host_cancelled');
         const event = this._emit(LOBBY_SERVICE_EVENT_TYPES.HOST, {
             actorId,
             lobbyCode: sessionState.lobbyCode,
@@ -343,7 +333,7 @@ export class NetworkLobbyService {
     }
 
     async join(options = {}) {
-        this._hostGeneration += 1;
+        const joinGeneration = ++this._operationGeneration;
         const actorId = normalizeString(options.actorId, 'Spieler');
         const name = normalizeString(options.name, actorId);
         const requestedLobbyCode = normalizeLobbyCode(options.lobbyCode, '');
@@ -355,11 +345,10 @@ export class NetworkLobbyService {
         this._name = name;
         this._connectionPhase = 'connecting';
         // leave() bumps the generation; a join that gets past that point was cancelled.
-        const joinGeneration = this._joinGeneration = (this._joinGeneration || 0) + 1;
         const resolvedUrl = await tryResolveNetworkLobbyUrl(
             () => this._resolveJoinSignalingUrl(requestedLobbyCode, options.signalingUrl)
         );
-        if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
+        if (joinGeneration !== this._operationGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
         if (resolvedUrl.error) {
             this._connectionPhase = 'disconnected';
             return this._fail(
@@ -389,13 +378,13 @@ export class NetworkLobbyService {
                 participantMetadata: this._participantMetadata,
             }));
         } catch (error) {
-            if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
+            if (joinGeneration !== this._operationGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
             this._connectionPhase = 'disconnected';
             const message = error instanceof Error ? error.message : 'Lobby konnte nicht beigetreten werden.';
             const code = normalizeString(error?.code, 'join_failed');
             return this._fail(message, code);
         }
-        if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
+        if (joinGeneration !== this._operationGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
 
         const sessionState = this.getSessionState();
         const event = this._emit(LOBBY_SERVICE_EVENT_TYPES.JOIN, {
@@ -456,8 +445,7 @@ export class NetworkLobbyService {
     }
 
     leave(options = {}) {
-        this._hostGeneration += 1;
-        this._joinGeneration = (this._joinGeneration || 0) + 1;
+        this._operationGeneration += 1;
         const previousState = this.getSessionState();
         this._settingsPublisher.reset();
         this._transportSession.dispose();

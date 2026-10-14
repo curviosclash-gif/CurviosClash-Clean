@@ -22,6 +22,8 @@ import {
 } from './LANSignalingSupport.js';
 import { resolveLanServerSessionState } from './LANServerSessionState.js';
 import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
+import { cleanupCancelledHostCreation, createHostCancelledError } from './LANHostCreateCancellation.js';
+import { buildLanHostCreatePayload } from './LANHostCreatePayload.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_POLL_TIMEOUT_MS = 2500;
@@ -67,8 +69,7 @@ export class LANMatchLobby extends MatchLobby {
     }
 
     async create(options = {}) {
-        const createGeneration = this._createGeneration + 1;
-        this._createGeneration = createGeneration;
+        const createGeneration = ++this._createGeneration;
         this._joinGeneration += 1;
         this.isHost = true;
         this.settings = { ...options };
@@ -82,44 +83,23 @@ export class LANMatchLobby extends MatchLobby {
         const res = await fetch(`${createSignalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_CREATE}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                maxPlayers: Number(options.maxPlayers || 10), localPlayerCount: options.localPlayerCount,
-                actorId: options.actorId,
-                name: options.name || options.actorId,
-                lobbyName: options.lobbyName, vehicleId: options.vehicleId,
-                metadata: options.metadata,
-            }),
+            body: JSON.stringify(buildLanHostCreatePayload(options)),
         });
-        if (res?.ok === false) {
-            const payload = await res.json().catch(() => ({}));
-            throw buildLanRequestError({
-                response: res,
-                payload,
-                fallbackMessage: 'Lobby erstellen fehlgeschlagen.',
-                fallbackCode: 'lobby_create_failed',
-            });
-        }
+        if (res?.ok === false) throw buildLanRequestError({
+            response: res, payload: await res.json().catch(() => ({})),
+            fallbackMessage: 'Lobby erstellen fehlgeschlagen.', fallbackCode: 'lobby_create_failed',
+        });
         const data = await res.json();
         const hostToken = String(data.hostToken || '').trim();
         if (createGeneration !== this._createGeneration || this._cancelReconnect) {
-            if (hostToken) {
-                try {
-                    const cleanup = await fetch(`${createSignalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_LEAVE}`, {
-                        signal: AbortSignal.timeout(this._pollTimeoutMs * 2),
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ playerId: 'host', hostToken }),
-                    });
-                    if (cleanup?.ok === false) {
-                        logger.warn('Cancelled lobby creation cleanup failed:', cleanup.status || 'unknown');
-                    }
-                } catch (cleanupError) {
-                    logger.warn('Cancelled lobby creation cleanup failed:', cleanupError);
-                }
-            }
-            const error = new Error('Lobby creation was cancelled.');
-            error.code = 'host_cancelled';
-            throw error;
+            await cleanupCancelledHostCreation({
+                signalingUrl: createSignalingUrl,
+                leaveRoute: SIGNALING_HTTP_ROUTES.LOBBY_LEAVE,
+                hostToken,
+                timeoutMs: this._pollTimeoutMs * 2,
+                logger,
+            });
+            throw createHostCancelledError();
         }
         this._localPeerToken = hostToken;
         this._processServerStatus(data);
