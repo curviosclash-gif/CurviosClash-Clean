@@ -112,7 +112,9 @@ export class LANSessionAdapter extends SessionAdapterBase {
 
         const existingPlayerId = String(options.playerId || this.localPlayerId || '').trim();
         if (existingPlayerId) {
-            await this._attachExistingClient(existingPlayerId);
+            // A completed handshake consumed the pending entry. A new match needs
+            // a fresh host offer for the same authenticated lobby member.
+            await this.reconnect({ playerId: existingPlayerId });
             return;
         }
         await this._joinAsClient(options.lobbyCode);
