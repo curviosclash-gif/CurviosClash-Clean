@@ -9,7 +9,14 @@ const MAX_PENDING_BYTES = 32 * 1024 * 1024;
 const activeInput = (input) => Object.entries(input || {}).some(([key, value]) =>
     key.endsWith('Axis') ? Math.abs(Number(value) || 0) > 0.15 : value === true);
 
+/** @typedef {{ hasSetup: () => boolean, setStatus: (message: string) => void, showSetup: (config: any, onStart: (values: any) => void) => void }} MarketingSessionView */
+
 export class MarketingSession {
+    /**
+     * @param {any} runtime
+     * @param {any} bridge
+     * @param {MarketingSessionView} [view]
+     */
     constructor(runtime, bridge, view = { hasSetup: () => false, setStatus() {}, showSetup() {} }) {
         this.runtime = runtime; this.bridge = bridge; this.view = view;
         this.running = false; this.sequence = 0; this.records = [];
@@ -281,7 +288,8 @@ export class MarketingSession {
         }
     }
 
-    tick() {
+    tick(_delta) {
+        void _delta;
         try { this.captureTick(); } catch (error) { this.fail(error); }
     }
 

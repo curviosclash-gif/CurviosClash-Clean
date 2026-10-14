@@ -1066,7 +1066,7 @@ const cinematicReplayVideoExportJob = createCinematicReplayVideoExportJob({
             if (existsSync(config.output)) throw new Error('marketing_export_already_exists');
             return { canceled: false, filePath: config.output };
         }
-        return dialog.showSaveDialog(...args);
+        return Reflect.apply(dialog.showSaveDialog, dialog, args);
     } } : dialog,
     resolveWindow: () => desktopWindowShellCapability.getWindow(),
 });
