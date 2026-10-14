@@ -1,15 +1,14 @@
-import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
 import { setupArcadeHangarWorkshop } from './ArcadeHangarWorkshop.js';
 import { createHangarAudioPort } from '../../composition/core-ui/CoreHangarAudioPort.js';
 import { ARCADE_TEST_FLIGHT_REQUEST_KEY, createArcadeTestFlightRequest } from '../../shared/contracts/ArcadeTestFlightContract.js';
 import { createArcadeLabSurface } from '../lab/LabSurface.js';
 import { createHangarGamepadNavigation } from './HangarGamepadNavigation.js';
 
-export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hangarWindow } = {}) {
+export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hangarWindow, page, androidBack } = {}) {
     const audio = createHangarAudioPort(settings?.localSettings?.audio);
-    const requestedMode = mode ?? new URLSearchParams(globalThis.location.search).get('mode');
+    const requestedMode = mode ?? page?.getMode?.();
     const hangarMode = requestedMode === 'fight' ? 'fight' : 'arcade';
-    const activeHangarWindow = hangarWindow || createElectronPreloadHangarAdapter(globalThis);
+    const activeHangarWindow = hangarWindow;
     const mount = document.getElementById('hangar-window-mount');
     const closeButton = document.getElementById('hangar-window-close');
     const cleanups = [];
@@ -65,7 +64,7 @@ export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hanga
     const lab = hangarMode === 'arcade' ? createArcadeLabSurface({
         store: runtimeAccess?.getSettingsStore?.(),
         profilePort: runtimeAccess?.arcadeVehicleProfileWorkshop,
-        onReturn() { globalThis.location.reload(); },
+        onReturn() { page?.reload?.(); },
         onDirtyChange(dirty) { Promise.resolve(activeHangarWindow.setUnsavedChanges?.(dirty)).catch(() => {}); },
     }) : null;
     if (lab) {
@@ -84,15 +83,15 @@ export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hanga
             await activeHangarWindow.closeWindow();
             return;
         }
-        globalThis.location.assign('/');
+        page?.returnToMenu?.();
     });
 
     if (!activeHangarWindow.isAvailable()) {
         // Android back leaves the hangar page instead of closing the app.
-        globalThis.__curviosAndroidBackHandler = () => {
+        cleanups.push(androidBack?.register?.(() => {
             closeButton?.click();
             return true;
-        };
+        }) || (() => {}));
     }
 
     bind(document, 'keydown', (event) => {

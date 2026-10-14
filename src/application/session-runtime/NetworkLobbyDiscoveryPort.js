@@ -9,14 +9,14 @@ function toHostList(value) {
 }
 
 export function createNetworkLobbyDiscoveryPort(options = {}) {
-    const runtimeGlobal = resolveGlobalObject(options.runtime);
     const platformBindings = options.platformBindings && typeof options.platformBindings === 'object'
         ? options.platformBindings
         : null;
-    const discoverySurfaceCapability = resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.DISCOVERY, {
-        runtimeGlobal,
-        platformRuntimeSnapshot: platformBindings?.runtimeSnapshot || null,
-    });
+    const discoverySurfaceCapability = platformBindings?.discoveryAccess
+        || resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.DISCOVERY, {
+            runtimeGlobal: resolveGlobalObject(options.runtime),
+            platformRuntimeSnapshot: platformBindings?.runtimeSnapshot || null,
+        });
     const discoveryRuntime = options.discoveryRuntime && typeof options.discoveryRuntime === 'object'
         ? options.discoveryRuntime
         : platformBindings?.discoveryAdapter || null;

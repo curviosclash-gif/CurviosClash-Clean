@@ -3,6 +3,9 @@ import { createArcadeVehicleProfileWorkshopPort } from '../../state/arcade/Arcad
 import { SettingsStore } from '../../shared/settings/SettingsStore.js';
 import { startHangarWindowApp } from '../../ui/hangar/HangarWindowApp.js';
 import { registerArcadeLabShipsFromStore } from '../../shared/contracts/ArcadeLabStoreContract.js';
+import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
+import { createBrowserHangarPagePort } from '../../platform/browser/BrowserHangarPagePort.js';
+import { createBrowserAndroidBackPort } from '../../platform/browser/BrowserAndroidBackPort.js';
 
 const store = new SettingsStore();
 const playerProfileManager = new PlayerProfileManager({ recordStore: Object.freeze({
@@ -22,4 +25,9 @@ const runtimeAccess = Object.freeze({
     arcadeVehicleProfileWorkshop: createArcadeVehicleProfileWorkshopPort(playerStore),
 });
 
-startHangarWindowApp({ settings: store.loadSettings(), runtimeAccess });
+startHangarWindowApp({
+    settings: store.loadSettings(), runtimeAccess,
+    hangarWindow: createElectronPreloadHangarAdapter(globalThis),
+    page: createBrowserHangarPagePort(globalThis),
+    androidBack: createBrowserAndroidBackPort(globalThis),
+});
