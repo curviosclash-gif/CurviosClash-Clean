@@ -4,6 +4,7 @@ import {
     createArcadeSectorScorePresentation,
 } from '../../shared/contracts/ArcadeScorePresentationContract.js';
 import { resolveArcadeModifierMeta } from '../../shared/contracts/ArcadeModifierContract.js';
+import { resolveWeaponRaceWeaponLabel } from '../../shared/contracts/WeaponRaceContract.js';
 import { formatPlayerDisplayLabel, PLAYER_LABEL_STYLES } from '../../shared/contracts/PlayerDisplayLabelContract.js';
 import { ArcadeEndlessHudSection } from './ArcadeEndlessHudSection.js';
 import { resolveArcadeMapLabel } from './postrun/ArcadePostRunBlocks.js';
@@ -325,7 +326,7 @@ export class ArcadeScoreHUD {
             const leaders = (hudState.standings || []).slice(0, 5)
                 .map((row) => `${row.place}. ${formatRacerLabel(row, hudState.place)}${row.result === 'DNF' ? ` · CP ${row.checkpointIndex}` : ` · ${formatTimerMs(row.finishTimeMs)}`}`)
                 .join('\n');
-            this._arenaWavesSection.textContent = `Checkpoint ${hudState.checkpoint || 0}/${hudState.checkpointCount || 9}\nWaffe ${hudState.weaponId || 'MG'}${grace}${leaders ? `\n${leaders}` : ''}`;
+            this._arenaWavesSection.textContent = `Checkpoint ${hudState.checkpoint || 0}/${hudState.checkpointCount || 9}\nWaffe ${resolveWeaponRaceWeaponLabel(hudState.weaponId)}${grace}${leaders ? `\n${leaders}` : ''}`;
             return;
         }
         if (isFivePortals) {

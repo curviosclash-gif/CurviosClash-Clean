@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -225,10 +225,11 @@ test('model usage accepts measured counts and rejects invented zero-call spendin
         outputTokens: 20, cachedTokens: 101, revisions: 0, source: 'response usage' }), /counts/);
 });
 
-test('capture retries are bounded and do not repeat nonrecoverable errors', async () => {
+test('capture retries are bounded and do not repeat nonrecoverable errors', async (t) => {
     assert.equal(isRetryableCandidateFailure(new Error('Rehearsal failed: pilots crashed')), true);
     assert.equal(isRetryableCandidateFailure(new Error('commercial rights missing')), false);
     const directory = await mkdtemp(path.join(os.tmpdir(), 'marketing-short-test-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
     const briefPath = path.join(directory, 'brief.json');
     await writeFile(briefPath, JSON.stringify({ ...brief, id: 'trail-retry', scenario: 'thick',
         mapKey: 'standard', subjectPlayer: 0, requiredEvents: ['ITEM_USE', 'TRAIL_WIDENED'],

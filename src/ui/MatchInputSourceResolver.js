@@ -1,3 +1,4 @@
+import { createBrowserAndroidBackPort } from '../platform/browser/BrowserAndroidBackPort.js';
 import { createGamepadInputSource, mergeGamepadWithKeyboard } from '../shared/input/GamepadInputSource.js';
 import { isGamepadInputEnabled, resolveSplitscreenInputDevice } from '../shared/contracts/GamepadControlsContract.js';
 import { TOUCH_CONTROL_MODES, TouchInputSource } from './TouchInputSource.js';
@@ -307,6 +308,7 @@ export function createPreferredMatchInputSource({
     const mobileArcadeMode = mobileArcade || (mobileClassic && isMobileArcadeMode(game));
     const createTouchSource = () => new TouchInputSource({
         game,
+        androidBackPort: createBrowserAndroidBackPort(),
         playerIndex,
         getMatchRuntimeProjection,
         controlMode: (mobileClassic || mobileArcade) ? TOUCH_CONTROL_MODES.TILT : TOUCH_CONTROL_MODES.JOYSTICK,

@@ -1,5 +1,8 @@
 import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.js';
 import { fromArenaMapDefinition, parseMapJSON, toArenaMapDefinition } from '../../src/entities/MapSchema.js';
+import { resolveMapStaticTurretDefinitions } from '../../src/shared/contracts/MapSinglePlayerScenarioContract.js';
+import { resolveMapUnitDefinitions } from '../../src/shared/contracts/MapUnitContract.js';
+import { MAP_FOG_LAYER_RANGES } from '../../src/shared/contracts/MapFogLayerContract.js';
 
 // A built-in map as backdrop: its world model, spawns and lighting become an editor map (saved
 // with it, so the match lights it the same), and
@@ -72,13 +75,19 @@ function adaptLightingToScaledAnchors(lighting, preset, mapScale) {
  * heights follow the anchors like the static fog height, so a preset without
  * scaleAuthoredAnchors gets them converted the same way.
  */
-function presetViewFields(preset, mapScale) {
+function presetViewFields(preset, mapScale, warnings) {
     const fields = {};
     const cameraFar = finiteOr(preset?.cameraFar, 0);
     if (cameraFar > 0) fields.cameraFar = cameraFar;
     const stages = preset?.fogLayer?.stages;
     if (Array.isArray(stages)) {
         const scale = preset.scaleAuthoredAnchors === true ? 1 : Math.max(0.001, finiteOr(mapScale, 3));
+        // The layer caps its falloff per map unit; a sharp world edge can end up above that cap.
+        const tooSharp = stages.some((stage) => ['ceilingFalloff', 'floorFalloff']
+            .some((field) => finiteOr(stage?.[field], 0) * scale > MAP_FOG_LAYER_RANGES.falloff.max));
+        if (tooSharp) {
+            warnings.push(`fogLayer: ein Übergang ist schärfer, als die Editor-Karte speichern kann; er wird auf ${MAP_FOG_LAYER_RANGES.falloff.max / scale} pro Welteinheit gekappt.`);
+        }
         fields.fogLayer = {
             stages: stages.map((stage) => ({
                 ...stage,
@@ -101,6 +110,7 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
     if (!Array.isArray(preset?.size) || preset.size.length !== 3) {
         throw new Error('Preset needs a size of three numbers.');
     }
+    const warnings = [];
     if ((!Array.isArray(preset?.glbModels) || preset.glbModels.length === 0)
         && Array.isArray(preset?.obstacles) && preset.obstacles.length > 0) {
         const document = fromArenaMapDefinition(preset, { mapScale }).document;
@@ -110,7 +120,7 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
                 id: `${BACKDROP_ID_PREFIX}${entry.id || `${listKey}_${index + 1}`}`,
             }));
         }
-        return { document: { ...document, ...presetViewFields(preset, mapScale), editorBackdrop: key } };
+        return { document: { ...document, ...presetViewFields(preset, mapScale, warnings), editorBackdrop: key }, warnings };
     }
     const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
     const anchorUnits = preset?.scaleAuthoredAnchors === true ? units : units / Math.max(0.001, finiteOr(mapScale, 3));
@@ -138,12 +148,48 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
             arenaSize: { width, height, depth },
             glbModels,
             ...(lighting ? { lighting } : {}),
-            ...presetViewFields(preset, mapScale),
+            ...presetViewFields(preset, mapScale, warnings),
             ...(preset.glbColliderMode ? { glbColliderMode: preset.glbColliderMode } : {}),
             ...(preset.playerSpawn ? { playerSpawn: toAnchor(preset.playerSpawn, 'spawn_player') } : {}),
             botSpawns: (preset.botSpawns || []).map((spawn, index) => toAnchor(spawn, `spawn_bot_${index + 1}`)),
         },
+        warnings,
     };
+}
+
+// Fields the match changes when it reads `applied` instead of `stated` (paths like "range").
+function collectChangedPaths(stated, applied, path, out) {
+    if (typeof stated === 'number' || typeof applied === 'number') {
+        if (!(Math.abs(Number(stated) - Number(applied)) <= 1e-9)) out.push(path);
+        return;
+    }
+    if (!stated || typeof stated !== 'object' || !applied || typeof applied !== 'object') return;
+    for (const key of Object.keys(stated)) {
+        collectChangedPaths(stated[key], applied[key], path ? `${path}.${key}` : key, out);
+    }
+}
+
+/**
+ * A map without scaleAuthoredAnchors reads turrets and map units in world units and clamps their
+ * spatial values to world limits (turret range 180, unit speed 60, ...). Names every value the
+ * match would cut, so the author is not surprised by a shorter range in the game.
+ */
+function collectWorldLimitWarnings(placements, warnings) {
+    const checks = [
+        { key: 'staticTurrets', resolve: (list, keep) => resolveMapStaticTurretDefinitions({ staticTurrets: list }, { preserveSpatialRange: keep }) },
+        { key: 'mapUnits', resolve: (list, keep) => resolveMapUnitDefinitions({ mapUnits: list }, { preserveSpatial: keep }) },
+    ];
+    for (const { key, resolve } of checks) {
+        const list = placements[key];
+        if (!Array.isArray(list) || list.length === 0) continue;
+        const stated = resolve(list, true);
+        const applied = resolve(list, false);
+        stated.forEach((entry, index) => {
+            const paths = [];
+            collectChangedPaths(entry, applied[index], '', paths);
+            if (paths.length > 0) warnings.push(`${key} ${entry.id || index + 1}: ${paths.join(', ')} über der Weltgrenze, das Spiel kürzt.`);
+        });
+    }
 }
 
 export function isBackdropObject(object) {
@@ -154,7 +200,9 @@ export function isBackdropObject(object) {
  * The editor map as the preset file would write it: map units, anchors in the preset's own
  * convention, backdrop models left out unless asked for.
  */
-export function exportPlacementsInPresetFormat(mapManager, arenaSize, { preset = null, mapScale = 3, includeBackdrop = false } = {}) {
+export function exportPlacementsInPresetFormat(mapManager, arenaSize, {
+    preset = null, mapScale = 3, includeBackdrop = false, warnings = null,
+} = {}) {
     const editorDocument = JSON.parse(mapManager.generateJSONExport(arenaSize));
     if (!includeBackdrop) {
         for (const listKey of BLOCK_BACKDROP_KEYS) {
@@ -187,5 +235,6 @@ export function exportPlacementsInPresetFormat(mapManager, arenaSize, { preset =
         if (entries.length > 0) result[key] = entries;
     }
     if (runtime.parcours?.checkpoints?.length) result.parcours = runtime.parcours;
+    if (Array.isArray(warnings) && anchorScale !== 1) collectWorldLimitWarnings(result, warnings);
     return result;
 }

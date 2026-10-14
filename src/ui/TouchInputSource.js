@@ -69,6 +69,7 @@ export class TouchInputSource extends PlayerInputSource {
         super('touch');
         this._disposed = false;
         this._game = options.game || null;
+        this._androidBackPort = options.androidBackPort || null;
         this._getRuntimeProjection = typeof options.getMatchRuntimeProjection === 'function'
             ? options.getMatchRuntimeProjection
             : null;
@@ -136,8 +137,7 @@ export class TouchInputSource extends PlayerInputSource {
         this._lastPauseRequestAt = 0;
         this._overlayActive = false;
         this._blockingOverlayObserver = null;
-        this._androidBackHandler = null;
-        this._previousAndroidBackHandler = null;
+        this._androidBackCleanup = null;
 
         this._containerEl = null;
         this._joystickEl = null;
@@ -616,36 +616,13 @@ export class TouchInputSource extends PlayerInputSource {
     }
 
     _registerAndroidBackHandler() {
-        const ownerWindow = this._containerEl?.ownerDocument?.defaultView
-            || (typeof window !== 'undefined' ? window : null);
-        if (!ownerWindow || this._androidBackHandler) {
-            return;
-        }
-        this._previousAndroidBackHandler = typeof ownerWindow.__curviosAndroidBackHandler === 'function'
-            ? ownerWindow.__curviosAndroidBackHandler
-            : null;
-        this._androidBackHandler = () => {
-            if (this._handleAndroidBack()) return true;
-            return this._previousAndroidBackHandler?.() === true;
-        };
-        ownerWindow.__curviosAndroidBackHandler = this._androidBackHandler;
+        if (this._androidBackCleanup || !this._androidBackPort) return;
+        this._androidBackCleanup = this._androidBackPort.register(() => this._handleAndroidBack());
     }
 
     _unregisterAndroidBackHandler() {
-        const ownerWindow = this._containerEl?.ownerDocument?.defaultView
-            || (typeof window !== 'undefined' ? window : null);
-        if (!ownerWindow || !this._androidBackHandler) {
-            return;
-        }
-        if (ownerWindow.__curviosAndroidBackHandler === this._androidBackHandler) {
-            if (this._previousAndroidBackHandler) {
-                ownerWindow.__curviosAndroidBackHandler = this._previousAndroidBackHandler;
-            } else {
-                delete ownerWindow.__curviosAndroidBackHandler;
-            }
-        }
-        this._androidBackHandler = null;
-        this._previousAndroidBackHandler = null;
+        this._androidBackCleanup?.();
+        this._androidBackCleanup = null;
     }
 
     _handleAndroidBack() {

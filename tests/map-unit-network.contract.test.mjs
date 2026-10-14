@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { StaticTurretSystem } from '../src/entities/systems/StaticTurretSystem.js';
 import { applyHuntNetworkState, createHuntNetworkState } from '../src/hunt/HuntNetworkState.js';
+import { setEntityNetworkReplica } from '../src/entities/runtime/EntityNetworkReplicaOps.js';
 
 const TANK = { id: 'tank_a', path: [[0, 0, 0], [0, 0, 100], [100, 0, 100]], speed: 10, weapons: { rocket: false } };
 const ESCORT_TANK = {
@@ -150,7 +151,8 @@ test('a snapshot retires only missing called bombers and preserves normal map un
     assert.deepEqual(removedRoots, [bomberRoot]);
 });
 
-test('entity manager replica mode reaches the tanks', async () => {
-    const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/entities/EntityManager.js', import.meta.url), 'utf8'));
-    assert.match(source, /_mapUnitSystem\?\.setNetworkReplica\?\.\(enabled\)/);
+test('entity manager replica mode reaches the tanks', () => {
+    const calls = [];
+    setEntityNetworkReplica({ _mapUnitSystem: { setNetworkReplica: (enabled) => calls.push(enabled) } }, true);
+    assert.deepEqual(calls, [true]);
 });

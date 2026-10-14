@@ -508,6 +508,23 @@ test('AppInitializer hides the boot screen only after a rendered frame of a succ
     });
 });
 
+test('AppInitializer keeps runtime globals unpublished when the production build flag is off', async () => {
+    await withMockRuntimeGlobals(async ({ window }) => {
+        resetAppInitializerForTests();
+        try {
+            const game = { runtimeFacade: {}, debugApi: {}, dispose() {} };
+            await mountGameInstanceForTests(() => game, { publishRuntimeGlobals: false });
+            assert.equal(Object.hasOwn(window, 'GAME_INSTANCE'), false);
+            assert.equal(Object.hasOwn(window, 'GAME_RUNTIME'), false);
+            assert.equal(Object.hasOwn(window, 'GAME_DEBUG'), false);
+            await mountGameInstanceForTests(() => ({ runtimeFacade: {}, debugApi: {} }), { publishRuntimeGlobals: false });
+            assert.equal(Object.hasOwn(window, 'GAME_INSTANCE'), false);
+        } finally {
+            resetAppInitializerForTests();
+        }
+    });
+});
+
 test('AppInitializer detaches stale graceful-close handlers before remounting (V100)', async () => {
     const callbacks = [];
     let unsubscribeCalls = 0;

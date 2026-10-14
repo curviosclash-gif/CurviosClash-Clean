@@ -21,6 +21,13 @@ test('no user interface source imports the audio runtime directly', () => {
     for (const relativePath of [
         '../src/ui/hangar/HangarWindowApp.js',
         '../src/ui/hangar/ArcadeHangarWorkshop.js',
+        '../src/ui/hangar/ArcadeHangarWorkshopState.js',
+        '../src/ui/hangar/ArcadeHangarWorkshopDisplay.js',
+        '../src/ui/hangar/ArcadeHangarWorkshopProfile.js',
+        '../src/ui/hangar/ArcadeHangarWorkshopBuildActions.js',
+        '../src/ui/hangar/ArcadeHangarWorkshopSave.js',
+        '../src/ui/hangar/ArcadeHangarWorkshopCatalogEvents.js',
+        '../src/ui/hangar/ArcadeHangarWorkshopBuildEvents.js',
         '../src/ui/hangar/ArcadeHangarWorkshopRenderer.js',
     ]) {
         assert.equal(readSource(relativePath).includes('core/Audio.js'), false, relativePath);

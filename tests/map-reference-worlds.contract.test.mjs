@@ -87,7 +87,8 @@ for (const key of KEYS) {
 
     test(`${key}: exported world aligns with fallback geometry at both arena scales`, async () => {
         const source = createMapWorldSource(key);
-        const model = source.definition.glbModels.find((entry) => entry.url.includes(`/maps/${key}/`));
+        // Prop entries share the map folder; the world is the one 01_world.glb.
+        const model = source.definition.glbModels.find((entry) => entry.url === `assets/maps/${key}/glb/01_world.glb`);
         for (const scale of [1, 1.5]) {
             const loaded = await loadGLBMapCollection([model], { loader: geometryOnlyGlbLoader,
                 colliderMode: 'dynamic', placementScale: scale, requireComplete: true });

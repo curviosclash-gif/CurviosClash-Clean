@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
@@ -197,8 +197,9 @@ test('two fixed simulation steps in one render frame produce distinct ordered sn
     assert.ok(snapshots.every((record) => Math.abs(record.timeMs - record.snapshot.timeMs) < 1));
 });
 
-test('session flush persists ordered records and exact media bytes before successful close', async () => {
+test('session flush persists ordered records and exact media bytes before successful close', async (t) => {
     const parent = await mkdtemp(path.join(os.tmpdir(), 'curvios-store-test-'));
+    t.after(() => rm(parent, { recursive: true, force: true }));
     const directory = path.join(parent, 'session');
     const store = await createMarketingSessionStore({ directory, ffmpeg: 'test-encoder', spawnProcess: fakeEncoder });
     const media = Buffer.from([1, 2, 3, 4]);
@@ -214,8 +215,9 @@ test('session flush persists ordered records and exact media bytes before succes
     await assert.rejects(store.append({}), /session_closed/);
 });
 
-test('sequence gaps produce partial status and never overwrite existing recordings', async () => {
+test('sequence gaps produce partial status and never overwrite existing recordings', async (t) => {
     const parent = await mkdtemp(path.join(os.tmpdir(), 'curvios-store-gap-'));
+    t.after(() => rm(parent, { recursive: true, force: true }));
     const directory = path.join(parent, 'session');
     const options = { directory, ffmpeg: 'test-encoder', spawnProcess: fakeEncoder };
     const store = await createMarketingSessionStore(options);

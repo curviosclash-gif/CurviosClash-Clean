@@ -27,6 +27,9 @@ export const geometryOnlyGlbLoader = {
         result.writeUInt32LE(0x4e4f534a, 16);
         padded.copy(result, 20);
         binaryChunk.copy(result, 20 + padded.length);
-        return new GLTFLoader().parseAsync(result.buffer.slice(result.byteOffset, result.byteOffset + result.byteLength), '');
+        const parseBuffer = result.byteOffset === 0 && result.byteLength === result.buffer.byteLength
+            ? result.buffer
+            : result.buffer.slice(result.byteOffset, result.byteOffset + result.byteLength);
+        return new GLTFLoader().parseAsync(parseBuffer, '');
     },
 };

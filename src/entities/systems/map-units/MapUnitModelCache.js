@@ -26,7 +26,7 @@ export const MAP_UNIT_HEAD_PARTS = Object.freeze(['tank_turret', 'tank_barrel'])
 
 /** How far in front of the muzzle the flash sits, in model units. */
 const FLASH_LEAD = 0.25;
-const LIBRARY_PART_NAMES = Object.freeze([
+export const LIBRARY_PART_NAMES = Object.freeze([
     ...MAP_UNIT_BODY_PARTS,
     ...MAP_UNIT_HEAD_PARTS,
     'tank_wreck',

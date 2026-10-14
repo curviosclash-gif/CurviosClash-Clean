@@ -13,7 +13,17 @@ import {
     WEAPON_RACE_WEAPON_STAGES,
     isWeaponRaceConfig,
     resolveWeaponRaceStage,
+    resolveWeaponRaceWeaponLabel,
 } from '../src/shared/contracts/WeaponRaceContract.js';
+
+test('every weapon race stage has a German display name instead of its raw id', () => {
+    for (const stage of WEAPON_RACE_WEAPON_STAGES) {
+        const label = resolveWeaponRaceWeaponLabel(stage.weaponId);
+        assert.ok(label && label !== stage.weaponId && !label.includes('_'), `${stage.weaponId} -> ${label}`);
+    }
+    assert.equal(resolveWeaponRaceWeaponLabel('rocket_medium'), 'Raketen');
+    assert.equal(resolveWeaponRaceWeaponLabel(''), 'MG');
+});
 import {
     createWeaponRaceState,
     finishWeaponRaceRacer,

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -32,7 +32,7 @@ test('Electron loads marketing IPC and ffmpeg only for the dedicated launch', as
     assert.match(main, /if \(marketingMode\) \{\s*const \{ installMarketingSessionIpc \}[\s\S]*?require\('ffmpeg-static'\)/);
     assert.doesNotMatch(main, /ipcMain\.handle\(['"]marketing:/);
     assert.match(main, /sha256:\s*await hashDirectory\(rendererDir\)/);
-    assert.match(main, /CURVIOS_USER_DATA_ROOT = path\.join\(app\.getPath\('appData'\), 'curviosclash-marketing-profile'\)/);
+    assert.match(main, /CURVIOS_USER_DATA_ROOT = path\.join\(resolveAppDataRoot\(app\), 'curviosclash-marketing-profile'\)/);
     assert.match(main, /function resolveMarketingConfigDirectory[\s\S]*?path\.basename\(resolvedConfig\) !== 'config\.json'/);
     assert.match(main, /const configInfo = await lstat\(actualConfig\)[\s\S]*?configInfo\.isSymbolicLink\(\)/);
     assert.doesNotMatch(await source('src/core/recording/MarketingSession.js'), /document\.(?:body|createElement)/);
@@ -79,8 +79,9 @@ test('marketing local-map snapshot is merged into the isolated runtime catalog b
     assert.equal(knownKeys.has('editor_test-map'), true);
 });
 
-test('marketing IPC rejects untrusted senders and capture paths inside the repository', async () => {
+test('marketing IPC rejects untrusted senders and capture paths inside the repository', async (t) => {
     const folder = await mkdtemp(path.join(os.tmpdir(), 'curvios-marketing-ipc-'));
+    t.after(() => rm(folder, { recursive: true, force: true }));
     const handlers = new Map();
     const ipcMain = { handle: (name, handler) => handlers.set(name, handler) };
     const configPath = path.join(folder, 'config.json');

@@ -43,7 +43,11 @@ export function bindEditorBackdropControls(editor) {
         const key = editor.mapManager?.mapDocumentMeta?.editorBackdrop;
         if (!key) return null;
         const presets = catalog || await catalogReady;
-        return presets?.[key] || null;
+        const preset = presets?.[key] || null;
+        if (!preset) {
+            editor.notify?.(`Spielkarte „${key}“ nicht gefunden: Platzierungen ohne ihre Ankerregel (Welteinheiten) kopiert.`, 'warn');
+        }
+        return preset;
     };
 
     // Like a pilot at the start: in the player spawn, looking level towards the map centre.
@@ -74,7 +78,7 @@ export function bindEditorBackdropControls(editor) {
             // The editor dialog resolves null on Cancel, Escape or a click beside it.
             if (!confirmed) return false;
         }
-        const { document: mapDocument } = convertPresetToEditorDocument(key, preset, { mapScale: getRuntimeMapScale(1) });
+        const { document: mapDocument, warnings } = convertPresetToEditorDocument(key, preset, { mapScale: getRuntimeMapScale(1) });
         editor.executeHistoryMutation('Load map backdrop', () => {
             editor.mapManager.importFromJSON(JSON.stringify(mapDocument), {
                 onArenaSize: (arenaSize) => {
@@ -92,15 +96,18 @@ export function bindEditorBackdropControls(editor) {
         editor.selectObject(null);
         lookFromPlayerSpawn();
         editor.notify?.(`${preset.name || key} geladen. Abflug mit G.`, 'success');
+        for (const warning of warnings || []) editor.notify?.(warning, 'warn');
         return true;
     };
 
     const copyPlacements = async () => {
         if (!editor.mapManager) return '';
         const preset = await resolveBackdropPreset();
+        const warnings = [];
         const placements = exportPlacementsInPresetFormat(editor.mapManager, editor.getArenaSizeForExport(), {
             preset,
             mapScale: getRuntimeMapScale(1),
+            warnings,
         });
         const text = JSON.stringify(placements, null, 2);
         // Always visible in the Map JSON box; the clipboard is a convenience that may be refused.
@@ -111,6 +118,11 @@ export function bindEditorBackdropControls(editor) {
             editor.notify?.('Platzierungen im Kartenformat kopiert.', 'success');
         } catch {
             editor.notify?.('Platzierungen stehen im Feld „Map JSON“ zum Kopieren bereit.', 'info');
+        }
+        if (warnings.length > 0) {
+            console.warn('[EditorBackdrop] Values above the world limits of the target map:', warnings);
+            const more = warnings.length > 1 ? ` (+${warnings.length - 1} weitere, siehe Konsole)` : '';
+            editor.notify?.(`${warnings[0]}${more}`, 'warn');
         }
         return text;
     };

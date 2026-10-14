@@ -120,8 +120,8 @@ export function transformElectronMain(source) {
     result = result.replace(/const TUNING_CONSOLE_CAPABILITY_CONTRACT_VERSION[\s\S]*?const TUNING_CONSOLE_HOTKEY = 'F7';\n/, '');
     result = replacePatternRequired(
         result,
-        /    installEditorDownloadTarget\(session\.defaultSession,[\s\S]*?    \}\);\n    await mainWindow\.loadURL/,
-        "    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));\n    await mainWindow.loadURL",
+        /    installEditorDownloadTarget\(session\.defaultSession,[\s\S]*?    \}\);\n    if \(marketingMode\) marketingSession\?\.attach\(\);\n    await mainWindow\.loadURL/,
+        "    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));\n    if (marketingMode) marketingSession?.attach();\n    await mainWindow.loadURL",
         'editor and playtest window creation'
     );
     result = result.replace(/\nfunction resolveTuningConsoleCapabilityState\(\) \{[\s\S]*?\n\}\n\nfunction resolveSharedMenuDefaults/, '\nfunction resolveSharedMenuDefaults');
@@ -141,7 +141,7 @@ export function transformElectronMain(source) {
         "\nipcMain.handle('get-lan-server-status'",
         'editor vehicle store IPC'
     );
-    assert.doesNotMatch(result, /editor|playtest|tuning|globalShortcut/i);
+    assert.doesNotMatch(result, /createEditorWindowOpenHandler|createPlaytestWindowOpenHandler|installEditorDownloadTarget|editorVehicleStore|editorMapStore|TUNING_CONSOLE|globalShortcut|session\.defaultSession|UNTRUSTED_IPC_SENDER_CODE/i);
     return result;
 }
 

@@ -278,6 +278,7 @@ test('flag guards follow their owning team from blue to orange', () => {
     };
     const guard = addObjectiveGuard(system, { id: 'guard', teamId: TEAM_IDS.ALPHA, position: [0, 0, 0] });
     assert.equal(definition.ownerColor, 0x00aaff);
+    assert.equal(definition.cooldown, 0.45);
     setTurretTeam(guard, TEAM_IDS.BRAVO);
     assert.equal(accent.material.color.getHex(THREE.SRGBColorSpace), 0xff8800);
     assert.equal(healthFill.material.color.getHex(THREE.SRGBColorSpace), 0xff8800);

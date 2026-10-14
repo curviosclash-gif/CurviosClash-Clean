@@ -4,6 +4,9 @@ export function createArcadePort({ getRuntimeCoordinator, getRuntimeFacade }) {
             return getRuntimeCoordinator()?.getArcadeMenuSurfaceState?.()
                 ?? getRuntimeFacade()?.getArcadeMenuSurfaceState?.();
         },
+        getRunSurfaceState() {
+            return getRuntimeFacade()?.getArcadeRunSurfaceState?.() ?? null;
+        },
         getPostMatchProgression() {
             return getRuntimeFacade()?.getArcadePostMatchProgression?.() || null;
         },

@@ -174,6 +174,7 @@ function undergrowth(family, variant, id, x, z, targetSize, rotationY) {
         targetSize,
         maxRenderDistance: Math.ceil(FOG_FAR_UNITS + targetSize * 1.225),
         collision: false,
+        role: 'optionalProp',
     });
 }
 

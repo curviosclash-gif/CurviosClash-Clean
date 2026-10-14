@@ -1,3 +1,4 @@
+import { ARENA_WAVES_BOT_CAPACITY } from '../../shared/contracts/ArenaWavesContract.js';
 import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { createDemolitionMapPlan } from '../../shared/contracts/DemolitionContract.js';
 import { validateArcadePlayerProfileSelection } from './ArcadeDemolitionProfileSelection.js';
@@ -6,7 +7,7 @@ import { bindArcadeDemolitionMedalLine } from './ArcadeDemolitionMedalLine.js';
 // getSeed is read on click: "Seed neu rollen" and "Seed setzen" change the seed after binding.
 export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, getSeed, demolitionProfiles, runtimeAccess) {
     bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
-    bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
+    bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: ARENA_WAVES_BOT_CAPACITY }));
     bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }, 'five_portals'));
     bind(refs.startSkyLadderButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: resolvePortalChain('sky_ladder').maps[0], numBots: 0 }, 'sky_ladder'));
     bind(refs.startWeaponRaceButton, 'click', () => startRunWithOwnMap('weapon_race', { mapKey: 'parcours_assault', numBots: 4 }));
