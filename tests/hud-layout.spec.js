@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { resolveAppUrl } from './helpers.js';
+import { resolveAppUrl, waitForLoadedGame } from './helpers.js';
 
 const VIEWPORTS = [
     { width: 1920, height: 1080 },
@@ -81,6 +81,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
     for (const viewport of VIEWPORTS) {
         await page.setViewportSize(viewport);
         await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'domcontentloaded' });
+        await waitForLoadedGame(page);
 
         for (const scale of SCALES) {
             const layout = await page.evaluate(({ scale }) => {
@@ -329,6 +330,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
 test('Klassik and Arcade use the Fight HUD shell without duplicate Arcade score', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'domcontentloaded' });
+    await waitForLoadedGame(page);
 
     const layout = await page.evaluate(() => {
         const hud = document.querySelector('#hud');
