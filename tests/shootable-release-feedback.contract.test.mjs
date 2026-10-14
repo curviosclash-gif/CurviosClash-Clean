@@ -93,7 +93,7 @@ test('the puff is a real, rate-limited gameplay voice', () => {
 });
 
 test('the entity manager feeds arena releases into the feedback', () => {
-    const arenaSource = readFileSync(new URL('../src/entities/Arena.js', import.meta.url), 'utf8');
+    const arenaSource = readFileSync(new URL('../src/entities/arena/ArenaShootablePlantOps.js', import.meta.url), 'utf8');
     assert.match(arenaSource, /seeds\.onRelease = /);
     assert.match(arenaSource, /sunflowerKernels\.onRelease = /);
     const manager = readFileSync(new URL('../src/entities/EntityManager.js', import.meta.url), 'utf8');

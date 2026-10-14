@@ -168,11 +168,19 @@ export const SOURCE_EXCEPTIONS = {
         exception('        this.now = typeof options.now === \'function\' ? options.now : () => Date.now();', 'Date.now', 1, 'injected epoch clock default'),
         exception('    _nextRunId(nowMs = Date.now()) {', 'Date.now', 1, 'epoch run identifier default'),
         exception('    _prepareIntermission(nowMs = Date.now()) {', 'Date.now', 1, 'epoch intermission metadata default'),
-        exception('        const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));', 'Date.now', 1, 'epoch run/intermission metadata fallback', 5),
-        exception('    _recordSectorHistoryEntry(payload, nowMs = Date.now()) {', 'Date.now', 1, 'persisted sector history epoch default'),
-        exception('            endedAtIso: new Date(Math.max(0, toSafeNumber(nowMs, Date.now()))).toISOString(),', 'Date.now', 1, 'persisted sector history epoch fallback'),
-        exception('    _recordDailyResult(nowMs = Date.now()) { return recordArcadeDailyResult(this, nowMs); }', 'Date.now', 1, 'persisted reward epoch default'),
-        exception('    _finalizeRun(nowMs = Date.now()) { return finalizeArcadeRun(this, nowMs); }', 'Date.now', 1, 'persisted run epoch default'),
+        exception('    _recordDailyResult(nowMs = Date.now()) {', 'Date.now', 1, 'persisted reward epoch default'),
+        exception('    _finalizeRun(nowMs = Date.now()) {', 'Date.now', 1, 'persisted run epoch default'),
+    ],
+    'src/core/arcade/ArcadeRunLifecycleOps.js': [
+        exception('    const nowMs = Math.max(0, toSafeNumber(runtime.now(), Date.now()));', 'Date.now', 1, 'epoch run/intermission metadata fallback', 2),
+    ],
+    'src/core/arcade/ArcadeRunRoundEndPlanOps.js': [
+        exception('    const nowMs = Math.max(0, toSafeNumber(runtime.now(), Date.now()));', 'Date.now', 1, 'epoch round-end metadata fallback'),
+    ],
+    'src/core/arcade/ArcadeRunTelemetryOps.js': [
+        exception('    const nowMs = Math.max(0, toSafeNumber(runtime.now(), Date.now()));', 'Date.now', 1, 'epoch telemetry metadata fallback', 2),
+        exception('export function recordArcadeSectorHistoryEntry(runtime, payload, nowMs = Date.now()) {', 'Date.now', 1, 'persisted sector history epoch default'),
+        exception('        endedAtIso: new Date(Math.max(0, toSafeNumber(nowMs, Date.now()))).toISOString(),', 'Date.now', 1, 'persisted sector history epoch fallback'),
     ],
     'src/core/arcade/ArcadeRunParcoursSectorOps.js': [
         exception('    const nowMs = Math.max(0, toSafeNumber(runtime.now(), Date.now()));', 'Date.now', 1, 'epoch sector completion metadata fallback'),

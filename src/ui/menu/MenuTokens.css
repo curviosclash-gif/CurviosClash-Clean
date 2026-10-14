@@ -8,7 +8,7 @@
  * Rules for screens that use these tokens:
  *  - A state is never shown by colour alone: add a shape, symbol or text (locked, done, medal, error).
  *  - Text never goes below 16 px; --menu-scale (menu size setting) only scales upwards from there.
- *  - The fonts are not bundled yet; until they are, the fallback stacks below apply.
+ *  - Chakra Petch and Barlow are bundled in assets/fonts/menu under the SIL Open Font License 1.1.
  */
 :root {
     --menu-bg: #0a0d18;

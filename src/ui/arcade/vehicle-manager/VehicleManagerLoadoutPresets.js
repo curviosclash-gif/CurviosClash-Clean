@@ -128,7 +128,8 @@ function resolvePersistedPayload(source) {
     if (versionState.shouldReject) {
         return {
             payload: sanitizeStorePayload(null),
-            shouldPersist: true,
+            shouldPersist: false,
+            readOnly: true,
         };
     }
     const rawPayload = versionState.hasVersionField
@@ -148,21 +149,27 @@ function loadPayload(store) {
             const saveResult = store.saveJsonRecord(VEHICLE_LOADOUT_PRESET_STORAGE_KEY, resolved.payload);
             warnPersistenceFailure('canonical write-back', saveResult);
         }
-        return resolved.payload;
+        return {
+            payload: resolved.payload,
+            readOnly: resolved.readOnly === true,
+        };
     }
     const raw = safeReadFromLocalStorage();
-    if (!raw) return sanitizeStorePayload(null);
+    if (!raw) return { payload: sanitizeStorePayload(null), readOnly: false };
     try {
         const resolved = resolvePersistedPayload(JSON.parse(raw));
         if (resolved.shouldPersist) {
             safeWriteToLocalStorage(JSON.stringify(resolved.payload));
         }
-        return resolved.payload;
+        return {
+            payload: resolved.payload,
+            readOnly: resolved.readOnly === true,
+        };
     } catch (error) {
         if (typeof console !== 'undefined' && typeof console.warn === 'function') {
             console.warn('[VehicleManagerLoadoutPresets] loadPayload failed, using empty store.', error);
         }
-        return sanitizeStorePayload(null);
+        return { payload: sanitizeStorePayload(null), readOnly: false };
     }
 }
 
@@ -185,10 +192,14 @@ function createPresetId(vehicleId, name) {
 }
 
 export function createVehicleManagerLoadoutPresetStore({ store } = {}) {
-    let payload = loadPayload(store);
+    const loaded = loadPayload(store);
+    let payload = loaded.payload;
+    const readOnly = loaded.readOnly;
 
     function persist() {
+        if (readOnly) return false;
         persistPayload(store, payload);
+        return true;
     }
 
     function listPresets(vehicleId) {
@@ -207,6 +218,7 @@ export function createVehicleManagerLoadoutPresetStore({ store } = {}) {
     }
 
     function savePreset(vehicleId, name, upgrades) {
+        if (readOnly) return null;
         const normalizedVehicleId = normalizeVehicleId(vehicleId);
         const normalizedName = normalizeString(name, 'Preset');
         const nowMs = Date.now();
@@ -227,6 +239,7 @@ export function createVehicleManagerLoadoutPresetStore({ store } = {}) {
     }
 
     function deletePreset(vehicleId, presetId) {
+        if (readOnly) return false;
         const normalizedVehicleId = normalizeVehicleId(vehicleId);
         const normalizedPresetId = normalizeString(presetId);
         const beforeCount = payload.presets.length;

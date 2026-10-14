@@ -141,7 +141,7 @@ export class ParcoursOverlayController {
             }
             if (this._penaltyOverlay) {
                 const seconds = (Math.max(0, Number(penalty.penaltyMs) || 0) / 1000).toFixed(1);
-                this._penaltyOverlay.textContent = `+${seconds}s PENALTY`;
+                this._penaltyOverlay.textContent = `+${seconds} s Strafzeit`;
                 this._penaltyOverlay.classList.remove('hidden');
                 this._penaltyHideAtMs = Math.max(0, nowMs) + 1400;
             }

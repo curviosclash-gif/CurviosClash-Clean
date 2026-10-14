@@ -9,6 +9,19 @@ function positiveFactor(value) {
     return Number.isFinite(factor) && factor > 0 ? factor : 1;
 }
 
+/**
+ * The shared HUNT.MG object is edited in place (live tuning, test switches): the same object can carry
+ * new values, so the cache compares the values it was built from, not only the object. No allocation.
+ */
+function baseValuesMatch(snapshot, base) {
+    let count = 0;
+    for (const key in base) {
+        if (snapshot[key] !== base[key]) return false;
+        count += 1;
+    }
+    return count === snapshot._valueCount;
+}
+
 /** One cached config per player; only fog-dependent RANGE changes on the hot path. */
 export function resolvePlayerMachineGunConfig(baseMg, player) {
     const base = baseMg || {};
@@ -20,7 +33,7 @@ export function resolvePlayerMachineGunConfig(baseMg, player) {
         return resolveFightMachineGunConfig(base, fightId);
     }
     const cached = player?._arcadeMgCache;
-    if (cached?.base === base && cached.loadout === loadout && cached.arena === arena
+    if (cached?.base === base && baseValuesMatch(cached.baseValues, base) && cached.loadout === loadout && cached.arena === arena
         && cached.fightId === fightId && cached.damage === damage) {
         cached.config.RANGE = resolveArcadeNoseRange(cached.config.FALLOFF_RANGE, player);
         return cached.config;
@@ -47,7 +60,10 @@ export function resolvePlayerMachineGunConfig(baseMg, player) {
         config.TRACER_DURATION_SECONDS = masteryStyle.durationSeconds;
     }
     config.RANGE = resolveArcadeNoseRange(config.FALLOFF_RANGE, player);
-    if (player) player._arcadeMgCache = { base, loadout, arena, fightId, damage, config };
+    if (player) {
+        const baseValues = { ...base, _valueCount: Object.keys(base).length };
+        player._arcadeMgCache = { base, baseValues, loadout, arena, fightId, damage, config };
+    }
     return config;
 }
 

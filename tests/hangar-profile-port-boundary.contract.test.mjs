@@ -14,7 +14,9 @@ test('the hangar page composes its state-backed profile port outside UI', () => 
     assert.match(html, /src="\/src\/composition\/entries\/HangarWindowEntry\.js"/);
     assert.match(entry, /from '\.\.\/\.\.\/state\/arcade\/ArcadeVehicleProfileWorkshopPort\.js'/);
     assert.match(entry, /arcadeVehicleProfileWorkshop:\s*createArcadeVehicleProfileWorkshopPort\(playerStore\)/);
-    assert.match(entry, /startHangarWindowApp\(\{\s*settings:\s*store\.loadSettings\(\),\s*runtimeAccess\s*\}\)/);
+    assert.match(entry, /startHangarWindowApp\(\{\s*settings:\s*store\.loadSettings\(\),\s*runtimeAccess,/);
+    assert.match(entry, /hangarWindow:\s*createElectronPreloadHangarAdapter\(globalThis\)/);
+    assert.doesNotMatch(app, /from ['"][^'"]*platform\//);
     assert.match(app, /export function startHangarWindowApp\(\{\s*settings\s*=\s*\{\},\s*runtimeAccess/);
     assert.match(app, /setupArcadeHangarWorkshop\(\{[\s\S]*?runtimeAccess,/);
     assert.doesNotMatch(app, /from ['"][^'"]*state\/arcade\//);

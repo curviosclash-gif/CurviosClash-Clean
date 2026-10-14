@@ -1,0 +1,178 @@
+/*
+ * Menu stage 5: use the approved style Q typography and surfaces on the live menu.
+ * The font files are bundled locally. No menu screen makes a remote font request.
+ */
+
+@font-face {
+    font-family: 'Chakra Petch';
+    src: url('../../../assets/fonts/menu/ChakraPetch-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Chakra Petch';
+    src: url('../../../assets/fonts/menu/ChakraPetch-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Barlow';
+    src: url('../../../assets/fonts/menu/Barlow-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Barlow';
+    src: url('../../../assets/fonts/menu/Barlow-SemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+#main-menu,
+#message-overlay,
+#pause-overlay {
+    font-family: var(--menu-font-body);
+}
+
+#main-menu .menu-content {
+    color: var(--menu-text);
+    background: var(--menu-surface-pattern), color-mix(in srgb, var(--menu-bg) 92%, transparent);
+    border-color: var(--menu-line);
+    border-radius: var(--menu-radius-l);
+}
+
+#main-menu :is(h1, h2, h3, .submenu-title, .section-title, .nav-btn, .back-btn, .start-btn, .secondary-btn) {
+    font-family: var(--menu-font-display);
+}
+
+#main-menu .menu-content :is(label, p, small, select, input, textarea) {
+    font-family: var(--menu-font-body);
+}
+
+#main-menu[data-menu-depth="1"] #main-menu-title {
+    font-family: var(--menu-font-display);
+    color: var(--menu-text);
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    text-shadow: 0 2px 0 var(--menu-bg-2);
+}
+
+#main-menu .menu-primary-start-summary {
+    font-family: var(--menu-font-body);
+}
+
+#main-menu .submenu-title,
+#main-menu .section-title {
+    color: var(--menu-text);
+    letter-spacing: .04em;
+    text-transform: var(--menu-display-case);
+}
+
+#main-menu .nav-btn,
+#main-menu .secondary-btn,
+#main-menu .back-btn,
+#main-menu .mode-btn,
+#main-menu .menu-choice-card {
+    color: var(--menu-text);
+    background: var(--menu-surface-pattern), var(--menu-surface);
+    border-color: var(--menu-line);
+    border-radius: var(--menu-radius-m);
+}
+
+#main-menu .nav-btn:hover,
+#main-menu .secondary-btn:hover:not(:disabled),
+#main-menu .back-btn:hover,
+#main-menu .mode-btn:hover,
+#main-menu .menu-choice-card:hover {
+    border-color: var(--menu-accent);
+    color: var(--menu-text);
+}
+
+#main-menu .nav-btn:is(.active, [aria-expanded="true"]),
+#main-menu .mode-btn.active,
+#main-menu .menu-choice-card:is(.active, [aria-pressed="true"]) {
+    border-color: var(--menu-accent);
+    box-shadow: inset 4px 0 0 var(--menu-accent);
+}
+
+#main-menu .start-btn {
+    color: var(--menu-on-accent);
+    background: var(--menu-accent);
+    border: var(--menu-border) solid var(--menu-accent);
+    border-radius: var(--menu-radius-m);
+    box-shadow: var(--menu-primary-edge);
+    text-shadow: none;
+}
+
+#main-menu .start-btn:hover {
+    border-color: var(--menu-text);
+}
+
+#main-menu :is(select, input[type="text"], .menu-input, textarea) {
+    color: var(--menu-text);
+    background: var(--menu-surface-2);
+    border-color: var(--menu-line);
+    border-radius: var(--menu-radius-m);
+}
+
+#main-menu :is(select, input[type="text"], .menu-input, textarea)::placeholder {
+    color: var(--menu-muted);
+}
+
+#main-menu :is(button, select, input, textarea):focus-visible,
+.message-actions-btn:focus-visible {
+    outline: var(--menu-focus-width) solid var(--menu-focus);
+    outline-offset: var(--menu-focus-offset);
+}
+
+#message-overlay {
+    background: color-mix(in srgb, var(--menu-bg) 84%, transparent);
+}
+
+#message-text,
+#message-overlay .message-stats-title {
+    font-family: var(--menu-font-display);
+    color: var(--menu-text);
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    text-transform: var(--menu-display-case);
+}
+
+#message-overlay .message-stats-card {
+    color: var(--menu-text);
+    background: var(--menu-surface-pattern), var(--menu-surface);
+    border-color: var(--menu-line);
+    border-radius: var(--menu-radius-m);
+}
+
+#message-overlay .message-stats-label,
+#message-overlay .message-actions-hints,
+#message-sub {
+    color: var(--menu-muted);
+}
+
+#message-overlay .message-actions-btn {
+    font-family: var(--menu-font-display);
+    border-radius: var(--menu-radius-m);
+}
+
+#message-overlay .message-actions-continue:not([aria-disabled="true"]) {
+    color: var(--menu-on-accent);
+    background: var(--menu-accent);
+    border-color: var(--menu-accent);
+    box-shadow: var(--menu-primary-edge);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #main-menu .submenu-panel,
+    #message-overlay {
+        animation: none;
+    }
+}

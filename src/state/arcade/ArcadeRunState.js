@@ -179,6 +179,7 @@ export function createArcadeRunState({
         xpEarned: 0,
         dailyResult: null,
         victory: null,
+        finaleFailed: false,
         intermissionPaused: false,
         sectorIndex: 0,
         completedSectors: 0,

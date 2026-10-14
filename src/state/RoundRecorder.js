@@ -35,6 +35,8 @@ function normalizeCountValue(value, max) {
 export class RoundRecorder {
     constructor() {
         this.roundStartTime = 0;
+        this._simulationTimeProvider = null;
+        this._simulationRoundStartSeconds = null;
         this._enabled = true;
         this._frameCaptureEnabled = false;
         this._replayCaptureEnabled = true;
@@ -127,7 +129,22 @@ export class RoundRecorder {
     }
 
     _elapsedSeconds() {
+        if (this._simulationTimeProvider && Number.isFinite(this._simulationRoundStartSeconds)) {
+            const now = Number(this._simulationTimeProvider());
+            return Number.isFinite(now) ? Math.max(0, now - this._simulationRoundStartSeconds) : 0;
+        }
         return this.roundStartTime > 0 ? (performance.now() - this.roundStartTime) / 1000 : 0;
+    }
+
+    setSimulationTimeProvider(provider) {
+        this._simulationTimeProvider = typeof provider === 'function' ? provider : null;
+        this._simulationRoundStartSeconds = null;
+    }
+
+    rebaseRoundClock() {
+        if (!this._simulationTimeProvider) return;
+        const now = Number(this._simulationTimeProvider());
+        this._simulationRoundStartSeconds = Number.isFinite(now) ? now : 0;
     }
 
     startMatch() {
@@ -141,6 +158,8 @@ export class RoundRecorder {
         this._playerStatsStore.reset();
         this._frameCounter = 0;
         this.roundStartTime = performance.now();
+        this._simulationRoundStartSeconds = null;
+        if (this._simulationTimeProvider) this.rebaseRoundClock();
         this._metricsStore.startRound(players);
     }
 

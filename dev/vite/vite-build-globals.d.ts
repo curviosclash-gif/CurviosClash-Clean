@@ -16,3 +16,11 @@ declare const __CURVIOS_E2E__: boolean;
 declare const __APP_MODE__: string;
 declare const __APP_TARGET__: string;
 declare const __SIGNALING_URL__: string;
+
+interface ImportMetaEnv {
+    readonly DEV: boolean;
+}
+
+interface ImportMeta {
+    readonly env: ImportMetaEnv;
+}

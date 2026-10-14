@@ -20,6 +20,7 @@ import {
     postLanHostCommand,
     publishLanLobbyMetadata, publishLanLobbyName, publishLanLobbyVehicle,
 } from './LANSignalingSupport.js';
+import { resolveLanServerSessionState } from './LANServerSessionState.js';
 import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
@@ -190,7 +191,7 @@ export class LANMatchLobby extends MatchLobby {
                         logger.warn('Cancelled lobby join cleanup failed:', cleanupError);
                     }
                 }
-                const error = new Error('Lobby join was cancelled.');
+                const error = /** @type {Error & { code: string }} */ (new Error('Lobby join was cancelled.'));
                 error.code = 'join_cancelled';
                 throw error;
             }
@@ -211,7 +212,7 @@ export class LANMatchLobby extends MatchLobby {
             this._startPolling();
         } catch (err) {
             if (joinGeneration !== this._joinGeneration || this._cancelReconnect) {
-                const error = new Error('Lobby join was cancelled.');
+                const error = /** @type {Error & { code: string }} */ (new Error('Lobby join was cancelled.'));
                 error.code = 'join_cancelled';
                 throw error;
             }
@@ -231,58 +232,11 @@ export class LANMatchLobby extends MatchLobby {
         const status = serverState && typeof serverState === 'object' ? serverState : {};
         if (Number.isSafeInteger(status.settingsRevision) && this.sessionState.settingsRevision != null
             && status.settingsRevision < this.sessionState.settingsRevision) return;
-        const existingMembers = Array.isArray(this.sessionState?.members) ? this.sessionState.members : [];
-        const serverPlayers = Array.isArray(status.players) ? status.players : [];
-
-        const merged = [];
-        const hostPeerId = String(status.hostPeerId || this.sessionState.hostPeerId || 'host').trim() || 'host';
-        const now = this._lobbyRuntime.nowMs();
-
-        const ensureMember = (player, fallbackRole = 'client') => {
-            const peerId = String(player?.playerId || player?.peerId || player?.id || '').trim();
-            if (!peerId) return;
-            const existing = existingMembers.find((member) => member.peerId === peerId);
-            const resolvedReady = typeof player?.ready === 'boolean'
-                ? player.ready === true
-                : existing?.ready === true;
-            merged.push({
-                peerId,
-                actorId: String(player?.actorId || existing?.actorId || player?.name || (peerId === hostPeerId ? 'Host' : peerId)).trim(),
-                name: String(player?.name || existing?.name || peerId).trim(),
-                lobbyName: typeof player?.lobbyName === 'string' ? player.lobbyName : (existing?.lobbyName || ''),
-                vehicleId: typeof player?.vehicleId === 'string' ? player.vehicleId : (existing?.vehicleId || ''), secondVehicleId: typeof player?.secondVehicleId === 'string' ? player.secondVehicleId : (existing?.secondVehicleId || ''),
-                role: peerId === hostPeerId ? 'host' : fallbackRole,
-                ready: resolvedReady,
-                joinedAt: Number(existing?.joinedAt || now),
-                lastSeenAt: now,
-            });
-        };
-
-        ensureMember({
-            playerId: hostPeerId,
-            actorId: status.hostActorId,
-            name: status.hostName || status.hostActorId || 'Host',
-            lobbyName: status.hostLobbyName, vehicleId: status.hostVehicleId, secondVehicleId: status.hostSecondVehicleId,
-            ready: status.hostReady === true,
-        }, 'host');
-        for (const player of serverPlayers) {
-            ensureMember(player, 'client');
-        }
-
-        this._applySessionState({
-            lobbyCode: status.lobbyCode || this.sessionState.lobbyCode,
-            hostPeerId,
-            localPlayerCount: status.localPlayerCount, playerCount: status.playerCount,
-            maxPlayers: Number(status.maxPlayers || this.sessionState.maxPlayers || 10),
-            members: merged,
-            metadata: status.metadata,
-            settingsRevision: status.settingsRevision,
-            pendingMatchStart: status?.pendingMatchStart && typeof status.pendingMatchStart === 'object'
-                ? { ...status.pendingMatchStart }
-                : null,
-            updatedAt: now,
-            revision: Number(this.sessionState.revision || 0) + 1,
-        });
+        this._applySessionState(resolveLanServerSessionState({
+            status,
+            currentState: this.sessionState,
+            now: this._lobbyRuntime.nowMs(),
+        }));
     }
 
     _processServerStatus(serverState = {}) {

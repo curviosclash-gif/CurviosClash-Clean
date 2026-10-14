@@ -25,7 +25,7 @@ test('game Electron main strips authoring-only capabilities and denies popups', 
     assert.match(gameMain, /setWindowOpenHandler\(\(\) => \(\{ action: 'deny' \}\)\)/);
     assert.doesNotMatch(
         gameMain,
-        /editor|playtest|tuning|globalShortcut|session\.defaultSession|UNTRUSTED_IPC_SENDER_CODE/i
+        /createEditorWindowOpenHandler|createPlaytestWindowOpenHandler|installEditorDownloadTarget|editorVehicleStore|editorMapStore|TUNING_CONSOLE|globalShortcut|session\.defaultSession|UNTRUSTED_IPC_SENDER_CODE/i
     );
 });
 

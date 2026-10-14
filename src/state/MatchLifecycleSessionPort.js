@@ -138,7 +138,9 @@ export function createMatchSessionPort(runtime) {
             powerupManager.clear();
 
             runtime?.runtimePerfProfiler?.beginTelemetryInterval?.();
-            runtime?.recorder?.startRound?.(entityManager.players);
+            const recorder = runtime?.recorder;
+            recorder?.setSimulationTimeProvider?.(() => (Number(entityManager._simulationClockMs) || 0) / 1000);
+            recorder?.startRound?.(entityManager.players);
             entityManager.spawnAll();
             runtime?.recorder?.captureSnapshotNow?.(entityManager);
             applyPendingArcadeIntermissionEffects(entityManager.players);

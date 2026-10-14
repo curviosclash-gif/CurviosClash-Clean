@@ -99,6 +99,33 @@ test('hazards use swept collision and apply at most one hit per activation', () 
     assert.equal(damage.length, 2, 'replicas only display host-authoritative hazard damage');
 });
 
+test('fire hazard damage cooldowns use simulation time when fire phase time differs', () => {
+    let appliedDamageOptions = null;
+    const manager = {
+        arena: {
+            currentMapDefinition: { mapHazards: [HAZARD] },
+            mapFireHazardTime: 2.2,
+        },
+        entityRuntimeConfig: { ARENA: { MAP_SCALE: 1 } },
+        gameModeStrategy: { modeType: 'HUNT' },
+        _applyModeDamage(_player, _amount, _cause, options) {
+            appliedDamageOptions = options;
+        },
+    };
+    const system = new MapHazardSystem(manager);
+    system.startRound();
+    const player = {
+        index: 4,
+        alive: true,
+        spawnProtectionTimer: 0,
+        hitboxRadius: 1,
+        position: new THREE.Vector3(0, 0, 0),
+    };
+
+    assert.equal(system.updatePlayer(player, player.position.clone(), 120, 1 / 60), true);
+    assert.equal(appliedDamageOptions.nowSeconds, 120);
+});
+
 test('spawn protection blocks hazards and a classic shield absorbs one burst', () => {
     let damageCalls = 0;
     const audioEvents = [];

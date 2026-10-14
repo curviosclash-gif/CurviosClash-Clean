@@ -29,10 +29,13 @@ function boundedGhost(clip, budget) {
     return getLongestGhostByRoute(result.ghostLibrary, 'best', budget)?.longestGhostClip || null;
 }
 
-function resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget) {
+function resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget, plainRouteCandidates = []) {
     if (routeCandidates.length === 0) {
         return { started: false, reason: 'invalid_route', routeCandidates };
     }
+    // A ranked run keeps its records on its level board; a longest ghost saved before level boards
+    // existed only knows the plain route and still serves as the self-duel opponent.
+    const ghostRouteCandidates = [...routeCandidates, ...plainRouteCandidates.filter((id) => !routeCandidates.includes(id))];
     if (!isArcadeGhostDuelPlaybackEnabled(runtime._config?.ghostDuelMode)) {
         return { started: false, reason: 'ghost_mode_disabled', routeCandidates };
     }
@@ -51,15 +54,15 @@ function resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget) {
         selectedRouteId = best?.routeId || '';
         clipToPlay = boundedGhost(best?.entry?.ghostClip, ghostLibraryBudget);
     }
-    for (let i = 0; !bestTimeMode && i < routeCandidates.length; i += 1) {
+    for (let i = 0; !bestTimeMode && i < ghostRouteCandidates.length; i += 1) {
         const longestGhost = getLongestGhostByRoute(
             runtime._ghostLibrary,
-            routeCandidates[i],
+            ghostRouteCandidates[i],
             ghostLibraryBudget
         );
         if (!longestGhost?.longestGhostClip) continue;
         clipToPlay = longestGhost.longestGhostClip;
-        selectedRouteId = String(longestGhost.routeId || routeCandidates[i] || '').trim();
+        selectedRouteId = String(longestGhost.routeId || ghostRouteCandidates[i] || '').trim();
         break;
     }
     if (!clipToPlay) {
@@ -246,14 +249,15 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
 export function applyParcoursLeaderboardEvent(runtime, data) {
     if (!data || typeof data !== 'object') return null;
     if (runtime._config?.runType === 'hangar_test') return null;
-    const routeCandidates = normalizeRouteCandidates(data.routeId, data.routeAliases)
+    const plainRouteCandidates = normalizeRouteCandidates(data.routeId, data.routeAliases);
+    const routeCandidates = plainRouteCandidates
         .map((routeId) => resolveArcadeParcoursRankKey(routeId, runtime.rankContext));
     const primaryRouteId = routeCandidates[0] || '';
     const ghostLibraryBudget = runtime._resolveGhostLibraryBudgetOptions();
 
     if (data.type === 'checkpoint') return resolveCheckpoint(runtime, data, primaryRouteId);
     if (data.type === 'ghost_start') {
-        return resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget);
+        return resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget, plainRouteCandidates);
     }
     if (data.type === 'wrong_order') return resolveWrongOrder(runtime, data);
     if (data.type === 'finish') {

@@ -18,6 +18,7 @@ export class EntitySpawnOps {
         owner._overheatGunSystem?.reset?.();
         owner._roundEnded = false;
         owner._simulationClockMs = 0;
+        owner.recorder?.rebaseRoundClock?.();
         owner.arena?.setGlbAnimationElapsedSeconds?.(0);
         owner.arena?.resetDandelionSeeds?.();
         owner.arena?.resetSunflowerKernels?.();

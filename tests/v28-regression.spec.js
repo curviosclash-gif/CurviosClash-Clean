@@ -126,32 +126,54 @@ test.describe('V28 Baseline Regression Setup (28.0)', () => {
         await startMazeGameWithBots(page, 3);
         await waitForRenderFrames(page, 48);
 
+        // Every draw call of 20 whole frames, split into the ships and everything else (maze world,
+        // portals, effects, shadow pass). The arena keeps the original V28 envelope. Since the
+        // factory ships got fixed part mounts (ddd374d6, 2026-10-06) each ship draws its parts
+        // separately (~32 calls, measured 2026-10-13) so parts can be restyled and hit one by one;
+        // that is a deliberate per-ship budget, not arena growth, and has its own limit.
         const metrics = await page.evaluate(async () => {
-            const renderInfo = window.GAME_INSTANCE?.renderer?.renderer?.info?.render;
-            if (!renderInfo) return { error: 'missing-render-info' };
-
-            const samples = [];
-            for (let i = 0; i < 20; i += 1) {
-                const calls = Number(window.GAME_INSTANCE?.renderer?.renderer?.info?.render?.calls ?? 0);
-                samples.push(Number.isFinite(calls) ? calls : 0);
-                await new Promise((resolve) => setTimeout(resolve, 50));
+            const game = window.GAME_INSTANCE;
+            const renderer = game?.renderer?.renderer;
+            if (!renderer?.renderBufferDirect) return { error: 'missing-renderer' };
+            const shipRoots = new Set(game.entityManager.players.map((player) => player.view?.group).filter(Boolean));
+            const isShip = (object) => {
+                for (let node = object; node; node = node.parent) if (shipRoots.has(node)) return true;
+                return false;
+            };
+            const frames = new Map();
+            const original = renderer.renderBufferDirect;
+            renderer.renderBufferDirect = function (camera, scene, geometry, material, object) {
+                const frameId = game.gameLoop.renderFrameId;
+                const frame = frames.get(frameId) || { world: 0, ships: 0 };
+                if (isShip(object)) frame.ships += 1; else frame.world += 1;
+                frames.set(frameId, frame);
+                return original.apply(this, arguments);
+            };
+            try {
+                for (let i = 0; i < 22; i += 1) await new Promise((resolve) => requestAnimationFrame(resolve));
+            } finally {
+                renderer.renderBufferDirect = original;
             }
-
-            const sum = samples.reduce((acc, value) => acc + value, 0);
-            const avg = samples.length > 0 ? sum / samples.length : 0;
-            const max = samples.length > 0 ? Math.max(...samples) : 0;
+            // The first and last frame may be cut by the hook; only whole frames count.
+            const whole = [...frames.values()].slice(1, -1).slice(0, 20);
+            const average = (key) => whole.reduce((sum, frame) => sum + frame[key], 0) / Math.max(1, whole.length);
             return {
                 error: null,
-                sampleCount: samples.length,
-                drawCallsAverage: avg,
-                drawCallsMax: max,
+                sampleCount: whole.length,
+                shipCount: shipRoots.size,
+                worldDrawCallsAverage: average('world'),
+                worldDrawCallsMax: Math.max(...whole.map((frame) => frame.world)),
+                shipDrawCallsPerShip: average('ships') / Math.max(1, shipRoots.size),
             };
         });
 
+        console.log(`[T28c] ${JSON.stringify(metrics)}`);
         expect(metrics.error).toBeNull();
         expect(metrics.sampleCount).toBe(20);
+        expect(metrics.shipCount).toBe(4);
         // The authored maze world adds meshes beyond the original V28 primitive arena.
-        expect(metrics.drawCallsAverage).toBeLessThanOrEqual(100);
-        expect(metrics.drawCallsMax).toBeLessThanOrEqual(120);
+        expect(metrics.worldDrawCallsAverage).toBeLessThanOrEqual(100);
+        expect(metrics.worldDrawCallsMax).toBeLessThanOrEqual(120);
+        expect(metrics.shipDrawCallsPerShip).toBeLessThanOrEqual(40);
     });
 });

@@ -500,8 +500,10 @@ test('Mobile Classic opens the hangar page in the same WebView and returns via i
   assert.equal(browserPort.isAvailable(), false);
 
   const hangarApp = await readText('src/ui/hangar/HangarWindowApp.js');
-  assert.match(hangarApp, /__curviosAndroidBackHandler/);
-  assert.match(hangarApp, /location\.assign\('\/'\)/);
+  const backPort = await readText('src/platform/browser/BrowserAndroidBackPort.js');
+  assert.match(hangarApp, /androidBack\?\.register\?/);
+  assert.match(backPort, /__curviosAndroidBackHandler/);
+  assert.match(hangarApp, /page\?\.returnToMenu\?\.\(\)/);
 });
 
 test('Mobile Classic hands exported files to the Android share sheet', async () => {
@@ -559,7 +561,12 @@ test('Mobile Classic hands exported files to the Android share sheet', async () 
   assert.equal(cancelled.saved, false);
   assert.equal(cancelled.cancelled, true);
 
-  for (const relativePath of ['src/core/recording/DownloadService.js', 'src/ui/PlayerProfileUiController.js', 'src/ui/hangar/ArcadeHangarWorkshop.js']) {
+  for (const relativePath of [
+    'src/core/recording/DownloadService.js',
+    'src/ui/PlayerProfileUiController.js',
+    'src/ui/hangar/ArcadeHangarWorkshop.js',
+    'src/ui/hangar/ArcadeHangarWorkshopBuildEvents.js',
+  ]) {
     const source = await readText(relativePath);
     assert.doesNotMatch(source, /anchor\.download\s*=/, `${relativePath} must route downloads through BrowserFileExport`);
   }

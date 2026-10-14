@@ -49,6 +49,8 @@ function createDerivedLeafExpectations(defaults) {
 const UNCHANGED_LEAF_PATHS = Object.freeze([
     // The three profile selections are validated by the demolition profile contract.
     'arcade.demolitionProfileIds',
+    // The hunt-parcours variant is only consumed when that run type is active.
+    'arcade.huntParcoursVariantId',
     'arcade.playerProfileIds',
     // The arcade contract always rewrites the score model to the current one.
     'arcade.scoreModel',

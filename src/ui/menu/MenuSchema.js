@@ -151,6 +151,19 @@ function createPanelSchema(featureFlags) {
             settingsDomain: 'localSettings',
         },
         {
+            id: 'submenu-media',
+            semanticId: 'media',
+            label: 'Aufnahme & Content',
+            textId: 'menu.media.title',
+            icon: '🎬',
+            order: 66,
+            level: 'media',
+            accessPolicy: MENU_ACCESS_POLICIES.OPEN,
+            visibility: 'visible',
+            legacyIds: [],
+            settingsDomain: 'localSettings',
+        },
+        {
             id: 'submenu-info',
             semanticId: 'info',
             label: 'Info',
@@ -175,6 +188,7 @@ function createCompatibilityAliases() {
         profiles: 'submenu-profiles',
         portals: 'submenu-portals',
         tools: 'submenu-tools',
+        media: 'submenu-media',
         info: 'submenu-info',
         main: 'main-menu',
     };

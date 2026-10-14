@@ -71,6 +71,18 @@ export function resolveElectronDeveloperEnvironment(runtimeGlobal = globalThis) 
     return appRuntime?.developerEnvironment === true;
 }
 
+export function createElectronAppModeLaunchAdapter(runtimeGlobal = globalThis) {
+    // Approved adapter for the curviosApp legacy-surface guard matrix.
+    const { appRuntime } = resolveAppRuntime(runtimeGlobal);
+    const launchContract = resolveNamedContract(appRuntime, 'launchMode');
+    const launch = launchContract?.launch;
+    return Object.freeze({
+        contractVersion: launchContract?.contractVersion || 'app-mode-launch.v1',
+        isAvailable: () => typeof launch === 'function',
+        launch: typeof launch === 'function' ? (mode, settings) => launch(mode, settings) : null,
+    });
+}
+
 /**
  * Die im Desktop gespeicherten Editor-Karten (userData/maps), so wie der
  * Hauptprozess sie beim Start liefert. Ausserhalb des Desktops: leer.

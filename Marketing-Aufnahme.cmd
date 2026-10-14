@@ -1,0 +1,6 @@
+@echo off
+setlocal
+cd /d "%~dp0"
+call npm run marketing:record
+if errorlevel 1 pause
+endlocal

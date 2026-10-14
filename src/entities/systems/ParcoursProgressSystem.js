@@ -43,8 +43,11 @@ export class ParcoursProgressSystem {
         this._progressPlayerIndexResolver = null;
         this._respawnPlanByPlayer = new Map();
     }
-    setXpEventCallback(callback) { this._xpEventCallback = typeof callback === 'function' ? callback : null; } setLeaderboardCallback(callback) { this._leaderboardCallback = typeof callback === 'function' ? callback : null; }
-    setAttemptResetCallback(callback) { this._attemptResetCallback = typeof callback === 'function' ? callback : null; } setDeathCallback(callback) { this._deathCallback = typeof callback === 'function' ? callback : null; } setSpawnCallback(callback) { this._spawnCallback = typeof callback === 'function' ? callback : null; }
+    setXpEventCallback(callback) { this._xpEventCallback = typeof callback === 'function' ? callback : null; }
+    setLeaderboardCallback(callback) { this._leaderboardCallback = typeof callback === 'function' ? callback : null; }
+    setAttemptResetCallback(callback) { this._attemptResetCallback = typeof callback === 'function' ? callback : null; }
+    setDeathCallback(callback) { this._deathCallback = typeof callback === 'function' ? callback : null; }
+    setSpawnCallback(callback) { this._spawnCallback = typeof callback === 'function' ? callback : null; }
     setGhostRecorder(recorder) {
         this._ghostRecorder = recorder && typeof recorder.sample === 'function' ? recorder : null;
     }
@@ -343,7 +346,7 @@ export class ParcoursProgressSystem {
         this._setErrorState(state, 'Falsche Reihenfolge', now);
         if (player?.isArcadeParcoursCompetitor !== true) {
             if (penaltyMs > 0) {
-                this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id} (+${(penaltyMs / 1000).toFixed(1)}s Penalty)`);
+                this._notifyPlayer(player, `Falsche Reihenfolge (+${(penaltyMs / 1000).toFixed(1)} s Strafzeit)`);
                 this._leaderboardCallback?.({
                     type: 'wrong_order',
                     playerIndex: player.index,
@@ -352,7 +355,7 @@ export class ParcoursProgressSystem {
                     totalPenaltyMs: state.penaltyTimeMs,
                 });
             } else {
-                this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id}`);
+                this._notifyPlayer(player, 'Falsche Reihenfolge');
             }
         }
         this._logRecorderEvent(
