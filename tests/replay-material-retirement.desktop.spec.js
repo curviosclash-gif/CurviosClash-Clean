@@ -1,11 +1,11 @@
 import { expect, test } from './helpers.desktop.js';
-import { chooseFreePlayVariant, openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { chooseFreePlayVariant, menuScreenSelector, openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
 test('desktop replays reuse GPU programs across generations and release owned materials', async ({ page }, testInfo) => {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
     await chooseFreePlayVariant(page, 'ffa');
-    await page.click('#submenu-game:not(.hidden) #btn-start');
+    await page.click(`${menuScreenSelector('freeplay')} #btn-start`);
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING');
     const report = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
