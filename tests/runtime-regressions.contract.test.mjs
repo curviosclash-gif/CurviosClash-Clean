@@ -3344,7 +3344,7 @@ test('GameRuntimeSettingsHandler aligns mode selections before authoritative men
     assert.equal(game.settingsDirty, false);
 });
 
-test('GameRuntimeSettingsHandler cancels pending autosave during disposal', async () => {
+test('GameRuntimeSettingsHandler flushes pending autosave during disposal', async () => {
     let saveCalls = 0;
     const facade = {
         _disposed: false,
@@ -3361,7 +3361,7 @@ test('GameRuntimeSettingsHandler cancels pending autosave during disposal', asyn
     facade._disposed = true;
     await new Promise((resolve) => setTimeout(resolve, 450));
 
-    assert.equal(saveCalls, 0);
+    assert.equal(saveCalls, 1);
     assert.equal(handler._pendingAutoSaveId, null);
     assert.equal(handler._facade, null);
 });

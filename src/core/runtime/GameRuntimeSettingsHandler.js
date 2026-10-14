@@ -318,7 +318,7 @@ export class GameRuntimeSettingsHandler {
     }
 
     dispose() {
-        this.cancelPendingSettingsAutoSave();
+        if (this.cancelPendingSettingsAutoSave()) this._facade?.game?._saveSettings?.();
         this._sessionSettingsRestore = null;
         this._facade = null;
     }
