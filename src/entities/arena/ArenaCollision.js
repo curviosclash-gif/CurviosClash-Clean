@@ -281,6 +281,12 @@ export class ArenaCollision {
     }
 
     _computeBoxCollisionNormal(box, point) {
+        const outsideX = point.x < box.min.x ? -1 : point.x > box.max.x ? 1 : 0;
+        const outsideY = point.y < box.min.y ? -1 : point.y > box.max.y ? 1 : 0;
+        const outsideZ = point.z < box.min.z ? -1 : point.z > box.max.z ? 1 : 0;
+        const normal = this._tmpNormal;
+        if (outsideX || outsideY || outsideZ) return normal.set(outsideX, outsideY, outsideZ).normalize();
+
         const dMinX = Math.abs(point.x - box.min.x);
         const dMaxX = Math.abs(box.max.x - point.x);
         const dMinY = Math.abs(point.y - box.min.y);
@@ -288,7 +294,6 @@ export class ArenaCollision {
         const dMinZ = Math.abs(point.z - box.min.z);
         const dMaxZ = Math.abs(box.max.z - point.z);
 
-        const normal = this._tmpNormal;
         let minDist = dMinX;
         normal.set(-1, 0, 0);
 
