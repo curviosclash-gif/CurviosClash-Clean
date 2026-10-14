@@ -72,11 +72,15 @@ test('near-wall flight keeps the Electron arena walls visually continuous @rende
         // Notre-Dame now has open exclusion boundaries. Exercise the shared wall material on
         // actual closed-box geometry, otherwise both samples only render the same empty sky.
         const obstacleCount = game.arena.obstacles.length;
+        const previousWallMesh = game.arena._mergedWallMesh;
         const pipeline = game.arena._builder.geometryPipeline;
         pipeline.compileWallStage({ sx: bounds.maxX - bounds.minX, sy: bounds.maxY,
             sz: bounds.maxZ - bounds.minZ, scale: runtime.getMapScale(), openFaces: [] });
         pipeline.flushMergeStage({ wallMat: wallMaterial });
         const fixtureWall = game.arena._mergedWallMesh;
+        const wallGeometry = fixtureWall.geometry;
+        const shadowAutoUpdate = three.shadowMap.autoUpdate;
+        three.shadowMap.autoUpdate = false;
         const original = {
             side: wallMaterial.side,
             transparent: wallMaterial.transparent,
@@ -156,7 +160,41 @@ test('near-wall flight keeps the Electron arena walls visually continuous @rende
             return {
                 image: three.domElement.toDataURL('image/png'),
                 metrics: analyze(frame),
+                frame,
             };
+        }
+
+        function facingGeometry(view) {
+            // Reference: the same UVs and positions, with only faces directed at this camera.
+            // Keeping DoubleSide on this surface cannot add the closed boxes' hidden back layer.
+            const positions = wallGeometry.getAttribute('position');
+            const normals = wallGeometry.getAttribute('normal');
+            const indices = wallGeometry.index;
+            const facing = [];
+            for (let offset = 0; offset < indices.count; offset += 3) {
+                const a = indices.getX(offset);
+                const b = indices.getX(offset + 1);
+                const c = indices.getX(offset + 2);
+                const x = (positions.getX(a) + positions.getX(b) + positions.getX(c)) / 3;
+                const y = (positions.getY(a) + positions.getY(b) + positions.getY(c)) / 3;
+                const z = (positions.getZ(a) + positions.getZ(b) + positions.getZ(c)) / 3;
+                if (normals.getX(a) * (view.from[0] - x)
+                    + normals.getY(a) * (view.from[1] - y)
+                    + normals.getZ(a) * (view.from[2] - z) > 0) facing.push(a, b, c);
+            }
+            const geometry = wallGeometry.clone();
+            geometry.setIndex(facing);
+            return geometry;
+        }
+
+        function differingPixels(actual, reference) {
+            let count = 0;
+            for (let offset = 0; offset < actual.length; offset += 4) {
+                if (Math.max(Math.abs(actual[offset] - reference[offset]),
+                    Math.abs(actual[offset + 1] - reference[offset + 1]),
+                    Math.abs(actual[offset + 2] - reference[offset + 2])) > 1) count += 1;
+            }
+            return count;
         }
 
         const results = [];
@@ -164,14 +202,32 @@ test('near-wall flight keeps the Electron arena walls visually continuous @rende
             for (const view of views) {
                 const knownBad = render(view, { ...original, side: doubleSide });
                 const production = render(view, original);
-                results.push({ name: view.name, knownBad, production });
+                const referenceGeometry = facingGeometry(view);
+                let reference;
+                try {
+                    fixtureWall.geometry = referenceGeometry;
+                    reference = render(view, { ...original, side: doubleSide });
+                } finally {
+                    fixtureWall.geometry = wallGeometry;
+                    referenceGeometry.dispose();
+                }
+                const singleLayer = {
+                    knownBadDifferingPixels: differingPixels(knownBad.frame, reference.frame),
+                    productionDifferingPixels: differingPixels(production.frame, reference.frame),
+                    pixelCount: production.frame.length / 4,
+                };
+                delete knownBad.frame;
+                delete production.frame;
+                delete reference.frame;
+                results.push({ name: view.name, knownBad, production, singleLayer });
             }
         } finally {
             Object.assign(wallMaterial, original);
             wallMaterial.needsUpdate = true;
+            three.shadowMap.autoUpdate = shadowAutoUpdate;
             runtime.scene.remove(fixtureWall);
             fixtureWall.geometry.dispose();
-            game.arena._mergedWallMesh = null;
+            game.arena._mergedWallMesh = previousWallMesh;
             game.arena.obstacles.length = obstacleCount;
         }
 
@@ -283,10 +339,10 @@ test('near-wall flight keeps the Electron arena walls visually continuous @rende
         depthWrite: true,
     });
     for (const view of proof.results) {
-        expect(
-            view.production.metrics.moderateEdgeRatio,
-            `${view.name} should remove transparent triangle plates`
-        ).toBeLessThan(view.knownBad.metrics.moderateEdgeRatio * 0.45);
+        expect(view.singleLayer.knownBadDifferingPixels,
+            `${view.name}: positive control must expose the additional wall layer`).toBeGreaterThan(1000);
+        expect(view.singleLayer.productionDifferingPixels,
+            `${view.name}: production must equal one visible wall layer`).toBe(0);
     }
     expect(errors).toHaveLength(0);
 });
