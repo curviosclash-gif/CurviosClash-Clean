@@ -53,6 +53,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         this._signalingUrl = resolveSignalingUrl(options.signalingUrl);
         this._iceServers = options.iceServers || null;
         this._ws = null;
+        this._activeSocketAttempt = null;
         this._dataChannelManager = new DataChannelManager();
         this._peerManager = new PeerConnectionManager({
             isHost: this.isHost,
@@ -157,14 +158,22 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         return new Promise((resolve, reject) => {
             let settled = false;
             const settle = (fn, arg) => { if (settled) return; settled = true; fn(arg); };
-            const timer = setTimeout(
-                () => settle(reject, createSocketLifecycleError('timeout', { signalingUrl: this._signalingUrl })),
-                timeoutMs
-            );
-            const done = () => { clearTimeout(timer); settle(resolve); };
-            const fail = (err) => { clearTimeout(timer); settle(reject, err); };
+            let timer = null;
+            let activeAttempt = null;
+            const clearActiveAttempt = () => {
+                if (this._activeSocketAttempt === activeAttempt) this._activeSocketAttempt = null;
+            };
+            const done = () => { clearTimeout(timer); clearActiveAttempt(); settle(resolve); };
+            const fail = (err) => { clearTimeout(timer); clearActiveAttempt(); settle(reject, err); };
+            timer = setTimeout(() => fail(createSocketLifecycleError('timeout', { signalingUrl: this._signalingUrl })), timeoutMs);
 
+            this._teardownSignalingSocket();
             const socket = new WebSocket(this._signalingUrl);
+            activeAttempt = {
+                socket,
+                cancel: () => fail(createOnlineSignalingError('connect_cancelled', 'Verbindungsaufbau abgebrochen.')),
+            };
+            this._activeSocketAttempt = activeAttempt;
             this._ws = socket;
             socket.onopen = onOpenFn;
             socket.onmessage = (event) => {
@@ -297,9 +306,10 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
     }
 
     _teardownSignalingSocket() {
-        if (!this._ws) return;
         const socket = this._ws;
         this._ws = null;
+        if (!socket) return;
+        if (this._activeSocketAttempt?.socket === socket) this._activeSocketAttempt.cancel();
         try { socket.close(); } catch { /* Best-effort cleanup between retries. */ }
     }
 
@@ -448,10 +458,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         this._latencyMonitor.stop();
         this._peerManager.dispose();
         this._dataChannelManager.dispose();
-        if (this._ws) {
-            this._ws.close();
-            this._ws = null;
-        }
+        this._teardownSignalingSocket();
         this.isConnected = false;
         this._sessionToken = '';
 
