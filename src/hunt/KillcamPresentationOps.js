@@ -1,3 +1,8 @@
+export function setKillcamPresentationListener(killcam, listener) {
+    killcam._presentationListener = typeof listener === 'function' ? listener : null;
+    if (killcam._presentationListener && killcam._active) killcam._showLetterbox(true);
+}
+
 function trackPresentationObject(entries, object, player = null) {
     if (!object) return;
     for (let i = 0; i < entries.length; i++) {

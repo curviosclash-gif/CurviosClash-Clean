@@ -7,7 +7,7 @@ export const LEGACY_MAX_LINES = Object.freeze({
     'src/core/main.js': 560,
     'dev/training/src/entities/ai/training/WebSocketTrainerBridge.js': 640,
     'src/entities/systems/PlayerInputSystem.js': 515,
-    'src/hunt/KillcamSystem.js': 729,
+    'src/hunt/KillcamSystem.js': 645,
     'src/shared/contracts/BrowserDemoSurfacePolicyOverrideContract.js': 692,
     'src/shared/contracts/PlatformSurfacePolicyOps.js': 538,
     'src/ui/TouchInputSource.js': 720,

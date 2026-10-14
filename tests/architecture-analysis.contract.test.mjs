@@ -21,6 +21,7 @@ test('the DOM guard sees document access through aliases and optional chaining',
     const findings = report.findings.domAccessesOutsideUi;
     const matched = findings.map((finding) => finding.match).sort();
     assert.deepEqual(matched, [
+        'doc?.querySelector',
         'document.activeElement',
         'documentRef.body',
         'documentRef?.createElement',

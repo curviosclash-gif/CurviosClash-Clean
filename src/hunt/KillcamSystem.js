@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import {
     hideKillcamLivePresentation,
     restoreKillcamLivePresentation,
+    setKillcamPresentationListener,
 } from './KillcamPresentationOps.js';
 import { isPixelCaptureEligible, isSingleNodeSession, resolveRespawnDelaySeconds } from './KillcamEligibility.js';
 import { initializePixelReplay, setPixelReplayEnabled } from './KillcamPixelReplayLifecycle.js';
@@ -19,8 +20,6 @@ const KILLCAM_ORBIT_SMOOTH_SPEED = 9.5;
 const KILLCAM_MIN_DURATION = 0.6;
 const KILLCAM_GUIDED_IMPACT_SECONDS = 2.2;
 const KILLCAM_EXPLOSION_TRIGGER_RATIO = 0.78;
-const KILLCAM_LETTERBOX_DOM_ID = 'killcam-letterbox';
-const KILLCAM_HUD_ACTIVE_CLASS = 'killcam-active';
 const KILLCAM_MIN_CAMERA_DISTANCE = 4;
 
 function hasFinitePosition(value) {
@@ -88,9 +87,11 @@ export class KillcamSystem {
         this._reduceMotion = false;
         this._cameraInitialized = false;
         this._presentationEntries = [];
-        this._letterboxEl = null;
-        this._ownsLetterboxEl = false;
+        // The UI draws the cinema bars; see src/ui/KillcamLetterboxView.js.
+        this._presentationListener = null;
     }
+
+    setPresentationListener(listener) { setKillcamPresentationListener(this, listener); }
 
     configure({ renderer, entityManager, recorder, respawnSystem, replaySystem } = {}) {
         if (renderer !== undefined) this.renderer = renderer;
@@ -658,49 +659,8 @@ export class KillcamSystem {
         return Math.max(0, Number(remainingByPlayer[this._deadPlayerIndex]) || 0);
     }
 
-    _resolveLetterboxEl() {
-        if (this._letterboxEl !== null && this._letterboxEl !== undefined) return this._letterboxEl;
-        const doc = typeof document !== 'undefined' ? document : null;
-        if (!doc?.body) {
-            this._letterboxEl = null;
-            return null;
-        }
-        let el = doc.getElementById(KILLCAM_LETTERBOX_DOM_ID);
-        if (!el) {
-            el = doc.createElement('div');
-            this._ownsLetterboxEl = true;
-            el.id = KILLCAM_LETTERBOX_DOM_ID;
-            el.className = 'killcam-letterbox hidden';
-            el.setAttribute('aria-hidden', 'true');
-            const top = doc.createElement('div');
-            top.className = 'killcam-letterbox-bar killcam-letterbox-top';
-            const bottom = doc.createElement('div');
-            bottom.className = 'killcam-letterbox-bar killcam-letterbox-bottom';
-            const label = doc.createElement('div');
-            label.className = 'killcam-letterbox-label';
-            label.setAttribute('data-menu-text-id', 'game.killcam.label');
-            label.textContent = 'KILLCAM';
-            el.appendChild(top);
-            el.appendChild(bottom);
-            el.appendChild(label);
-            (doc.getElementById('game-container') || doc.body).appendChild(el);
-        }
-        this._letterboxEl = el;
-        return el;
-    }
-
     _showLetterbox(show) {
-        const doc = typeof document !== 'undefined' ? document : null;
-        doc?.getElementById?.('hud')?.classList?.toggle?.(KILLCAM_HUD_ACTIVE_CLASS, show);
-        const el = show ? this._resolveLetterboxEl() : this._letterboxEl;
-        if (!el) return;
-        try {
-            el.classList.toggle('hidden', !show);
-            el.classList.toggle('reduced-motion', show && this._reduceMotion);
-            el.setAttribute('aria-hidden', String(!show));
-        } catch {
-            // best-effort toggle
-        }
+        this._presentationListener?.(show, { reduceMotion: this._reduceMotion });
     }
 
     clear() {
@@ -763,9 +723,6 @@ export class KillcamSystem {
 
     dispose() {
         this.clear();
-        if (this._ownsLetterboxEl) {
-            this._letterboxEl?.remove?.();
-        }
         this.renderer = null;
         this.entityManager = null;
         this.recorder = null;
@@ -774,7 +731,6 @@ export class KillcamSystem {
         this.pixelReplayBuffer?.dispose?.();
         this.pixelReplayBuffer = null;
         this._presentationEntries.length = 0;
-        this._letterboxEl = null;
-        this._ownsLetterboxEl = false;
+        this._presentationListener = null;
     }
 }

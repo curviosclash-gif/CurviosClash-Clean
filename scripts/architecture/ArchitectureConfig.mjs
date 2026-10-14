@@ -29,6 +29,15 @@ export const LEGACY_DOM_ACCESS_ALLOWLIST = new Map([
     ['src/shared/runtime/PageVisibility.js', 'Single page-visibility reader shared by input, lobby and telemetry code.'],
 ]);
 
+// Code whose job is the page itself, not debt to move: the mobile app shells set up their own
+// document, and the browser platform adapter is the browser's side of a capability (downloads).
+// Files here are not scanned for DOM access at all; everything else outside src/ui still is.
+export const DOM_ACCESS_ZONES = Object.freeze([
+    'src/mobile-classic/',
+    'src/mobile-arcade/',
+    'src/platform/browser/',
+]);
+
 /** @type {[string, string][]} */
 const legacyUiToCoreImportEntries = [];
 

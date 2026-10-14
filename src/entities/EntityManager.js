@@ -520,6 +520,8 @@ export class EntityManager {
         this._killcamSystem?.resetPixelCapture?.();
     }
 
+    setKillcamPresentationListener(listener) { this._killcamSystem?.setPresentationListener?.(listener); }
+
     getHumanPlayers() { return this.humanPlayers; }
     getRuntimeContext() { return this.runtime?.context || this._runtimeContext; }
     getTrailSpatialIndex() { return this._trailSpatialIndex; }

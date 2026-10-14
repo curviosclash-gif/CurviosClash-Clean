@@ -4,6 +4,7 @@ import {
     ARCHITECTURE_SCORECARD_BUDGETS,
     ARCHITECTURE_SCORECARD_TARGETS,
     BOUNDARY_MATRIX,
+    DOM_ACCESS_ZONES,
     LEGACY_APPLICATION_TO_CORE_IMPORTS,
     LEGACY_APPLICATION_TO_UI_IMPORTS,
     LEGACY_CORE_TO_UI_IMPORTS,
@@ -94,9 +95,9 @@ const EXPORT_FROM_PATTERN = /export\s+(?:\*|\{[\s\S]*?\})\s+from\s+['"]([^'"]+)[
 const CONSTRUCTOR_GAME_PATTERN = /constructor\s*\(\s*game(?:\s*=|\s*[),])/g;
 const THIS_GAME_EQUALS_GAME_PATTERN = /\bthis\.game\s*=\s*game\b/g;
 const CONFIG_WRITE_PATTERN = /\bCONFIG(?:\.[A-Za-z_$][\w$]*|\[[^\]]+\])+\s*=/g;
-// Also catches the usual aliases (documentRef, this._document) and optional chaining, which
+// Also catches the usual aliases (documentRef, this._document, doc) and optional chaining, which
 // otherwise let DOM work slip past the guard unnoticed.
-const DOCUMENT_ACCESS_PATTERN = /(?:\bdocument|\bdocumentRef|\bthis\.documentRef|\bthis\._document)\??\.(?:body|hidden|readyState|activeElement|createElement|getElementById|querySelector(?:All)?|addEventListener|removeEventListener|execCommand)\b/g;
+const DOCUMENT_ACCESS_PATTERN = /(?:\bdocument|\bdocumentRef|\bdoc|\bthis\.documentRef|\bthis\._document)\??\.(?:body|hidden|readyState|activeElement|createElement|getElementById|querySelector(?:All)?|addEventListener|removeEventListener|execCommand)\b/g;
 const ELECTRON_CONTEXT_BRIDGE_EXPOSURE_PATTERN = /contextBridge\.exposeInMainWorld\(\s*['"]([^'"]+)['"]/g;
 const ELECTRON_IPC_RENDERER_CHANNEL_PATTERN = /ipcRenderer\.(invoke|send|sendSync|on|once|removeListener|removeAllListeners)\(\s*['"]([^'"]+)['"]/g;
 const ELECTRON_IPC_MAIN_CHANNEL_PATTERN = /ipcMain\.(handle|handleOnce|on|once|removeHandler|removeAllListeners)\(\s*['"]([^'"]+)['"]/g;
@@ -313,7 +314,8 @@ function collectDomAccesses(filesByRelativePath) {
         matcherName: 'document access',
         allowFileMap: LEGACY_DOM_ACCESS_ALLOWLIST,
         uiOnly: true,
-        includeFile: (relativePath) => relativePath.startsWith('src/'),
+        includeFile: (relativePath) => relativePath.startsWith('src/')
+            && !DOM_ACCESS_ZONES.some((zone) => relativePath.startsWith(zone)),
     });
 }
 

@@ -13,6 +13,8 @@ import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBar
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { resolvePlayerActionHintBindings } from '../shared/contracts/GamepadControlsContract.js';
 import { syncHudSlowMoClass } from './HudSlowMoIndicator.js';
+import { isHudNetworkSession, resolveHudLocalPlayerIndex } from './HudSessionProjectionOps.js';
+import { bindKillcamLetterbox } from './KillcamLetterboxView.js';
 import { MatchScoreHudPresenter } from './MatchScoreHudPresenter.js';
 import { MapSandstormHud } from './MapSandstormHud.js';
 import { updateTraversalStatus } from './TraversalHudPresenter.js';
@@ -64,28 +66,12 @@ export class HudRuntimeSystem {
     /**
      * Returns the local player index (0 for host / single-player).
      */
-    _getLocalPlayerIndex(projection = null) {
-        if (Number.isInteger(projection?.localPlayerIndex)) {
-            return projection.localPlayerIndex;
-        }
-        const localSessionPlayer = Array.isArray(projection?.sessionPlayers)
-            ? projection.sessionPlayers.find((player) => player?.isLocal === true)
-            : null;
-        if (Number.isInteger(localSessionPlayer?.playerIndex) && localSessionPlayer.playerIndex >= 0) {
-            return localSessionPlayer.playerIndex;
-        }
-        return 0;
-    }
+    _getLocalPlayerIndex(projection = null) { return resolveHudLocalPlayerIndex(projection); }
 
     /**
      * Returns true if this is a network session.
      */
-    _isNetworkSession(projection = null) {
-        if (typeof projection?.isNetworkSession === 'boolean') {
-            return projection.isNetworkSession;
-        }
-        return !!this.game?.runtimeConfig?.session?.networkEnabled;
-    }
+    _isNetworkSession(projection = null) { return isHudNetworkSession(projection, this.game); }
 
     _syncHudMode(projection = null) {
         const hud = this.game?.ui?.hud;
@@ -492,6 +478,7 @@ export class HudRuntimeSystem {
     updatePlayingHudTick(dt, runtimeProjection = null) {
         const game = this.game;
         if (!game.entityManager) return;
+        this._killcamLetterbox = bindKillcamLetterbox(this._killcamLetterbox, game.entityManager);
         const projection = runtimeProjection || this._getMatchRuntimeProjection();
         if (!this._sandstormHud) this._sandstormHud = new MapSandstormHud(document.getElementById('hud-notice-stack') || document.body);
         this._sandstormHud.update(projection?.sandstorm, game.entityManager, {
@@ -550,6 +537,8 @@ export class HudRuntimeSystem {
     }
 
     dispose() {
+        this._killcamLetterbox?.dispose();
+        this._killcamLetterbox = null;
         this._sandstormHud?.dispose?.();
         this._sandstormHud = null;
         if (this._rocketBars) {

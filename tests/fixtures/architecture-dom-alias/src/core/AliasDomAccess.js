@@ -4,6 +4,10 @@ export function mountOverlay(documentRef = globalThis.document) {
     return overlay;
 }
 
+export function queryFromDocumentAlias(doc) {
+    return doc?.querySelector?.('#hud');
+}
+
 export class FocusWatcher {
     constructor() {
         this._document = globalThis.document;

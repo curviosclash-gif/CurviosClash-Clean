@@ -599,42 +599,44 @@ test('reduced-motion killcam uses a stable collision-checked camera', () => {
 });
 
 test('killcam suppresses gameplay HUD only while replay presentation is active', () => {
+    const calls = [];
+    const { killcam, player } = createKillcamFixture();
+    killcam.setPresentationListener((show, options) => calls.push([show, options.reduceMotion]));
+    assert.equal(killcam.onPlayerDied(player), true);
+    assert.deepEqual(calls, [[true, false]]);
+
+    killcam.clear();
+    assert.deepEqual(calls, [[true, false], [false, false]]);
+    killcam.dispose();
+});
+
+test('killcam reaches the UI only through its presentation listener', () => {
     const previousDocument = globalThis.document;
-    const hudClasses = new Set();
-    const overlayClasses = new Set(['killcam-letterbox', 'hidden']);
-    const createClassList = (classes) => ({
-        toggle(name, force) {
-            if (force) classes.add(name);
-            else classes.delete(name);
-        },
-    });
-    const hud = { classList: createClassList(hudClasses) };
-    const overlay = {
-        classList: createClassList(overlayClasses),
-        setAttribute() {},
-    };
-    globalThis.document = {
-        body: {},
-        getElementById(id) {
-            if (id === 'hud') return hud;
-            if (id === 'killcam-letterbox') return overlay;
-            return null;
-        },
-    };
-
+    globalThis.document = new Proxy({}, { get: () => { throw new Error('killcam touched the document'); } });
     try {
-        const { killcam, player } = createKillcamFixture();
+        const { killcam, player } = createKillcamFixture({ reduceMotion: true });
+        const calls = [];
+        killcam.setPresentationListener((show, options) => calls.push([show, options.reduceMotion]));
         assert.equal(killcam.onPlayerDied(player), true);
-        assert.equal(hudClasses.has('killcam-active'), true);
-        assert.equal(overlayClasses.has('hidden'), false);
-
-        killcam.clear();
-        assert.equal(hudClasses.has('killcam-active'), false);
-        assert.equal(overlayClasses.has('hidden'), true);
         killcam.dispose();
+        assert.deepEqual(calls, [[true, true], [false, false]]);
     } finally {
         globalThis.document = previousDocument;
     }
+});
+
+test('a listener registered after the first death immediately receives the active presentation state', () => {
+    const { killcam, player } = createKillcamFixture({ reduceMotion: true });
+    assert.equal(killcam.onPlayerDied(player), true);
+
+    const calls = [];
+    killcam.setPresentationListener((show, options) => calls.push([show, options.reduceMotion]));
+    assert.deepEqual(calls, [[true, true]]);
+
+    killcam.clear();
+    assert.deepEqual(calls, [[true, true], [false, false]]);
+    killcam.setPresentationListener(null);
+    killcam.dispose();
 });
 
 test('EntityManager owns killcam playback and camera updates behind public seams', () => {

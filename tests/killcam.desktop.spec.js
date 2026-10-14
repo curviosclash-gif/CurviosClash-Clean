@@ -36,6 +36,8 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
             y: Number(player.position.y) || 0,
             z: Number(player.position.z) || 0,
         };
+        let replaySourceTime = 0;
+        recorder.setSimulationTimeProvider(() => replaySourceTime);
         recorder.startRound(entityManager.players);
         const replayProjectile = {
             id: 'killcam-projectile',
@@ -74,16 +76,15 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
 
         player.position.set(terminal.x, terminal.y, terminal.z + 12);
         replayProjectile.position.set(terminal.x, terminal.y, terminal.z + 10);
-        recorder.roundStartTime = performance.now();
         recorder.captureSnapshotNow(replayScene);
 
         player.position.set(terminal.x, terminal.y, terminal.z + 6);
         replayProjectile.position.set(terminal.x, terminal.y, terminal.z + 5);
-        recorder.roundStartTime = performance.now() - 1000;
+        replaySourceTime = 1;
         recorder.captureSnapshotNow(replayScene);
 
         player.position.set(terminal.x, terminal.y, terminal.z);
-        recorder.roundStartTime = performance.now() - 2000;
+        replaySourceTime = 2;
         entityManager._killPlayer(player, 'WALL', {
             impactPoint: player.position.clone(),
         });
