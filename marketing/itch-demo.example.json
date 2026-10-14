@@ -1,0 +1,36 @@
+{
+  "title": "CURVIOS CLASH",
+  "callToAction": "WINDOWS DEMO AUF ITCH.IO",
+  "coverShot": 0,
+  "shots": [
+    {
+      "file": "selected/01-near-miss.mp4",
+      "start": 1.2,
+      "duration": 4,
+      "stillAt": 3,
+      "caption": "DEINE SPUR IST EINE WAFFE",
+      "audio": true
+    },
+    {
+      "file": "selected/02-trail-trap.mp4",
+      "start": 3,
+      "duration": 4,
+      "caption": "LOCKE DEINE GEGNER IN DIE FALLE",
+      "audio": true
+    },
+    {
+      "file": "selected/03-fight.mp4",
+      "start": 2,
+      "duration": 4,
+      "caption": "KÄMPFE IN 3D-ARENA-DUELLEN",
+      "audio": true
+    },
+    {
+      "file": "selected/04-arcade.mp4",
+      "start": 1,
+      "duration": 4,
+      "caption": "JAGE DEINE BESTZEIT",
+      "audio": true
+    }
+  ]
+}

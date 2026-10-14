@@ -3,14 +3,16 @@
 // ============================================
 
 const { app, BrowserWindow, ipcMain, dialog, Tray, nativeImage, globalShortcut, session } = require('electron');
+const { createHash } = require('node:crypto');
 const path = require('node:path');
 const {
     copyFileSync,
+    createReadStream,
     existsSync,
     mkdirSync,
     readFileSync,
 } = require('node:fs');
-const { writeFile } = require('node:fs/promises');
+const { lstat, mkdtemp, readdir, realpath, rmdir, statfs, unlink, writeFile } = require('node:fs/promises');
 const dgram = require('node:dgram');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
@@ -69,6 +71,36 @@ for (const entry of listTestRenderCommandLineSwitches(testRenderMode)) {
 if (String(process.env.PW_RUN_TAG || '').trim()) app.commandLine.appendSwitch('mute-audio');
 
 let mainWindow = null;
+const marketingConfigArgument = process.argv.find((argument) => argument.startsWith('--curvios-marketing-config='));
+const marketingConfigPath = marketingConfigArgument?.slice('--curvios-marketing-config='.length) || '';
+const marketingMode = process.argv.includes('--curvios-marketing') && Boolean(marketingConfigPath);
+const marketingConfigDirectory = marketingMode ? resolveMarketingConfigDirectory(marketingConfigPath) : '';
+let marketingSession = null;
+let marketingQuitReady = false;
+if (marketingMode) {
+    const { installMarketingSessionIpc } = require('./marketing-session-ipc.cjs');
+    marketingSession = installMarketingSessionIpc({
+        ipcMain,
+        getWindow: () => mainWindow,
+        isTrusted: (event) => isTrustedMainWindowSender(event) && event.senderFrame === event.sender.mainFrame,
+        configPath: marketingConfigPath,
+        repositoryRoot: path.resolve(__dirname, '..'),
+        ffmpeg: process.env.FFMPEG_PATH || require('ffmpeg-static') || 'ffmpeg',
+    });
+    app.on('before-quit', (event) => {
+        if (marketingQuitReady) return;
+        event.preventDefault();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.close();
+            return;
+        }
+        Promise.resolve(marketingSession?.finish()).catch((error) => console.error('[marketing]', error)).finally(async () => {
+            await cleanupMarketingConfig(marketingConfigPath, marketingConfigDirectory);
+            marketingQuitReady = true;
+            app.quit();
+        });
+    });
+}
 let tray = null;
 let signalingRuntime = null;
 let staticAppServer = null;
@@ -85,6 +117,132 @@ function withTrustedMainWindowSender(handler) {
         assertTrustedWindowSender(event, mainWindow);
         return handler(...args);
     };
+}
+
+ipcMain.handle('app-mode:launch', withTrustedMainWindowSender(async (mode, settings) => {
+    if (mode !== 'marketing-capture' || marketingMode) throw new Error('unsupported_app_mode');
+    const settingsSnapshot = normalizeMarketingSettingsSnapshot(settings);
+    const confirm = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'Marketing-Aufnahme starten',
+        message: 'CurviosClash wird im speziellen Marketing-Modus neu gestartet.',
+        detail: 'Dieser Modus zeichnet Gameplay-Video, Spielton, Replay-Zustände, Trails, Events und Eingabe-Provenienz auf. Die Aufnahme nutzt zusätzliche CPU, Speicher und Festplattenplatz. Der laufende Spielprozess wird geschlossen.',
+        buttons: ['Fortfahren', 'Abbrechen'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+    });
+    if (confirm.response !== 0) return { started: false };
+    const selection = await dialog.showOpenDialog(mainWindow, {
+        title: 'Aufnahmeordner auswählen',
+        properties: ['openDirectory', 'createDirectory'],
+        buttonLabel: 'Diesen Ordner verwenden',
+    });
+    if (selection.canceled || !selection.filePaths?.[0]) return { started: false };
+    const outputRoot = await realpath(selection.filePaths[0]);
+    const repositoryRoot = path.resolve(__dirname, '..');
+    const relativeToRepository = path.relative(repositoryRoot, outputRoot);
+    if (relativeToRepository === '' || (!relativeToRepository.startsWith('..' + path.sep)
+        && relativeToRepository !== '..' && !path.isAbsolute(relativeToRepository))) {
+        throw new Error('Aufnahmen müssen außerhalb des Repositorys gespeichert werden.');
+    }
+    const space = await statfs(outputRoot);
+    if (Number(space.bavail) * Number(space.bsize) < 10 * 1024 ** 3) {
+        throw new Error('Für den Marketing-Modus werden mindestens 10 GB freier Speicher benötigt.');
+    }
+    const sessionName = 'session-' + new Date().toISOString().replace(/[:.]/g, '-');
+    const directory = path.join(outputRoot, sessionName);
+    const configDirectory = await mkdtemp(path.join(os.tmpdir(), 'curvios-marketing-'));
+    const configPath = path.join(configDirectory, 'config.json');
+    try {
+        const rendererDir = path.join(repositoryRoot, process.env.CURVIOS_E2E_RENDERER === '1'
+            ? DESKTOP_TEST_RENDERER_DIST_DIR_NAME : DESKTOP_RENDERER_DIST_DIR_NAME);
+        await writeFile(configPath, JSON.stringify({
+            action: 'capture',
+            humans: 1,
+            bots: 3,
+            directory,
+            settings: settingsSnapshot,
+            build: {
+                appVersion: app.getVersion(),
+                commit: process.env.CURVIOS_BUILD_COMMIT || 'unavailable',
+                sha256: await hashDirectory(rendererDir),
+            },
+        }), { flag: 'wx', mode: 0o600 });
+        const args = process.argv.slice(1).filter((argument) => !argument.startsWith('--curvios-marketing'));
+        process.env.CURVIOS_USER_DATA_ROOT = path.join(app.getPath('appData'), 'curviosclash-marketing-profile');
+        args.push('--curvios-marketing', '--curvios-marketing-config=' + configPath);
+        app.relaunch({ args });
+        app.quit();
+        return { started: true };
+    } catch (error) {
+        await cleanupMarketingConfig(configPath, configDirectory);
+        throw error;
+    }
+}));
+
+function normalizeMarketingSettingsSnapshot(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_marketing_settings');
+    const serialized = JSON.stringify(value);
+    if (Buffer.byteLength(serialized) > 2 * 1024 * 1024 + 64 * 1024) throw new Error('marketing_settings_too_large');
+    const snapshot = JSON.parse(serialized);
+    if (typeof snapshot.mapKey !== 'string' || snapshot.mapKey.length < 1 || snapshot.mapKey.length > 128
+        || !['EASY', 'NORMAL', 'HARD'].includes(snapshot.botDifficulty)
+        || !snapshot.controls || typeof snapshot.controls !== 'object' || Array.isArray(snapshot.controls)) {
+        throw new Error('invalid_marketing_settings');
+    }
+    let localMap;
+    if (snapshot.mapKey.startsWith('editor_')) {
+        if (!/^editor_[a-z0-9][a-z0-9_-]{0,63}$/.test(snapshot.mapKey)
+            || !snapshot.localMap || typeof snapshot.localMap !== 'object' || Array.isArray(snapshot.localMap)
+            || !Array.isArray(snapshot.localMap.size) || snapshot.localMap.size.length < 3
+            || !snapshot.localMap.size.slice(0, 3).every((dimension) => Number.isFinite(dimension) && dimension > 0)
+            || (snapshot.localMap.obstacles !== undefined && !Array.isArray(snapshot.localMap.obstacles))) {
+            throw new Error('invalid_marketing_local_map');
+        }
+        localMap = snapshot.localMap;
+    }
+    return { mapKey: snapshot.mapKey, botDifficulty: snapshot.botDifficulty, controls: snapshot.controls,
+        ...(localMap ? { localMap } : {}) };
+}
+
+function resolveMarketingConfigDirectory(configPath, temporaryRoot = os.tmpdir()) {
+    const resolvedRoot = path.resolve(temporaryRoot);
+    const resolvedConfig = path.resolve(configPath);
+    const directory = path.dirname(resolvedConfig);
+    if (path.dirname(directory) !== resolvedRoot
+        || !path.basename(directory).startsWith('curvios-marketing-')
+        || path.basename(resolvedConfig) !== 'config.json') return '';
+    return directory;
+}
+
+async function cleanupMarketingConfig(configPath, ownedDirectory) {
+    if (!ownedDirectory || path.dirname(path.resolve(configPath)) !== path.resolve(ownedDirectory)
+        || path.basename(path.resolve(configPath)) !== 'config.json') return;
+    const [temporaryRoot, actualDirectory] = await Promise.all([
+        realpath(os.tmpdir()).catch(() => ''),
+        realpath(ownedDirectory).catch(() => ''),
+    ]);
+    if (!temporaryRoot || !actualDirectory || path.dirname(actualDirectory) !== temporaryRoot
+        || !path.basename(actualDirectory).startsWith('curvios-marketing-')) return;
+    const actualConfig = path.join(actualDirectory, 'config.json');
+    const configInfo = await lstat(actualConfig).catch(() => null);
+    if (!configInfo?.isFile() || configInfo.isSymbolicLink()) return;
+    await unlink(actualConfig).catch(() => {});
+    await rmdir(actualDirectory).catch(() => {});
+}
+
+async function hashDirectory(directory) {
+    const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+    const files = entries.filter((entry) => entry.isFile())
+        .map((entry) => path.join(entry.parentPath, entry.name)).sort();
+    const hash = createHash('sha256');
+    for (const file of files) {
+        const fileHash = createHash('sha256');
+        for await (const chunk of createReadStream(file)) fileHash.update(chunk);
+        hash.update(path.relative(directory, file)).update(fileHash.digest('hex'));
+    }
+    return hash.digest('hex');
 }
 
 // Autorenfenster entstehen erst beim Oeffnen und werden hier gefuehrt, damit
@@ -576,11 +734,15 @@ async function createWindow() {
             title: 'CurviosClash',
             backgroundColor: '#050510',
             show: shouldShowWindow,
-            webPreferences: createSecureWindowWebPreferences({
+            webPreferences: { ...createSecureWindowWebPreferences({
                 preload: path.join(__dirname, 'preload.cjs'),
                 backgroundThrottling: false,
-                additionalArguments: isDeveloperEnvironment() ? [DEVELOPER_ENVIRONMENT_ARGUMENT] : [],
+                additionalArguments: [
+                    ...(isDeveloperEnvironment() ? [DEVELOPER_ENVIRONMENT_ARGUMENT] : []),
+                    ...(marketingMode ? ['--curvios-marketing'] : []),
+                ],
             }),
+            },
         },
     }));
     if (shouldShowInactive(testRenderMode)) {
@@ -630,6 +792,7 @@ async function createWindow() {
             ));
         });
     });
+    if (marketingMode) marketingSession?.attach();
     await mainWindow.loadURL(appServer.url);
     mainWindow.on('closed', () => {
         mainWindow = null;
@@ -897,7 +1060,14 @@ const recordingVideoExportJob = createRecordingVideoExportJob({
 });
 const cinematicReplayVideoExportJob = createCinematicReplayVideoExportJob({
     app,
-    dialog,
+    dialog: marketingMode ? { ...dialog, showSaveDialog: async (...args) => {
+        const config = JSON.parse(readFileSync(marketingConfigPath, 'utf8'));
+        if (config.action === 'render') {
+            if (existsSync(config.output)) throw new Error('marketing_export_already_exists');
+            return { canceled: false, filePath: config.output };
+        }
+        return dialog.showSaveDialog(...args);
+    } } : dialog,
     resolveWindow: () => desktopWindowShellCapability.getWindow(),
 });
 

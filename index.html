@@ -106,6 +106,8 @@
 
                     <div class="menu-utility-shell menu-side-links" role="navigation" aria-label="Weitere Bereiche">
                         <button type="button" id="btn-main-tutorial" class="secondary-btn menu-tutorial-entry" data-menu-text-id="menu.utility.tutorial.label">Steuerung lernen</button>
+                        <button type="button" id="btn-main-media" class="secondary-btn menu-utility-btn"
+                            data-menu-step-target="submenu-media">Aufnahme &amp; Content</button>
                         <button type="button" id="btn-main-tools" class="secondary-btn menu-utility-btn"
                             data-menu-step-target="submenu-tools" data-menu-text-id="menu.utility.tools.label">Werkzeuge</button>
                     </div>
@@ -995,6 +997,28 @@
                     </div>
                 </div>
 
+                <!-- ======= SUBMENU: AUFNAHME & CONTENT ======= -->
+                <div id="submenu-media" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-media-title" aria-hidden="true" data-menu-panel="media">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">← Zurück</button>
+                        <h2 id="submenu-media-title" class="submenu-title">Aufnahme &amp; Content</h2>
+                    </div>
+                    <div class="submenu-body">
+                        <section class="menu-section">
+                            <h3 class="section-title">Cinematic Replay</h3>
+                            <p class="menu-hint">Kamera- und Replay-Werkzeug für bereits aufgezeichnete Partien.</p>
+                            <button type="button" class="secondary-btn" data-menu-action="level4-open"
+                                data-level4-section="recording" data-level4-return-target="main">Cinematic Replay öffnen</button>
+                        </section>
+                        <section class="menu-section">
+                            <h3 class="section-title">Marketing-Aufnahme</h3>
+                            <p class="menu-hint">Startet CurviosClash in einem separaten Aufnahmemodus. Gameplay-Video, Spielton, Replay-Zustände, Trails, Events und Eingabe-Provenienz werden erst nach deiner ausdrücklichen Aufnahmefreigabe erfasst.</p>
+                            <button type="button" id="btn-marketing-capture" class="secondary-btn">Marketing-Modus starten</button>
+                            <p id="marketing-launch-status" class="menu-hint" role="status" aria-live="polite"></p>
+                        </section>
+                    </div>
+                </div>
                 <!-- ======= SUBMENU: INFO ======= -->
                 <div id="submenu-info" class="submenu-panel hidden" role="region"
                     aria-labelledby="submenu-info-title" aria-hidden="true" data-menu-panel="info">
@@ -1593,7 +1617,7 @@
     <!-- Touch-Controls Container (C.4) — populated by TouchInputSource.js -->
     <div id="touch-controls" class="shell-touch-controls" aria-hidden="true"></div>
 
-    <script type="module" src="src/core/main.js"></script>
+    <script type="module" src="src/bootstrap.js"></script>
 </body>
 
 </html>

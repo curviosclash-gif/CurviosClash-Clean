@@ -307,8 +307,20 @@ function createTuningRuntimeContract() {
 
 const discoveryContract = createDiscoveryContract();
 const hostContract = createHostContract();
+if (process.argv.includes('--curvios-marketing')) {
+    const requestMarketingSession = createInvokeBridge('marketing:request');
+    contextBridge.exposeInMainWorld('curviosMarketing', Object.freeze({
+        config: () => requestMarketingSession('config'),
+        begin: (setup) => requestMarketingSession('begin', setup),
+        append: (payload) => requestMarketingSession('append', payload),
+        finish: (details) => requestMarketingSession('finish', details),
+        renderResult: (result) => requestMarketingSession('render-result', result),
+        replayBatch: () => requestMarketingSession('replay-batch'),
+    }));
+}
 const saveContract = createSaveContract();
 const recordingContract = createRecordingContract();
+const launchModeContract = createNamedContract('app-mode-launch', 'app-mode-launch.v1', { launch: createInvokeBridge('app-mode:launch') });
 const lifecycleContract = createLifecycleContract();
 const settingsDefaultsContract = createSettingsDefaultsContract();
 const tuningRuntimeContract = createTuningRuntimeContract();
@@ -320,6 +332,7 @@ const platformContracts = Object.freeze({
     save: saveContract,
     recording: recordingContract,
     lifecycle: lifecycleContract,
+    launchMode: launchModeContract,
     settingsDefaults: settingsDefaultsContract,
     tuningRuntime: tuningRuntimeContract,
     hangar: hangarContract,
@@ -358,6 +371,7 @@ const curviosApp = Object.freeze({
     stopLanServer: hostContract.stop,
     saveReplay: saveContract.saveReplay,
     saveVideo: saveContract.saveVideo,
+    launchMode: launchModeContract.launch,
     getRecordingVideoExportCapability: saveContract.getRecordingVideoExportCapability,
     saveRecordingVideoExport: saveContract.saveRecordingVideoExport,
     beginCinematicReplayExport: saveContract.beginCinematicReplayExport,

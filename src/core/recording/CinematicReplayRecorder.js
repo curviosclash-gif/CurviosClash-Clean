@@ -181,7 +181,7 @@ function captureCameraState(cameras) {
     }));
 }
 
-function createReplaySnapshot({
+export function createReplaySnapshot({
     entityManager,
     roundState,
     particles,
