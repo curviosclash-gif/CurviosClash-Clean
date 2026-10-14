@@ -168,7 +168,7 @@ function buildGhostEntry(renderer, playerMeta = {}, options = {}) {
     };
 }
 
-function disposeEntry(entry) {
+function disposeEntry(entry, retiredMaterials) {
     if (entry?.usesLivePresentation) {
         entry.livePlayer?.view?.syncFromState?.();
         entry.livePlayer?.view?.applyModelScale?.();
@@ -179,10 +179,10 @@ function disposeEntry(entry) {
     }
     const materials = Array.isArray(entry?.materials) ? entry.materials : [];
     for (let i = 0; i < materials.length; i++) {
-        materials[i]?.dispose?.();
+        if (materials[i]) retiredMaterials.push(materials[i]);
     }
     entry?.trail?.clear?.();
-    entry?.trail?.dispose?.();
+    entry?.trail?.dispose?.(retiredMaterials);
 }
 
 export class ReplayScenePresentationSystem {
@@ -200,6 +200,9 @@ export class ReplayScenePresentationSystem {
         this.root.userData.entityViewType = this._presentationKind;
 
         this._entries = [];
+        // Keep one material generation until the next replay ends, so identical shader
+        // programs can remain owned while its replacement is rendered.
+        this._retiredMaterials = [];
         this._frames = [];
         this._active = false;
         this._elapsed = 0;
@@ -241,7 +244,7 @@ export class ReplayScenePresentationSystem {
         this.renderer.addToScene(this.root);
     }
 
-    _clearEntries() {
+    _clearEntries(retiredMaterials) {
         for (let i = 0; i < this._entries.length; i++) {
             const entry = this._entries[i];
             if (entry?.trail?.parent === this.root) {
@@ -250,7 +253,7 @@ export class ReplayScenePresentationSystem {
             if (entry?.group?.parent === this.root) {
                 this.root.remove(entry.group);
             }
-            disposeEntry(entry);
+            disposeEntry(entry, retiredMaterials);
         }
         this._entries.length = 0;
     }
@@ -269,8 +272,14 @@ export class ReplayScenePresentationSystem {
         this._terminalDeathPlayerIndex = -1;
         this.root.visible = false;
         this._routeId = '';
-        this._clearEntries();
-        this._sceneProjector.clear();
+        const retiring = [];
+        this._clearEntries(retiring);
+        this._sceneProjector.clear(retiring);
+        // An empty clear (playClip starts with one) keeps the retired set for the coming replay.
+        if (retiring.length > 0) {
+            for (const material of this._retiredMaterials) material?.dispose?.();
+            this._retiredMaterials = retiring;
+        }
     }
 
     _reportRejectedClip(reason, clip) {
@@ -530,6 +539,7 @@ export class ReplayScenePresentationSystem {
 
     dispose() {
         this.clear();
+        for (const material of this._retiredMaterials.splice(0)) material?.dispose?.();
         if (this.root.parent) {
             this.root.parent.remove(this.root);
         }

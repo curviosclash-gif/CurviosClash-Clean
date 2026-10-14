@@ -87,6 +87,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/menu-stage5-local-fonts.desktop.spec.js',
             'tests/killcam-pixel.desktop.spec.js',
             'tests/killcam.desktop.spec.js',
+            'tests/replay-material-retirement.desktop.spec.js',
             'tests/parcours-assault.desktop.spec.js',
             'tests/player-altitude-speed.desktop.spec.js',
             'tests/player-health-aura.desktop.spec.js',

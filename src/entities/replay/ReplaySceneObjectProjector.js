@@ -26,15 +26,16 @@ export class ReplaySceneObjectProjector {
         this.particles = particles || null;
     }
 
-    clear() {
+    // `retiredMaterials` collects the proxy materials instead of disposing them right away.
+    clear(retiredMaterials = null) {
         for (let index = 0; index < this.projectileProxies.length; index++) {
-            this._disposeProxy(this.projectileProxies[index]);
+            this._disposeProxy(this.projectileProxies[index], retiredMaterials);
         }
         for (let index = 0; index < this.powerupProxies.length; index++) {
-            this._disposeProxy(this.powerupProxies[index]);
+            this._disposeProxy(this.powerupProxies[index], retiredMaterials);
         }
         for (let index = 0; index < this.turretProxies.length; index++) {
-            this._disposeProxy(this.turretProxies[index]);
+            this._disposeProxy(this.turretProxies[index], retiredMaterials);
         }
         this.projectileProxies.length = 0;
         this.powerupProxies.length = 0;
@@ -43,12 +44,17 @@ export class ReplaySceneObjectProjector {
         this.particles?.clear?.();
     }
 
-    _disposeProxy(proxy) {
+    _disposeProxy(proxy, retiredMaterials = null) {
         if (proxy?.parent) proxy.parent.remove(proxy);
         proxy?.geometry?.dispose?.();
-        proxy?.material?.dispose?.();
+        const retire = (material) => {
+            if (!material) return;
+            if (Array.isArray(retiredMaterials)) retiredMaterials.push(material);
+            else material.dispose?.();
+        };
+        retire(proxy?.material);
         for (const geometry of proxy?.userData?.disposableGeometries || []) geometry?.dispose?.();
-        for (const material of proxy?.userData?.disposableMaterials || []) material?.dispose?.();
+        for (const material of proxy?.userData?.disposableMaterials || []) retire(material);
     }
 
     _ensureProjectileProxy(index) {

@@ -546,17 +546,20 @@ export class Trail {
         this.hideVisualHead();
     }
 
-    dispose() {
+    // `retiredMaterials` collects the materials instead of disposing them, for a caller that
+    // disposes them later itself (see ReplayScenePresentationSystem).
+    dispose(retiredMaterials = null) {
         this.renderer.removeFromScene(this.mesh);
         if (this.glowMesh) this.renderer.removeFromScene(this.glowMesh);
         this.renderer.removeFromScene(this.headMesh);
         if (this.glowHeadMesh) this.renderer.removeFromScene(this.glowHeadMesh);
         this.mesh.dispose();
         this.glowMesh?.dispose();
-        this.material.dispose();
-        this.glowMaterial?.dispose();
-        this.headMaterial?.dispose();
-        this.glowHeadMaterial?.dispose();
+        for (const material of [this.material, this.glowMaterial, this.headMaterial, this.glowHeadMaterial]) {
+            if (!material) continue;
+            if (Array.isArray(retiredMaterials)) retiredMaterials.push(material);
+            else material.dispose();
+        }
         this.headMesh = null;
         this.glowMesh = null;
         this.glowHeadMesh = null;
