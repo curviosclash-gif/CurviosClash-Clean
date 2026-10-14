@@ -103,6 +103,13 @@ export class PlayingStateSystem {
         this._lastOverheatSnapshotVersion = -1;
         this._matchRuntimeProjection = null;
         this._matchRenderProjection = null;
+        this._cameraFrameTiming = {
+            frameId: 0,
+            rawDt: 1 / 60,
+            dt: 1 / 60,
+            reset: false,
+            reason: '',
+        };
         this._arenaWavesOverlayPhase = '';
         this._arenaWavesOverlayMapIndex = -1;
         this._arenaWavesOverlayChoiceCount = -1;
@@ -264,13 +271,13 @@ export class PlayingStateSystem {
         const cameraDt = Number.isFinite(numericRenderDelta)
             ? Math.max(1 / 240, Math.min(0.05, numericRenderDelta))
             : this.runtimeAccess.getFixedStep?.();
-        this.runtimeAccess.getRenderer?.()?.cameraRigSystem?.setFrameTiming?.({
-            frameId: Number(renderTiming?.frameId) || 0,
-            rawDt: Number(renderTiming?.rawDt),
-            dt: cameraDt,
-            reset: renderTiming?.reset === true,
-            reason: renderTiming?.resetReason || '',
-        });
+        const cameraFrameTiming = this._cameraFrameTiming;
+        cameraFrameTiming.frameId = Number(renderTiming?.frameId) || 0;
+        cameraFrameTiming.rawDt = Number(renderTiming?.rawDt);
+        cameraFrameTiming.dt = cameraDt;
+        cameraFrameTiming.reset = renderTiming?.reset === true;
+        cameraFrameTiming.reason = renderTiming?.resetReason || '';
+        this.runtimeAccess.getRenderer?.()?.cameraRigSystem?.setFrameTiming?.(cameraFrameTiming);
 
         const visualDelta = this.runtimeAccess.getVisualsActive?.() === false ? 0 : cameraDt;
         entityManager.renderInterpolatedTransforms(renderAlpha, visualDelta);

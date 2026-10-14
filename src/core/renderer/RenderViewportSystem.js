@@ -23,6 +23,22 @@ export class RenderViewportSystem {
             ? options.beforeCameraRender : null;
         this.afterCameraRender = typeof options.afterCameraRender === 'function'
             ? options.afterCameraRender : null;
+        this._fourGridViewports = [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ];
+        this._threeColumnViewports = [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ];
+        this._threeRowViewports = [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ];
         // Brackets the whole logical frame, so split screen and post-processing count as one frame.
         this.frameTimer = options.frameTimer || null;
         // A logical frame may render several cameras and post-processing passes. three.js resets
@@ -171,16 +187,28 @@ export class RenderViewportSystem {
             const bottomHeight = Math.floor(h / 2);
             const topHeight = h - bottomHeight;
             this.renderer.setScissorTest(true);
-            const quadrants = [
-                [0, bottomHeight, leftWidth, topHeight, cameras[0]],
-                [leftWidth, bottomHeight, rightWidth, topHeight, cameras[1]],
-                [0, 0, leftWidth, bottomHeight, cameras[2]],
-                [leftWidth, 0, rightWidth, bottomHeight, cameras[3]],
-            ];
-            for (const [x, y, width, height, camera] of quadrants) {
-                this.renderer.setViewport(x, y, width, height);
-                this.renderer.setScissor(x, y, width, height);
-                this._renderCamera(scene, camera);
+            const quadrants = this._fourGridViewports;
+            quadrants[0][0] = 0;
+            quadrants[0][1] = bottomHeight;
+            quadrants[0][2] = leftWidth;
+            quadrants[0][3] = topHeight;
+            quadrants[1][0] = leftWidth;
+            quadrants[1][1] = bottomHeight;
+            quadrants[1][2] = rightWidth;
+            quadrants[1][3] = topHeight;
+            quadrants[2][0] = 0;
+            quadrants[2][1] = 0;
+            quadrants[2][2] = leftWidth;
+            quadrants[2][3] = bottomHeight;
+            quadrants[3][0] = leftWidth;
+            quadrants[3][1] = 0;
+            quadrants[3][2] = rightWidth;
+            quadrants[3][3] = bottomHeight;
+            for (let index = 0; index < quadrants.length; index += 1) {
+                const pane = quadrants[index];
+                this.renderer.setViewport(pane[0], pane[1], pane[2], pane[3]);
+                this.renderer.setScissor(pane[0], pane[1], pane[2], pane[3]);
+                this._renderCamera(scene, cameras[index]);
             }
             this.renderer.setScissorTest(false);
             this.renderer.setViewport(0, 0, w, h);
@@ -191,16 +219,25 @@ export class RenderViewportSystem {
         if (this.layout === VIEWPORT_LAYOUTS.THREE_COLUMNS && cameras.length >= 3) {
             const columnWidth = Math.floor(w / 3);
             const lastColumnWidth = w - columnWidth * 2;
-            const columns = [
-                [0, 0, columnWidth, h, cameras[0]],
-                [columnWidth, 0, columnWidth, h, cameras[1]],
-                [columnWidth * 2, 0, lastColumnWidth, h, cameras[2]],
-            ];
+            const columns = this._threeColumnViewports;
+            columns[0][0] = 0;
+            columns[0][1] = 0;
+            columns[0][2] = columnWidth;
+            columns[0][3] = h;
+            columns[1][0] = columnWidth;
+            columns[1][1] = 0;
+            columns[1][2] = columnWidth;
+            columns[1][3] = h;
+            columns[2][0] = columnWidth * 2;
+            columns[2][1] = 0;
+            columns[2][2] = lastColumnWidth;
+            columns[2][3] = h;
             this.renderer.setScissorTest(true);
-            for (const [x, y, width, height, camera] of columns) {
-                this.renderer.setViewport(x, y, width, height);
-                this.renderer.setScissor(x, y, width, height);
-                this._renderCamera(scene, camera);
+            for (let index = 0; index < columns.length; index += 1) {
+                const pane = columns[index];
+                this.renderer.setViewport(pane[0], pane[1], pane[2], pane[3]);
+                this.renderer.setScissor(pane[0], pane[1], pane[2], pane[3]);
+                this._renderCamera(scene, cameras[index]);
             }
             this.renderer.setScissorTest(false);
             this.renderer.setViewport(0, 0, w, h);
@@ -211,16 +248,25 @@ export class RenderViewportSystem {
         if (this.layout === VIEWPORT_LAYOUTS.THREE_ROWS && cameras.length >= 3) {
             const rowHeight = Math.floor(h / 3);
             const topRowHeight = h - rowHeight * 2;
-            const rows = [
-                [0, rowHeight * 2, w, topRowHeight, cameras[0]],
-                [0, rowHeight, w, rowHeight, cameras[1]],
-                [0, 0, w, rowHeight, cameras[2]],
-            ];
+            const rows = this._threeRowViewports;
+            rows[0][0] = 0;
+            rows[0][1] = rowHeight * 2;
+            rows[0][2] = w;
+            rows[0][3] = topRowHeight;
+            rows[1][0] = 0;
+            rows[1][1] = rowHeight;
+            rows[1][2] = w;
+            rows[1][3] = rowHeight;
+            rows[2][0] = 0;
+            rows[2][1] = 0;
+            rows[2][2] = w;
+            rows[2][3] = rowHeight;
             this.renderer.setScissorTest(true);
-            for (const [x, y, width, height, camera] of rows) {
-                this.renderer.setViewport(x, y, width, height);
-                this.renderer.setScissor(x, y, width, height);
-                this._renderCamera(scene, camera);
+            for (let index = 0; index < rows.length; index += 1) {
+                const pane = rows[index];
+                this.renderer.setViewport(pane[0], pane[1], pane[2], pane[3]);
+                this.renderer.setScissor(pane[0], pane[1], pane[2], pane[3]);
+                this._renderCamera(scene, cameras[index]);
             }
             this.renderer.setScissorTest(false);
             this.renderer.setViewport(0, 0, w, h);
