@@ -100,7 +100,7 @@ export class MapHazardSystem {
                 const radius = runtimeHazard.radius + Math.max(0, Number(player.hitboxRadius) || 0);
                 if (segmentPointDistanceSquared(previousPosition, player.position, runtimeHazard.position) > radius * radius) continue;
                 hitCycles[index] = cycleIndex;
-                this._applyHit(player, hazard, elapsedSeconds);
+                this._applyHit(player, hazard, simulationNowSeconds);
                 return true;
             }
         }
