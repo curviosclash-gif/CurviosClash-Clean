@@ -4,8 +4,8 @@ export function addObjectiveGuard(system, { id, teamId, position }) {
     if (!Array.isArray(position) || position.length < 3) return null;
     const turret = system._createTurret({
         id, teamId, ownerColor: resolveTeamColor(teamId), pos: position, weapon: 'mg', allowedModes: ['HUNT'],
-        targetPlayers: 'all', targetTrails: false, range: 60, cooldown: 0.45,
-        damage: 3, phase: 0, destructible: true, maxHp: 45, hitboxRadius: 2.2,
+        targetPlayers: 'all', targetTrails: false, range: 60, cooldown: 0.65,
+        damage: 2.5, phase: 0, destructible: true, maxHp: 45, hitboxRadius: 2.2,
     });
     turret.objectiveGuard = true;
     turret.teamObjective = true;
