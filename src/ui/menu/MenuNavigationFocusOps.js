@@ -38,8 +38,12 @@ export function moveMainMenuFocus(actions, direction, active) {
         const rect = entry.getBoundingClientRect();
         const dx = rect.x + rect.width / 2 - origin.x - origin.width / 2;
         const dy = rect.y + rect.height / 2 - origin.y - origin.height / 2;
-        return { entry, along: (horizontal ? dx : dy) * sign, across: Math.abs(horizontal ? dy : dx) };
-    }).filter((candidate) => candidate.along > 1 && (!horizontal || candidate.across < origin.height / 2));
+        const along = (horizontal ? dx : dy) * sign;
+        const across = Math.abs(horizontal ? dy : dx);
+        return { entry, along, across, columnOverlap: across < (origin.width + rect.width) / 2 };
+    }).filter((candidate) => candidate.along > 1
+        && (horizontal ? candidate.across < origin.height / 2
+            : candidate.columnOverlap || candidate.across <= candidate.along));
     candidates.sort((a, b) => (a.along + a.across * 2) - (b.along + b.across * 2));
     candidates[0]?.entry.focus();
 }

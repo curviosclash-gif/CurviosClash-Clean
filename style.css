@@ -2884,11 +2884,16 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
 #main-menu[data-pause-settings="true"] {
     position: absolute;
     inset: 0;
-    z-index: 100;
+    z-index: 111;
+    pointer-events: none;
     justify-content: flex-end;
     padding: 0;
     background: none;
     animation: none;
+}
+
+#main-menu[data-pause-settings="true"] .level4-drawer {
+    pointer-events: auto;
 }
 
 #main-menu[data-pause-settings="true"] .menu-content {

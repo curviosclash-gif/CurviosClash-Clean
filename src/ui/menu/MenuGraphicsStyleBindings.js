@@ -58,10 +58,12 @@ export function bindGraphicsStyleSelect({
     }
 }
 
-/** Menu size: the CSS variable on the menu root drives every size token (see MenuTokens.css). */
+/** Menu size is set on :root, where the shared menu font-size tokens are calculated. */
 export function applyMenuScale(ui, value) {
     const menuScale = normalizeMenuScale(value);
-    ui.mainMenu?.style?.setProperty?.('--menu-scale', String(resolveMenuScaleFactor(menuScale)));
+    const scaleFactor = String(resolveMenuScaleFactor(menuScale));
+    const menuScaleRoot = ui.mainMenu?.ownerDocument?.documentElement || ui.mainMenu;
+    menuScaleRoot?.style?.setProperty?.('--menu-scale', scaleFactor);
     if (ui.menuScaleSlider) ui.menuScaleSlider.value = String(menuScale);
     if (ui.menuScaleLabel) ui.menuScaleLabel.textContent = resolveMenuScaleLabel(menuScale);
 }
