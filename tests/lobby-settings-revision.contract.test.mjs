@@ -17,10 +17,11 @@ import { handleQuickStartLastStartAction } from '../src/core/runtime/MenuRuntime
 const settings = (mapKey = 'standard') => ({ mapKey, numBots: 3, botDifficulty: 'HARD', winsNeeded: 7,
     gameMode: 'CLASSIC', localSettings: { modePath: 'normal' } });
 
-test('multiplayer quickstart opens the lobby without bypassing readiness or launching a local match', async () => {
+test('quickstart returns to a joined lobby without bypassing readiness or launching a local match', async () => {
     const calls = [];
     await handleQuickStartLastStartAction({
         game: { settings: { localSettings: { sessionType: 'multiplayer' } }, uiManager: { menuNavigationRuntime: { showPanel: (panel) => calls.push(panel) } } },
+        getMultiplayerSessionState: () => ({ joined: true }),
         startMatch: () => calls.push('start'),
         recordMenuTelemetry: () => calls.push('started'),
     });

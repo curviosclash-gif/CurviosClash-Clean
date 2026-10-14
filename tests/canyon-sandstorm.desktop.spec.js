@@ -7,6 +7,15 @@ test('Clockwork Canyon storm drives players into the rock nooks at the arena sca
     test.setTimeout(240_000);
     const errors = collectErrors(page);
     await waitForLoadedGame(page);
+    const defaults = await page.evaluate(() => {
+        const settings = window.GAME_INSTANCE?.settingsManager?.createDefaultSettings?.();
+        return {
+            mode: settings?.mode,
+            sessionType: settings?.localSettings?.sessionType,
+            lastLocalSessionType: settings?.localSettings?.lastLocalSessionType,
+        };
+    });
+    expect(defaults).toEqual({ mode: '1p', sessionType: 'single', lastLocalSessionType: 'single' });
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
     await chooseFreePlayVariant(page, 'ffa');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });

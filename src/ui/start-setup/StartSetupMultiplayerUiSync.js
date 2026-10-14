@@ -1,15 +1,11 @@
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { syncLobbyScreen } from './LobbyScreenUi.js';
-import { MENU_SESSION_TYPES } from '../menu/MenuStateContracts.js';
+import { MENU_SESSION_TYPES, resolveContinueSessionType } from '../menu/MenuStateContracts.js';
 import {
     MULTIPLAYER_TRANSPORTS,
     normalizeMultiplayerTransport,
 } from '../../shared/contracts/RuntimeSessionContract.js';
-import {
-    humanizePreviewCategory,
-    renderPreviewCard,
-    renderSummaryBlocks,
-} from './StartSetupUiOps.js';
+import { renderSummaryBlocks } from './StartSetupUiOps.js';
 import { resolveArcadeGhostDuelModeLabel } from './StartSetupSelectionSync.js';
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../../shared/contracts/HuntWinConditionContract.js';
 import { HUNT_LAST_ALIVE_LIVES } from '../../shared/contracts/HuntLivesContract.js';
@@ -17,12 +13,9 @@ import { normalizeTeamHuntSettings } from '../../shared/contracts/TeamHuntContra
 import { normalizeTeamObjectiveType, TEAM_OBJECTIVE_TYPES } from '../../shared/contracts/FlagObjectiveContract.js';
 import { resolveModeLabel, resolveSessionLabel } from './StartSetupSummaryLabels.js';
 import { createLocalPilotSummaryBlocks, isThreePlayerSplitSelected, resolveMenuBotCount } from './StartSetupSplitPlayersSection.js';
+import { renderSelectionPreviews } from './StartSetupSelectionPreview.js';
 
-export function formatMapRenderMode(renderMode) {
-    if (renderMode === 'GLB+FALLBACK') return '3D-Modell (mit Ersatzdarstellung)';
-    if (renderMode === 'GLB') return '3D-Modell';
-    return 'Standardgeometrie';
-}
+export { formatMapRenderMode } from './StartSetupSelectionPreview.js';
 
 export function formatMenuRulesSummary(settings, modePath) {
     if (modePath === 'arcade') {
@@ -185,51 +178,6 @@ function createSummaryBlocks({
     return summaryBlocks;
 }
 
-function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePreviewP2) {
-    if (ui.mapPreview) {
-        renderPreviewCard(ui.mapPreview, {
-            title: mapPreview.name,
-            description: mapPreview.description,
-            badges: [
-                formatMapRenderMode(mapPreview.renderMode),
-                mapPreview.hasParcours ? 'Parcours' : null,
-                humanizePreviewCategory(mapPreview.category),
-                mapPreview.portalLevelCount > 1 ? `${mapPreview.portalLevelCount} Ebenen` : mapPreview.sizeText,
-            ].filter(Boolean),
-            facts: [
-                { label: 'Größe', value: mapPreview.sizeText },
-                { label: 'Hindernisse', value: String(mapPreview.obstacleCount) },
-                { label: 'Portal-Paare', value: String(mapPreview.portalCount) },
-                mapPreview.gateCount > 0 ? { label: 'Tore', value: String(mapPreview.gateCount) } : null,
-                mapPreview.tunnelCount > 0 ? { label: 'Tunnel', value: String(mapPreview.tunnelCount) } : null,
-                mapPreview.spawnCount > 0 ? { label: 'Startpunkte', value: String(mapPreview.spawnCount) } : null,
-                mapPreview.itemAnchorCount > 0 ? { label: 'Gegenstände', value: String(mapPreview.itemAnchorCount) } : null,
-                mapPreview.aircraftCount > 0 ? { label: 'Deko-Flieger', value: String(mapPreview.aircraftCount) } : null,
-            ].filter(Boolean),
-        });
-    }
-    if (ui.vehiclePreviewP1 && !ui.vehiclePreview3dMount) {
-        renderPreviewCard(ui.vehiclePreviewP1, {
-            title: vehiclePreviewP1.label,
-            badges: ['Pilot 1', humanizePreviewCategory(vehiclePreviewP1.category)],
-            facts: [
-                { label: 'Klasse', value: humanizePreviewCategory(vehiclePreviewP1.category) },
-                { label: 'Hitbox', value: vehiclePreviewP1.hitboxRadius.toFixed(2) },
-            ],
-        });
-    }
-    if (ui.vehiclePreviewP2 && !ui.vehiclePreview3dMount) {
-        renderPreviewCard(ui.vehiclePreviewP2, {
-            title: vehiclePreviewP2.label,
-            badges: ['Pilot 2', humanizePreviewCategory(vehiclePreviewP2.category)],
-            facts: [
-                { label: 'Klasse', value: humanizePreviewCategory(vehiclePreviewP2.category) },
-                { label: 'Hitbox', value: vehiclePreviewP2.hitboxRadius.toFixed(2) },
-            ],
-        });
-    }
-}
-
 export function renderStartSetupSummaryAndPreview({
     ui,
     settings,
@@ -261,18 +209,29 @@ export function renderStartSetupSummaryAndPreview({
             ghostDuelState,
         }));
     }
+    // "Weiterspielen" resumes the last local session, also while multiplayer is selected.
+    const resumesLocalSession = sessionType === MENU_SESSION_TYPES.MULTIPLAYER && !hasActiveLobbySession;
+    const continueSessionType = resumesLocalSession
+        ? resolveContinueSessionType(settings?.localSettings)
+        : sessionType;
+    const continueDraft = resumesLocalSession
+        ? settings?.localSettings?.draftStateBySessionType?.[continueSessionType]
+        : null;
+    const continueMapPreview = continueDraft?.mapKey ? resolveMapPreview(continueDraft.mapKey) : null;
+    const continueVehiclePreview = continueDraft?.vehicleP1
+        ? resolveVehiclePreview(continueDraft.vehicleP1, continueDraft.modePath || '')
+        : null;
     if (ui.quickStartLastSummary) {
         ui.quickStartLastSummary.textContent = [
-            resolveSessionLabel(surfaceEntryCopy, sessionType),
-            resolveModeLabel(modePath, settings),
-            mapPreview.name,
-            vehiclePreviewP1.label,
-            formatMenuRulesSummary(settings, modePath),
-        ].join(' · ');
+            resolveSessionLabel(surfaceEntryCopy, continueSessionType),
+            resumesLocalSession ? null : resolveModeLabel(modePath, settings),
+            continueMapPreview?.name || (resumesLocalSession ? 'Karte nicht gespeichert' : mapPreview.name),
+            continueVehiclePreview?.label || (resumesLocalSession ? 'Flugzeug nicht gespeichert' : vehiclePreviewP1.label),
+            resumesLocalSession ? null : formatMenuRulesSummary(settings, modePath),
+        ].filter(Boolean).join(' · ');
     }
     const quickLabel = ui.quickStartLastButton?.querySelector?.('.menu-primary-start-label');
-    if (quickLabel) quickLabel.textContent = sessionType === MENU_SESSION_TYPES.MULTIPLAYER
-        ? (hasActiveLobbySession ? 'Zur Lobby' : 'Mehrspieler öffnen') : 'Weiterspielen';
+    if (quickLabel) quickLabel.textContent = hasActiveLobbySession ? 'Zur Lobby' : 'Weiterspielen';
     renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePreviewP2);
 }
 

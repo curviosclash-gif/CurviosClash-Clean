@@ -256,6 +256,7 @@ export class GameRuntimeMenuActionHandler {
             resolveMenuAccessContext: () => this._facade?._resolveMenuAccessContext?.(),
             recordMenuTelemetry: (type, payload) => this._facade?._recordMenuTelemetry?.(type, payload),
             startMatch: () => this._facade?.startMatch?.(),
+            getMultiplayerSessionState: () => this._facade?.menuMultiplayerBridge?.getSessionState?.(),
             markSettingsDirty: (dirty) => this._facade?.markSettingsDirty?.(dirty),
             cancelPendingSettingsAutoSave: () => this._facade?.cancelPendingSettingsAutoSave?.(),
             holdSessionSettingsRestore: (plan) => this._facade?.settingsHandler?.holdSessionSettingsRestore?.(plan),

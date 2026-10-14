@@ -35,7 +35,7 @@ test('V103 SettingsManager diffSettings reports changed paths and known change k
         },
         localSettings: {
             ...before.localSettings,
-            sessionType: 'single',
+            sessionType: 'splitscreen',
         },
     });
 

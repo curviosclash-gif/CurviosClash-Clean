@@ -1,5 +1,5 @@
 export { getSettingsFieldDescriptorForOverridePath } from '../../ui/SettingsFieldRegistry.js';
-export { ensureMenuContractState, MENU_SESSION_TYPES } from '../../ui/menu/MenuStateContracts.js';
+export { ensureMenuContractState, MENU_SESSION_TYPES, normalizeLocalSessionType } from '../../ui/menu/MenuStateContracts.js';
 export { resolveMenuAccessContext } from '../../ui/menu/MenuAccessPolicy.js';
 export {
     applyPresetToSettings,

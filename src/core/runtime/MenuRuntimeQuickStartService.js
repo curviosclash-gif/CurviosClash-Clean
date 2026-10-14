@@ -3,12 +3,15 @@
 // ============================================
 
 import { CONFIG } from '../Config.js';
-import { getNextEventPlaylistEntry } from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { getNextEventPlaylistEntry, resolveContinueSessionType } from '../../composition/core-ui/CoreUiMenuPorts.js';
 import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import { listEligibleMapKeysForModePath } from '../../shared/contracts/MapModeContract.js';
 import { PLATFORM_SURFACE_QUICK_START_ACTION_IDS } from '../../shared/contracts/PlatformCapabilityRegistry.js';
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
+import { readGamepad } from '../../shared/input/GamepadInputSource.js';
+import { resolveSplitScreenDeviceIssue } from '../../four-player-planar/FourPlayerPlanarContract.js';
+import { handleSessionTypeChangeAction } from './MenuRuntimeSessionSwitchService.js';
 import { appendMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 import { createSessionSettingsRestorePlan } from './SessionSettingsRestorePlan.js';
 
@@ -77,10 +80,58 @@ function resolveProductSurfaceId(game) {
     return productSurfaceId;
 }
 
+// "Weiterspielen" never opens the lobby for a fresh start: it resumes the last local session.
+// Only a lobby the player already joined is worth returning to.
+function resumeLocalSessionForContinue(ctx) {
+    const { game, onSettingsChanged, getMultiplayerSessionState } = ctx;
+    if (getMultiplayerSessionState?.()?.joined === true) {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-multiplayer', { trigger: 'quickstart_lobby' });
+        return false;
+    }
+    const targetSessionType = resolveContinueSessionType(game.settings.localSettings);
+    const localDraftSnapshot = cloneJsonSnapshot(game.settings);
+    const hasSavedLocalDraft = !!game.settings.localSettings?.draftStateBySessionType?.[targetSessionType]
+        && !!localDraftSnapshot
+        && game.settingsManager.applySessionDraft(localDraftSnapshot, targetSessionType).success;
+    if (!hasSavedLocalDraft) {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-custom', { trigger: 'quickstart_local_setup' });
+        game._showStatusToast('Lokale Sitzung einrichten: Es ist noch keine lokale Auswahl gespeichert.', 2800, 'info');
+        return false;
+    }
+    const switchResult = handleSessionTypeChangeAction({
+        game,
+        event: { sessionType: targetSessionType },
+        onSettingsChanged,
+    });
+    if (!switchResult?.success) return false;
+    if (!switchResult.loadedDraft) {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-custom', { trigger: 'quickstart_local_setup' });
+        game._showStatusToast('Lokale Sitzung einrichten: Es ist noch keine lokale Auswahl gespeichert.', 2800, 'info');
+        return false;
+    }
+    return true;
+}
+
+// Split screen without its gamepads cannot start; the hub explains what is missing instead.
+function openHubForMissingDevices(ctx, deviceIssue) {
+    const { game } = ctx;
+    game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-custom', { trigger: 'quickstart_devices' });
+    game.uiManager?.showStartValidationError?.({
+        message: `Start nicht möglich: ${deviceIssue}`,
+        fieldKey: 'players',
+        fieldMessage: deviceIssue,
+    }, { focusField: false });
+    game._showStatusToast(deviceIssue, 2400, 'warning');
+}
+
 export async function handleQuickStartLastStartAction(ctx) {
     const { game, recordMenuTelemetry, startMatch } = ctx;
-    if (game?.settings?.localSettings?.sessionType === 'multiplayer') {
-        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-multiplayer', { trigger: 'quickstart_lobby' });
+    if (game?.settings?.localSettings?.sessionType === 'multiplayer' && !resumeLocalSessionForContinue(ctx)) {
+        return false;
+    }
+    const deviceIssue = resolveSplitScreenDeviceIssue(game?.settings, ctx.getGamepad || readGamepad);
+    if (deviceIssue) {
+        openHubForMissingDevices(ctx, deviceIssue);
         return false;
     }
     if (!getSurfacePort(game).isQuickStartAllowed(PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS)) {

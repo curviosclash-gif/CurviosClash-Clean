@@ -107,6 +107,25 @@ function normalizeSessionType(value, fallback = MENU_SESSION_TYPES.SINGLE) {
     return VALID_SESSION_TYPE_SET.has(requested) ? requested : fallback;
 }
 
+/**
+ * Single or split screen: the sessions "Weiterspielen" can resume without a lobby.
+ * @param {unknown} value
+ * @param {string} fallback
+ */
+export function normalizeLocalSessionType(value, fallback = MENU_SESSION_TYPES.SINGLE) {
+    const requested = normalizeString(value, '').toLowerCase();
+    return requested === MENU_SESSION_TYPES.SINGLE || requested === MENU_SESSION_TYPES.SPLITSCREEN
+        ? requested
+        : fallback;
+}
+
+/** The local session "Weiterspielen" resumes: the current one, or the last one before multiplayer. */
+export function resolveContinueSessionType(localSettings = null) {
+    const source = localSettings && typeof localSettings === 'object' ? localSettings : {};
+    const current = normalizeLocalSessionType(source.sessionType, '');
+    return current || normalizeLocalSessionType(source.lastLocalSessionType, MENU_SESSION_TYPES.SINGLE);
+}
+
 function normalizeModePath(value, fallback = MENU_MODE_PATHS.NORMAL) {
     const requested = normalizeString(value, fallback).toLowerCase();
     return VALID_MODE_PATH_SET.has(requested) ? requested : fallback;
@@ -227,6 +246,11 @@ function normalizeLocalSettingsState(localSettings = null) {
         fixedPresetId: normalizeString(source.fixedPresetId, defaults.fixedPresetId),
         fixedPresetLockEnabled: normalizeBoolean(source.fixedPresetLockEnabled, defaults.fixedPresetLockEnabled),
         sessionType,
+        // Follows every local session; stays on the last one while a lobby session is active.
+        lastLocalSessionType: normalizeLocalSessionType(
+            sessionType,
+            normalizeLocalSessionType(source.lastLocalSessionType, defaults.lastLocalSessionType)
+        ),
         lanHostLocalPlayerCount: normalizeLanHostLocalPlayerCount(
             source.lanHostLocalPlayerCount,
             defaults.lanHostLocalPlayerCount

@@ -100,7 +100,7 @@ const ALTERNATIVE_NUMBERS = new Map([
  * binding that collides with another combat action of the same player.
  */
 const ALTERNATIVE_VALUES = new Map([
-    ['mode', '1p'],
+    ['mode', '2p'],
     ['gameMode', 'CLASSIC'],
     ['mapKey', 'maze'],
     ['botDifficulty', 'EASY'],
@@ -136,7 +136,9 @@ const ALTERNATIVE_VALUES = new Map([
     ['localSettings.developerModeVisibility', 'open'],
     ['localSettings.developerThemeId', 'arctic-grid'],
     ['localSettings.fixedPresetId', 'endlosjagd'],
-    ['localSettings.sessionType', 'single'],
+    ['localSettings.sessionType', 'splitscreen'],
+    // Follows the local session type while no lobby session is active.
+    ['localSettings.lastLocalSessionType', 'splitscreen'],
     ['localSettings.splitScreenVariant', 'four_player_planar'],
     ['localSettings.fourPlayerPlanar.mode', 'hunt'],
     ['localSettings.fourPlayerPlanar.mapKey', 'maze'],

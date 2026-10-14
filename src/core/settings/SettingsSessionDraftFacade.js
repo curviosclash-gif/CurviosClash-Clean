@@ -1,6 +1,7 @@
 import {
     ensureMenuContractState,
     MENU_SESSION_TYPES,
+    normalizeLocalSessionType,
     normalizeSessionType,
 } from '../../composition/core-ui/CoreSettingsPorts.js';
 import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
@@ -72,6 +73,7 @@ export function createSettingsSessionDraftFacade(options = {}) {
             }
             settings.localSettings.draftStateBySessionType[normalizedSessionType] = {
                 updatedAt: getNowIso(),
+                modePath: String(settings?.localSettings?.modePath || ''),
                 mapKey: String(settings.mapKey || ''),
                 vehicleP1: String(settings?.vehicles?.PLAYER_1 || ''),
                 vehicleP2: String(settings?.vehicles?.PLAYER_2 || ''),
@@ -125,8 +127,28 @@ export function createSettingsSessionDraftFacade(options = {}) {
         }
 
         const saveResult = saveSessionDraft(settings, currentSessionType);
+        if (!saveResult.success) {
+            return {
+                success: false,
+                reason: 'current_draft_save_failed',
+                changed: false,
+                targetSessionType,
+                loadedDraft: false,
+                changedKeys: [],
+                metadata: {
+                    sessionType: currentSessionType,
+                    savedCurrentDraft: false,
+                },
+                warnings: ['session_draft_save_failed'],
+            };
+        }
         const draftResult = applySessionDraft(settings, targetSessionType);
         settings.localSettings.sessionType = targetSessionType;
+        // Remember where "Weiterspielen" goes back to once a lobby session is left.
+        settings.localSettings.lastLocalSessionType = normalizeLocalSessionType(
+            targetSessionType,
+            normalizeLocalSessionType(currentSessionType, MENU_SESSION_TYPES.SINGLE)
+        );
         settings.mode = targetSessionType === MENU_SESSION_TYPES.SPLITSCREEN ? '2p' : '1p';
 
         return {

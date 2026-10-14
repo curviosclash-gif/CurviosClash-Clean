@@ -44,7 +44,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     schemaVersion: MENU_DEFAULT_EDITOR_SCHEMA_VERSION,
     baseSettings: {
         settingsVersion: 6,
-        mode: '2p',
+        mode: '1p',
         gameMode: HUNT_CONFIG.DEFAULT_MODE,
         mapKey: 'mega_maze',
         numBots: 8,
@@ -121,7 +121,8 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         releasePreviewEnabled: false,
         fixedPresetId: '',
         fixedPresetLockEnabled: false,
-        sessionType: 'splitscreen',
+        sessionType: 'single',
+        lastLocalSessionType: 'single',
         lanHostLocalPlayerCount: 1,
         splitScreenVariant: SPLIT_SCREEN_VARIANTS.STANDARD,
         fourPlayerPlanar: normalizeFourPlayerPlanarSettings(),

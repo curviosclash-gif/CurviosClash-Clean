@@ -1463,6 +1463,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             });
             return {
                 defaultsMapKey: String(defaults?.mapKey || ''),
+                defaultsMode: String(defaults?.mode || ''),
+                defaultsSessionType: String(defaults?.localSettings?.sessionType || ''),
+                defaultsLastLocalSessionType: String(defaults?.localSettings?.lastLocalSessionType || ''),
                 mapKey: String(snapshot?.mapKey || ''),
                 mode: String(snapshot?.mode || ''),
                 sessionType: String(snapshot?.localSettings?.sessionType || ''),
@@ -1476,6 +1479,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         });
 
         expect(sanitized.mapKey).toBe(sanitized.defaultsMapKey);
+        expect(sanitized.defaultsMode).toBe('1p');
+        expect(sanitized.defaultsSessionType).toBe('single');
+        expect(sanitized.defaultsLastLocalSessionType).toBe('single');
         expect(sanitized.mode).toBe('2p');
         expect(sanitized.sessionType).toBe('splitscreen');
         expect(sanitized.modePath).toBe('fight');
@@ -1484,6 +1490,50 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(sanitized.botBridgeUrl).toBe('ws://localhost:8765/test');
         expect(sanitized.botBridgeResumeCheckpoint).toBe('cp-01');
         expect(sanitized.botBridgeResumeStrict).toBeTruthy();
+    });
+
+    test('T20o1a: Weiterspielen stellt die lokale Auswahl wieder her und bewahrt den Netzwerkentwurf', async ({ page }) => {
+        await loadGame(page);
+        const prepared = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            game.settings.mapKey = 'standard';
+            game.settings.vehicles.PLAYER_1 = 'ship5';
+            game.settings.numBots = 1;
+            game.settings.gameMode = 'HUNT';
+            game.settings.localSettings.modePath = 'fight';
+            const saved = game.settingsManager.saveSessionDraft(game.settings, 'single');
+            const switched = game.settingsManager.switchSessionType(game.settings, 'multiplayer');
+            game.settings.mapKey = 'clockwork_canyon';
+            game.settings.vehicles.PLAYER_1 = 'ship1';
+            game.runtimeFacade.onSettingsChanged();
+            game.uiManager.menuNavigationRuntime.showMainNav();
+            return { saved: saved.success, switched: switched.success };
+        });
+        expect(prepared).toEqual({ saved: true, switched: true });
+        await expect(page.locator('#btn-quick-last-settings')).toBeVisible();
+        await page.locator('#btn-quick-last-settings').click();
+        await page.waitForFunction(() => {
+            const game = window.GAME_INSTANCE;
+            return game?.state === 'PLAYING'
+                && game.settings.localSettings.sessionType === 'single'
+                && game.arena?.currentMapKey === 'standard'
+                && game.entityManager?.humanPlayers?.length === 1;
+        }, null, { timeout: 30000 });
+        const restored = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const networkDraft = JSON.parse(JSON.stringify(game.settings));
+            const applied = game.settingsManager.applySessionDraft(networkDraft, 'multiplayer');
+            return {
+                localVehicle: game.settings.vehicles.PLAYER_1,
+                networkSaved: applied.success,
+                networkMap: networkDraft.mapKey,
+                networkVehicle: networkDraft.vehicles.PLAYER_1,
+            };
+        });
+        expect(restored).toEqual({
+            localVehicle: 'ship5', networkSaved: true,
+            networkMap: 'clockwork_canyon', networkVehicle: 'ship1',
+        });
     });
 
     test('T20p: Multiplayer-Join zeigt Feldgrund und fokussiert den Lobby-Code', async ({ page }) => {

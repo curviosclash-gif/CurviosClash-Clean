@@ -3,7 +3,7 @@ export {
 } from '../../ui/MenuController.js';
 export { guardMenuRuntimeEvent, resolveMenuAccessContext } from '../../ui/menu/MenuAccessPolicy.js';
 export { getNextEventPlaylistEntry } from '../../ui/menu/EventPlaylistCatalog.js';
-export { LEVEL4_SECTION_IDS } from '../../ui/menu/MenuStateContracts.js';
+export { LEVEL4_SECTION_IDS, resolveContinueSessionType } from '../../ui/menu/MenuStateContracts.js';
 export { createMenuLevel3ResetDefaults } from '../../ui/menu/MenuDefaultsEditorConfig.js';
 export {
     HANGAR_SELECTION_PLAYER_SLOTS,
