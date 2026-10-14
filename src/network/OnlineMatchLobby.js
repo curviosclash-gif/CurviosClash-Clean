@@ -276,17 +276,20 @@ export class OnlineMatchLobby extends MatchLobby {
                 settle(reject, err);
             };
 
-            this._ws = new WebSocket(this._signalingUrl);
-            setupFn(this._ws, connectResolve, connectReject, connectState);
+            const socket = new WebSocket(this._signalingUrl);
+            this._ws = socket;
+            setupFn(socket, connectResolve, connectReject, connectState);
 
-            this._ws.onerror = () => {
+            socket.onerror = () => {
+                if (this._ws !== socket) return;
                 if (!connectState.settled) {
                     connectReject(createSocketLifecycleError('error', { signalingUrl: this._signalingUrl }));
                     return;
                 }
                 this._handleSocketError();
             };
-            this._ws.onclose = (event) => {
+            socket.onclose = (event) => {
+                if (this._ws !== socket) return;
                 if (!connectState.settled) {
                     connectReject(createSocketLifecycleError('close', buildSocketCloseDetails(event, this._signalingUrl)));
                     return;
