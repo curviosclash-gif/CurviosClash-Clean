@@ -115,7 +115,7 @@ test('Arcade score keeps breakdown details out of active play', () => {
             phase: 'sector_active',
             nowMs: 1000,
             sectorIndex: 1,
-            score: { total: 100, combo: 2, multiplier: 1.5, breakdown: { base: 100 } },
+            score: { total: 100, combo: 2, multiplier: 2, breakdown: { base: 100 } },
             lastSectorScore: {
                 breakdown: { base: 101, kills: 20, penalty: 1 },
                 awardedPoints: 235,
@@ -131,7 +131,7 @@ test('Arcade score keeps breakdown details out of active play', () => {
         hud.update({ ...activeState, phase: 'paused' });
         assert.equal(hud._breakdownWrap.style.display, 'grid');
         assert.equal(hud._scoreLabel.textContent, 'Punkte');
-        assert.equal(hud._multiplierValue.textContent, '×1,5');
+        assert.equal(hud._multiplierValue.textContent, '×2');
         assert.equal(hud._breakdownTitle.textContent, 'Punkteberechnung · letzter Sektor');
         assert.equal(hud._breakdownEquation.textContent, '120 × 1,33 + 75 = 235');
         assert.equal(hud._breakdownValueByKey.get('penalty').textContent, '−1');

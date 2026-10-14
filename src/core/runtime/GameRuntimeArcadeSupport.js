@@ -224,7 +224,7 @@ export class GameRuntimeArcadeSupport {
         if (typeof this.arcadeRunRuntime.setGhostPlaybackHandler === 'function') {
             const entityManager = runtimeState?.entityManager || null;
             this.arcadeRunRuntime.setGhostPlaybackHandler(
-                (clip) => entityManager?.playLastRoundGhost?.(clip)
+                (clip, options) => entityManager?.playLastRoundGhost?.(clip, options)
             );
         }
     }

@@ -41,7 +41,9 @@ export function getArcadeRunHudState(runtime) {
         missionState: runtime._missionState,
         objectiveState: runtime._state.objectiveState || null,
         comboWindowMs: Math.max(800, toSafeInt(runtime._state?.config?.comboWindowMs, 5000)),
+        comboDecayPerSecond: Math.max(0, toSafeNumber(runtime._state?.config?.comboDecayPerSecond, 1)),
         comboFreezeUntilMs: Math.max(0, toSafeNumber(runtime._state?.comboFreezeUntilMs, 0)),
+        maxMultiplier: Math.max(1, toSafeInt(runtime._state?.config?.maxMultiplier, 8)),
         suddenDeathElapsedMs: runtime._state.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH
             ? Math.max(0, nowMs - Math.max(0, toSafeNumber(runtime._state?.suddenDeathStartedAtMs, nowMs)))
             : 0,

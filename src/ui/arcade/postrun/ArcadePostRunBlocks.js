@@ -151,6 +151,52 @@ export function createArcadeSaveFailureBlock(saveFailures) {
     ]);
 }
 
+const toSeconds = (ms) => Math.round(Math.max(0, Number(ms) || 0) / 10) / 100;
+
+export function createArcadeGhostVerdictBlock(result) {
+    if (!result || typeof result !== 'object') return null;
+    const time = durationRow('time', 'Deine Zeit', toSeconds(result.totalTimeMs), 2);
+    if (result.status === 'first_time') {
+        return createArcadeBlock('arcade-ghost-verdict', 'Erste Bestzeit', [
+            time,
+            textRow('ghost', 'Ghost', result.ghostAvailable === true
+                ? 'Ab jetzt fliegt diese Zeit als Ghost mit.'
+                : 'Für diese Zeit wurde kein Ghost-Clip gespeichert.'),
+        ]);
+    }
+    if (result.status === 'new_best') {
+        return createArcadeBlock('arcade-ghost-verdict', result.previousGhostAvailable === true ? 'Ghost geschlagen' : 'Bestzeit verbessert', [
+            time,
+            durationRow('margin', 'Vorsprung', toSeconds(result.improvementMs), 2),
+            durationRow('previous', 'Alte Bestzeit', toSeconds(result.previousBestTimeMs), 2),
+        ]);
+    }
+    return createArcadeBlock('arcade-ghost-verdict', result.previousGhostAvailable === true ? 'Hinter deinem Ghost' : 'Hinter deiner Bestzeit', [
+        time,
+        durationRow('gap', 'Rückstand', toSeconds(result.deltaToBestMs), 2),
+        textRow('rank', 'Platz', result.rank ? String(result.rank) : 'Außerhalb der Top 10'),
+    ]);
+}
+
+const HIGHLIGHT_TEXTS = Object.freeze({
+    new_record: (h) => ['Neuer Rekord', `${SCORE_INTEGER_FORMATTER.format(h.metrics.score)} Punkte · +${SCORE_INTEGER_FORMATTER.format(h.metrics.margin)}`],
+    ghost_beaten: (h) => ['Ghost geschlagen', `${SCORE_FACTOR_FORMATTER.format(h.metrics.seconds)} s schneller`],
+    close_escape: (h) => ['Knapp entkommen', `Sektor ${h.sector} · ${h.metrics.hpPct} % Leben${h.metrics.killsAfter > 0 ? `, danach ${h.metrics.killsAfter} Abschüsse` : ''}`],
+    multi_kill: (h) => ['Abschussserie', `Sektor ${h.sector} · ${h.metrics.kills} Abschüsse in ${String(h.metrics.seconds).replace('.', ',')} s`],
+    combo_peak: (h) => ['Kombo-Spitze', `Sektor ${h.sector} · Faktor ×${h.metrics.multiplier}`],
+    missions_complete: (h) => ['Alle Missionen', `Sektor ${h.sector}`],
+});
+
+export function createArcadeHighlightsBlock(highlights) {
+    const rows = (Array.isArray(highlights) ? highlights : [])
+        .filter((entry) => HIGHLIGHT_TEXTS[entry?.kind])
+        .map((entry, index) => {
+            const [label, value] = HIGHLIGHT_TEXTS[entry.kind](entry);
+            return textRow(`moment-${index}`, label, value);
+        });
+    return rows.length > 0 ? createArcadeBlock('arcade-highlights', 'Momente des Runs', rows) : null;
+}
+
 /**
  * Headline values of a finished run: the four numbers a player looks for first.
  * @param {object} summary
@@ -160,6 +206,8 @@ export function createArcadeRunBlocks(summary = {}) {
     const blocks = [
         createArcadeSaveFailureBlock(summary.saveFailures),
         createArcadeRankingBlock(summary.ranking),
+        createArcadeGhostVerdictBlock(summary.parcoursResult),
+        createArcadeHighlightsBlock(summary.highlights),
         createArcadeBlock('arcade-run', 'Ergebnis', [
             countRow('score', 'Gesamtpunkte', summary.score),
             countRow('best-combo', 'Beste Kombo', summary.bestCombo),
@@ -224,11 +272,16 @@ export function createArcadeVictoryBlocks(victory = {}) {
 export function createArcadeIntermissionBlocks(intermission = {}) {
     const completed = Math.max(0, Math.floor(Number(intermission.missionsCompleted) || 0));
     const total = Math.max(0, Math.floor(Number(intermission.missionsTotal) || 0));
+    const pace = intermission.pace && Number.isFinite(Number(intermission.pace.deltaPoints)) ? intermission.pace : null;
+    const paceDelta = pace ? Math.round(Number(pace.deltaPoints)) : 0;
     return [
         createArcadeBlock('arcade-intermission', 'Letzter Sektor', [
             countRow('sector-score', 'Punkte', intermission.lastSectorPoints),
             countRow('sector-xp', intermission.xpForAllPilots === true ? 'XP gesamt (alle Spieler)' : 'XP', intermission.lastSectorXp),
             textRow('missions', 'Missionen', `${completed}/${total}`),
+            ...(pace ? [textRow('pace', 'Rekordtempo', paceDelta >= 0
+                ? `+${SCORE_INTEGER_FORMATTER.format(paceDelta)} vor deinem Rekord`
+                : `${SCORE_INTEGER_FORMATTER.format(-paceDelta)} hinter deinem Rekord`)] : []),
         ]),
         createArcadeBreakdownBlock(
             intermission.breakdown,

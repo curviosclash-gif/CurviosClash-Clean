@@ -5,6 +5,8 @@ import { ARCADE_RUN_PHASES, createArcadeRunRecords } from '../../state/arcade/Ar
 import { toSafeInt, toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
 import { ARCADE_TEST_FLIGHT_DURATION_MS, ARCADE_TEST_FLIGHT_RUN_TYPE } from '../../shared/contracts/ArcadeTestFlightContract.js';
+import { readArcadeMoments } from '../../state/arcade/ArcadeRunMomentLog.js';
+import { selectArcadeRunHighlights } from '../../state/arcade/ArcadeRunHighlights.js';
 
 export function finalizeExpiredArcadeTestFlight(runtime) {
     if (runtime._config?.runType !== ARCADE_TEST_FLIGHT_RUN_TYPE || runtime._state?.gameplayTimeMs < ARCADE_TEST_FLIGHT_DURATION_MS) return null;
@@ -47,6 +49,7 @@ export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
     });
     if (!summary) return runtime.getStateSnapshot();
     trackArcadeColorEvent(runtime._colorProgress, { type: 'run_complete', succeeded: summary.succeeded });
+    const previousBestScore = Math.max(0, toSafeNumber(runtime._records?.bestScore, 0));
 
     runtime._recordDailyResult(nowMs);
     const { records } = mergeArcadeDailyRunRecords(runtime._records, { ...summary, isDailyChallenge: false });
@@ -95,7 +98,16 @@ export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
             : [],
         dailyResult,
         bonusScore: dailyResult ? Math.max(0, summary.score - dailyResult.score) : 0,
+        parcoursResult: runtime._lastParcoursResult?.runId && runtime._lastParcoursResult.runId === summary.runId
+            ? { ...runtime._lastParcoursResult } : null,
     };
+    postRunSummary.highlights = selectArcadeRunHighlights({
+        moments: readArcadeMoments(runtime),
+        completedSectors: summary.completedSectors,
+        score: summary.score,
+        previousBestScore,
+        parcoursResult: postRunSummary.parcoursResult,
+    });
     const replayState = runtime.getReplayState();
     runtime._state = {
         ...runtime._state,

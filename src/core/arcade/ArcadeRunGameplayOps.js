@@ -8,6 +8,7 @@ import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { finalizeExpiredArcadeTestFlight } from './ArcadeRunCompletionOps.js';
 import { applyArcadeMasteryScoreBonus } from './ArcadeMasteryPerkRuntimeOps.js';
 import { updateArcadeObjectiveRuntimeState } from './ArcadeObjectiveRuntimeOps.js';
+import { beginArcadeMoment, recordArcadeMoments } from '../../state/arcade/ArcadeRunMomentLog.js';
 
 export function updateArcadeRunMissions(runtime, event) {
     if (!runtime._missionState) return;
@@ -51,6 +52,7 @@ export function applyArcadeRunGameplayEvent(runtime, event) {
     trackArcadeColorEvent(runtime._colorProgress, event);
     const nowMs = runtime._state.gameplayTimeMs;
     const eventWithTime = { ...event, nowMs };
+    beginArcadeMoment(runtime);
 
     runtime._applyComboDecayAt(nowMs);
 
@@ -89,5 +91,6 @@ export function applyArcadeRunGameplayEvent(runtime, event) {
     }
 
     updateArcadeObjectiveRuntimeState(runtime, eventWithTime);
+    recordArcadeMoments(runtime, eventWithTime);
     return runtime.getStateSnapshot();
 }

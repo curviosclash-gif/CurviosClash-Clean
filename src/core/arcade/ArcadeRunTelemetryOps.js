@@ -7,6 +7,7 @@ import { calculateSectorXp, XP_REWARD_TABLE } from '../../state/arcade/ArcadeVeh
 import { toSafeInt, toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { awardArcadeRunPartnersXp, awardArcadeRunPlayerXp } from './ArcadeRunVehicleRewardOps.js';
 import { syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
+import { compareArcadeRunPace } from '../../state/arcade/ArcadeRunPaceOps.js';
 
 export function handleArcadeRoundEndTelemetry(runtime, payload = null) {
     if (!runtime._enabled || !runtime._state || !payload || typeof payload !== 'object') {
@@ -21,6 +22,9 @@ export function handleArcadeRoundEndTelemetry(runtime, payload = null) {
     });
     if (runtime._state.score.lastScoredSector > lastScoredSector) runtime._applySectorXpReward(payload);
     runtime._recordSectorHistoryEntry(payload, nowMs);
+    if (runtime._state.intermission) {
+        runtime._state.intermission.pace = compareArcadeRunPace(runtime._records, runtime._state);
+    }
     if (runtime._state.phase === ARCADE_RUN_PHASES.VICTORY && !runtime._state.victory) {
         runtime._state.victory = {
             score: runtime._state.score.total,

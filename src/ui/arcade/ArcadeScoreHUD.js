@@ -7,6 +7,7 @@ import { resolveArcadeModifierMeta } from '../../shared/contracts/ArcadeModifier
 import { resolveWeaponRaceWeaponLabel } from '../../shared/contracts/WeaponRaceContract.js';
 import { formatPlayerDisplayLabel, PLAYER_LABEL_STYLES } from '../../shared/contracts/PlayerDisplayLabelContract.js';
 import { ArcadeEndlessHudSection } from './ArcadeEndlessHudSection.js';
+import { resolveArcadeComboMeter } from './ArcadeComboMeterOps.js';
 import { resolveArcadeMapLabel } from './postrun/ArcadePostRunBlocks.js';
 import { formatArenaWavesMachineGunLabel } from './ArenaWavesOverlayTexts.js';
 
@@ -25,7 +26,6 @@ const PRESENTATION_BREAKDOWN_ENTRIES = Object.freeze([
     ...DERIVED_BREAKDOWN_ENTRIES,
 ]);
 const INTEGER_FORMATTER = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
-const ONE_DECIMAL_FORMATTER = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const FACTOR_FORMATTER = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function createElement(tag, className, textContent = '') {
@@ -42,10 +42,6 @@ function toSafeNumber(value, fallback = 0) {
 
 function formatRounded(value) {
     return INTEGER_FORMATTER.format(Math.round(Math.max(0, toSafeNumber(value, 0))));
-}
-
-function formatMultiplier(value) {
-    return `×${ONE_DECIMAL_FORMATTER.format(Math.max(1, toSafeNumber(value, 1)))}`;
 }
 
 function formatBreakdownValue(value, sign = '+') {
@@ -104,6 +100,7 @@ export class ArcadeScoreHUD {
         this._scoreValue = null;
         this._scoreLabel = null;
         this._comboValue = null;
+        this._comboHint = null;
         this._metricLine = null;
         this._endlessSection = null;
         this._arenaWavesSection = null;
@@ -164,7 +161,7 @@ export class ArcadeScoreHUD {
         this._comboDecayValue = createElement('span', 'arcade-score-hud-combo-decay');
         this._comboDecayValue.style.cssText = 'display:block;width:100%;height:3px;border-radius:999px;background:linear-gradient(90deg,#8ff7ff,#3ad1ff);opacity:0.88;margin-top:2px;transform-origin:left center;';
         this._comboMetricWrap.appendChild(this._comboDecayValue);
-        this._multiplierValue = this._createMetric(metricLine, 'Faktor', 'x1.0').value;
+        this._multiplierValue = this._createMetric(metricLine, 'Faktor', '×1').value;
         this._sectorValue = this._createMetric(metricLine, 'Sektor', '0').value;
 
         this._endlessSection = new ArcadeEndlessHudSection();
@@ -234,6 +231,9 @@ export class ArcadeScoreHUD {
 
         this._container.appendChild(scoreLine);
         this._container.appendChild(metricLine);
+        this._comboHint = createElement('div', 'arcade-score-hud-combo-hint', ' ');
+        this._comboHint.style.cssText = 'font-size:10px;color:#9eb8cf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        this._container.appendChild(this._comboHint);
         this._container.appendChild(this._endlessSection.element);
         this._container.appendChild(this._arenaWavesSection);
         this._container.appendChild(breakdown);
@@ -292,6 +292,7 @@ export class ArcadeScoreHUD {
         const isFivePortals = String(hudState.runType || '') === 'five_portals';
         const isWeaponRace = String(hudState.runType || '') === 'weapon_race';
         const isDemolition = String(hudState.runType || '') === 'demolition';
+        if (this._comboHint) this._comboHint.style.display = isEndless || isArenaWaves || isFivePortals || isWeaponRace || isDemolition ? 'none' : 'block';
         setNodeText(this._scoreLabel, isFivePortals ? 'Kartenzeit' : (isWeaponRace ? 'Waffenrennen' : 'Punkte'));
         if (isDemolition) {
             if (this._metricLine) this._metricLine.style.display = 'none';
@@ -384,17 +385,18 @@ export class ArcadeScoreHUD {
         const presentationBreakdown = { ...breakdown, ...scorePresentation };
         const presentationScope = lastSectorScore ? 'sector' : 'aggregate';
         const nowMs = Math.max(0, toSafeNumber(hudState.nowMs, Date.now()));
-        const comboWindowMs = Math.max(800, toSafeNumber(hudState.comboWindowMs, 5000));
         const combo = Math.max(0, Math.round(toSafeNumber(score.combo, 0)));
-        const lastComboAtMs = Math.max(0, toSafeNumber(score.lastComboAtMs, 0));
-        const elapsedComboMs = Math.max(0, nowMs - lastComboAtMs);
-        const decayRatio = combo <= 0 ? 0 : Math.max(0, Math.min(1, (comboWindowMs - elapsedComboMs) / comboWindowMs));
+        const comboMeter = resolveArcadeComboMeter({ ...score, nowMs, combo, comboWindowMs: hudState.comboWindowMs,
+            comboDecayPerSecond: hudState.comboDecayPerSecond,
+            comboFreezeUntilMs: hudState.comboFreezeUntilMs, maxMultiplier: hudState.maxMultiplier });
+        const decayRatio = comboMeter.ratio;
         const phase = String(hudState.phase || '');
         const sectorIndex = Math.max(0, Math.floor(toSafeNumber(hudState.sectorIndex, 0)));
         const totalScore = Math.max(0, Math.round(toSafeNumber(score.total, 0)));
         setNodeText(this._scoreValue, formatRounded(totalScore));
         setNodeText(this._comboValue, formatRounded(combo));
-        setNodeText(this._multiplierValue, formatMultiplier(score.multiplier));
+        setNodeText(this._multiplierValue, comboMeter.factorLabel);
+        setNodeText(this._comboHint, comboMeter.hint || ' ');
         setNodeText(this._sectorValue, `${sectorIndex}`);
 
         for (let i = 0; i < PRESENTATION_BREAKDOWN_ENTRIES.length; i += 1) {
@@ -470,6 +472,7 @@ export class ArcadeScoreHUD {
         this._container = null;
         this._scoreValue = null;
         this._comboValue = null;
+        this._comboHint = null;
         this._comboMetricWrap = null;
         this._comboDecayValue = null;
         this._multiplierValue = null;

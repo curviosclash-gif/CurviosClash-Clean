@@ -2,6 +2,7 @@ import { ParcoursMinimapRenderer } from './ParcoursMinimapRenderer.js';
 import * as THREE from 'three';
 
 const EDGE_INSET_PX = 16;
+const SPLIT_DELTA_FORMATTER = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function resolveGuidanceEdgeNdc(projectedX, projectedY, inFront, output = { x: 0, y: 0 }) {
     let x = inFront ? projectedX : -projectedX;
@@ -61,6 +62,7 @@ export class ParcoursOverlayController {
         this._minimap = null;
         this._lastXpSequence = 0;
         this._lastSplitSequence = 0;
+        this._lastSplitSectorIndex = null;
         this._lastPenaltySequence = 0;
         this._guidanceEdges = new Map();
         this._guidanceProjector = new THREE.Vector3();
@@ -108,6 +110,12 @@ export class ParcoursOverlayController {
 
     tickSplitDelta(hudState, nowMs) {
         if (!document?.body) return;
+        const sectorIndex = Math.max(0, Math.floor(Number(hudState?.sectorIndex) || 0));
+        if (this._lastSplitSectorIndex !== null && sectorIndex !== this._lastSplitSectorIndex) {
+            this._splitDeltaOverlay?.classList?.add('hidden');
+            this._splitDeltaHideAtMs = 0;
+        }
+        this._lastSplitSectorIndex = sectorIndex;
         const pending = collectUnseenParcoursHudEvents(hudState, 'parcours_split', this._lastSplitSequence);
         this._lastSplitSequence = pending.lastSequence;
         for (const parcoursSegmentSplit of pending.events) {
@@ -116,10 +124,10 @@ export class ParcoursOverlayController {
                 this._splitDeltaOverlay = this._ensureOverlay('parcours-split-delta', 'hidden');
             }
             if (this._splitDeltaOverlay) {
-                this._splitDeltaOverlay.textContent = `${isBetter ? '-' : '+'}${(Math.abs(deltaMs) / 1000).toFixed(2)}s`;
+                this._splitDeltaOverlay.textContent = `Bestzeit ${isBetter ? '−' : '+'}${SPLIT_DELTA_FORMATTER.format(Math.abs(deltaMs) / 1000)} s`;
                 this._splitDeltaOverlay.classList.remove('hidden', 'split-better', 'split-worse');
                 this._splitDeltaOverlay.classList.add(isBetter ? 'split-better' : 'split-worse');
-                this._splitDeltaHideAtMs = nowMs + 1200;
+                this._splitDeltaHideAtMs = nowMs + 15_000;
             }
         }
         if (this._splitDeltaOverlay && nowMs >= this._splitDeltaHideAtMs) {

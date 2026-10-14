@@ -69,9 +69,16 @@ function resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget, p
         runtime._enqueueHudEvent?.('ghost_status', { message: bestTimeMode ? 'Zur Bestzeit ist kein Ghost gespeichert.' : 'Noch kein Ghost gespeichert.' });
         return { started: false, reason: bestTimeMode ? 'best_ghost_not_found' : 'ghost_not_found', routeCandidates };
     }
+    const source = String(data?.source || '').trim().toLowerCase();
+    // Best-time recordings begin at the first ring where the parcours clock starts. Starting at
+    // round start gives the ghost a head start; the longest-trail duel keeps its old start timing.
+    if (bestTimeMode && source === 'match_round_start') {
+        runtime._lastGhostPlaybackRouteId = '';
+        runtime._enqueueHudEvent?.('ghost_status', { message: 'Ghost: persönliche Bestzeit · startet am ersten Ring' });
+        return { started: false, reason: 'waits_for_parcours_start', routeId: selectedRouteId, routeCandidates };
+    }
     runtime._enqueueHudEvent?.('ghost_status', { message: bestTimeMode ? 'Ghost: persönliche Bestzeit' : 'Ghost: längste Spur' });
 
-    const source = String(data?.source || '').trim().toLowerCase();
     if (
         source === 'parcours_checkpoint_start'
         && selectedRouteId
@@ -93,7 +100,7 @@ function resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget, p
         };
     }
     try {
-        runtime._onGhostPlayback(clipToPlay);
+        runtime._onGhostPlayback(clipToPlay, { loop: !bestTimeMode });
         runtime._lastGhostPlaybackRouteId = selectedRouteId;
         return { started: true, reason: 'ok', routeId: selectedRouteId, routeCandidates };
     } catch {
@@ -207,11 +214,13 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
             improvementMs: previousBestTimeMs > 0 ? Math.max(0, previousBestTimeMs - entry.totalTimeMs) : 0,
             rank,
             qualified: rank !== null,
+            ghostAvailable: isBestTime && !!safeClip,
+            previousGhostAvailable: !!best?.ghostClip,
             status: previousBestTimeMs <= 0
                 ? 'first_time'
                 : (isBestTime ? 'new_best' : (rank === null ? 'not_ranked' : 'ranked')),
         };
-        runtime._lastParcoursResult = { ...presentationResult };
+        runtime._lastParcoursResult = { ...presentationResult, runId: String(runtime._state?.runId || '') };
         trackArcadeColorEvent(runtime._colorProgress, { type: 'best_time', playerIndex: data.playerIndex || 0, previousBestTimeMs, totalTimeMs: entry.totalTimeMs });
     }
 

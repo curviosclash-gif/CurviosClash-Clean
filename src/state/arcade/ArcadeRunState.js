@@ -36,6 +36,7 @@ const ARCADE_PHASE_SET = new Set(Object.values(ARCADE_RUN_PHASES));
 
 import { toSafeNumber, clampNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
 import { normalizeArcadeGhostDuelMode } from '../../shared/contracts/ArcadeGhostDuelContract.js';
+import { normalizeArcadeRunPace } from './ArcadeRunPaceOps.js';
 
 function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -145,6 +146,7 @@ export function createArcadeRunRecords(source = null) {
             bestRunId: normalizeText(comparableInput?.replay?.bestRunId, ''),
         },
         breakdownTotals: createEmptyBreakdown(comparableInput.breakdownTotals),
+        pace: normalizeArcadeRunPace(comparableInput.pace),
         daily: {
             lastRecordedRunId: normalizeText(comparableInput?.daily?.lastRecordedRunId, ''),
             lastSucceeded: comparableInput?.daily?.lastSucceeded === true,

@@ -1,6 +1,7 @@
 import { ARCADE_RUN_PHASES, createArcadeRunRecords, createArcadeRunState } from './ArcadeRunState.js';
 import { toSafeNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
 import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import { collectArcadeSectorTotals, mergeArcadeRunPace, resolveArcadeRunPaceKey } from './ArcadeRunPaceOps.js';
 
 const SURVIVAL_POINTS_PER_SECOND = 5;
 const OBJECTIVE_TIME_BONUS_PER_SECOND = 10;
@@ -166,6 +167,8 @@ export function applyComboAction(scoreState = null, event = null, config = null)
         combo: nextCombo,
         comboAccum: newAccum - comboGain,
         multiplier: resolveMultiplierFromCombo(nextCombo, maxMultiplier),
+        peakCombo: Math.max(0, clampInteger(sourceScore.peakCombo, 0, 99_999, 0), nextCombo),
+        peakMultiplier: Math.max(1, toSafeNumber(sourceScore.peakMultiplier, 1), resolveMultiplierFromCombo(nextCombo, maxMultiplier)),
         lastComboAtMs: nowMs,
         comboDecayApplied: 0,
         comboDecayRule: null,
@@ -387,6 +390,8 @@ export function buildArcadeRunSummary(runState, { endedAtMs = Date.now(), replay
         suddenDeathScore: Math.max(0, toSafeNumber(safeScore.suddenDeathScore, 0)),
         isDailyChallenge: runState.isDailyChallenge === true || runState?.config?.dailyChallenge === true,
         seed: Math.max(0, clampInteger(runState?.config?.seed, 0, 2_147_483_647, 0)),
+        paceKey: resolveArcadeRunPaceKey(runState),
+        sectorTotals: collectArcadeSectorTotals(runState.sectorHistory),
     };
     return summary;
 }
@@ -436,6 +441,8 @@ export function mergeArcadeRunRecords(records, summary) {
     if (replayId) {
         next.replay.lastRunId = replayId;
     }
+
+    next.pace = mergeArcadeRunPace(next.pace, summary);
 
     const summaryBreakdown = createScoreBreakdown(summary.breakdown);
     next.breakdownTotals = createScoreBreakdown({

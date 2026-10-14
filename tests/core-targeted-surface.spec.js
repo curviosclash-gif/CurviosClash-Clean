@@ -2527,8 +2527,9 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 score: {
                     ...previousScore,
                     total: 1337,
-                    combo: 9,
+                    combo: 6,
                     multiplier: 4,
+                    lastComboAtMs: runtime.getHudState().nowMs,
                     breakdown: {
                         ...previousBreakdown,
                         base: 250,
@@ -2559,7 +2560,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(initialHudState.scoreVisible).toBeTruthy();
         expect(initialHudState.missionVisible).toBeTruthy();
         expect(initialHudState.scoreText).toContain('1.337');
-        expect(initialHudState.scoreText).toContain('×4,0');
+        expect(initialHudState.scoreText).toMatch(/×4(?!,)/);
+        expect(initialHudState.scoreText).toContain('×5 bei Kombo 8');
         expect(initialHudState.modifierLabel).toContain('Item-Regen');
         expect(initialHudState.missionCardCount).toBeGreaterThanOrEqual(3);
         expect(initialHudState.objectiveText).toContain('Bot 2');
@@ -2645,7 +2647,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await returnToMenu(page);
     });
 
-    test('T68c: Arcade-Intermission/Post-Run-Panel mit Reward-Choice und Replay-Fallback', async ({ page }) => {
+    test('T68c: Arcade-Intermission/Post-Run-Panel mit Reward-Choice und Replay-Fallback', async ({ page }, testInfo) => {
         await loadGame(page);
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
@@ -2690,11 +2692,13 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 allCompleted: false,
             };
             runtime._prepareIntermission(nowMs);
+            runtime._state.intermission.pace = { sector: 2, recordPoints: 2940, deltaPoints: -300 };
 
             game.state = 'ROUND_END';
             game.ui.messageOverlay.classList.remove('hidden');
             game.matchFlowUiController.applyMatchUiState({ visibility: { messageOverlayHidden: false }, overlayStats: null });
             const intermissionPanel = document.getElementById('arcade-overlay-panel');
+            const intermissionText = String(intermissionPanel?.textContent || '');
             const choiceButtons = Array.from(document.querySelectorAll('[data-arcade-choice-id]'));
             const rewardButtons = Array.from(document.querySelectorAll('[data-arcade-reward-id]'));
             if (choiceButtons[1]) choiceButtons[1].click();
@@ -2728,6 +2732,9 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 missionCompletionRate: 0.67,
                 xpEarned: 240,
                 peakMultiplier: 4,
+                parcoursResult: { status: 'new_best', previousGhostAvailable: true,
+                    totalTimeMs: 41_230, previousBestTimeMs: 42_600, improvementMs: 1370 },
+                highlights: [{ kind: 'multi_kill', sector: 1, metrics: { kills: 3, seconds: 2 } }],
                 xpAnimation: { durationMs: 260 },
                 scorePerSector: [
                     { sectorIndex: 1, mapKey: 'parcours_rift', awardedPoints: 1200 },
@@ -2753,6 +2760,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             if (replayBtn) replayBtn.click();
             return {
                 intermissionVisible: !!intermissionPanel && !intermissionPanel.classList.contains('hidden'),
+                intermissionText,
                 intermissionChoiceCount: choiceButtons.length,
                 intermissionRewardCount: rewardButtons.length,
                 selectedChoiceId,
@@ -2771,6 +2779,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
 
         expect(state).not.toBeNull();
         expect(state.intermissionVisible).toBeTruthy();
+        expect(state.intermissionText).toContain('Rekordtempo');
+        expect(state.intermissionText).toContain('300 hinter deinem Rekord');
         expect(state.intermissionChoiceCount).toBeGreaterThanOrEqual(2);
         expect(state.intermissionRewardCount).toBeGreaterThanOrEqual(2);
         expect(state.selectedChoiceId).not.toBe('');
@@ -2780,6 +2790,9 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(state.postRunVisible).toBeTruthy();
         expect(state.postRunText).toContain('Daily geschafft');
         expect(state.postRunText).toContain('Neuer Tagesbestwert');
+        expect(state.postRunText).toContain('Ghost geschlagen');
+        expect(state.postRunText).toContain('Momente des Runs');
+        expect(state.postRunText).toContain('3 Abschüsse in 2 s');
         expect(state.postRunText).toMatch(/Tagesbestwert\s*4\.820/);
         expect(state.replayCode).toBe('replay_export_ready');
         expect(state.replayButtonExists).toBeTruthy();
@@ -2788,6 +2801,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(state.menuDailyLabel).toContain('Daily');
         expect(state.menuDailyLabel).not.toContain('Platzhalter');
         expect(state.menuDailyStatus).toContain('Heute');
+        await page.screenshot({ path: testInfo.outputPath('arcade-run-moments-result.png') });
 
         await returnToMenu(page);
     });
