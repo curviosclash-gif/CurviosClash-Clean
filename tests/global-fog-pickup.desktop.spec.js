@@ -124,7 +124,8 @@ test('four-player planar HUD shows the shared fog timer to all four players', as
     await waitForLoadedGame(page);
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
     if (!await page.locator('#four-player-planar-setup').isVisible()) {
-        await page.locator('#btn-four-player-planar').click({ force: true });
+        await page.locator('[data-split-player-count="4"]').click();
+        await page.locator('#btn-four-player-planar').click();
     }
     await page.locator('[data-four-player-planar-mode]').selectOption('classic');
     await page.locator('[data-four-player-planar-bots]').evaluate((element) => {

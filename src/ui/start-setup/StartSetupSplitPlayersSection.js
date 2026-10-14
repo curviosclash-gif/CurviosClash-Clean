@@ -1,5 +1,7 @@
-// "Spieler & Geräte" in the shared match menu: player count, devices and screen split
-// for the local split-screen. Two and three players share every other field of the menu.
+// "Spieler & Geräte" in the hub of the shared screen: player count (2, 3 or 4), devices, screen
+// split and the profile per seat. Two and three players share every other field of the match menu;
+// four players fly the planar module, whose entry card the visibility contract shows instead of the
+// Arcade and free play cards.
 
 import {
     SPLITSCREEN_INPUT_LAYOUTS,
@@ -18,11 +20,15 @@ import {
     resolveSplitScreenDeviceIssue,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { HANGAR_SELECTION_PLAYER_SLOTS, writeHangarVehicleSelection } from '../hangar/HangarSelectionWritebackContract.js';
+import { resolveMenuVisibility } from '../../shared/contracts/MenuVisibilityContract.js';
 import { resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
+import { applyMenuVisibility } from '../menu/MenuVisibilityApplier.js';
 import { formatKeyCodeShort } from '../KeybindLabels.js';
+import { bindSplitProfileSeats } from './StartSetupSplitSeatProfiles.js';
 
 const THREE_PLAYER_HINT = 'Mit 3 Spielern: höchstens 6 Bots, kein Team-Modus.';
 const UNSUPPORTED_MODE_HINT = 'Für diesen Spielstil ist die Drei-Spieler-Aufteilung nicht verfügbar.';
+const FOUR_PLAYER_HINT = '4 Spieler fliegen im Ebenenflug: Öffne unten die Karte „4 Spieler – Ebenenflug“.';
 
 function isSplitScreen(settings) {
     return String(settings?.localSettings?.sessionType || '').trim().toLowerCase() === 'splitscreen';
@@ -32,6 +38,18 @@ function isSplitScreen(settings) {
 export function isThreePlayerSplitSelected(settings) {
     return isThreePlayerSplitVariant(settings)
         && isThreePlayerSplitModePathAllowed(settings?.localSettings?.modePath);
+}
+
+/** Players on the shared screen: 2, 3 (three-player split) or 4 (planar flight). */
+export function resolveSplitPlayerCount(settings) {
+    if (normalizeSplitScreenVariant(settings?.localSettings?.splitScreenVariant) === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) return 4;
+    return isThreePlayerSplitSelected(settings) ? 3 : 2;
+}
+
+/** The planar module is not mounted on the mobile surfaces, so four players are not offered there. */
+function isPlanarOffered(section) {
+    const appTarget = String(section?.ownerDocument?.documentElement?.dataset?.appTarget || '').trim().toLowerCase();
+    return appTarget !== 'mobile-classic' && appTarget !== 'mobile-arcade';
 }
 
 /** Bot count the match really starts with; three players leave room for six bots. */
@@ -78,34 +96,30 @@ export function renderSplitDeviceStatus(ui, settings, getGamepad = readGamepad) 
 
 export function syncSplitPlayersSection({ ui, settings, sessionType, getGamepad = readGamepad }) {
     const section = ui?.splitPlayersSection;
+    const playerCount = resolveSplitPlayerCount(settings);
+    // One contract decides which hub cards and blocks show; the surface policy keeps its own locks.
+    applyMenuVisibility(ui?.hubPanel, resolveMenuVisibility({ sessionType, playerCount }), { touchDisabled: false });
     if (!section) return;
-    const variant = normalizeSplitScreenVariant(settings?.localSettings?.splitScreenVariant);
-    const visible = sessionType === 'splitscreen' && variant !== SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
+    const visible = sessionType === 'splitscreen';
     section.classList.toggle('hidden', !visible);
     section.setAttribute('aria-hidden', String(!visible));
-    // The wide layout shows one section at a time and reaches it only through this tab.
-    ui.splitPlayersStepTab?.classList.toggle('hidden', !visible);
-    if (!visible) {
-        // A hidden open section would leave the wide layout with an empty middle column.
-        if (section.open) {
-            section.open = false;
-            if (ui.mapPickerSection) ui.mapPickerSection.open = true;
-        }
-        return;
-    }
+    if (!visible) return;
 
     const threeAllowed = isThreePlayerSplitModePathAllowed(settings?.localSettings?.modePath);
-    const playerCount = isThreePlayerSplitSelected(settings) ? 3 : 2;
+    const planarOffered = isPlanarOffered(section);
     for (const button of ui.splitPlayerCountButtons || []) {
         const count = Number(button.dataset.splitPlayerCount);
         const active = count === playerCount;
         button.classList.toggle('active', active);
         button.setAttribute('aria-pressed', String(active));
         button.disabled = count === 3 && !threeAllowed;
+        button.hidden = count === 4 && !planarOffered;
         button.title = button.disabled ? UNSUPPORTED_MODE_HINT : '';
     }
     if (ui.splitPlayerCountHint) {
-        ui.splitPlayerCountHint.textContent = !threeAllowed ? UNSUPPORTED_MODE_HINT : (playerCount === 3 ? THREE_PLAYER_HINT : '');
+        ui.splitPlayerCountHint.textContent = playerCount === 4
+            ? FOUR_PLAYER_HINT
+            : (!threeAllowed ? UNSUPPORTED_MODE_HINT : (playerCount === 3 ? THREE_PLAYER_HINT : ''));
     }
     for (const node of ui.splitPlayersForNodes || []) {
         node.classList.toggle('hidden', node.dataset.splitPlayersFor !== String(playerCount));
@@ -153,6 +167,7 @@ export function bindSplitPlayersSection({
     bind,
     emitSettingsChangedImmediate,
     settingsChangeKeys,
+    runtimeAccess = null,
     getGamepad = readGamepad,
     resolveModePath = () => settings?.localSettings?.modePath,
 }) {
@@ -163,9 +178,11 @@ export function bindSplitPlayersSection({
         bind(button, 'click', () => {
             if (button.disabled) return;
             if (!settings.localSettings) settings.localSettings = {};
-            settings.localSettings.splitScreenVariant = Number(button.dataset.splitPlayerCount) === 3
-                ? SPLIT_SCREEN_VARIANTS.THREE_PLAYER
-                : SPLIT_SCREEN_VARIANTS.STANDARD;
+            // Four players use the variant the planar module itself stores in openSetup.
+            settings.localSettings.splitScreenVariant = {
+                3: SPLIT_SCREEN_VARIANTS.THREE_PLAYER,
+                4: SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR,
+            }[Number(button.dataset.splitPlayerCount)] || SPLIT_SCREEN_VARIANTS.STANDARD;
             changed();
         });
     }
@@ -195,6 +212,7 @@ export function bindSplitPlayersSection({
         });
         changed();
     });
+    bindSplitProfileSeats({ ui, settings, runtimeAccess, bind, changed });
     bind(ui?.vehicleSelectP3, 'change', () => {
         const writeback = writeHangarVehicleSelection(
             settings,
@@ -210,7 +228,7 @@ export function bindSplitPlayersSection({
     const refreshStatus = () => {
         const section = ui?.splitPlayersSection;
         const offered = isSplitScreen(settings) && section && !section.classList.contains('hidden')
-            && !section.closest?.('#submenu-game')?.classList?.contains('hidden');
+            && !section.closest?.('#submenu-custom')?.classList?.contains('hidden');
         if (offered) changed();
         else renderSplitDeviceStatus(ui, settings, getGamepad);
     };

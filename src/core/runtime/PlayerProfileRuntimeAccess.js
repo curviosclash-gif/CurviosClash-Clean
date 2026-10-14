@@ -24,6 +24,8 @@ export function createPlayerProfileMenuRuntimeAccess(game) {
         getSettingsStore,
         getActivePlayerProfile: () => game?.playerProfileManager?.getActiveProfile?.() || null,
         getPlayerProfiles: () => game?.playerProfileManager?.getProfiles?.() || [],
+        createPlayerProfile: (displayName) => game?.playerProfileManager?.createProfile?.(displayName)
+            || { ok: false, reason: 'profile_manager_unavailable' },
         arcadeVehicleProfileWorkshop: createArcadeVehicleProfileWorkshopPort(dynamicStore),
     });
 }

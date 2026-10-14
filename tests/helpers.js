@@ -309,7 +309,7 @@ export async function chooseMenuModePath(page, modePath) {
         await chooseFreePlayVariant(page, variant);
         return;
     }
-    await page.locator(`#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]`).click({ force: true });
+    await page.locator(`#submenu-custom:not(.hidden) [data-mode-path="${modePath}"]`).click();
 }
 
 // Opens free play from the hub (single player or shared screen) and picks a variant:
@@ -317,12 +317,12 @@ export async function chooseMenuModePath(page, modePath) {
 export async function chooseFreePlayVariant(page, variant = 'ffa') {
     const entry = page.locator('#submenu-custom:not(.hidden) #btn-free-play').first();
     if (await entry.count()) {
-        await entry.click({ force: true });
+        await entry.click();
     }
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     const button = page.locator(`#submenu-game:not(.hidden) [data-free-play-variant="${variant}"]`).first();
     if ((await button.getAttribute('aria-pressed')) !== 'true') {
-        await button.click({ force: true });
+        await button.click();
     }
     await page.waitForFunction((expected) => (
         document.querySelector(`#submenu-game [data-free-play-variant="${expected}"]`)?.getAttribute('aria-pressed') === 'true'
@@ -378,14 +378,34 @@ export async function openGameSubmenu(page, options = {}) {
     await openSubmenu(page, 'submenu-game', options);
 }
 
+// Reopen the chosen match after editing seats in the hub, preserving its session and mode.
+export async function openCurrentMatchSetup(page) {
+    if (await page.locator(menuScreenSelector('freeplay')).isVisible()) return;
+    if (!await page.locator(menuScreenSelector('modeChoice')).isVisible()) {
+        await openViaNavigationRuntime(page, menuScreenPanelId('modeChoice'));
+    }
+    const modePath = await page.evaluate(() => window.GAME_INSTANCE?.settings?.localSettings?.modePath || 'normal');
+    await chooseMenuModePath(page, modePath);
+    await page.locator(menuScreenSelector('freeplay')).waitFor({ state: 'visible', timeout: 5000 });
+}
+
 export async function openStartSetupSection(page, sectionId) {
     const normalizedSectionId = String(sectionId || '').trim();
     if (!normalizedSectionId) {
         throw new Error('Start-Setup-Sektion fehlt.');
     }
+    if (normalizedSectionId === 'players') {
+        const matchPanel = page.locator(menuScreenSelector('freeplay'));
+        if (await matchPanel.isVisible()) await matchPanel.locator('.submenu-header [data-back]').first().click();
+        else if (!await page.locator(menuScreenSelector('modeChoice')).isVisible()) {
+            await openViaNavigationRuntime(page, menuScreenPanelId('modeChoice'));
+        }
+        await page.locator('#hub-split-players').waitFor({ state: 'visible', timeout: 4000 });
+        return;
+    }
     const gamePanelVisible = await page.locator('#submenu-game:not(.hidden)').count();
     if (!gamePanelVisible) {
-        await openGameSubmenu(page);
+        await openCurrentMatchSetup(page);
     }
     const section = page.locator(`#submenu-game details[data-start-section="${normalizedSectionId}"]`).first();
     await section.waitFor({ state: 'attached', timeout: 4000 });

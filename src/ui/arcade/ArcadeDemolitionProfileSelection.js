@@ -1,4 +1,4 @@
-import { isFourPlayerPlanarVariant } from '../../four-player-planar/FourPlayerPlanarContract.js';
+import { isFourPlayerPlanarVariant, isThreePlayerSplitVariant } from '../../four-player-planar/FourPlayerPlanarContract.js';
 
 export function resolveDemolitionLocalPlayerCount(settings) {
     const localSettings = settings?.localSettings;
@@ -7,7 +7,7 @@ export function resolveDemolitionLocalPlayerCount(settings) {
     // Arcade has no network play yet; how many local players a network arcade run gets belongs to that project.
     if (sessionType === 'multiplayer' || sessionType === 'lan' || sessionType === 'online') return 1;
     if (isFourPlayerPlanarVariant(settings)) return 4;
-    if (settings?.localSettings?.threePlayerSplit?.enabled === true || settings?.mode === '3p') return 3;
+    if (isThreePlayerSplitVariant(settings)) return 3;
     if (settings?.mode === '2p' || settings?.localSettings?.sessionType === 'splitscreen') return 2;
     return 1;
 }
@@ -35,7 +35,10 @@ function fillProfileOptions(selects, runtimeAccess, settings) {
         select.replaceChildren();
         const savedId = Array.isArray(selectedIds) ? selectedIds[index] : '';
         const savedIdText = String(savedId || '').trim();
-        const requested = currentId || savedIdText || (index === 0 ? activeId : '');
+        // A valid stored profile wins: the shared-screen hub writes the same field.
+        const requested = Array.isArray(selectedIds)
+            ? savedIdText || (index === 0 ? activeId : '')
+            : currentId || (index === 0 ? activeId : '');
         const isValid = profiles.some((profile) => profile.id === requested);
         if (!isValid) {
             const missing = document.createElement('option');
@@ -96,8 +99,9 @@ export function setupArcadePlayerProfileSelection(refs, runtimeAccess, settings,
         save,
         readSelectedProfileIds,
         refreshForSoloStart: (playerCount = null) => {
+            // The hub can change the stored seats while the Arcade controls stay mounted.
+            fillProfileOptions(selects, runtimeAccess, settings);
             if (resolvePlayerCount(playerCount) === 1) {
-                fillProfileOptions(selects, runtimeAccess, settings);
                 if (selects[0]) {
                     selects[0].value = String(runtimeAccess?.getActivePlayerProfile?.()?.id || '');
                 }

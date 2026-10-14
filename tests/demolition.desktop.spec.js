@@ -14,9 +14,7 @@ async function openThreePlayerArcadeMenu(page) {
     await page.locator('[data-session-type="splitscreen"]').click();
     await page.locator('#submenu-custom [data-mode-path="arcade"]').click();
     await expect(page.locator('#submenu-game')).toBeVisible();
-    const playersTab = page.locator('#btn-start-step-players');
-    if (await playersTab.isVisible()) await playersTab.click();
-    else await openStartSetupSection(page, 'players');
+    await openStartSetupSection(page, 'players');
     await page.locator('[data-split-player-count="3"]').click();
     await expect(page.locator('[data-split-player-count="3"]')).toHaveAttribute('aria-pressed', 'true');
     for (const device of await page.locator('[data-split-device]').all()) {
@@ -46,14 +44,13 @@ async function selectSameVehicleForThreePlayers(page) {
 }
 
 async function assignDemolitionProfiles(page, profileIds) {
-    await page.locator('#submenu-game [data-start-section-target="arcade"]').click();
-    await page.locator('.arcade-start-mode-options-summary').click();
-    for (let index = 0; index < profileIds.length; index += 1) {
-        const select = page.getByLabel(`Arcade-Spielerprofil Spieler ${index + 1}`);
-        await select.focus();
-        await expect(select.locator(`option[value="${profileIds[index]}"]`)).toHaveCount(1);
-        await select.selectOption(profileIds[index]);
+    await openStartSetupSection(page, 'players');
+    profileIds[0] = await page.evaluate(() => window.GAME_INSTANCE.playerProfileManager.getActiveProfile().id);
+    for (let index = 1; index < profileIds.length; index += 1) {
+        await page.locator(`[data-split-profile][data-player-index="${index}"]`).selectOption(profileIds[index]);
     }
+    await openStartSetupSection(page, 'arcade');
+    await page.locator('.arcade-start-mode-options-summary').click();
 }
 
 test('Desktop Abrisskommando binds three UUID profiles across timeout and card rebuild', async ({ page }) => {

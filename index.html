@@ -161,11 +161,6 @@
                                 <span class="start-step-index" aria-hidden="true">1</span>
                                 <span><strong>Karte</strong><small>Arena auswählen</small></span>
                             </button>
-                            <button type="button" id="btn-start-step-players" class="start-step-tab start-step-tab-utility hidden"
-                                data-start-section-target="players" aria-controls="start-players-section">
-                                <span class="start-step-tab-glyph" aria-hidden="true">⚇</span>
-                                <span><strong>Spieler &amp; Geräte</strong><small>2 oder 3 Spieler</small></span>
-                            </button>
                             <button type="button" class="start-step-tab" data-start-section-target="vehicle"
                                 aria-controls="start-vehicle-section">
                                 <span class="start-step-index" aria-hidden="true">2</span>
@@ -207,60 +202,6 @@
                                     data-menu-text-id="menu.level3.start.label">Spiel starten</button>
                             </div>
                         </div>
-
-                        <details id="start-players-section" class="menu-section menu-accordion start-section-card hidden"
-                            data-start-section="players">
-                            <summary class="menu-accordion-summary">
-                                <span class="section-title">Spieler &amp; Geräte</span>
-                                <span class="menu-accordion-copy">Wie viele spielen mit, wer steuert womit, wie wird geteilt</span>
-                            </summary>
-                            <div class="menu-accordion-body split-players-body">
-                                <div class="menu-section">
-                                    <h3 class="section-title" id="split-player-count-title">Spielerzahl</h3>
-                                    <div class="btn-group" role="group" aria-labelledby="split-player-count-title">
-                                        <button type="button" class="mode-btn" data-split-player-count="2" aria-pressed="true">2 Spieler</button>
-                                        <button type="button" class="mode-btn" data-split-player-count="3" aria-pressed="false">3 Spieler</button>
-                                    </div>
-                                    <small id="split-player-count-hint" class="menu-hint menu-copy-secondary"></small>
-                                </div>
-                                <div class="menu-section" data-split-players-for="2">
-                                    <label for="split-input-layout">Geräte</label>
-                                    <select id="split-input-layout"></select>
-                                    <small class="menu-hint menu-copy-secondary">„Automatisch“: Tastatur und Gamepad derselben Nummer steuern gemeinsam.</small>
-                                </div>
-                                <div class="menu-section split-device-rows" data-split-players-for="3"
-                                    role="group" aria-label="Geräte-Zuordnung für drei Spieler">
-                                    <div class="split-device-row split-device-row-p1">
-                                        <label for="split-device-p1">Spieler 1</label>
-                                        <select id="split-device-p1" data-split-device data-player-index="0"></select>
-                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: W / S / A / D</small>
-                                    </div>
-                                    <div class="split-device-row split-device-row-p2">
-                                        <label for="split-device-p2">Spieler 2</label>
-                                        <select id="split-device-p2" data-split-device data-player-index="1"></select>
-                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: Num 8 / 5 / 4 / 6</small>
-                                    </div>
-                                    <div class="split-device-row split-device-row-p3">
-                                        <label for="split-device-p3">Spieler 3</label>
-                                        <select id="split-device-p3" data-split-device data-player-index="2"></select>
-                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: I / K / J / L</small>
-                                    </div>
-                                </div>
-                                <div class="menu-section">
-                                    <span class="setup-chip-label">Bildaufteilung</span>
-                                    <p class="menu-hint" data-split-players-for="2">Nebeneinander · 2 Spalten</p>
-                                    <div data-split-players-for="3">
-                                        <label for="split-viewport-layout" class="sr-only">Bildaufteilung für drei Spieler</label>
-                                        <select id="split-viewport-layout">
-                                            <option value="three_columns">Hochformat · 3 Spalten</option>
-                                            <option value="three_rows">Querformat · 3 Reihen</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <p id="split-device-status" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
-                                <p id="split-players-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
-                            </div>
-                        </details>
 
                         <details id="start-map-section" class="menu-section menu-accordion start-section-card" data-start-section="map" open>
                             <summary class="menu-accordion-summary">
@@ -1062,16 +1003,86 @@
                         </h2>
                     </div>
                     <div class="submenu-body">
+                        <div id="hub-split-players" class="menu-section hub-split-players hidden" aria-hidden="true"
+                            role="group" aria-labelledby="hub-split-players-title">
+                            <h2 class="section-title" id="hub-split-players-title">Spieler &amp; Geräte</h2>
+                            <div class="menu-section">
+                                <h3 class="section-title" id="split-player-count-title">Spielerzahl</h3>
+                                <div class="btn-group" role="group" aria-labelledby="split-player-count-title">
+                                    <button type="button" class="mode-btn" data-split-player-count="2" aria-pressed="true" aria-label="2 Spieler">2</button>
+                                    <button type="button" class="mode-btn" data-split-player-count="3" aria-pressed="false" aria-label="3 Spieler">3</button>
+                                    <button type="button" class="mode-btn" data-split-player-count="4" aria-pressed="false" aria-label="4 Spieler (Ebenenflug)">4</button>
+                                </div>
+                                <small id="split-player-count-hint" class="menu-hint menu-copy-secondary"></small>
+                            </div>
+                            <div class="split-players-body" data-menu-visibility-key="deviceAssignment">
+                                <div class="menu-section" data-split-players-for="2">
+                                    <label for="split-input-layout">Geräte</label>
+                                    <select id="split-input-layout"></select>
+                                    <small class="menu-hint menu-copy-secondary">„Automatisch“: Tastatur und Gamepad derselben Nummer steuern gemeinsam.</small>
+                                </div>
+                                <div class="menu-section split-device-rows" data-split-players-for="3"
+                                    role="group" aria-label="Geräte-Zuordnung für drei Spieler">
+                                    <div class="split-device-row split-device-row-p1">
+                                        <label for="split-device-p1">Spieler 1</label>
+                                        <select id="split-device-p1" data-split-device data-player-index="0"></select>
+                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: W / S / A / D</small>
+                                    </div>
+                                    <div class="split-device-row split-device-row-p2">
+                                        <label for="split-device-p2">Spieler 2</label>
+                                        <select id="split-device-p2" data-split-device data-player-index="1"></select>
+                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: Num 8 / 5 / 4 / 6</small>
+                                    </div>
+                                    <div class="split-device-row split-device-row-p3">
+                                        <label for="split-device-p3">Spieler 3</label>
+                                        <select id="split-device-p3" data-split-device data-player-index="2"></select>
+                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: I / K / J / L</small>
+                                    </div>
+                                </div>
+                                <div class="menu-section">
+                                    <span class="setup-chip-label">Bildaufteilung</span>
+                                    <p class="menu-hint" data-split-players-for="2">Nebeneinander · 2 Spalten</p>
+                                    <div data-split-players-for="3">
+                                        <label for="split-viewport-layout" class="sr-only">Bildaufteilung für drei Spieler</label>
+                                        <select id="split-viewport-layout">
+                                            <option value="three_columns">Hochformat · 3 Spalten</option>
+                                            <option value="three_rows">Querformat · 3 Reihen</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <p id="split-device-status" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                                <p id="split-players-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                            </div>
+                            <div class="menu-section split-device-rows" data-menu-visibility-key="profileSlots"
+                                role="group" aria-label="Profil je Platz">
+                                <span class="setup-chip-label">Profil je Platz</span>
+                                <div class="split-device-row split-device-row-p1">
+                                    <span id="split-profile-p1-label">Spieler 1</span>
+                                    <output id="split-profile-p1" aria-labelledby="split-profile-p1-label"></output>
+                                </div>
+                                <div class="split-device-row split-device-row-p2">
+                                    <label for="split-profile-p2">Spieler 2</label>
+                                    <select id="split-profile-p2" data-split-profile data-player-index="1"></select>
+                                </div>
+                                <div class="split-device-row split-device-row-p3" data-split-players-for="3">
+                                    <label for="split-profile-p3">Spieler 3</label>
+                                    <select id="split-profile-p3" data-split-profile data-player-index="2"></select>
+                                </div>
+                                <p id="split-profile-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                            </div>
+                        </div>
                         <div class="menu-section level2-config-section">
                             <h2 class="section-title" data-menu-text-id="menu.level2.mode.title">Wie möchtest du spielen?</h2>
                             <div class="level2-mode-grid">
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="arcade"
+                                    data-menu-visibility-key="arcadeJourney"
                                     aria-description="Fliege von Etappe zu Etappe durch die Welten, sammle Medaillen und verbessere deine Bestwerte.">
                                     <span class="menu-choice-eyebrow" data-menu-text-id="menu.level2.arcade.eyebrow">Etappen und Medaillen</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.arcade.label">Arcade-Reise</span>
                                     <span class="menu-choice-copy" data-menu-text-id="menu.level2.arcade.description">Fliege von Etappe zu Etappe durch die Welten, sammle Medaillen und verbessere deine Bestwerte.</span>
                                 </button>
                                 <button type="button" id="btn-free-play" class="mode-btn free-play-entry-btn menu-choice-card"
+                                    data-menu-visibility-key="freePlay"
                                     aria-description="Kampf, Team, Flaggen, Eskorte oder Klassisch – auf einer Karte deiner Wahl gegen Bots.">
                                     <span class="menu-choice-eyebrow" data-menu-text-id="menu.level2.free_play.eyebrow">Eigene Regeln</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.free_play.label">Freies Spiel gegen Bots</span>

@@ -8,6 +8,7 @@ async function openFourPlayerSetup(page) {
     await page.locator('[data-session-type="splitscreen"]').click();
     await expect(page.locator('#submenu-custom')).toBeVisible();
     if (!await page.locator('#four-player-planar-setup').isVisible()) {
+        await page.locator('[data-split-player-count="4"]').click();
         await expect(page.locator('#btn-four-player-planar')).toBeVisible();
         await page.locator('#btn-four-player-planar').click();
     }

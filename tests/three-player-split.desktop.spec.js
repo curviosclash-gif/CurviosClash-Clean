@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openStartSetupSection, returnToMenu, waitForLoadedGame, chooseMenuModePath } from './helpers.js';
+import { collectErrors, openCurrentMatchSetup, openStartSetupSection, returnToMenu, waitForLoadedGame, chooseMenuModePath } from './helpers.js';
 import { ARCADE_FACTORY_VEHICLE_IDS } from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
 
 // All desktop tests of a run share one profile, and the menu remembers the player count.
@@ -14,16 +14,10 @@ async function openSharedSplitMenu(page, modePath = 'normal') {
     await waitForLoadedGame(page);
     await page.evaluate(() => window.GAME_INSTANCE?.runtimeCoordinator?.getUiManager?.()?.showMainNav?.());
     await page.locator('[data-session-type="splitscreen"]').click();
+    await page.locator('[data-split-player-count="2"]').click();
     await chooseMenuModePath(page, modePath);
     await expect(page.locator('#submenu-game')).toBeVisible();
-    // The wide desktop layout shows one section at a time; the rail tab is the user's way in.
-    const railTab = page.locator('#btn-start-step-players');
-    if (await railTab.isVisible()) {
-        await railTab.click();
-        await expect(page.locator('#start-players-section')).toBeVisible();
-    } else {
-        await openStartSetupSection(page, 'players');
-    }
+    await openStartSetupSection(page, 'players');
 }
 
 async function chooseThreePlayers(page) {
@@ -33,12 +27,13 @@ async function chooseThreePlayers(page) {
 }
 
 async function startAndWaitForThreeHumans(page) {
+    await openCurrentMatchSetup(page);
     await page.locator('#submenu-game #btn-start').click();
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
         && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
 }
 
-test('the shared split menu switches between two and three players without losing either setup', async ({ page }) => {
+test('the shared split menu switches between two and three players without losing either setup', async ({ page }, testInfo) => {
     const errors = collectErrors(page);
     await openSharedSplitMenu(page);
 
@@ -48,6 +43,7 @@ test('the shared split menu switches between two and three players without losin
     await expect(page.locator('#btn-vehicle-player-p3')).toHaveClass(/hidden/);
 
     await chooseThreePlayers(page);
+    await page.screenshot({ path: testInfo.outputPath('split-hub-three-players.png') });
     await expect(page.locator('#split-input-layout')).toBeHidden();
     await expect(page.locator('#btn-vehicle-player-p3')).not.toHaveClass(/hidden/);
     await expect(page.locator('#menu-selection-summary')).toContainText('Flugzeug P3');
@@ -81,10 +77,12 @@ test('three-player split guards missing pads and starts with swapped device seat
     await page.evaluate(() => window.dispatchEvent(new Event('gamepaddisconnected')));
 
     await expect(page.locator('#split-device-status')).toContainText('Gamepad 1 fehlt');
+    await openCurrentMatchSetup(page);
     await page.locator('#submenu-game #btn-start').click();
     await expect(page.locator('#start-validation-status')).toContainText('Gamepad 1 fehlt');
     expect(await page.evaluate(() => window.GAME_INSTANCE?.state)).toBe('MENU');
 
+    await openStartSetupSection(page, 'players');
     await page.locator('#split-viewport-layout').selectOption('three_rows');
     await page.locator('#split-device-p3').selectOption('gamepad-1');
     await expect(page.locator('#split-device-p1')).toHaveValue('keyboard');
@@ -193,6 +191,16 @@ test('Arcade starts three pilots with independent factory ships and the three-pl
     const errors = collectErrors(page);
     await openSharedSplitMenu(page, 'arcade');
     await chooseThreePlayers(page);
+    for (const select of await page.locator('[data-split-profile]').all()) {
+        await select.selectOption('__new_profile__');
+    }
+    const selectedProfiles = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const ids = game.settings.localSettings.startSetup.arcadePlayerProfileIds;
+        return { ids: ids.slice(), activeId: game.playerProfileManager.getActiveProfile().id };
+    });
+    expect(selectedProfiles.ids[0]).toBe(selectedProfiles.activeId);
+    expect(new Set(selectedProfiles.ids).size).toBe(3);
     await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         Object.assign(game.settings.arcade, { sectorCount: 2, seed: 3, dailyChallenge: false });
@@ -231,6 +239,7 @@ test('Arcade starts three pilots with independent factory ships and the three-pl
         return {
             modePath: game.runtimeConfig?.session?.modePath,
             arcadeEnabled: game.runtimeConfig?.arcade?.enabled,
+            profileIds: game.runtimeConfig?.arcade?.playerProfileIds,
             playerCount: game.runtimeConfig?.session?.numHumans,
             viewportLayout: game.renderer?.viewportLayout,
             cameraCount: game.renderer?.cameras?.length,
@@ -243,6 +252,7 @@ test('Arcade starts three pilots with independent factory ships and the three-pl
     expect(state).toMatchObject({
         modePath: 'arcade',
         arcadeEnabled: true,
+        profileIds: selectedProfiles.ids,
         playerCount: 3,
         viewportLayout: 'three_columns',
         cameraCount: 3,

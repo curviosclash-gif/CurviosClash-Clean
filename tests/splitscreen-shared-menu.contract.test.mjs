@@ -251,8 +251,6 @@ function createNode(dataset = {}) {
 test('the section shows the right controls for two and three players in Arcade', () => {
     const ui = {
         splitPlayersSection: createNode(),
-        splitPlayersStepTab: createNode(),
-        mapPickerSection: { open: false },
         splitPlayerCountButtons: [createNode({ splitPlayerCount: '2' }), createNode({ splitPlayerCount: '3' })],
         splitPlayerCountHint: createNode(),
         splitPlayersForNodes: [createNode({ splitPlayersFor: '2' }), createNode({ splitPlayersFor: '3' })],
@@ -280,13 +278,6 @@ test('the section shows the right controls for two and three players in Arcade',
     assert.equal(ui.splitPlayersForNodes[1].classList.contains('hidden'), false);
     assert.match(ui.splitPlayerCountHint.textContent, /höchstens 6 Bots/);
 
-    assert.equal(ui.splitPlayersStepTab.classList.contains('hidden'), false, 'the wide layout reaches the section by its rail tab');
-
-    ui.splitPlayersSection.open = true;
-    ui.mapPickerSection.open = false;
     syncSplitPlayersSection({ ui, settings, sessionType: 'single' });
-    assert.equal(ui.splitPlayersSection.classList.contains('hidden'), true);
-    assert.equal(ui.splitPlayersStepTab.classList.contains('hidden'), true);
-    assert.equal(ui.splitPlayersSection.open, false);
-    assert.equal(ui.mapPickerSection.open, true, 'an open hidden section falls back to the map step');
+    assert.equal(ui.splitPlayersSection.classList.contains('hidden'), true, 'the hub block belongs to the shared screen only');
 });

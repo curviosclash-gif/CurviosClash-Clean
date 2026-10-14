@@ -258,7 +258,7 @@ test('demolition profile selectors refresh on focus and preserve or report saved
             { id: 'uuid-current', displayName: 'Current' },
             { id: 'uuid-other', displayName: 'Other' },
         ];
-        const settings = { mode: '3p', localSettings: { startSetup: { demolitionProfileIds: ['uuid-current', 'uuid-deleted', ''] } } };
+        const settings = { mode: '3p', localSettings: { sessionType: 'splitscreen', splitScreenVariant: 'three_player', startSetup: { demolitionProfileIds: ['uuid-current', 'uuid-deleted', ''] } } };
         const listeners = new Map();
         const runtimeAccess = {
             getPlayerProfiles: () => profiles,
@@ -380,11 +380,60 @@ test('network sessions count one local profile, while splitscreen keeps its sele
         },
     }), 1, 'arcade has no network play yet, so a stored host slot count does not add local profiles');
     assert.equal(resolveDemolitionLocalPlayerCount({
-        localSettings: { sessionType: 'splitscreen', threePlayerSplit: { enabled: true } },
+        localSettings: { sessionType: 'splitscreen', splitScreenVariant: 'three_player' },
     }), 3);
+    assert.equal(resolveDemolitionLocalPlayerCount({
+        mode: '3p', localSettings: { sessionType: 'splitscreen', splitScreenVariant: 'standard', threePlayerSplit: { enabled: true } },
+    }), 2, 'stored obsolete flags cannot override the selected two-player variant');
     assert.equal(resolveDemolitionLocalPlayerCount({
         localSettings: { sessionType: 'splitscreen', splitScreenVariant: 'four_player_planar' },
     }), 4);
+});
+
+test('Arcade start reads hub profile changes and rejects deleted or cleared seats instead of stale controls', () => {
+    const oldDocument = globalThis.document;
+    globalThis.document = { createElement: () => ({ value: '', textContent: '' }) };
+    try {
+        const selects = Array.from({ length: 3 }, () => ({
+            value: '', options: [],
+            replaceChildren() { this.options = []; this.value = ''; },
+            appendChild(option) { this.options.push(option); },
+        }));
+        const profiles = ['a', 'b', 'c', 'd'].map((id) => ({ id, displayName: id }));
+        const settings = { localSettings: {
+            sessionType: 'splitscreen', splitScreenVariant: 'three_player',
+            startSetup: { arcadePlayerProfileIds: ['a', 'b', 'c'] },
+        } };
+        const access = { getPlayerProfiles: () => profiles, getActivePlayerProfile: () => profiles[0], saveSettings() {}, showStatusToast() {} };
+        const selection = setupArcadeDemolitionProfileSelection({ demolitionProfileSelects: selects }, access, settings, () => {});
+        settings.localSettings.startSetup.arcadePlayerProfileIds = ['a', 'd', 'b'];
+        assert.equal(validateLocalArcadeProfileStart(settings, selection, access), true);
+        assert.deepEqual(selection.readSelectedProfileIds(), ['a', 'd', 'b']);
+        settings.localSettings.startSetup.arcadePlayerProfileIds[1] = 'deleted';
+        assert.equal(validateLocalArcadeProfileStart(settings, selection, access), false);
+        assert.equal(selects[1].value, '');
+        const button = {};
+        const handlers = new Map();
+        const starts = [];
+        bindArcadeSpecialStartButtons({ startDemolitionButton: button },
+            (node, event, handler) => { if (node && event === 'click') handlers.set(node, handler); },
+            () => starts.push(selection.readSelectedProfileIds()), () => 1, selection, access);
+        settings.localSettings.startSetup.arcadePlayerProfileIds = ['a', 'b', 'c'];
+        handlers.get(button)();
+        assert.deepEqual(starts, [['a', 'b', 'c']], 'demolition refreshes mounted controls from the hub too');
+        settings.localSettings.startSetup.arcadePlayerProfileIds[1] = 'deleted';
+        handlers.get(button)();
+        assert.equal(starts.length, 1, 'a stale valid control cannot let a deleted hub profile start');
+        assert.equal(settings.localSettings.startSetup.arcadePlayerProfileIds[1], 'deleted');
+        settings.localSettings.startSetup.arcadePlayerProfileIds[1] = '';
+        handlers.get(button)();
+        assert.equal(starts.length, 1, 'a cleared seat cannot start demolition either');
+        assert.equal(validateLocalArcadeProfileStart(settings, selection, access), false);
+        assert.equal(selects[1].value, '');
+    } finally {
+        if (oldDocument === undefined) delete globalThis.document;
+        else globalThis.document = oldDocument;
+    }
 });
 
 test('demolition start explicitly blocks four-player planar and invalid profile assignments', () => {

@@ -11,7 +11,7 @@ const TESTS_DIR = path.join(ROOT, 'tests');
 
 // Ratchet: direct references to menu panel ids in tests may only go down. New and rebuilt tests ask
 // for a screen by name (openMenuScreen, menuScreenSelector), so the menu rebuild only edits the map.
-const MAX_RAW_PANEL_ID_REFERENCES = 334;
+const MAX_RAW_PANEL_ID_REFERENCES = 333;
 const RAW_PANEL_ID = /submenu-(?:game|custom|level4|multiplayer|expert|debug|settings|controls|profiles|portals|developer)\b/g;
 const EXEMPT_FILES = new Set(['helpers.js', 'menu-screens.js', 'menu-screen-helpers.contract.test.mjs']);
 

@@ -12,6 +12,7 @@ export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, ge
     bind(refs.startSkyLadderButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: resolvePortalChain('sky_ladder').maps[0], numBots: 0 }, 'sky_ladder'));
     bind(refs.startWeaponRaceButton, 'click', () => startRunWithOwnMap('weapon_race', { mapKey: 'parcours_assault', numBots: 4 }));
     bind(refs.startDemolitionButton, 'click', () => {
+        demolitionProfiles?.refreshForSoloStart?.();
         const validation = validateArcadePlayerProfileSelection(demolitionProfiles);
         if (!validation.ok) {
             const message = validation.reason === 'unsupported_player_count'

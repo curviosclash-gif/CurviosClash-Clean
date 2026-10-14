@@ -6908,6 +6908,21 @@ body:has(#hunt-hud:not(.hidden) #hunt-target-progress:not(.hidden)) #hud-notice-
     display: none !important;
 }
 
+.hub-split-players {
+    display: grid;
+    gap: 12px;
+}
+
+/* .menu-choice-card and friends set their own display, which would otherwise override the hidden attribute. */
+#submenu-custom [data-menu-visibility-key][hidden] {
+    display: none !important;
+}
+
+.split-device-row output {
+    color: var(--menu-text, #e9eef8);
+    font-weight: 600;
+}
+
 .split-device-row-p1 { --player-color: #33d6ff; }
 .split-device-row-p2 { --player-color: #ff4d7d; }
 .split-device-row-p3 { --player-color: #7dff6a; }

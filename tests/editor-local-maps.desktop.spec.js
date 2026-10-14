@@ -124,6 +124,7 @@ test('T65g:saved maps reach the split setup and deleted maps leave the menus wit
 
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
     await expect(page.locator('#submenu-custom')).toBeVisible();
+    await page.locator('[data-split-player-count="4"]').click();
     await page.locator('#btn-four-player-planar').click();
     await expect(page.locator('#four-player-planar-setup')).toBeVisible();
     await expect(page.locator(`[data-four-player-planar-map] option[value="${SPLIT_MAP_KEY}"]`)).toHaveCount(1);
@@ -131,6 +132,7 @@ test('T65g:saved maps reach the split setup and deleted maps leave the menus wit
     // Die normale Kartenauswahl kennt die Karte jetzt ebenfalls.
     // The panel's own back button closes an open local module first (no second back button).
     await page.locator('#submenu-custom .submenu-header [data-back]').click();
+    await page.locator('[data-split-player-count="2"]').click();
     await chooseFreePlayVariant(page, 'classic');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     const mainOption = page.locator(`#map-select option[value="${SPLIT_MAP_KEY}"]`);

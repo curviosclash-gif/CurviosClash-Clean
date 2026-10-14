@@ -68,7 +68,8 @@ export class FourPlayerPlanarSetupView {
 
         const card = createStaticElement(this.document, `
             <button type="button" id="btn-four-player-planar"
-                class="mode-btn menu-choice-card four-player-planar-entry hidden">
+                class="mode-btn menu-choice-card four-player-planar-entry hidden"
+                data-menu-visibility-key="planarEntry" hidden>
                 <span class="menu-choice-eyebrow">Lokales Modul</span>
                 <span class="menu-choice-title">4 Spieler – Ebenenflug</span>
                 <span class="menu-choice-copy">Klassisch oder Kampf mit vier Ansichten</span>
