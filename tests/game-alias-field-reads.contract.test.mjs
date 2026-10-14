@@ -19,6 +19,8 @@ const READ_BUDGET = Object.freeze({
     'core/PlayingStateSystem.js|arena': 1,
     'core/PlayingStateSystem.js|renderer': 1,
     'core/recording/CinematicReplayRenderRuntime.js|arena': 1,
+    'core/recording/MarketingReplayRender.js|renderer': 1,
+    'core/recording/MarketingSession.js|renderer': 1,
     'core/runtime/RuntimeSettingsChangeOrchestrator.js|renderer': 7,
     'core/RuntimeDiagnosticsSystem.js|renderer': 1,
     'ui/CrosshairSystem.js|renderer': 2,

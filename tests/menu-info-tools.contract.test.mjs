@@ -111,7 +111,8 @@ test('development environment: the shell reports it, a packaged page never is on
     assert.equal(resolveMenuDeveloperEnvironment({ runtimeGlobal: { curviosApp: {} }, viteDev: false }), false);
     assert.equal(resolveMenuDeveloperEnvironment({ runtimeGlobal: { curviosApp: { developerEnvironment: true } }, viteDev: false }), true);
     assert.equal(resolveMenuDeveloperEnvironment({ runtimeGlobal: {}, viteDev: true }), true);
-    assert.match(source('electron/main.cjs'), /additionalArguments: isDeveloperEnvironment\(\)/);
+    assert.match(source('electron/main.cjs'), /isDeveloperEnvironment\(\) \? \[DEVELOPER_ENVIRONMENT_ARGUMENT\] : \[\]/);
+    assert.match(source('electron/main.cjs'), /additionalArguments:\s*\[/);
     assert.match(source('electron/preload.cjs'), /developerEnvironment: DEVELOPER_ENVIRONMENT/);
 });
 

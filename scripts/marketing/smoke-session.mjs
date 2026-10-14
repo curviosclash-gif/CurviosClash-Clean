@@ -1,7 +1,7 @@
 /* global window */
 // Technical capture test only. This never supplies human gameplay evidence.
 import { _electron as electron } from '@playwright/test';
-import { mkdtemp, readFile, writeFile, readdir, appendFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, readdir, appendFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -141,4 +141,11 @@ try {
             console.log(`Offline replay smoke passed: ${rendered.filePath}`);
         }
     }
-} finally { await app?.close(); lock.release(); }
+} finally {
+    try {
+        await app?.close();
+    } finally {
+        lock.release();
+        await rm(folder, { recursive: true, force: true });
+    }
+}

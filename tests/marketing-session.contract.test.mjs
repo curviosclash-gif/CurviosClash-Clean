@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -85,8 +85,9 @@ test('duel balance uses actual health and shield loss instead of requested overk
     assert.equal(chooseSessionCandidates(data).candidates.length, 0);
 });
 
-test('warmup loading gaps are allowed, but missing frames inside or across the clip boundary are rejected', async () => {
+test('warmup loading gaps are allowed, but missing frames inside or across the clip boundary are rejected', async (t) => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'curvios-replay-gap-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
     const file = path.join(directory, 'journal.ndjson');
     const candidate = { match: 1, round: 0, startMs: 5000, endMs: 5100, subjects: [0, 1], metadata: {} };
     async function load(times, snapshotTargetFps) {
@@ -110,8 +111,9 @@ test('the decisive elimination can include its match-end resolution, but not an 
     assert.equal(chooseSessionCandidates(data).candidates.length, 0);
 });
 
-test('journal validates the chain, truncation and modified event payloads', async () => {
+test('journal validates the chain, truncation and modified event payloads', async (t) => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'curvios-journal-test-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
     const file = path.join(directory, 'journal.ndjson');
     const records = [{ type: 'event', eventType: 'ITEM_USE', timeMs: 10 }];
     const hash = createHash('sha256').update(JSON.stringify(records)).digest('hex');

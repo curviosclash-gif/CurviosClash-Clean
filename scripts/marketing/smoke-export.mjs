@@ -1,5 +1,5 @@
 // Synthetic media validates the encoder and quality gates, never human provenance.
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -7,6 +7,7 @@ import { run, ffmpeg, sourceDecodeArgs } from './session-tools.mjs';
 import { exportSessionMedia } from './export-session-media.mjs';
 
 const folder = await mkdtemp(path.join(os.tmpdir(), 'curvios-media-smoke-'));
+try {
 const source = path.join(folder, 'source.webm');
 await run(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1080x1920:rate=60',
     '-t', '2', '-c:v', 'libx264', '-preset', 'ultrafast', path.join(folder, 'picture.mp4')]);
@@ -22,4 +23,7 @@ await assert.rejects(exportSessionMedia({ folder: invalid, source, candidate }),
 const damaged = path.join(folder, 'damaged.webm');
 await writeFile(damaged, Buffer.from('invalid source packet stream'));
 await assert.rejects(run(ffmpeg, sourceDecodeArgs(damaged)), /exited/);
-console.log(`Media export and black/freeze rejection passed: ${folder}`);
+console.log('Media export and black/freeze rejection passed.');
+} finally {
+    await rm(folder, { recursive: true, force: true });
+}

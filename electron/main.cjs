@@ -170,7 +170,7 @@ ipcMain.handle('app-mode:launch', withTrustedMainWindowSender(async (mode, setti
             },
         }), { flag: 'wx', mode: 0o600 });
         const args = process.argv.slice(1).filter((argument) => !argument.startsWith('--curvios-marketing'));
-        process.env.CURVIOS_USER_DATA_ROOT = path.join(app.getPath('appData'), 'curviosclash-marketing-profile');
+        process.env.CURVIOS_USER_DATA_ROOT = path.join(resolveAppDataRoot(app), 'curviosclash-marketing-profile');
         args.push('--curvios-marketing', '--curvios-marketing-config=' + configPath);
         app.relaunch({ args });
         app.quit();
