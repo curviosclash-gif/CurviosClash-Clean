@@ -25,6 +25,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/arcade-lab.desktop.spec.js',
             'tests/arcade-scenarios.desktop.spec.js',
             'tests/arcade-profile-bindings.desktop.spec.js',
+            'tests/arcade-ranked-persistence.desktop.spec.js',
             'tests/demolition.desktop.spec.js',
             'tests/arcade-v3.desktop.spec.js',
             'tests/arcade-wave-three.desktop.spec.js',
