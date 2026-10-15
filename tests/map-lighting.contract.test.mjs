@@ -142,6 +142,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'cherry_grove',
         'chrono_forge_nexus',
         'clockwork_canyon',
+        'cloud_harbor',
         'complex',
         'core_fusion',
         'crossfire',

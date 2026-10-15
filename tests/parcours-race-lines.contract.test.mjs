@@ -18,7 +18,7 @@ import { collectLegs, findBlockedLegs } from './helpers/parcours-race-line.mjs';
 //
 // Not probed on purpose: maps whose collision is a GLB scene (glbColliderMode 'mesh'/'scene' with
 // models: aether_relay, neon_carnival, notre_dame*, eiffel_tower, orbital_shipyard,
-// burg_falkenwacht); the desktop spec parcours-ring-clearance covers those.
+// cloud_harbor, burg_falkenwacht); the desktop spec parcours-ring-clearance covers those.
 
 const SCALE = CONFIG.ARENA.MAP_SCALE;
 const KNOWN_PATH = new URL('./fixtures/parcours-race-line-known.json', import.meta.url);
@@ -27,7 +27,7 @@ const PROBED_MAPS = Object.freeze([
     'micro_maw', 'mirror_docks', 'glass_serpent', 'storm_switchyard', 'wind_cathedral', 'chrono_spillway',
 ]);
 const SCENE_COLLIDER_MAPS = Object.freeze([
-    'aether_relay', 'neon_carnival', 'notre_dame', 'notre_dame_fire', 'eiffel_tower', 'orbital_shipyard', 'burg_falkenwacht',
+    'aether_relay', 'neon_carnival', 'notre_dame', 'notre_dame_fire', 'eiffel_tower', 'orbital_shipyard', 'cloud_harbor', 'burg_falkenwacht',
 ]);
 // Authored-box maps nobody has probed yet: their blocked legs are the next work package.
 const UNPROBED_BOX_MAPS = Object.freeze([

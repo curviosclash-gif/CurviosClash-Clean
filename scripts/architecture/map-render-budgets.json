@@ -91,6 +91,14 @@
       "referenceFps": 47.8,
       "belowTargetFps": false
     },
+    "cloud_harbor": {
+      "maxCalls": 173,
+      "maxTriangles": 70066,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 38.9,
+      "belowTargetFps": false
+    },
     "complex": {
       "maxCalls": 87,
       "maxTriangles": 32762,

@@ -66,6 +66,7 @@ const BASE_MAP_KEYS = [
     'eiffel_tower_siege',
     'reactor_site',
     'orbital_shipyard',
+    'cloud_harbor',
     'giant_forest',
     'burg_falkenwacht',
     'burg_falkenwacht_arena',

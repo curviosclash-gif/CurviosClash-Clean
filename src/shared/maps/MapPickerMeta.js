@@ -67,6 +67,7 @@ const RAW_META = {
     notre_dame_fire: entry('adventure', 4, RACE, ['destructible', 'parcours', 'huge'], 'Alte Notre-Dame-Brandvariante; wird auf die neue Notre-Dame-Karte umgeleitet.'),
     eiffel_tower: entry('adventure', 4, RACE, ['parcours'], 'Eiffelturm: Parcours mit 16 Checkpoints um und durch das Stahlgerüst.'),
     orbital_shipyard: entry('adventure', 4, RACE, ['parcours'], 'Orbitalwerft: Parcours mit 19 Checkpoints durch ein Kapitalschiff im Trockendock.'),
+    cloud_harbor: entry('adventure', 4, RACE, ['parcours'], 'Wolkenhafen: Parcours mit 19 Checkpoints durch eine Himmelsstadt mit Zeppelinen, Windmühlen und Seilbahn.'),
     burg_falkenwacht: entry('adventure', 4, RACE, ['parcours', 'huge'], 'Burg Falkenwacht: Parcours mit 20 Checkpoints durch Tore, Höfe und Türme.'),
     clockwork_canyon: entry('adventure', 3, MID, [], 'Clockwork Canyon: Schlucht mit Zahnrädern, vier Portalen und sechs Toren.'),
     storm_bridge_siege: entry('adventure', 3, SMALL, ['destructible', 'secretRoom'], 'Sturmbrücke: eine Brücke, die in HUNT zerstört werden kann, mit Geheimraum.'),

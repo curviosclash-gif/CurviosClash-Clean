@@ -158,6 +158,7 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'burg_falkenwacht_arena',
         'cherry_grove',
         'chrono_forge_nexus',
+        'cloud_harbor',
         'complex',
         'eclipse_foundry',
         'eiffel_tower',

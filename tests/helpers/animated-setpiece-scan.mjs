@@ -378,7 +378,10 @@ function scanClearance(cacheKey, mapKey, descriptor, model, movingColliders, poi
         const pct = (value) => `${Math.round((100 * value) / times.length)}%`;
         report(`${mapKey}|${descriptor.id}|${point.id}|clearance`, point.ring
             ? `ring centre blocked ${pct(stat.centerFrames)} of the loop, up to ${Math.round(100 * stat.maxShare)}% of the disc, by ${[...stat.meshes].slice(0, 3).join(',')}`
-            : `blocked ${pct(stat.blockedFrames)} of the clip by ${[...stat.meshes].slice(0, 3).join(',')}`);
+            : `blocked ${pct(stat.blockedFrames)} of the clip by ${[...stat.meshes].slice(0, 3).join(',')}`, {
+                sampleCount: times.length, centerFrames: stat.centerFrames,
+                blockedFrames: stat.blockedFrames, maxShare: stat.maxShare,
+            });
     }
 }
 
@@ -439,11 +442,15 @@ function scanEndPose(map, mapKey, descriptor, model, colliders, report) {
 
 /**
  * Findings are keyed `map|modelId|pointId|kind` (pointId '-' when the finding is about the model).
- * @returns {Promise<{ findings: Map<string, string>, stats: Record<string, number>, coverage: number[], scannedMaps: string[] }>}
+ * @returns {Promise<{ findings: Map<string, string>, clearanceStats: Map<string, {sampleCount: number, centerFrames: number, blockedFrames: number, maxShare: number}>, stats: Record<string, number>, coverage: number[], scannedMaps: string[] }>}
  */
 export async function scanAnimatedSetpieces({ catalog = MAP_PRESET_CATALOG, pointsOverride = null } = {}) {
     const findings = new Map();
-    const report = (key, detail) => { if (!findings.has(key)) findings.set(key, detail); };
+    const clearanceStats = new Map();
+    const report = (key, detail, metrics = null) => {
+        if (!findings.has(key)) findings.set(key, detail);
+        if (metrics) clearanceStats.set(key, metrics);
+    };
     const stats = { maps: 0, models: 0, movingMeshes: 0, points: 0, loadMs: 0 };
     const coverage = [];
     const scannedMaps = [];
@@ -504,5 +511,5 @@ export async function scanAnimatedSetpieces({ catalog = MAP_PRESET_CATALOG, poin
             }
         }
     }
-    return { findings, stats, coverage, scannedMaps };
+    return { findings, clearanceStats, stats, coverage, scannedMaps };
 }

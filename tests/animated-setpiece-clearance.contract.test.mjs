@@ -59,6 +59,10 @@ const KNOWN_FINDINGS = [
 // the ratchet but must still occur, so a fixed setpiece does not keep an exemption it no longer
 // needs.
 const DELIBERATE_EXCEPTIONS = [
+    // Cloud Harbor's rotor gates are timed hazards; the dedicated gate below keeps their
+    // centers open for at least 90% of each loop and at least 60% of each disc clear.
+    'cloud_harbor|cloud-harbor-windmill-rotors|ring:CP05|clearance',
+    'cloud_harbor|cloud-harbor-windmill-rotors|ring:CP06|clearance',
     // Neon Carnival: the marquee's 16-ray sunburst and five-point stars, and the big top's
     // eightfold crown lights, rotate by one symmetry step. Their nodes reset at the loop seam,
     // but their visible non-colliding geometry is in the same pose.
@@ -98,6 +102,7 @@ const DELIBERATE_EXCEPTIONS = [
 
 // Every map with animated setpieces the 28.09. audit named; the scan must reach all of them.
 const AUDITED_MAPS = [
+    'cloud_harbor',
     'aetherion_orrery', 'chrono_forge_nexus', 'eclipse_foundry', 'kinetic_tide', 'verdant_aperture', 'burg_falkenwacht',
     'eiffel_tower', 'eiffel_tower_arena', 'eiffel_tower_siege', 'reactor_site', 'skyline_siege', 'storm_bridge_siege',
     'storm_dam_siege', 'storm_lighthouse_siege', 'notre_dame', 'glb_gallery',
@@ -136,6 +141,19 @@ test('animated setpiece findings only shrink', () => {
 test('deliberate exceptions still apply', () => {
     const unused = DELIBERATE_EXCEPTIONS.filter((key) => !scan.findings.has(key));
     assert.deepEqual(unused.map((key) => `Ausnahme entfernen: ${key}`), []);
+});
+
+test('Cloud Harbor rotor gates retain open crossing windows and clear disc space', () => {
+    for (const checkpoint of ['CP05', 'CP06']) {
+        const key = `cloud_harbor|cloud-harbor-windmill-rotors|ring:${checkpoint}|clearance`;
+        const metrics = scan.clearanceStats.get(key);
+        assert.ok(metrics, `${checkpoint} has measured rotor coverage`);
+        assert.ok(metrics.sampleCount >= 48, 'the entire rotor loop is sampled');
+        assert.ok(metrics.centerFrames / metrics.sampleCount <= 0.1,
+            `${checkpoint} center must stay open for at least 90% of the loop`);
+        assert.ok(metrics.maxShare <= 0.4,
+            `${checkpoint} disc must remain at least 60% clear at every sampled phase`);
+    }
 });
 
 test('the scan sees a point inside a moving part and ignores one far away', async () => {
