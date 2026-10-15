@@ -972,9 +972,7 @@ export async function returnToMenu(page) {
         if (!(visiblePanel instanceof HTMLElement)) {
             return true;
         }
-        return visiblePanel.id === 'submenu-game'
-            || (visiblePanel.id === 'submenu-custom'
-                && document.getElementById('four-player-planar-setup')?.classList.contains('hidden') === false);
+        return visiblePanel.id === 'submenu-game' || visiblePanel.id === 'submenu-custom';
     }, null, { timeout: 8000 });
 }
 

@@ -332,13 +332,22 @@ export class GameRuntimeSessionHandler {
         )) {
             return false;
         }
+        // Capture the live match before borrowed settings restore its menu baseline.
+        const game = this._facade?.game;
+        const session = game?.runtimeConfig?.session;
+        const returnToJourney = game?.state !== GAME_STATE_IDS.MENU
+            && session?.networkEnabled !== true && session?.sessionType !== RUNTIME_SESSION_TYPES.MULTIPLAYER
+            && (session?.modePath === 'arcade'
+                || (session?.sessionType === RUNTIME_SESSION_TYPES.SINGLE && session?.mapKey === 'tutorial_classic'));
+        const menuOptions = returnToJourney && !String(options?.panelId || '').trim()
+            ? { ...options, panelId: 'submenu-custom' } : options;
         this._matchStartRuntime.cancel();
         this._facade?.settingsHandler?.restoreMapScenarioBotCount?.();
         // Order matters: the scenario bot count goes back first, so this restore compares
         // against the value the quickstart preset wrote and may hand the player value back.
         this._facade?.settingsHandler?.restoreSessionSettings?.();
         return this._facade?.finalizeMatch?.({
-            ...options,
+            ...menuOptions,
             reason: options?.reason || SESSION_FINALIZE_TRIGGERS.RETURN_TO_MENU,
             notifyMenuOpened: true,
             applyReturnToMenuUi: true,

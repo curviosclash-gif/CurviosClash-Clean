@@ -39,8 +39,13 @@ test('single-player free combat restores filtered adventure maps and starts Dand
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING');
     await expect(page.locator('#submenu-game > .level3-body > #start-vehicle-section')).toHaveCount(1);
     await expect(page.locator('.free-play-vehicle-more')).toHaveCount(0);
-    await returnToMenu(page);
-    await page.locator('#submenu-game .submenu-header [data-back]').click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#pause-overlay')).toBeVisible();
+    await page.locator('#btn-pause-menu').click();
+    await expect(page.locator('#btn-pause-menu')).toHaveAttribute('data-confirm-armed', 'true');
+    await page.locator('#btn-pause-menu').click();
+    await expect(page.getByRole('region', { name: 'Arcade-Reise', exact: true })).toBeVisible();
+    await expect(page.locator('#submenu-game')).toBeHidden();
     await chooseFreePlayVariant(page, 'ffa');
     await expect(page.locator('#start-map-preview-stage > #start-vehicle-section')).toHaveCount(1);
     await expect(page.locator('.free-play-vehicle-more')).toHaveCount(1);
