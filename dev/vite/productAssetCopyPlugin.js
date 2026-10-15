@@ -37,6 +37,7 @@ const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0']
 // would ship the .blend sources with the game.
 const GLB_ONLY_MODEL_DIRS = [
     ['assets', 'models', 'verdant_wildwuchs'],
+    ['assets', 'models', 'meadow_plants'],
     ['assets', 'models', 'glowing_mushroom'],
     ['assets', 'models', 'hydra_v3'],
     ['assets', 'models', 'fighter_jet'],

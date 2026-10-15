@@ -1,0 +1,401 @@
+{
+  "origin": "Self-authored CurviosClash-Marketplace nature collections",
+  "plants": [
+    {
+      "name": "Daisy",
+      "source_package": "NatureCollection_1.0.0",
+      "source_folder": "Delivery/Plants/Daisy",
+      "dimensions_m": [
+        0.327984482049942,
+        0.35865332186222076,
+        0.6786692142486572
+      ],
+      "triangles": 3588,
+      "lod1_triangles": 1947,
+      "lod2_triangles": 940,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "Daisy/blender/Daisy.blend",
+          "sha256": "a4702be5cc6b6cc48fec8b58fc187b7f641f785c729220288b54cb8c5fea231c"
+        },
+        {
+          "path": "Daisy/glb/Daisy.glb",
+          "sha256": "ac7c82b2b471ef1d2dd27090495deba404a16f4a56d2564ae14021ad74d38946"
+        },
+        {
+          "path": "Daisy/glb/Daisy_lod1.glb",
+          "sha256": "acc04a6fa3f37bafa2be11edfcd00a21d595990db318ab9b12feea1f5634088c"
+        },
+        {
+          "path": "Daisy/glb/Daisy_lod2.glb",
+          "sha256": "f2e978182e5941ba019ae868ffe2fe8259d29b179ff73ae317917f7a0cff7428"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "Lavender",
+      "source_package": "NatureCollection_1.0.0",
+      "source_folder": "Delivery/Plants/Lavender",
+      "dimensions_m": [
+        0.303349032998085,
+        0.3562188893556595,
+        0.6748085021972656
+      ],
+      "triangles": 14858,
+      "lod1_triangles": 8171,
+      "lod2_triangles": 4160,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "Lavender/blender/Lavender.blend",
+          "sha256": "ec7ddd6059a5a9df48295079aa485a9427a2daaa64cfda96f8f3ad86d7a7de27"
+        },
+        {
+          "path": "Lavender/glb/Lavender.glb",
+          "sha256": "21de12b967cc603a052acae13943e82ce4472aef42d8ef5478d6421cd86cec95"
+        },
+        {
+          "path": "Lavender/glb/Lavender_lod1.glb",
+          "sha256": "7fb5c3b58f091d0c6724ffc65b769fcba7e1dc589cfeda0a0d1fe2692f113bca"
+        },
+        {
+          "path": "Lavender/glb/Lavender_lod2.glb",
+          "sha256": "98be5fba7706caa3f495685fda2906035c8c8b69a22c2c23d366bc03dd1fc69d"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "Fern",
+      "source_package": "NatureCollection_1.0.0",
+      "source_folder": "Delivery/Plants/Fern",
+      "dimensions_m": [
+        0.7816248536109924,
+        0.7497341632843018,
+        0.7635465860366821
+      ],
+      "triangles": 15560,
+      "lod1_triangles": 8557,
+      "lod2_triangles": 4356,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "Fern/blender/Fern.blend",
+          "sha256": "38ef1ba98935a906a017b02e929645940e6fd00e0dc1d102a8ebb72e584cbd36"
+        },
+        {
+          "path": "Fern/glb/Fern.glb",
+          "sha256": "e57544946ba908b73b13fc4090cd8ef640d7979778123c7aede49345c936b2fc"
+        },
+        {
+          "path": "Fern/glb/Fern_lod1.glb",
+          "sha256": "a6a31d9eb9d3cc71d1dfcbff4489918e21b7f4c072644b93cc6832db2bc5bf16"
+        },
+        {
+          "path": "Fern/glb/Fern_lod2.glb",
+          "sha256": "c63d04d76bdd5a4b2852e538ede1729e573cc6e8062994df83e34ee7bdf71d9a"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "FountainGrass",
+      "source_package": "NatureCollection_1.0.0",
+      "source_folder": "Delivery/Plants/FountainGrass",
+      "dimensions_m": [
+        0.696055218577385,
+        0.7476447820663452,
+        0.8548398613929749
+      ],
+      "triangles": 3206,
+      "lod1_triangles": 1872,
+      "lod2_triangles": 1038,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "FountainGrass/blender/FountainGrass.blend",
+          "sha256": "2e4de0b44e8422437cc0fb3dd71adbdce3c3eb201ac24eddf6cfb5f07b97583e"
+        },
+        {
+          "path": "FountainGrass/glb/FountainGrass.glb",
+          "sha256": "0a9e23cd1d16345572878b01646c74d8f2c51cbbf707ab11de16bc649e2ff88b"
+        },
+        {
+          "path": "FountainGrass/glb/FountainGrass_lod1.glb",
+          "sha256": "fd51d267d2f50f71e4c4f783eac58fcac759b3aea5594c5ec51448528fe2d63f"
+        },
+        {
+          "path": "FountainGrass/glb/FountainGrass_lod2.glb",
+          "sha256": "5bed584926c64cce3330cc0d6970892a7e5c0a80d80e8c542a7801614dc3115a"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "Poppy",
+      "source_package": "NaturePlants_Expansion_1.0.1",
+      "source_folder": "Delivery/Poppy",
+      "dimensions_m": [
+        0.27566976845264435,
+        0.26814398169517517,
+        0.6919386386871338
+      ],
+      "triangles": 1832,
+      "lod1_triangles": 939,
+      "lod2_triangles": 440,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "Poppy/blender/Poppy.blend",
+          "sha256": "a5a32298d779f05a1ec457f3feaa1dacce309cd91c4c26d931034bf4c1dbbee2"
+        },
+        {
+          "path": "Poppy/glb/Poppy.glb",
+          "sha256": "604f7633bd005f63c3f0ca69ec847dbfbc303126d23243837789b1ee9352538b"
+        },
+        {
+          "path": "Poppy/glb/Poppy_lod1.glb",
+          "sha256": "6ca101b70950299f7ee0b3f0236863ec7c236be516ceb37683b843bada951575"
+        },
+        {
+          "path": "Poppy/glb/Poppy_lod2.glb",
+          "sha256": "750de92711aa53f4b6dcf7a72a39fc60e28c302bc0d22f77dc7c26964dcee706"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "Cornflower",
+      "source_package": "NaturePlants_Expansion_1.0.1",
+      "source_folder": "Delivery/Cornflower",
+      "dimensions_m": [
+        0.22223927825689316,
+        0.22310970723628998,
+        0.6530504822731018
+      ],
+      "triangles": 3228,
+      "lod1_triangles": 1775,
+      "lod2_triangles": 901,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "Cornflower/blender/Cornflower.blend",
+          "sha256": "c42da1b0b88b86497792b4254106f8e015853c2a62730c4b25a82843ba1a8b91"
+        },
+        {
+          "path": "Cornflower/glb/Cornflower.glb",
+          "sha256": "55c7b98d7e3d58c5d61084834a60dc8fe2519906c36c58d7261b9ed401677ee5"
+        },
+        {
+          "path": "Cornflower/glb/Cornflower_lod1.glb",
+          "sha256": "cfb2415780187a707fd89931dfa2633272ed7d6004702f457cb61650a6d242fd"
+        },
+        {
+          "path": "Cornflower/glb/Cornflower_lod2.glb",
+          "sha256": "0cb8615f781451341b2d091316e87447012a180dc851c25a4fe398721863fc51"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "RedClover",
+      "source_package": "NaturePlants_Expansion_1.0.1",
+      "source_folder": "Delivery/RedClover",
+      "dimensions_m": [
+        0.3856083005666733,
+        0.4472033381462097,
+        0.35531800985336304
+      ],
+      "triangles": 8388,
+      "lod1_triangles": 4612,
+      "lod2_triangles": 2108,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "RedClover/blender/RedClover.blend",
+          "sha256": "4b8eccd4f61b7f9dbea7fcc5de89817258f427f418fdd2684d235c4a14e5567e"
+        },
+        {
+          "path": "RedClover/glb/RedClover.glb",
+          "sha256": "c591b9d2edd2246a67b0a375f8083c10da4fe30127edb6a3300d32997117a56c"
+        },
+        {
+          "path": "RedClover/glb/RedClover_lod1.glb",
+          "sha256": "e11984620532a5be5b6544c6929325afa9c26204fb58db26f424d47832a144aa"
+        },
+        {
+          "path": "RedClover/glb/RedClover_lod2.glb",
+          "sha256": "de7963280463e80240829d36aa81876673844191d065356389984af33d685c6d"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "Buttercup",
+      "source_package": "NaturePlants_Expansion2_1.0.0",
+      "source_folder": "Delivery/Buttercup",
+      "dimensions_m": [
+        0.2689875215291977,
+        0.24281000345945358,
+        0.48135876655578613
+      ],
+      "triangles": 1108,
+      "lod1_triangles": 609,
+      "lod2_triangles": 307,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "Buttercup/blender/Buttercup.blend",
+          "sha256": "32a98d34bd2d6c200f6ca90a507561bb48f4a866e953d4de15b7ee2af90d713e"
+        },
+        {
+          "path": "Buttercup/glb/Buttercup.glb",
+          "sha256": "54c1753875783f90362c20058efc84bad49e46ab5ec65dd7d12c66d9976657ef"
+        },
+        {
+          "path": "Buttercup/glb/Buttercup_lod1.glb",
+          "sha256": "0ff665f704740a5b6c785ee625f1c76ae3711b70a11e592496da5f38e583504b"
+        },
+        {
+          "path": "Buttercup/glb/Buttercup_lod2.glb",
+          "sha256": "844bb871c0b95d8aba08b96aa89e126bef6c3f0e1e69ffb6bc9fc37406ad8d6c"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "Chicory",
+      "source_package": "NaturePlants_Expansion2_1.0.0",
+      "source_folder": "Delivery/Chicory",
+      "dimensions_m": [
+        0.5561549961566925,
+        0.5289921313524246,
+        0.9711233973503113
+      ],
+      "triangles": 1476,
+      "lod1_triangles": 811,
+      "lod2_triangles": 413,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "Chicory/blender/Chicory.blend",
+          "sha256": "d4ab83289429412bb9e262e4c32aa92263508539c2346fd403f23551a9348e11"
+        },
+        {
+          "path": "Chicory/glb/Chicory.glb",
+          "sha256": "93ad37d7110ea5d69a4b0ff31cfd0b36875017811904f6847c26534125e2944a"
+        },
+        {
+          "path": "Chicory/glb/Chicory_lod1.glb",
+          "sha256": "a389b56949ba6629d9a05a12a49fa9e6fae6cea001db725dcebf836c8e63c1cb"
+        },
+        {
+          "path": "Chicory/glb/Chicory_lod2.glb",
+          "sha256": "0b16f894b3552f5e6bfe6a7efa2ee1ca39809e7890af9480954a3361beaa36dc"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "Yarrow",
+      "source_package": "NaturePlants_Expansion2_1.0.0",
+      "source_folder": "Delivery/Yarrow",
+      "dimensions_m": [
+        0.40345606207847595,
+        0.3644351214170456,
+        0.6792055368423462
+      ],
+      "triangles": 8916,
+      "lod1_triangles": 4825,
+      "lod2_triangles": 2412,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "Yarrow/blender/Yarrow.blend",
+          "sha256": "0a75e2b6d240a2038d4a2e20a3d6d5af8ee63940d2f98d7db0eb200f45c002c7"
+        },
+        {
+          "path": "Yarrow/glb/Yarrow.glb",
+          "sha256": "d1ccf73c4519f3ab8d11f81993dba4862827c418f9de569e5ca020fba1157c8d"
+        },
+        {
+          "path": "Yarrow/glb/Yarrow_lod1.glb",
+          "sha256": "c9e2348db2a73bd3a434f3390716fe2869c5bf23f3c4a498a67879b8aaf515a4"
+        },
+        {
+          "path": "Yarrow/glb/Yarrow_lod2.glb",
+          "sha256": "44c574ba651c62f6c81568be476bd091cc26f1d17712050cb96e854b43c8945c"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "RibwortPlantain",
+      "source_package": "NaturePlants_Expansion2_1.0.0",
+      "source_folder": "Delivery/RibwortPlantain",
+      "dimensions_m": [
+        0.2692394256591797,
+        0.2924506515264511,
+        0.4892992675304413
+      ],
+      "triangles": 2794,
+      "lod1_triangles": 1431,
+      "lod2_triangles": 675,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "RibwortPlantain/blender/RibwortPlantain.blend",
+          "sha256": "4ded0056ccac959591c905f60de309aa7f452d80dfffb3a48bab8eb3aab2c20f"
+        },
+        {
+          "path": "RibwortPlantain/glb/RibwortPlantain.glb",
+          "sha256": "c7ccee19338ba8d20dbadea027396626487dcfc91a8d04781d8f6c3a57b69ddc"
+        },
+        {
+          "path": "RibwortPlantain/glb/RibwortPlantain_lod1.glb",
+          "sha256": "95f2b191f8fa0482c18bacf39100797b1907ae0cc7f4a9d873fdbd04955bbc63"
+        },
+        {
+          "path": "RibwortPlantain/glb/RibwortPlantain_lod2.glb",
+          "sha256": "23535d4b06e2dc822b51429d1c2cd7df0362eb616498eac84302720db21b7396"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    },
+    {
+      "name": "WildStrawberry",
+      "source_package": "NaturePlants_Expansion2_1.0.0",
+      "source_folder": "Delivery/WildStrawberry",
+      "dimensions_m": [
+        0.2985819876194,
+        0.2522803172469139,
+        0.2466629594564438
+      ],
+      "triangles": 1504,
+      "lod1_triangles": 802,
+      "lod2_triangles": 391,
+      "wind_duration_seconds": 2.033333333333333,
+      "files": [
+        {
+          "path": "WildStrawberry/blender/WildStrawberry.blend",
+          "sha256": "c8f64612efea79d36450958341c693bf9c5dee902202ede583d66b5d9e14a4f9"
+        },
+        {
+          "path": "WildStrawberry/glb/WildStrawberry.glb",
+          "sha256": "41386919f85fae91f69e558dcba9a7458387667510c50c8a47a60d8207d64fc6"
+        },
+        {
+          "path": "WildStrawberry/glb/WildStrawberry_lod1.glb",
+          "sha256": "be2178ae54ab2bba53a0e377eccf2ba098cd10e652765242befc0f6fb4caa440"
+        },
+        {
+          "path": "WildStrawberry/glb/WildStrawberry_lod2.glb",
+          "sha256": "4cda4f7d61c302cbbb7c2f3572550742bf1fd6597b55783d42dff632830ea6d3"
+        }
+      ],
+      "wind_clip": "KeyAction"
+    }
+  ]
+}

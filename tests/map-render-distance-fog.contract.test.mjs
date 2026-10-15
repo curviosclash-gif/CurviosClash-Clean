@@ -6,6 +6,7 @@ import { Vector3 } from 'three';
 import { CONFIG } from '../src/core/Config.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { TREE_SCALE } from '../src/core/config/maps/presets/giant_forest/GiantForestTrees.js';
+import { CHERRY_TREE_SIZE_MULTIPLIER } from '../src/core/config/maps/presets/cherry_grove.js';
 import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 
 // A model drawn far behind the fog costs draw time for nothing, and one culled inside it winks out.
@@ -80,11 +81,11 @@ test('cherry_grove culls its trees where its fog has closed and loads at most fo
     for (const family of Object.values(qa.families)) {
         for (const variant of family.variants) {
             const [width, depth, height] = variant.bounds_m;
-            reachByFile.set(variant.file, Math.hypot(width / 2, depth / 2, height));
+            reachByFile.set(variant.file, Math.hypot(width / 2, depth / 2, height) * CHERRY_TREE_SIZE_MULTIPLIER);
         }
     }
     const widest = Math.max(...reachByFile.values());
-    const renders = map.glbModels.filter((model) => model.collision === false);
+    const renders = map.glbModels.filter((model) => model.id.endsWith('-render'));
     assert.equal(renders.length, 10);
     for (const model of renders) {
         const reach = reachByFile.get(model.url.split('/').pop());

@@ -1,12 +1,11 @@
 import { normalizeMapLighting } from '../../../../shared/contracts/MapLightingContract.js';
+import { CHERRY_GROVE_FOG_FAR, CHERRY_GROVE_PLANTS } from './cherry_grove/CherryGrovePlants.js';
 
-// The fog closes completely at its far distance, in world units, and the camera's far plane ends
-// there too. A tree is culled by the distance to its foot, so it stays until its nearest blossom is
-// out of range: the fog's far plus the farthest point of a tree from its foot (12.2 units, the
-// widest of the ten exported trees; the exports are about 10 units wide and tall). Cull distances
-// are authored units, one of which is three world units (CONFIG.ARENA.MAP_SCALE).
-const FOG_FAR = 330;
-const RENDER_DISTANCE = Math.ceil(FOG_FAR / 3 + 12.2);
+// Keep the ten source variants and enlarge their existing runtime placements uniformly.
+// Cull from the foot only after even the enlarged crown has disappeared into the fog.
+export const CHERRY_TREE_SIZE_MULTIPLIER = 15;
+const FOG_FAR = CHERRY_GROVE_FOG_FAR;
+const RENDER_DISTANCE = Math.ceil(FOG_FAR / 3 + 12.2 * CHERRY_TREE_SIZE_MULTIPLIER);
 
 const POSITIONS = Object.freeze([
     [-30, 0, -43], [-62, 0, -8], [62, 0, -8], [-62, 0, 42], [62, 0, 42],
@@ -25,22 +24,24 @@ const TREE_VARIANTS = Object.freeze([
     ['kanzan-05', 'assets/maps/cherry_grove/glb/kanzan_05.glb', 'assets/maps/cherry_grove/glb/kanzan_collision.glb', 7.9],
 ]);
 
-export const CHERRY_GROVE_MODELS = Object.freeze(TREE_VARIANTS.flatMap(([id, renderUrl, collisionUrl, height], index) => {
-    const [x, y, z] = POSITIONS[index];
+export const CHERRY_GROVE_MODELS = Object.freeze([...TREE_VARIANTS.flatMap(([id, renderUrl, collisionUrl, height], index) => {
+    const [px, y, pz] = POSITIONS[index];
+    // Broad crowns need separated trunks and clearings rather than ten overlapping canopies.
+    const x = px * 3.2; const z = pz * 3.2;
     const rotation = [0, (index * 1.173) % (Math.PI * 2), 0];
     return [
-        Object.freeze({ id: `cherry-${id}-render`, url: renderUrl, position: [x, y + 4, z], rotation, targetSize: height, collision: false, maxRenderDistance: RENDER_DISTANCE }),
-        Object.freeze({ id: `cherry-${id}-trunk`, url: collisionUrl, position: [x, y + 4, z], rotation, scale: 1, collisionOnly: true }),
+        Object.freeze({ id: `cherry-${id}-render`, url: renderUrl, position: [x, y + 4, z], rotation, targetSize: height * CHERRY_TREE_SIZE_MULTIPLIER, collision: false, maxRenderDistance: RENDER_DISTANCE }),
+        Object.freeze({ id: `cherry-${id}-trunk`, url: collisionUrl, position: [x, y + 4, z], rotation, scale: CHERRY_TREE_SIZE_MULTIPLIER, collisionOnly: true }),
     ];
-}));
+}), ...CHERRY_GROVE_PLANTS]);
 
 export const CHERRY_GROVE_MAPS = Object.freeze({
     cherry_grove: Object.freeze({
         name: 'Kirschhain',
-        size: Object.freeze([210, 110, 210]),
+        size: Object.freeze([640, 220, 640]),
         scaleAuthoredAnchors: true,
         exclusionZone: Object.freeze({ openFaces: Object.freeze(['minX', 'maxX', 'minZ', 'maxZ', 'maxY']) }),
-        obstacles: Object.freeze([Object.freeze({ pos: [0, 2, 0], size: [210, 4, 210], kind: 'foam', compileWithGlb: true })]),
+        obstacles: Object.freeze([Object.freeze({ pos: [0, 2, 0], size: [640, 4, 640], kind: 'foam', compileWithGlb: true })]),
         glbColliderMode: 'scene',
         // Two of the trees are 40 MB and more; three files at a time keep their decode peak down.
         glbLoadConcurrency: 3,
@@ -56,17 +57,17 @@ export const CHERRY_GROVE_MAPS = Object.freeze({
             starsVisible: false, exposureOffset: 0.04,
         }),
         portals: Object.freeze([
-            Object.freeze({ a: [-83, 5, -82], b: [83, 5, 82], color: 0xf7c6d0 }),
-            Object.freeze({ a: [83, 5, -82], b: [-83, 5, 82], color: 0xffe6b4 }),
+            Object.freeze({ a: [-166, 5, -164], b: [166, 5, 164], color: 0xf7c6d0 }),
+            Object.freeze({ a: [166, 5, -164], b: [-166, 5, 164], color: 0xffe6b4 }),
         ]),
-        playerSpawn: Object.freeze({ x: 0, y: 8, z: -82 }),
+        playerSpawn: Object.freeze({ x: 0, y: 8, z: -164 }),
         botSpawns: Object.freeze([
-            Object.freeze({ x: -28, y: 8, z: -18 }), Object.freeze({ x: 30, y: 8, z: -12 }),
-            Object.freeze({ x: -30, y: 8, z: 30 }), Object.freeze({ x: 28, y: 8, z: 40 }),
+            Object.freeze({ x: -56, y: 8, z: -36 }), Object.freeze({ x: 60, y: 8, z: -24 }),
+            Object.freeze({ x: -60, y: 8, z: 60 }), Object.freeze({ x: 56, y: 8, z: 80 }),
         ]),
         items: Object.freeze([
-            Object.freeze({ pos: [-34, 6, -5] }), Object.freeze({ pos: [34, 6, 12] }),
-            Object.freeze({ pos: [0, 8, 48] }),
+            Object.freeze({ pos: [-68, 6, -10] }), Object.freeze({ pos: [68, 6, 24] }),
+            Object.freeze({ pos: [0, 8, 96] }),
         ]),
         singlePlayerScenario: Object.freeze({ enabled: true, id: 'cherry_grove', modePath: 'fight', gameMode: 'HUNT', minBots: 3, botCount: 5 }),
     }),

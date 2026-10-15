@@ -17,7 +17,7 @@ test('Kirschhain is registered with five variants per family and shared trunk co
     const map = MAP_PRESET_CATALOG.cherry_grove;
     assert.equal(map, CHERRY_GROVE_MAPS.cherry_grove);
     assert.equal(MAP_PRESETS_BASE.cherry_grove, map, 'the playable registry must retain Kirschhain instead of falling back to standard');
-    const renders = map.glbModels.filter((model) => model.collision === false);
+    const renders = map.glbModels.filter((model) => model.id.endsWith('-render'));
     const collisions = map.glbModels.filter((model) => model.collisionOnly === true);
     assert.equal(renders.length, 10);
     assert.equal(collisions.length, 10);

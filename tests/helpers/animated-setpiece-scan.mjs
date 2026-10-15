@@ -394,12 +394,17 @@ function measureMotion(cacheKey, model) {
     model.glb.scene.traverse((node) => nodes.push(node));
     model.pose(0);
     const start = nodes.map((node) => node.matrixWorld.clone());
+    // Morph weights deform vertices without changing an Object3D's world matrix.
+    const startMorphWeights = nodes.map((node) => node.morphTargetInfluences?.slice() || null);
     const startBoxes = model.glb.meshes.map(meshBox);
     const epsilon = 1e-3 * MAP_SCALE;
     let moves = false;
     for (const time of sampleTimes(model.clip.duration, true)) {
         model.pose(time);
-        moves = nodes.some((node, i) => node.matrixWorld.elements.some((value, e) => Math.abs(value - start[i].elements[e]) > epsilon));
+        moves = nodes.some((node, i) => node.matrixWorld.elements.some((value, e) => Math.abs(value - start[i].elements[e]) > epsilon)
+            || (startMorphWeights[i] && node.morphTargetInfluences?.some((value, weightIndex) => (
+                Math.abs(value - startMorphWeights[i][weightIndex]) > 1e-5
+            ))));
         if (moves) break;
     }
     model.pose(model.clip.duration);
@@ -413,9 +418,9 @@ function measureMotion(cacheKey, model) {
     return result;
 }
 
-function scanMotion(cacheKey, model, descriptor, mapKey, report) {
+export function scanMotion(cacheKey, model, descriptor, mapKey, report) {
     const { moves, seam } = measureMotion(cacheKey, model);
-    // The chosen clip has to change at least one node's world transform.
+    // The chosen clip has to change a world transform or deform a mesh through morph weights.
     if (!moves) report(`${mapKey}|${descriptor.id}|-|clip-static`, `clip "${model.clip.name}" moves no node`);
     if (moves && descriptor.animationClock.mode === 'loop' && !descriptor.hiddenUntilTriggered && seam > LOOP_SEAM_TOLERANCE) {
         report(`${mapKey}|${descriptor.id}|-|loop-seam`, `${model.clip.name}: last frame is ${seam.toFixed(2)} units off the first`);

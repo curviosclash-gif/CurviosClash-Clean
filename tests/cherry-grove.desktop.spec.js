@@ -6,7 +6,7 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 // a small hidden collision body per trunk, an open sky and three authored item anchors written as
 // pos: [x, y, z]. Three questions only the running app answers:
 //
-//   1. All twenty models load without a warning or a console error; the render models are what
+//   1. Every tree and undergrowth model loads without a warning or a console error; the render models are what
 //      is drawn and collides with nothing, the hidden trunk bodies are what collides.
 //   2. The player starts free: the spawn is not inside geometry and the ship is still alive and
 //      moving a moment later.
@@ -168,6 +168,82 @@ test.describe('Cherry grove', () => {
             contentType: 'application/json',
         });
         expect(cost.calls, 'something is drawn').toBeGreaterThan(0);
+
+        // The real importer must preserve world-space leaves, wind clips and decorative-only plants.
+        const giant = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            game.runtimeFacade.pauseMatch();
+            // Keep the paused simulation for fixed cameras, without covering the visual proof.
+            document.querySelectorAll('#pause-menu, #pause-overlay, #pause-screen').forEach((node) => { node.style.display = 'none'; });
+            const arena = game.arena;
+            const plants = arena._glbScene.children.filter((slot) => slot.userData.glbModelId?.startsWith('cherry-plant-'));
+            const colliders = new Set(arena.obstacles.map((entry) => entry.modelId));
+            const leaves = arena._cherryLeaves;
+            leaves.reset();
+            const target = leaves.leaves[0].releasePosition.clone();
+            const start = target.clone(); start.x -= 12;
+            const end = target.clone(); end.x += 12;
+            const released = leaves.releaseNearPass(start, end, 0, 2);
+            const saved = leaves.serialize();
+            leaves.update(3);
+            const batchLeaf = leaves.leaves.find((leaf) => leaf.releasedAt !== null);
+            const matrix = batchLeaf.source.matrixWorld.clone();
+            batchLeaf.batchGroup.batch.getMatrixAt(batchLeaf.instance, matrix);
+            const moved = matrix.elements.slice(12, 15);
+            arena._glbScene.updateMatrixWorld(true);
+            const world = batchLeaf.source.position.clone().setFromMatrixPosition(matrix)
+                .applyMatrix4(batchLeaf.batchGroup.batch.matrixWorld);
+            const leafTravel = world.distanceTo(batchLeaf.releasePosition);
+            leaves.reset();
+            leaves.applyNetworkState(saved);
+            const restored = JSON.stringify(leaves.serialize()) === JSON.stringify(saved);
+            leaves.reset();
+            const track = arena._glbAnimation._tracks.find((entry) => entry.modelId?.startsWith('cherry-plant-'));
+            const weights = () => {
+                const values = [];
+                track.mixer.getRoot().traverse((node) => { if (node.morphTargetInfluences) values.push(...node.morphTargetInfluences); });
+                return values;
+            };
+            arena._glbAnimation.setElapsedSeconds(0.1); const first = weights();
+            arena._glbAnimation.setElapsedSeconds(0.7); const second = weights();
+            arena._glbAnimation.setElapsedSeconds(0.1); const rewind = weights();
+            return {
+                plants: plants.length, plantColliders: plants.filter((slot) => colliders.has(slot.userData.glbModelId)).length,
+                leaves: leaves.count, released, restored, moved, leafTravel,
+                windMoves: JSON.stringify(first) !== JSON.stringify(second),
+                windRewinds: JSON.stringify(first) === JSON.stringify(rewind),
+                animatedPlants: arena._glbAnimation._tracks.filter((entry) => entry.modelId?.startsWith('cherry-plant-')).length,
+                treeScale: arena._glbScene.getObjectByName('glb-normalizer-cherry-akebono-01-trunk').scale.x,
+            };
+        });
+        expect(giant.plants).toBe(54);
+        expect(giant.plantColliders).toBe(0);
+        expect(giant.animatedPlants).toBe(54);
+        expect(giant.windMoves).toBe(true);
+        expect(giant.windRewinds).toBe(true);
+        expect(giant.leaves).toBe(480);
+        expect(giant.released).toBeGreaterThan(0);
+        expect(giant.restored).toBe(true);
+        expect(giant.moved.every(Number.isFinite)).toBe(true);
+        expect(giant.leafTravel, 'released giant leaves visibly leave their world-space anchor').toBeGreaterThan(1);
+        expect(giant.treeScale).toBe(45);
+        await testInfo.attach('cherry-grove-giant-runtime.json', { body: JSON.stringify(giant, null, 2), contentType: 'application/json' });
+
+        const firstTree = MAP.glbModels.find((model) => model.id.endsWith('-render')).position.map((value) => value * 3);
+        for (const view of [
+            { name: 'under-canopy', from: [firstTree[0], 35, firstTree[2] + 150], to: [firstTree[0], 210, firstTree[2]] },
+            { name: 'side-canopy', from: [firstTree[0] + 180, 340, firstTree[2] + 70], to: [firstTree[0], 330, firstTree[2]] },
+            { name: 'flowers', from: [-264, 22, -368], to: [-264, 19, -345] },
+        ]) {
+            await page.evaluate(({ from, to }) => {
+                const r = window.GAME_INSTANCE.renderer;
+                r.cameras[0].position.set(...from);
+                r.cameras[0].lookAt(...to);
+                r.cameras[0].updateMatrixWorld(true);
+                r.render();
+            }, view);
+            await page.screenshot({ path: testInfo.outputPath(`cherry-grove-${view.name}.png`) });
+        }
 
         expect(errors, `console errors: ${errors.join(' | ')}`).toEqual([]);
         await page.screenshot({ path: testInfo.outputPath('cherry-grove-ingame.png') });

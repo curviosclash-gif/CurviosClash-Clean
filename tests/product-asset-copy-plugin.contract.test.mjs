@@ -48,6 +48,9 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/maps/burg_falkenwacht/props/falkenwacht-woodpile/falkenwacht-woodpile-v01/runtime.glb',
         'assets/maps/aetherion_orrery/glb/10_celestial_core.glb',
         'assets/models/verdant_wildwuchs/fern_v01.glb',
+        ...['Daisy', 'Lavender', 'Fern', 'FountainGrass', 'Poppy', 'Cornflower', 'RedClover',
+            'Buttercup', 'Chicory', 'Yarrow', 'RibwortPlantain', 'WildStrawberry']
+            .flatMap((name) => ['', '_lod1', '_lod2'].map((lod) => `assets/models/meadow_plants/${name}/glb/${name}${lod}.glb`)),
         'assets/models/glowing_mushroom/cap_v01.glb',
         'assets/models/glowing_mushroom/shelf_v03.glb',
         'assets/models/fighter_jet/glb/01_fighter_jet.glb',
@@ -62,6 +65,8 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/models/glowing_mushroom/manifest.json',
         // Same rule for the jet: the painted livery travels inside the GLB, the source stays out.
         'assets/models/fighter_jet/blender/01_fighter_jet.blend',
+        'assets/models/meadow_plants/Daisy/blender/Daisy.blend',
+        'assets/models/meadow_plants/manifest.json',
     ]) {
         assert.equal(existsSync(path.join(outDir, relativePath)), false,
             `${relativePath} stays out of the renderer build`);
