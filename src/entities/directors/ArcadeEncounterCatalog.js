@@ -231,7 +231,7 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
     const pressureDifficulty = pressure > 0.72 ? 'HARD' : (pressure > 0.42 ? 'NORMAL' : 'EASY');
     const botDifficulty = resolveHigherArcadeBotDifficulty(baseDifficulty, pressureDifficulty);
     const parcoursEnabled = entry.parcoursEnabled === true;
-    const parcoursRacer = parcoursEnabled && (entry.parcoursRacer === true || entry.templateId === 'sector_parcours');
+    const parcoursRacer = parcoursEnabled && (entry.parcoursRacer === true || (entry.parcoursRacer !== false && entry.templateId === 'sector_parcours'));
     const botCount = Number.isInteger(entry.botCount) && entry.botCount >= 0 ? entry.botCount
         : parcoursEnabled ? (parcoursRacer ? 1 : 0) : (squad?.botCount ?? fallbackBotCount);
 
@@ -244,7 +244,7 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         botRoles: parcoursRacer ? [] : resolveSquadBotRoles(squad, botCount),
         botDifficulty,
         pressure,
-        aggressiveness: parcoursEnabled || !squad ? 0 : resolveArcadeTierAggressiveness(squad.aggressiveness, entry.difficultyTierId),
+        aggressiveness: parcoursRacer || !squad ? 0 : resolveArcadeTierAggressiveness(squad.aggressiveness, entry.difficultyTierId),
         parcoursEnabled,
         parcoursRacer,
         isBoss: entry.isBoss === true,

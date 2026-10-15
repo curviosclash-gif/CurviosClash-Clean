@@ -1,3 +1,4 @@
+import { ORBITAL_JOURNEY_SCENARIO_ID } from '../shared/contracts/OrbitalJourneyDefenseContract.js';
 // ============================================
 // ArcadeModeStrategy.js - Arcade mode (survival gauntlet, HP, scoring)
 // Extends the shared game-mode contract with arcade-specific health,
@@ -214,7 +215,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     setScenarioId(scenarioId) { this._scenarioId = typeof scenarioId === 'string' ? scenarioId : null; }
-    allowsParcoursScenarioTurrets() { return this._scenarioId === 'spiessrutenlauf'; }
+    allowsParcoursScenarioTurrets() { return this._scenarioId === 'spiessrutenlauf' || this._scenarioId === ORBITAL_JOURNEY_SCENARIO_ID; }
 
     getSectorType() {
         return this._sectorType;

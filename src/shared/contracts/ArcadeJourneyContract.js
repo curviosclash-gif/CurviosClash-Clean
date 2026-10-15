@@ -1,3 +1,4 @@
+import { ORBITAL_JOURNEY_SCENARIO_ID, ORBITAL_JOURNEY_TURRETS } from './OrbitalJourneyDefenseContract.js';
 export const ARCADE_JOURNEY_STORAGE_KEY = 'cuviosclash.arcade-journey.v1';
 export const ARCADE_JOURNEY_SCHEMA = 'arcade-journey.v1';
 
@@ -16,6 +17,9 @@ const stages = [
         goal: 'Meistere drei Sektoren auf Parcours Rift. Sektor 2 ist ohne Waffen. Silber: 3.500 Punkte, Gold: 5.000 Punkte.', metric: 'score', silver: 3500, gold: 5000 },
     { id: 'notre_dame', worldId: 'departure', label: 'Notre-Dame', runType: 'gauntlet', mapKey: 'notre_dame', botCount: 0, sectorCount: 1, parcours: true,
         predecessorId: 'first_run', goal: 'Durchfliege den vollständigen Notre-Dame-Kurs mit seinen Abzweigungen bis zum Ziel. Silber: 270 Sekunden, Gold: 180 Sekunden, inklusive Strafzeit.', metric: 'time', silver: 270000, gold: 180000 },
+    { id: 'orbital_shipyard', worldId: 'portals', label: 'Orbitalwerft', runType: 'gauntlet', mapKey: 'orbital_shipyard', botCount: 2, sectorCount: 1, parcours: true,
+        combatScenarioId: ORBITAL_JOURNEY_SCENARIO_ID, staticTurrets: ORBITAL_JOURNEY_TURRETS, predecessorId: 'notre_dame',
+        goal: 'Durchfliege die gesamte Orbitalwerft unter Beschuss von zwei Bots, Raketenwerfern und MG-Geschützen. Silber: 150 Sekunden, Gold: 100 Sekunden, inklusive Strafzeit.', metric: 'time', silver: 150000, gold: 100000 },
     { id: 'weapon_race', worldId: 'departure', label: 'Waffenrennen', runType: 'weapon_race', mapKey: 'parcours_assault', botCount: 4,
         goal: 'Erreiche als Erster das Ziel.', metric: 'place', silver: 1, gold: 1, maxPlayers: 1, optional: true },
     { id: 'five_portals', worldId: 'portals', label: 'Fünf Portale', runType: 'five_portals', portalChainId: 'five_portals', mapKey: 'micro_maw', botCount: 0,

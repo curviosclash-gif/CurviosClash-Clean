@@ -86,13 +86,14 @@ test('journey map links reference known nodes and form an acyclic graph', () => 
 test('only existing playable stage IDs are referenced and legacy IDs remain intact', () => {
     const stageIds = ARCADE_JOURNEY_STAGES.map(({ id }) => id);
     assert.deepEqual(stageIds.filter(id => EXPECTED_LEGACY_STAGE_IDS.includes(id)), EXPECTED_LEGACY_STAGE_IDS);
-    assert.deepEqual(stageIds.filter(id => !EXPECTED_LEGACY_STAGE_IDS.includes(id)), ['notre_dame', 'worm_hunt']);
+    assert.deepEqual(stageIds.filter(id => !EXPECTED_LEGACY_STAGE_IDS.includes(id)), ['notre_dame', 'orbital_shipyard', 'worm_hunt']);
     assert.equal(ARCADE_JOURNEY_SCHEMA, 'arcade-journey.v1');
 
     const expectedBindings = new Map([
         ['first_flight', 'flight_school'],
         ['first_route', 'first_run'],
         ['notre_dame', 'notre_dame'],
+        ['orbital_shipyard', 'orbital_shipyard'],
         ['endless_hunt', 'endless_hunt'],
         ['five_fronts', 'five_fronts'],
         ['sky_ladder', 'sky_ladder'],

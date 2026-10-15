@@ -58,7 +58,7 @@ export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([
     Object.freeze({ id: 'sunflower', worldId: 'giant_forest', label: 'Sonnenwiese', goal: 'Noch offen: Das Abschussziel erreichen.', x: 560, y: 398, stageId: '', maxPlayers: 3 }),
     Object.freeze({ id: 'hydra', worldId: 'giant_forest', label: 'Hydra', goal: 'Noch offen: Alle Köpfe der Hydra besiegen.', x: 675, y: 384, stageId: '', boss: true, maxPlayers: 3 }),
 
-    Object.freeze({ id: 'orbital_shipyard', worldId: 'orbit', label: 'Orbitalwerft', goal: 'Noch offen: Die Orbitalwerft durchqueren.', x: 810, y: 170, stageId: '', maxPlayers: 3 }),
+    Object.freeze({ id: 'orbital_shipyard', worldId: 'orbit', label: 'Orbitalwerft', goal: 'Die gesamte Orbitalwerft unter Beschuss von Bots, Raketenwerfern und MG-Geschützen durchqueren.', x: 810, y: 170, stageId: 'orbital_shipyard', maxPlayers: 3 }),
     Object.freeze({ id: 'sky_ladder', worldId: 'orbit', label: 'Himmelsleiter', goal: 'Reise durch alle vier Höhenstufen bis zum letzten Portal.', x: 810, y: 300, stageId: 'sky_ladder', maxPlayers: 3 }),
 ]);
 
@@ -92,6 +92,7 @@ const EXPECTED_RUNTIME_STAGE_IDS = new Set([
     'flight_school',
     'first_run',
     'notre_dame',
+    'orbital_shipyard',
     'endless_hunt',
     'five_fronts',
     'sky_ladder',

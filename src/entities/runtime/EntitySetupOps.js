@@ -260,7 +260,7 @@ export class EntitySetupOps {
             const parcoursRacer = !companion
                 && owner.runtimeConfig?.arcade?.enabled === true
                 && (owner.runtimeConfig?.arcade?.parcoursRacer === true
-                    || owner.gameModeStrategy?.isSectorParcours?.() === true);
+                    || (owner.runtimeConfig?.arcade?.parcoursRacer !== false && owner.gameModeStrategy?.isSectorParcours?.() === true));
             player.isArcadeParcoursCompetitor = parcoursRacer;
             const scenarioHuntBot = !companion
                 && !parcoursRacer

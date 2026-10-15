@@ -1,4 +1,5 @@
 import { createParcoursOutcomeCounters } from './ParcoursProgressSnapshot.js';
+import { ORBITAL_JOURNEY_SCENARIO_ID } from '../../shared/contracts/OrbitalJourneyDefenseContract.js';
 import {
     createPlayerProgressState,
     normalizeString,
@@ -408,6 +409,8 @@ export class ParcoursProgressSystem {
 
     updatePlayerProgress(player, previousPosition, now = this.nowProvider()) {
         if (!this._route || !player?.alive || !Number.isInteger(player.index)) return null;
+        // The station's attackers are combat opponents, never entrants in the human time trial.
+        if (player.isBot === true && this.entityManager?.runtimeConfig?.arcade?.scenarioId === ORBITAL_JOURNEY_SCENARIO_ID) return null;
         const state = this._ensurePlayerState(player.index);
         if (!state || state.completed) return null;
 

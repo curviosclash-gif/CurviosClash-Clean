@@ -5,6 +5,7 @@ import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfi
 import { areTeammates, normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
 import { addObjectiveGuard, setTurretTeam } from './static-turret/StaticTurretObjectiveOps.js';
 import { resolveMapStaticTurretDefinitions } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
+import { getArcadeJourneyStage, normalizeArcadeJourneyStageId } from '../../shared/contracts/ArcadeJourneyContract.js';
 import { MGTracerFx } from '../../hunt/mg/MGTracerFx.js';
 import {
     applyStaticTurretNetworkSnapshot,
@@ -85,7 +86,13 @@ export class StaticTurretSystem {
         if (!owner) return 0;
         const mapDefinition = owner.arena?.currentMapDefinition;
         const authoredScale = resolveAuthoredAnchorScale(mapDefinition, owner);
-        const definitions = resolveMapStaticTurretDefinitions(mapDefinition, { preserveSpatialRange: mapDefinition?.scaleAuthoredAnchors === true });
+        const config = owner.runtimeConfig?.arcade;
+        const stage = config?.enabled === true
+            ? getArcadeJourneyStage(normalizeArcadeJourneyStageId(config.journeyStageId, config)) : null;
+        const missionTurrets = stage?.mapKey === owner.arena?.currentMapKey && config?.scenarioId === stage?.combatScenarioId
+            ? stage?.staticTurrets || [] : [];
+        const definitions = resolveMapStaticTurretDefinitions({ staticTurrets: [...(mapDefinition?.staticTurrets || []), ...missionTurrets] },
+            { preserveSpatialRange: mapDefinition?.scaleAuthoredAnchors === true });
         for (let i = 0; i < definitions.length; i += 1) {
             if (!isTurretCombatActive(owner.gameModeStrategy, definitions[i].allowedModes)) continue;
             this.turrets.push(this._createTurret(definitions[i], authoredScale));

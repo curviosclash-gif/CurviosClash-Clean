@@ -15,7 +15,8 @@ export function buildArcadeJourneyEncounterPlan(runtimeConfig, plan) {
             sectorNumber: index + 1, templateId: 'sector_parcours', squadId: null, objectiveId: 'parcours_run',
             modifierId: null, scoreBonus: 0, rewardChoices: [], pressure: 0, difficultyTierId: plan.difficulty,
             mapKey: stage.mapKey, mapKeyLocked: true, isBoss: false, bossMultiplier: 1,
-            botCount: stage.botCount, parcoursEnabled: true, parcoursRacer: true,
+            botCount: stage.botCount, parcoursEnabled: true, parcoursRacer: !stage.combatScenarioId,
+            ...(stage.combatScenarioId ? { scenarioId: stage.combatScenarioId, squadId: 'scout_duo' } : {}),
             combatProfile: stage.id === 'first_run' && index === 1 ? '' : 'hunt',
             weaponsDisabled: stage.id === 'first_run' && index === 1,
         })) };
