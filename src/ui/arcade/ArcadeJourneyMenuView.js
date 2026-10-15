@@ -1,4 +1,4 @@
-import { ARCADE_JOURNEY_STAGES, ARCADE_JOURNEY_WORLDS, getArcadeJourneyStage, getArcadeJourneyStars, resolveArcadeJourneyAccess } from '../../shared/contracts/ArcadeJourneyContract.js';
+import { ARCADE_JOURNEY_STAGES, ARCADE_JOURNEY_WORLDS, getArcadeJourneyStage, getArcadeJourneyStars, getArcadeJourneyMaxStars, resolveArcadeJourneyAccess } from '../../shared/contracts/ArcadeJourneyContract.js';
 import { ARCADE_JOURNEY_MAP_WORLDS, ARCADE_JOURNEY_MAP_NODES, ARCADE_JOURNEY_MAP_LINKS } from '../../shared/contracts/ArcadeJourneyMapContract.js';
 import { getArcadeJourneyLeaderboard } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
 import { createArcadeJourneyMapView } from './ArcadeJourneyMapView.js';
@@ -101,8 +101,10 @@ export function createArcadeJourneyMenuView(createElement) {
             const { node, stage, card, title, briefing, medal, condition, start, hangar, board, boardLabel } = ref;
             const access = stage ? resolveArcadeJourneyAccess(stage.id, state.progress, state) : { unlocked: false, label: 'Kommt bald' };
             const stars = stage ? getArcadeJourneyStars(state.progress, stage.id) : 0;
+            // Preserve earned historical medals even if today's objective awards fewer stars.
+            const maxStars = Math.max(stars, getArcadeJourneyMaxStars(stage?.id));
             const label = !state.available ? 'Speicher nicht verfügbar' : access.unlocked ? stars ? 'Geschafft' : 'Offen' : access.label;
-            nodeStates.set(id, { unlocked: state.available && access.unlocked, stars, label });
+            nodeStates.set(id, { unlocked: state.available && access.unlocked, stars, maxStars, label });
             card.classList.toggle('hidden', id !== selectedNode);
             title.textContent = `${node.label}${state.available && access.unlocked && !stars ? ' · Neu' : ''}`;
             briefing.replaceChildren();
@@ -110,7 +112,7 @@ export function createArcadeJourneyMenuView(createElement) {
             if (preview) briefing.append(createElement('span', 'arcade-journey-boss', preview.silhouette),
                 createElement('p', 'menu-hint', `Endgegner: ${preview.label}`), createElement('p', 'menu-hint', preview.text));
             const nightmareMedal = state.progress?.stages?.[stage?.id]?.medals?.nightmare?.medal;
-            medal.textContent = `${stars ? '★'.repeat(stars) : '☆'} ${stars}/3 Sterne${Number.isInteger(nightmareMedal) && nightmareMedal > 0 && nightmareMedal <= 3 ? ' · Albtraum-Abzeichen' : ''}`;
+            medal.textContent = stage ? `${stars ? '★'.repeat(stars) : '☆'} ${stars}/${maxStars} Sterne${Number.isInteger(nightmareMedal) && nightmareMedal > 0 && nightmareMedal <= 3 ? ' · Albtraum-Abzeichen' : ''}` : 'Noch offen';
             condition.textContent = access.unlocked ? `${stage.maxPlayers === 1 ? 'Solo-Etappe' : '1–3 Spieler'} · ${label}` : label;
             start.disabled = !stage || !state.available || !access.unlocked;
             hangar.disabled = !state.profileId || !stage;

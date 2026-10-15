@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ARCADE_JOURNEY_SCHEMA, ARCADE_JOURNEY_STAGES, ARCADE_JOURNEY_WORLDS,
-    evaluateArcadeJourneyMedal, getArcadeJourneyStars, resolveArcadeJourneyAccess } from '../src/shared/contracts/ArcadeJourneyContract.js';
+    evaluateArcadeJourneyMedal, getArcadeJourneyStars, getArcadeJourneyMaxStars, resolveArcadeJourneyAccess } from '../src/shared/contracts/ArcadeJourneyContract.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { resolvePortalChain } from '../src/shared/contracts/PortalChainContract.js';
 import { ARENA_WAVES_BOT_CAPACITY } from '../src/shared/contracts/ArenaWavesContract.js';
@@ -82,4 +82,14 @@ test('flight school counts only an actual completion and remains optional for th
     const completed = progress({ flight_school: bronze() });
     assert.equal(resolveArcadeJourneyAccess('five_portals', completed).unlocked, true);
     assert.equal(resolveArcadeJourneyAccess('flight_school', progress(), { playerCount: 2 }).unlocked, false);
+});
+
+test('reachable star maxima agree with the authored medal evaluator and exclude unbound stages', () => {
+    assert.equal(getArcadeJourneyMaxStars(''), 0);
+    assert.equal(getArcadeJourneyMaxStars('gaps_lesson'), 0);
+    for (const stage of ARCADE_JOURNEY_STAGES) {
+        const value = stage.metric === 'completion' || stage.metric === 'place' ? 1 : stage.gold;
+        assert.equal(getArcadeJourneyMaxStars(stage.id), evaluateArcadeJourneyMedal(stage.id, { succeeded: true, value }), stage.id);
+    }
+    assert.equal(getArcadeJourneyMaxStars('flight_school'), 1);
 });

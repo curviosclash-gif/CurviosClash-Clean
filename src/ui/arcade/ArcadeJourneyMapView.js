@@ -66,10 +66,13 @@ export function createArcadeJourneyMapView(createElement, worlds, nodes, links) 
                 const { button, progress, reward } = worldButtons.get(world.id);
                 const members = nodes.filter(node => node.worldId === world.id);
                 const stars = members.reduce((sum, node) => sum + (nodeStates.get(node.id)?.stars || 0), 0);
-                progress.textContent = `${stars}/${members.length * 3} ★`;
-                reward.textContent = members.every(node => nodeStates.get(node.id)?.stars > 0)
-                    ? `${world.label}-Abzeichen · verdient` : 'Welt-Abzeichen: überall Bronze';
-                button.setAttribute('aria-label', `${world.label} vergrößern: ${stars} von ${members.length * 3} Sternen`);
+                const maxStars = members.reduce((sum, node) => sum + (nodeStates.get(node.id)?.maxStars || 0), 0);
+                const hasOpenStages = members.some(node => !node.stageId);
+                progress.textContent = maxStars ? `${stars}/${maxStars} ★` : 'Etappen folgen';
+                reward.textContent = hasOpenStages ? 'Welt-Abzeichen: weitere Etappen offen'
+                    : members.every(node => nodeStates.get(node.id)?.stars > 0)
+                        ? `${world.label}-Abzeichen · verdient` : 'Welt-Abzeichen: überall Bronze';
+                button.setAttribute('aria-label', `${world.label} vergrößern: ${maxStars ? `${stars} von ${maxStars} Sternen` : 'Noch keine spielbaren Etappen'}${hasOpenStages ? ', weitere Etappen offen' : ''}`);
                 button.classList.toggle('hidden', Boolean(worldId));
                 regions.get(world.id).classList.toggle('hidden', Boolean(worldId));
             }

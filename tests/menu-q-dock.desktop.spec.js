@@ -48,6 +48,24 @@ test('session opens the graphic journey directly; planned nodes, settings and ba
     await expect(journey.locator('[data-journey-node]:visible')).toHaveCount(22);
     await expect(journey.locator('[data-journey-players="2"]')).toBeHidden();
     await expect(journey.locator('[data-journey-players="3"]')).toBeHidden();
+    const flightWorld = journey.locator('[data-journey-world="flight_school"]');
+    await expect(flightWorld.locator('.journey-map-progress')).toHaveText('0/7 ★');
+    await expect(flightWorld).toHaveAttribute('aria-label', /0 von 7 Sternen, weitere Etappen offen/);
+    await expect(journey.locator('[data-journey-world="storm_coast"] .journey-map-progress')).toHaveText('Etappen folgen');
+    for (const [width, height] of [[1024, 768], [1280, 800]]) {
+        await page.setViewportSize({ width, height });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        const bounds = await journey.locator('.journey-map').evaluate(map => {
+            const outer = map.getBoundingClientRect(), canvas = map.querySelector('.journey-map-canvas').getBoundingClientRect();
+            return { outerRight: outer.right, canvasRight: canvas.right,
+                nodeRight: Math.max(...Array.from(map.querySelectorAll('.journey-map-node')).filter(node => node.getClientRects().length)
+                    .map(node => node.getBoundingClientRect().right)) };
+        });
+        expect(bounds.canvasRight, `map canvas stays inside its column at ${width}px`).toBeLessThanOrEqual(bounds.outerRight + 1);
+        expect(bounds.nodeRight, `map nodes stay outside the detail panel at ${width}px`).toBeLessThanOrEqual(bounds.outerRight + 1);
+        await expect(flightWorld).toHaveAttribute('aria-label', /0 von 7 Sternen/);
+        await page.screenshot({ path: testInfo.outputPath(`journey-stars-${width}.png`) });
+    }
     await expect(page.locator('#btn-quick-random-map')).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('journey-full-map.png') });
     await page.locator('#btn-arcade-daily-open').click();
@@ -63,9 +81,11 @@ test('session opens the graphic journey directly; planned nodes, settings and ba
     const before = await readRecord();
     await journey.locator('[data-journey-world="flight_school"]').click();
     await expect(journey.locator('[data-journey-node="first_flight"]')).toBeFocused();
+    await expect(journey.locator('[data-journey-stage="flight_school"] .arcade-journey-medal')).toHaveText('☆ 0/1 Sterne');
     await journey.locator('[data-journey-node="gaps_lesson"]').click();
     await expect(journey.locator('[data-journey-stage="gaps_lesson"]')).toBeVisible();
     await expect(journey.locator('[data-journey-start="gaps_lesson"]')).toBeDisabled();
+    await expect(journey.locator('[data-journey-stage="gaps_lesson"] .arcade-journey-medal')).toHaveText('Noch offen');
     const mapBox = await journey.locator('.journey-map').boundingBox();
     const detailBox = await journey.locator('.journey-detail').boundingBox();
     expect(detailBox.x).toBeGreaterThanOrEqual(mapBox.x + mapBox.width);

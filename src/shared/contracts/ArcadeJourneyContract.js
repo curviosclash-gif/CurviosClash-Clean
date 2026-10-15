@@ -33,6 +33,11 @@ const stages = [
 export const ARCADE_JOURNEY_STAGES = Object.freeze(stages.map((stage) => Object.freeze({ maxPlayers: 3, ...stage })));
 export const getArcadeJourneyStage = (id) => ARCADE_JOURNEY_STAGES.find((stage) => stage.id === id) || null;
 
+export function getArcadeJourneyMaxStars(stageId) {
+    const stage = getArcadeJourneyStage(stageId);
+    return stage ? stage.metric === 'completion' ? 1 : 3 : 0;
+}
+
 /** @param {string} value @param {{runType?: string, portalChainId?: string, dailyChallenge?: boolean}} [context] */
 export function normalizeArcadeJourneyStageId(value, context = {}) {
     const { runType, portalChainId, dailyChallenge } = context;

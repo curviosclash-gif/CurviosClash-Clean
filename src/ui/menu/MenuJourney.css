@@ -52,7 +52,7 @@
     .journey-hub-actions { margin-left: 0; }
 }
 /* The complete route graph remains visible before entering a world. */
-.journey-map-canvas { height: auto; aspect-ratio: 900 / 470; min-height: 420px; }
+.journey-map-canvas { width: 100%; height: auto; aspect-ratio: 900 / 470; min-height: 420px; }
 .journey-map-region { fill: var(--menu-surface); fill-opacity: .65; stroke: var(--menu-line); stroke-width: 1; }
 .journey-map-path { fill: none; stroke: var(--menu-line); stroke-width: 2; stroke-dasharray: 4 5; }
 .journey-map-path.is-complete { stroke: var(--menu-ok); stroke-dasharray: none; }

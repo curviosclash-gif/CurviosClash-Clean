@@ -143,10 +143,45 @@ test('boss previews stay readable and planned nodes do not earn premature world 
         { medals: { normal: { medal: 1, runId: id } } }]));
     view.render({ ...state, progress: { ...state.progress, stages } });
     const world = find('[data-journey-world="flight_school"]');
-    assert.match(world.querySelectorAll('.journey-map-reward')[0].textContent, /überall Bronze/);
+    assert.match(world.querySelectorAll('.journey-map-reward')[0].textContent, /weitere Etappen offen/);
 
     const earnedLegacyStages = Object.fromEntries(['flight_school', 'first_run', 'weapon_race'].map(id => [id,
         { medals: { normal: { medal: 1, runId: `legacy-${id}` } } }]));
     view.render({ ...state, progress: { ...state.progress, stages: earnedLegacyStages } });
     assert.match(find('.journey-legacy-rewards').textContent, /Aufbruch-Abzeichen/);
+});
+
+test('world and detail counts include only reachable stars and distinguish unimplemented stages', () => {
+    const { view, state, find } = setup({ playerCount: 1 });
+    const world = find('[data-journey-world="flight_school"]');
+    assert.equal(world.querySelectorAll('.journey-map-progress')[0].textContent, '0/7 ★');
+    assert.match(world.getAttribute('aria-label'), /0 von 7 Sternen, weitere Etappen offen/);
+    const emptyWorld = find('[data-journey-world="storm_coast"]');
+    assert.equal(emptyWorld.querySelectorAll('.journey-map-progress')[0].textContent, 'Etappen folgen');
+    assert.match(emptyWorld.getAttribute('aria-label'), /Noch keine spielbaren Etappen/);
+    view.openStage('flight_school');
+    assert.equal(find('[data-journey-stage="flight_school"]').querySelectorAll('.arcade-journey-medal')[0].textContent, '☆ 0/1 Sterne');
+    find('[data-journey-node="gaps_lesson"]').click();
+    assert.equal(find('[data-journey-stage="gaps_lesson"]').querySelectorAll('.arcade-journey-medal')[0].textContent, 'Noch offen');
+    const progress = { ...state.progress, stages: {
+        flight_school: { medals: { normal: { medal: 1 } } },
+        first_run: { medals: { normal: { medal: 3 } } },
+        endless_hunt: { medals: { normal: { medal: 3 } } },
+    } };
+    view.render({ ...state, progress });
+    assert.equal(world.querySelectorAll('.journey-map-progress')[0].textContent, '7/7 ★');
+    assert.match(world.querySelectorAll('.journey-map-reward')[0].textContent, /weitere Etappen offen/);
+    assert.doesNotMatch(world.querySelectorAll('.journey-map-reward')[0].textContent, /verdient/);
+});
+
+test('historical medals remain visible without impossible fractions or changes to saved progress', () => {
+    const progress = { schema: ARCADE_JOURNEY_SCHEMA, stages: {
+        flight_school: { medals: { normal: { medal: 3, runId: 'historical' } } },
+    } };
+    const before = structuredClone(progress);
+    const { view, find } = setup({ playerCount: 1, progress });
+    view.openStage('flight_school');
+    assert.equal(find('[data-journey-stage="flight_school"]').querySelectorAll('.arcade-journey-medal')[0].textContent, '★★★ 3/3 Sterne');
+    assert.equal(find('[data-journey-world="flight_school"]').querySelectorAll('.journey-map-progress')[0].textContent, '3/9 ★');
+    assert.deepEqual(progress, before);
 });
