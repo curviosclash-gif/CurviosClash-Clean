@@ -1,4 +1,5 @@
 import { createArcadeRoundStateController } from '../../state/arcade/ArcadeRoundStateController.js';
+import { completeClassicTutorialJourney, projectArcadeJourneyResult, retryPendingArcadeJourney } from './ArcadeJourneyRuntimeOps.js';
 import { resolveArcadeSectorRuntimeProfile } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { resolveMapSequence } from '../../state/arcade/ArcadeMapProgression.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
@@ -212,7 +213,9 @@ export class GameRuntimeArcadeSupport {
             parcoursSystem.setLeaderboardCallback(
                 weaponRace ? (data) => handleWeaponRaceLeaderboard(this, runtimeState, data)
                     : fivePortals ? (data) => this.fivePortalsRuntime.handleParcoursEvent(data)
-                    : (data) => this.arcadeRunRuntime.applyParcoursLeaderboardEvent(data)
+                    : (data) => {
+                        if (!completeClassicTutorialJourney(this, runtimeState, data)) this.arcadeRunRuntime.applyParcoursLeaderboardEvent(data);
+                    }
             );
         }
         parcoursSystem?.setAttemptResetCallback?.(fivePortals ? () => this.fivePortalsRuntime.handleAttemptReset() : null);
@@ -416,10 +419,12 @@ export class GameRuntimeArcadeSupport {
         const store = this.demolitionSupport.isActive()
             ? this.demolitionSupport.runtime.playerBindings.get(0)?.store
             : this.arcadeRunRuntime._resolveSettingsRecordStore();
-        return resolveArcadePostMatchProgression(
+        const progression = resolveArcadePostMatchProgression(
             store,
             this.getRunState(),
         );
+        const journey = projectArcadeJourneyResult(this);
+        return progression && journey ? { ...progression, journey } : progression;
     }
 
     /** The running match only: outside an Arcade run no surface state is built (no per-frame allocation). */
@@ -428,6 +433,14 @@ export class GameRuntimeArcadeSupport {
     }
 
     getMenuSurfaceState() {
+        const state = this._getMenuSurfaceStateBase();
+        const journey = projectArcadeJourneyResult(this);
+        return journey?.stageId === 'flight_school' && journey.result
+            ? { runType: 'classic_tutorial', phase: 'finished', vehicleXpEarned: 0, journey }
+            : state && journey ? { ...state, journey } : state;
+    }
+
+    _getMenuSurfaceStateBase() {
         if (this.demolitionSupport.isActive()) return this.demolitionSupport.getState();
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.getHudState();
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
@@ -477,6 +490,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     tickPendingArcadeRewards() {
+        retryPendingArcadeJourney(this);
         if (!this.weaponRaceRuntime.hasPendingSettlement?.()) return false;
         return this.weaponRaceRuntime.maintainPendingSettlements?.() || false;
     }

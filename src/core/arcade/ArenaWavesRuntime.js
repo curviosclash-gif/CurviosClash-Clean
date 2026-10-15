@@ -258,7 +258,14 @@ export class ArenaWavesRuntime {
         this._openChoices('death');
     }
     _closeMapStats() { this.mapStats[this.mapIndex] = { mapKey: resolveArenaWavesMap(this.mapIndex), score: this.score, survivalSeconds: this.survivalSeconds, regularKills: this.regularKills, eliteKills: this.eliteKills, fastClearSeconds: this.fastClearSeconds, completedWaves: [...this.completedWaves] }; }
-    _finalize() { this._closeMapStats(); this.phase = 'finished'; const total = this.totalScore; this._records = { version: RECORD_VERSION, lastTotal: total, bestTotal: Math.max(total, safe(this._records.bestTotal)) }; saveRecords(this._getRecordStore?.(), this._records); this.ranking = settleArcadeRunRanking(this, { total, lastCompletedWave: Math.max(0, ...this.completedWaves, ...this.mapStats.flatMap((stat) => stat.completedWaves || [])) }); }
+    _finalize() {
+        this._closeMapStats(); this.phase = 'finished';
+        const total = this.totalScore;
+        this._records = { version: RECORD_VERSION, lastTotal: total, bestTotal: Math.max(total, safe(this._records.bestTotal)) };
+        saveRecords(this._getRecordStore?.(), this._records);
+        this.ranking = settleArcadeRunRanking(this, { total, lastCompletedWave: Math.max(0, ...this.completedWaves, ...this.mapStats.flatMap((stat) => stat.completedWaves || [])) });
+        this._onJourneyCompleted?.({ succeeded: this.mapStats.length === ARENA_WAVES_MAPS.length, value: total });
+    }
     update(dt) {
         if (this.phase === 'idle' || this.phase === 'finished') return;
         const human = this._human();

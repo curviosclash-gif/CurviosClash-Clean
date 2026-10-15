@@ -509,6 +509,12 @@ export class MenuNavigationRuntime {
         }
 
         const visiblePanel = this._getVisiblePanelElement();
+        const journeyBack = this.ui.arcadeJourneyBackButton;
+        if (journeyBack && visiblePanel?.contains?.(journeyBack) && !journeyBack.classList.contains('hidden')
+            && !journeyBack.closest?.('.hidden')) {
+            journeyBack.click();
+            return true;
+        }
         const backButton = visiblePanel?.querySelector?.('[data-back]');
         const backTargetId = normalizeId(backButton?.dataset?.backTarget);
         if (backTargetId) {

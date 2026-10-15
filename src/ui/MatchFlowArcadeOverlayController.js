@@ -1,3 +1,4 @@
+import { renderArcadeJourneyResult, requestArcadeJourneyResultAction } from './arcade/ArcadeJourneyResultView.js';
 import {
     ARCADE_RESULT_TEXTS,
     formatIntermissionTitle,
@@ -85,6 +86,7 @@ export class MatchFlowArcadeOverlayController {
     }
 
     clearArcadeOverlayPanel() {
+        this.game?.ui?.messageOverlay?.classList?.remove?.('has-journey-result');
         this.game?.ui?.messageOverlay?.classList?.remove?.('has-arcade-results');
         this._renderKey = null;
         this._cancelArcadeXpAnimation();
@@ -498,8 +500,10 @@ export class MatchFlowArcadeOverlayController {
         const arenaFinished = runtimeState?.runType === 'arena_waves' && !!runtimeState?.postRunSummary;
         const fivePortalsFinished = runtimeState?.runType === 'five_portals' && !!runtimeState?.postRunSummary;
         const demolitionFinished = runtimeState?.runType === 'demolition' && !!runtimeState?.postRunSummary;
-        if (arenaUpgrade || arenaFinished || fivePortalsFinished || demolitionFinished) game?.ui?.messageOverlay?.classList?.remove?.('hidden');
-        if (!arcadeActive || (!overlayVisible && !arenaUpgrade && !arenaFinished && !fivePortalsFinished && !demolitionFinished)) {
+        const journeyFinished = !!runtimeState?.journey?.result;
+        game?.ui?.messageOverlay?.classList?.toggle?.('has-journey-result', journeyFinished);
+        if (arenaUpgrade || arenaFinished || fivePortalsFinished || demolitionFinished || journeyFinished) game?.ui?.messageOverlay?.classList?.remove?.('hidden');
+        if ((!arcadeActive && !journeyFinished) || (!overlayVisible && !arenaUpgrade && !arenaFinished && !fivePortalsFinished && !demolitionFinished && !journeyFinished)) {
             this.clearArcadeOverlayPanel();
             return;
         }
@@ -527,6 +531,8 @@ export class MatchFlowArcadeOverlayController {
 
     _renderArcadePanelForState(runtimeState) {
         const game = this.game;
+        if (runtimeState?.journey?.result && renderArcadeJourneyResult(this._ensureArcadeOverlayPanel(), runtimeState,
+            (action, stageId) => requestArcadeJourneyResultAction(this, action, stageId))) return true;
         const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
         if (this._renderDemolitionPostRunPanel(runtimeState)) return true;
         if (this._renderFivePortalsPostRunPanel(runtimeState)) return true;

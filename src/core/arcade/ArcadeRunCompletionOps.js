@@ -125,6 +125,8 @@ export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
     };
     const finalizedRunId = String(summary.runId || '');
     postRunSummary.ranking = settleArcadeRunRanking(runtime, summary, nowMs);
+    postRunSummary.journey = runtime._onJourneyCompleted?.({ succeeded: summary.succeeded,
+        value: summary.score, aborted: summary.aborted }) || null;
     runtime._scheduleRecordsSave(runtime._records, () => {
         if (String(runtime._state?.runId || '') !== finalizedRunId) return;
         runtime._state.persistedAtIso = summary.finishedAtIso;

@@ -141,6 +141,7 @@ export function finalizeEndlessRun(runtime, reason, options = {}) {
         runtime._summary.persistence = { ...runtime._lastPersistenceResult };
         runtime._summary.ranking = settleArcadeRunRanking(runtime, runtime._summary);
     }
+    runtime._onJourneyCompleted?.({ value: runtime._summary.score, aborted: !shouldPersist });
     if (options.requestRoundEnd !== false) {
         runtime.entityManager?.requestRoundEnd?.({
             winner: null,

@@ -1,0 +1,19 @@
+.arcade-journey { padding: 1rem; border: 1px solid var(--menu-line); border-radius: .75rem; background: var(--menu-surface); }
+.arcade-journey-worlds, .arcade-journey-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .75rem; margin-top: .75rem; }
+.arcade-journey-world { display: flex; flex-direction: column; gap: .6rem; min-height: 7rem; text-align: left; white-space: normal; }
+.arcade-journey-stage { display: flex; flex-direction: column; gap: .5rem; padding: .9rem; border: 1px solid var(--menu-line); border-radius: .5rem; background: var(--menu-surface-2); }
+.arcade-journey-stage h4 { margin: 0; color: var(--menu-text); font-size: 1.1rem; }
+.arcade-journey-stage .start-btn { margin-top: auto; }
+.arcade-journey-stage.is-recommended { border-width: 2px; border-color: var(--menu-accent); }
+.arcade-journey-medal { color: var(--menu-text); }
+.arcade-journey .hidden { display: none; }
+.arcade-journey-rank-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.arcade-journey-rank-tabs [aria-pressed="true"] { outline: 2px solid var(--menu-focus); outline-offset: 2px; }
+.arcade-journey-board { min-height: 2rem; padding-left: 1.5rem; }
+.has-journey-result #message-actions { display: none; }
+.arcade-journey-result-medal { color: var(--menu-text); font-size: 1.5rem; font-weight: 700; }
+
+#main-menu .arcade-journey-rank-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#main-menu .arcade-journey-rank-tabs .secondary-btn { min-width: 0; width: auto; white-space: normal; }
+.has-journey-result [data-journey-action] { min-height: 44px; min-width: 10rem; margin: .25rem .5rem .25rem 0; padding: .5rem .75rem; font: inherit; }
+.has-journey-result [data-journey-action]:focus-visible { outline: 3px solid var(--menu-focus, #fff); outline-offset: 2px; }

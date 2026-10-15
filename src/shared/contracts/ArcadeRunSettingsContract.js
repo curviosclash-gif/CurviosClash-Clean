@@ -1,4 +1,5 @@
 import { normalizeArcadeCompanionCount } from './ArcadeCompanionContract.js';
+import { normalizeArcadeJourneyStageId } from './ArcadeJourneyContract.js';
 import {
     ENDLESS_PARCOURS_COMBAT_PROFILE,
     ENDLESS_PARCOURS_RUN_TYPE,
@@ -58,6 +59,7 @@ const DEFAULTS = Object.freeze({
     // Which fixed map chain a "five_portals" run plays (Fünf Portale, Himmelsleiter, ...).
     // Only meaningful when runType is FIVE_PORTALS_RUN_TYPE; ignored otherwise.
     portalChainId: DEFAULT_PORTAL_CHAIN_ID,
+    journeyStageId: '',
     // Which Jagdparcours variant a "hunt_parcours" run plays; '' for every other run type.
     huntParcoursVariantId: '',
     demolitionProfileIds: Object.freeze(['', '', '']),
@@ -69,7 +71,7 @@ const DEFAULTS = Object.freeze({
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
  * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
- * dailyChallenge: boolean, nightmare: boolean, difficultyTierId: string, portalChainId: string, huntParcoursVariantId: string,
+ * dailyChallenge: boolean, nightmare: boolean, difficultyTierId: string, portalChainId: string, journeyStageId: string, huntParcoursVariantId: string,
  * demolitionProfileIds?: readonly string[], playerProfileIds?: readonly string[], companionCount: number }} ArcadeRunSettings */
 
 function clampNumber(value, range, fallback) {
@@ -163,6 +165,9 @@ export function normalizeArcadeRunSettings(
         nightmare: input.nightmare === true,
         difficultyTierId: ['normal', 'hard', 'nightmare'].includes(input.difficultyTierId) ? input.difficultyTierId : 'normal',
         portalChainId: normalizePortalChainId(input.portalChainId),
+        journeyStageId: normalizeArcadeJourneyStageId(input.journeyStageId, {
+            runType, portalChainId: normalizePortalChainId(input.portalChainId), dailyChallenge: input.dailyChallenge,
+        }),
         huntParcoursVariantId: normalizeArcadeHuntParcoursVariantId(runType, input.huntParcoursVariantId),
         demolitionProfileIds: normalizeDemolitionProfileIds(demolitionProfileIds),
         playerProfileIds: normalizeDemolitionProfileIds(playerProfileIds),

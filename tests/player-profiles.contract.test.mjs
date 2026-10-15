@@ -52,6 +52,7 @@ function createManager(store, ids = createIds()) {
 }
 
 const SPECIAL_RECORD_KEYS = [
+    'cuviosclash.arcade-journey.v1',
     'curviosclash.five-portals-records.v1',
     'curviosclash.sky-ladder-records.v1',
     'curviosclash.arena-waves-records.v1',

@@ -51,6 +51,8 @@ const UNCHANGED_LEAF_PATHS = Object.freeze([
     'arcade.demolitionProfileIds',
     // The hunt-parcours variant is only consumed when that run type is active.
     'arcade.huntParcoursVariantId',
+    // Daily=true in this sweep deliberately clears any journey selection; coupled cases below test it.
+    'arcade.journeyStageId',
     'arcade.playerProfileIds',
     // The arcade contract always rewrites the score model to the current one.
     'arcade.scoreModel',
@@ -431,4 +433,17 @@ test('SettingsManager sanitize is stable when it runs twice on its own output', 
     const twice = manager.sanitizeSettings(once);
 
     assert.deepEqual(twice, once);
+});
+
+
+test('journey selection survives only a matching non-Daily run through real settings save/load', () => {
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+    const settings = manager.createDefaultSettings();
+    Object.assign(settings.arcade, { runType: 'five_portals', portalChainId: 'sky_ladder', journeyStageId: 'sky_ladder', dailyChallenge: false });
+    assert.equal(manager.saveSettings(settings).success, true);
+    assert.equal(manager.loadSettings().arcade.journeyStageId, 'sky_ladder');
+    settings.arcade.dailyChallenge = true;
+    assert.equal(manager.sanitizeSettings(settings).arcade.journeyStageId, '');
+    settings.arcade.dailyChallenge = false; settings.arcade.runType = 'gauntlet';
+    assert.equal(manager.sanitizeSettings(settings).arcade.journeyStageId, '');
 });

@@ -65,3 +65,21 @@ test('the arcade run buttons borrow map and bots instead of writing them into th
     const handlers = readFileSync(new URL('../src/core/runtime/menu-handlers/SessionMenuEventHandlers.js', import.meta.url), 'utf8');
     assert.match(handlers, /START_MATCH, \(event\) => startMatchWithBorrowedSettings\(facade, event\?\.borrowedSettings\)/);
 });
+
+test('journey score rules last only for the match and a failed journey start restores them immediately', async () => {
+    for (const startResult of [true, false]) {
+        const { facade } = createFacade({ startResult });
+        facade.game.settings.arcade = { runType: 'gauntlet', sectorCount: 17, maxMultiplier: 13,
+            comboWindowMs: 6000, comboDecayPerSecond: 2, companionCount: 2, difficultyTierId: 'hard' };
+        const before = structuredClone(facade.game.settings);
+        await startMatchWithBorrowedSettings(facade, { journeyStageId: 'first_run' });
+        if (startResult) {
+            assert.equal(facade.game.settings.arcade.journeyStageId, 'first_run');
+            assert.equal(facade.game.settings.arcade.sectorCount, 5);
+            assert.equal(facade.game.settings.arcade.companionCount, 0);
+            assert.equal(facade.game.settings.arcade.difficultyTierId, 'hard');
+            facade.settingsHandler.restoreSessionSettings();
+        }
+        assert.deepEqual(facade.game.settings, before);
+    }
+});

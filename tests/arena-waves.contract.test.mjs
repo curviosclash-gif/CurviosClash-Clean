@@ -141,3 +141,26 @@ test('forced reset disposes an active arena run after config removal, but preser
     support.resetRunState(); assert.equal(support.arenaWavesRuntime.phase, 'countdown');
     support.resetRunState({ force: true }); assert.equal(support.arenaWavesRuntime.phase, 'idle');
 });
+
+
+test('journey completion is emitted only after the fifth arena ends, never after an intermediate death', () => {
+    const f = fixture();
+    const runtime = new ArenaWavesRuntime();
+    const results = [];
+    runtime.start({ entityManager: f.manager });
+    runtime._onJourneyCompleted = result => results.push(result);
+    for (let index = 0; index < 5; index++) {
+        f.human.alive = false;
+        runtime.update(1);
+        if (index < 4) {
+            assert.equal(results.length, 0);
+            runtime.selectChoice(runtime.getHudState().choices[0]);
+            f.human.alive = true;
+            runtime.start({ entityManager: f.manager });
+        }
+    }
+    assert.equal(runtime.phase, 'finished');
+    assert.deepEqual(results, [{ succeeded: true, value: runtime.totalScore }]);
+    runtime.update(100);
+    assert.equal(results.length, 1);
+});

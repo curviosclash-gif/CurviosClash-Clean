@@ -1,4 +1,5 @@
 import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../../shared/contracts/PlayerDisplayLabelContract.js';
+import { prepareArcadeJourneyRuntime } from './ArcadeJourneyRuntimeOps.js';
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTargetMarkerOps.js';
 import { doesArcadeObjectiveHoldRound } from '../../state/arcade/ArcadeObjectiveState.js';
@@ -74,6 +75,7 @@ export function bindLocalArcadeProfilesAndApplyCosmetics(support, runtimeState, 
     }
     const playerBuildBonuses = applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
     prepareArcadeRunRanking(support, runtimeState, runtimeConfig, runActive, playerBuildBonuses);
+    prepareArcadeJourneyRuntime(support, runtimeState, runActive);
     return { playerBuildBonuses };
 }
 

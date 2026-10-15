@@ -1,3 +1,4 @@
+import { createArcadeJourneyBriefing } from './arcade/ArcadeJourneyBriefing.js';
 import { createLogger } from '../shared/logging/Logger.js';
 import { SessionRuntimeCommandExecutor } from '../application/session-runtime/SessionRuntimeCommandExecutor.js';
 import { prewarmMatchArenaSession } from '../state/MatchSessionFactory.js';
@@ -250,6 +251,7 @@ export class GameRuntimeFacade {
         const getMediaRecorder = () => this.getRuntimeHandle('mediaRecorderSystem');
         return Object.freeze({
             getArcadeMenuSurfaceState: () => this.getArcadeMenuSurfaceState(),
+            getArcadeJourneyBriefing: (seed, tierId) => createArcadeJourneyBriefing(seed, tierId),
             getArcadeRunPrimaryPlayerProfileId: () => this._arcadeSupport.demolitionSupport.isActive()
                 ? this._arcadeSupport.demolitionSupport.runtime.playerBindings.get(0)?.profileId || ''
                 : this.arcadeRunRuntime?._primaryPlayerProfileId || '',

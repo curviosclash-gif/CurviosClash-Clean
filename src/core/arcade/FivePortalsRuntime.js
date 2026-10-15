@@ -108,6 +108,7 @@ export class FivePortalsRuntime {
             };
             this._getRecordStore()?.saveJsonRecord?.(this.chain.recordKey, this.records);
             this.ranking = settleArcadeRunRanking(this, { succeeded: true, totalMs: total });
+            this._onJourneyCompleted?.({ succeeded: true, value: total });
             return this.getHudState();
         }
         this.mapIndex += 1;

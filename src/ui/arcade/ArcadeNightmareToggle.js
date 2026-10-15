@@ -30,16 +30,16 @@ export function bindArcadeNightmareToggle(input, settings, bind, onChange) {
     });
 }
 
-export function syncArcadeNightmareToggle(input, settings, store = null) {
+export function syncArcadeNightmareToggle(input, settings, store = null, { journeyHub = false } = {}) {
     if (!input) return;
     const progress = loadArcadeDifficultyProgress(store).progress;
     const exceptions = settings?.arcade?.dailyChallenge === true || ['five_portals', 'weapon_race', 'demolition', 'hangar_test'].includes(settings?.arcade?.runType);
-    input.disabled = exceptions;
+    input.disabled = !journeyHub && exceptions;
     for (const option of input.options) {
         const tier = ARCADE_DIFFICULTY_TIERS.find((item) => item.id === option.value);
         option.disabled = !progress.unlockedTierIds.includes(option.value);
         option.textContent = `${tier?.label || option.value}${option.disabled ? ' · gesperrt' : ''}`;
     }
-    input.value = resolveArcadeRunTier(settings?.arcade?.difficultyTierId, progress, { runType: settings?.arcade?.runType || 'gauntlet', dailyChallenge: settings?.arcade?.dailyChallenge });
+    input.value = resolveArcadeRunTier(settings?.arcade?.difficultyTierId, progress, { runType: journeyHub ? 'gauntlet' : settings?.arcade?.runType || 'gauntlet', dailyChallenge: !journeyHub && settings?.arcade?.dailyChallenge });
     input.title = 'Hart/Albtraum: Auf der vorigen Stufe 5 Sektoren gewinnen, Welle 8 in Fünf Fronten oder 5 Endlos-Wellen abschließen.';
 }

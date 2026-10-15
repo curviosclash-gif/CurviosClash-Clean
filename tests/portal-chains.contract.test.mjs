@@ -67,6 +67,8 @@ test('Himmelsleiter runs the same runType through its own four-map chain and its
         requestMapTransition: (transition) => transitions.push(transition),
         requestAdvance: () => {},
     });
+    const journeyResults = [];
+    runtime._onJourneyCompleted = result => journeyResults.push(result);
     const started = runtime.start(manager, { vehicleId: 'ship1', chainId: 'sky_ladder' });
     assert.equal(started.runType, 'five_portals', 'the runType stays five_portals for every chain');
     assert.equal(started.mapCount, 4);
@@ -76,6 +78,7 @@ test('Himmelsleiter runs the same runType through its own four-map chain and its
         manager._simulationClockMs = clock + (index + 1) * 1000;
         runtime.handleParcoursEvent({ type: 'finish', playerIndex: 0, totalTimeMs: (index + 1) * 1000 });
         runtime.handleGameplayEvent({ type: 'exit_portal', playerIndex: 0 });
+        assert.equal(journeyResults.length, index === 3 ? 1 : 0, 'only the final exit settles the journey');
         if (index < 3) {
             assert.equal(transitions[index].mapKey, SKY_LADDER_MAP_KEYS[index + 1], `after map ${index} the next requested map is the chain's own map`);
             runtime.start(manager, { vehicleId: 'ship1', chainId: 'sky_ladder' });
@@ -85,6 +88,9 @@ test('Himmelsleiter runs the same runType through its own four-map chain and its
     const finished = runtime.getHudState();
     assert.equal(finished.phase, 'finished');
     assert.equal(finished.mapCount, 4);
+    assert.deepEqual(journeyResults, [{ succeeded: true, value: 10000 }]);
+    runtime.handleGameplayEvent({ type: 'exit_portal', playerIndex: 0 });
+    assert.equal(journeyResults.length, 1, 'a repeated portal event cannot award twice');
     assert.equal(saves.length, 1);
     assert.equal(saves[0].key, 'curviosclash.sky-ladder-records.v1', 'Himmelsleiter records go under their own key, never the Fünf-Portale key');
     assert.equal(saves[0].value.version, 'sky-ladder-records.v1');

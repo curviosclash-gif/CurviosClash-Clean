@@ -505,6 +505,7 @@ export class WeaponRaceRuntime {
                 completedAtMs: this.state.firstFinishAtMs,
             },
         };
+        this._onJourneyCompleted?.({ succeeded: winnerRacer?.isHuman === true, value: 1 });
         if (winnerRacer?.isHuman === true) this._refreshOutcomeRewardStatus(winnerRacer);
         else {
             this.roundOutcome.pendingRewardCount = this.pendingCheckpointRewards.length + this.pendingGameplayRewards.length;

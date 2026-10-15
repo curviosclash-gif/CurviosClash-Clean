@@ -10,6 +10,7 @@ import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence
 
 import { renderArcadeDailyMenuState } from './ArcadeDailyMenuView.js';
 import { buildArcadeSurface } from './ArcadeMenuSurfaceDom.js';
+import { prepareArcadeJourneyMenuStart, syncArcadeJourneyMenu } from './ArcadeJourneyMenuOps.js';
 import {
     ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
     summarizeEndlessRecordsLine,
@@ -217,6 +218,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const records = (runProfileId === activeProfileId && runtimeState?.records)
             || profileRecords?.records || runtimeState?.records || null;
         const legacyRecords = profileRecords ? profileRecords.legacyRecords : runtimeState?.legacyRecords;
+        syncArcadeJourneyMenu(refs.journey, runtimeAccess, settings, primaryProfile(), records, activeSeed);
         const daily = runtimeState?.daily || profileRecords?.daily || null;
         const replayState = runtimeState?.replay && typeof runtimeState.replay === 'object' ? runtimeState.replay : null;
         const postRunSummary = runtimeState?.postRunSummary && typeof runtimeState.postRunSummary === 'object'
@@ -331,6 +333,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         if (!validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess)) return;
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         settings.arcade.runType = 'gauntlet';
+        settings.arcade.journeyStageId = '';
         settings.arcade.combatProfile = '';
         const prepared = prepareHangarRunStart();
         if (prepared?.ok === false) return;
@@ -345,7 +348,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
         if (runType !== 'demolition' && !validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount })) return;
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         settings.arcade.runType = runType;
-        settings.arcade.combatProfile = 'hunt';
+        settings.arcade.journeyStageId = '';
+        settings.arcade.combatProfile = runType === 'gauntlet' ? '' : 'hunt';
         if (runType === 'five_portals') settings.arcade.portalChainId = portalChainId || 'five_portals';
         settings.gameMode = 'ARCADE';
         if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
@@ -367,6 +371,16 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     refs.refreshDemolitionMedalLine = bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, () => activeSeed, arcadeProfiles, runtimeAccess) || (() => {});
+    refs.journey.bind(bind, (stage) => {
+        if (!prepareArcadeJourneyMenuStart(stage.id, settings, runtimeAccess)) return;
+        if (!validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess)) return;
+        applySeedToSettings(activeSeed, { dailyChallenge: false });
+        const prepared = prepareHangarRunStart();
+        if (prepared?.ok === false) return;
+        lastRunSnapshot = createArcadeRunSnapshot({ ...settings, mapKey: stage.mapKey, numBots: stage.botCount }, activeSeed, prepared?.build);
+        saveLastRunSnapshot(lastRunSnapshot, runtimeAccess?.getSettingsStore?.());
+        emit(eventTypes.START_MATCH, { borrowedSettings: { journeyStageId: stage.id } });
+    }, () => refs.openHangarButton.click());
 
     bind(refs.openHangarButton, 'click', async () => {
         const profileId = primaryProfile()?.id || '';
@@ -458,6 +472,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         () => validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount: 1 }), () => {
             if (!settings.arcade) settings.arcade = {};
             settings.arcade.dailyChallenge = true;
+            settings.arcade.journeyStageId = '';
             recordRunStart(null);
             emit(eventTypes.START_MATCH);
         });
@@ -470,6 +485,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     bindValidatedArcadeStartCapture(bind, ui.startButton, () => shouldShowArcade(settings),
         () => validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess), (event) => {
             releaseButtonOnlyArcadeRun(settings);
+            settings.arcade.journeyStageId = '';
             applySeedToSettings(activeSeed, { dailyChallenge: false });
             const prepared = prepareHangarRunStart();
             if (prepared?.ok === false) { event.preventDefault(); event.stopImmediatePropagation(); return; }
@@ -505,6 +521,10 @@ export function setupArcadeMenuSurface(ctx = {}) {
     });
 
     bindArcadeRunOptionToggles(refs, settings, bind, sync);
+    ui.arcadeJourneyOpenStage = (stageId) => {
+        emit(eventTypes.MODE_PATH_CHANGE, { modePath: 'arcade' });
+        sync(); refs.details.open = true; refs.journey.openStage(stageId);
+    };
     const syncOnMenuReturn = () => { testFlightMenu.onMenuReturn(); syncOnInteraction(); };
     observeMenuReturn(level3Body.closest?.('#main-menu'), syncOnMenuReturn);
     sync();

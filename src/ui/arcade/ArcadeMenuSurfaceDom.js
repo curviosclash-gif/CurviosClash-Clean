@@ -3,6 +3,7 @@ import { createHangarWindowLauncher } from '../hangar/HangarWindowMenuBridge.js'
 import { createArcadeDailyMenuCard } from './ArcadeDailyMenuView.js';
 import { createArcadeLeaderboardMenuCard } from './ArcadeLeaderboardMenuView.js';
 import { createArcadeRunOptionToggles } from './ArcadeRunOptionToggles.js';
+import { createArcadeJourneyMenuView } from './ArcadeJourneyMenuView.js';
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
@@ -45,12 +46,17 @@ export function buildArcadeSurface(level3Body, ui) {
         'p', 'menu-hint arcade-start-group-intro',
         'Starte den empfohlenen Arcade Run oder wähle eine tägliche beziehungsweise spezielle Herausforderung.'
     ));
+    // The global tier stays at the hub head above both journey zoom levels.
+    const runOptions = createArcadeRunOptionToggles();
+    startGroup.append(...runOptions.labels);
+    const journey = createArcadeJourneyMenuView(createElement);
+    startGroup.appendChild(journey.element);
+    ui.arcadeJourneyBackButton = journey.back;
+    ui.arcadeJourneyOpenStage = journey.openStage;
+    ui.arcadeJourneyStartButtons = journey.startButtons;
     const runLine = createElement('p', 'menu-hint arcade-run-line');
     runLine.id = 'arcade-run-line';
     startGroup.appendChild(runLine);
-    // "Albtraum" and the companions only shape the arcade run, so they sit with the starts they affect.
-    const runOptions = createArcadeRunOptionToggles();
-    startGroup.append(...runOptions.labels);
     const createStartOption = (parent, id, label, copy, extraClass = '') => {
         const option = createElement('div', `arcade-start-option${extraClass ? ` ${extraClass}` : ''}`);
         const button = createElement('button', 'start-btn', label);
@@ -189,6 +195,7 @@ export function buildArcadeSurface(level3Body, ui) {
     advancedBody.appendChild(endlessCard);
 
     const { card: hangarLaunchCard, button: openHangarButton } = createHangarWindowLauncher(createElement);
+    ui.arcadeJourneyHangarButton = openHangarButton;
     advancedBody.appendChild(hangarLaunchCard);
     advanced.appendChild(advancedBody);
     body.appendChild(advanced);
@@ -218,6 +225,7 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeDailyButton = dailyButton;
 
     return {
+        journey,
         details,
         runLine,
         recordsLine,

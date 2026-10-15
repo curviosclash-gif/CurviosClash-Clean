@@ -225,6 +225,8 @@ export class DemolitionRuntime {
         this._saveBestMedal(profile?.mapKey, medal, score.total);
         if (this.mapIndex >= this.plan.maps.length - 1) {
             this.phase = 'finished';
+            const weakestMedal = Math.min(...this.mapStats.map(stat => ({ bronze: 0.5, silver: 0.7, gold: 0.9 }[stat.medal] || 0)));
+            this._onJourneyCompleted?.({ succeeded: this.mapStats.length === this.plan.maps.length && weakestMedal >= 0.5, value: weakestMedal });
             return;
         }
         this.mapIndex += 1;

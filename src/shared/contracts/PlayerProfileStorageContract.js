@@ -17,6 +17,7 @@ import { FIVE_PORTALS_RECORD_KEY } from './FivePortalsContract.js';
 import { SKY_LADDER_RECORD_KEY } from './PortalChainContract.js';
 import { ENDLESS_PARCOURS_RECORDS_STORAGE_KEY } from './EndlessParcoursRecordsContract.js';
 import { ENDLESS_PARCOURS_SETTLEMENT_STORAGE_KEY } from './EndlessParcoursSettlementContract.js';
+import { ARCADE_JOURNEY_STORAGE_KEY } from './ArcadeJourneyContract.js';
 
 export const PLAYER_PROFILE_REGISTRY_STORAGE_KEY = 'cuviosclash.player-profiles.v1';
 export const PLAYER_PROFILE_MIGRATION_STORAGE_KEY = 'cuviosclash.player-profile-migration.v1';
@@ -50,12 +51,14 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     ARENA_WAVES_RECORDS: 'arenaWavesRecords',
     ENDLESS_PARCOURS_RECORDS: 'endlessParcoursRecords',
     ENDLESS_PARCOURS_SETTLEMENTS: 'endlessParcoursSettlements',
+    ARCADE_JOURNEY: 'arcadeJourney',
 });
 
 // The name a player last used in a multiplayer lobby; each player profile keeps its own.
 export { LOBBY_NAME_STORAGE_KEY };
 
 const RECORD_DEFINITIONS = Object.freeze([
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_JOURNEY, legacyKey: ARCADE_JOURNEY_STORAGE_KEY, suffix: 'arcade-journey.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.FIVE_PORTALS_RECORDS, legacyKey: FIVE_PORTALS_RECORD_KEY, suffix: 'five-portals-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.SKY_LADDER_RECORDS, legacyKey: SKY_LADDER_RECORD_KEY, suffix: 'sky-ladder-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARENA_WAVES_RECORDS, legacyKey: 'curviosclash.arena-waves-records.v1', suffix: 'arena-waves-records.v1' },

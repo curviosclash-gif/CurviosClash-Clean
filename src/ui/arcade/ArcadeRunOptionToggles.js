@@ -14,6 +14,6 @@ export function bindArcadeRunOptionToggles(refs, settings, bind, onChange) {
 }
 
 export function syncArcadeRunOptionToggles(refs, settings, store = null) {
-    syncArcadeNightmareToggle(refs?.nightmareInput, settings, store);
+    syncArcadeNightmareToggle(refs?.nightmareInput, settings, store, { journeyHub: Boolean(refs?.journey) });
     syncArcadeCompanionToggle(refs?.companionInput, settings);
 }

@@ -7,6 +7,8 @@
 
 import { createSessionSettingsRestorePlan } from './SessionSettingsRestorePlan.js';
 import { writeHangarMapSelection } from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { getArcadeJourneyStage } from '../../shared/contracts/ArcadeJourneyContract.js';
+import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
 function cloneJsonSnapshot(value) {
     try {
@@ -19,6 +21,9 @@ function cloneJsonSnapshot(value) {
 export function normalizeBorrowedMatchSettings(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
     if (source.tutorial === true) return { tutorial: true };
+    const journeyStage = getArcadeJourneyStage(source.journeyStageId);
+    if (journeyStage?.runType === 'classic_tutorial') return { tutorial: true };
+    if (journeyStage) return { journeyStageId: journeyStage.id };
     const borrowed = {};
     const mapKey = typeof source.mapKey === 'string' ? source.mapKey.trim() : '';
     if (mapKey) borrowed.mapKey = mapKey;
@@ -42,12 +47,24 @@ export async function startMatchWithBorrowedSettings(facade, rawBorrowed = null)
         settings.mode = '1p';
         settings.gameMode = 'CLASSIC';
         settings.numBots = 0;
+        settings.winsNeeded = 1;
         settings.localSettings = {
             ...settings.localSettings,
             sessionType: 'single',
             modePath: 'normal',
         };
         writeHangarMapSelection(settings, 'tutorial_classic', 'tutorial_classic', { modePath: 'normal' });
+    } else if (borrowed.journeyStageId) {
+        const stage = getArcadeJourneyStage(borrowed.journeyStageId);
+        const defaults = createDefaultArcadeRunSettings();
+        settings.arcade = { ...settings.arcade, runType: stage.runType, journeyStageId: stage.id,
+            combatProfile: stage.runType === 'gauntlet' ? '' : 'hunt', dailyChallenge: false, companionCount: 0,
+            portalChainId: stage.portalChainId || defaults.portalChainId };
+        for (const key of ['sectorCount', 'comboWindowMs', 'comboDecayPerSecond', 'maxMultiplier']) settings.arcade[key] = defaults[key];
+        settings.gameMode = 'ARCADE';
+        settings.localSettings = { ...settings.localSettings, modePath: 'arcade' };
+        settings.numBots = stage.botCount;
+        writeHangarMapSelection(settings, stage.mapKey, stage.mapKey, { modePath: 'arcade' });
     } else {
         Object.assign(settings, borrowed);
     }

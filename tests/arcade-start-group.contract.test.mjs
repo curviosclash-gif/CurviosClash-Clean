@@ -119,3 +119,12 @@ test('leaderboard keeps accessible table and top-ten toggle hooks', () => {
     const caption = surface.leaderboardList.parentElement.children.find((child) => child.tagName === 'CAPTION');
     assert.match(caption.textContent, /inklusive Strafen/);
 });
+
+
+test('global tier control precedes the journey worlds in the Arcade hub', () => {
+    const { surface, body } = build();
+    const group = body.children[0];
+    const journeyIndex = group.children.indexOf(surface.journey.element);
+    const tierIndex = group.children.indexOf(surface.nightmareInput.parentElement);
+    assert.ok(tierIndex >= 0 && tierIndex < journeyIndex);
+});
