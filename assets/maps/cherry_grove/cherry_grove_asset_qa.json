@@ -13,7 +13,7 @@
           ],
           "flower_count": 11542,
           "file": "akebono_01.glb",
-          "file_bytes": 6654704,
+          "file_bytes": 5968736,
           "objects": 55,
           "triangles": 166112,
           "materials": [
@@ -853,7 +853,7 @@
     "near_triangles": 358206,
     "distance_triangles": 824656,
     "all_visible_triangles": 1182862,
-    "total_render_bytes": 38275412,
+    "total_render_bytes": 37589444,
     "total_collision_bytes": 8588
   }
 }

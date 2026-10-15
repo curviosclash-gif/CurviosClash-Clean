@@ -57,6 +57,10 @@ test.describe('Cherry grove', () => {
         await waitForLoadedGame(page);
         const errors = collectErrors(page);
         await startCherryGrove(page);
+        expect(await page.evaluate(async () => {
+            const module = await WebAssembly.compile(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
+            return module instanceof WebAssembly.Module;
+        }), 'the real desktop CSP allows the bundled model decoder').toBe(true);
 
         await expect.poll(() => page.evaluate((count) => {
             const arena = window.GAME_INSTANCE?.arena;

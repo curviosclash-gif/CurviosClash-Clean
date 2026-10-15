@@ -1,6 +1,8 @@
 """Reimport all Kirschhain GLBs and record bounded asset and variant QA."""
 import json
 import struct
+import subprocess
+import tempfile
 from pathlib import Path
 import bpy
 from mathutils import Vector
@@ -22,7 +24,17 @@ def glb_extras(path):
 
 def roundtrip(path):
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    result = bpy.ops.import_scene.gltf(filepath=str(path))
+    data = path.read_bytes()
+    document = json.loads(data[20:20 + struct.unpack_from('<I', data, 12)[0]])
+    if 'EXT_meshopt_compression' in document.get('extensionsRequired', []):
+        # Blender's importer need not support the delivery codec: reimport the byte-exact model.
+        with tempfile.TemporaryDirectory(prefix='curvios-cherry-glb-') as directory:
+            decoded = Path(directory) / path.name
+            subprocess.run(['node', str(ROOT / 'scripts/compress-cherry-grove-glb.mjs'),
+                            '--decode', str(path), str(decoded)], cwd=ROOT, check=True)
+            result = bpy.ops.import_scene.gltf(filepath=str(decoded))
+    else:
+        result = bpy.ops.import_scene.gltf(filepath=str(path))
     if 'FINISHED' not in result:
         raise RuntimeError(f'GLB reimport failed: {path}')
     objects = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']

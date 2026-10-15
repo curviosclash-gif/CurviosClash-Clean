@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { attachReactorSmoke } from './effects/ReactorSmokeEffect.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { normalizeMapAnimationClock } from '../shared/contracts/MapAnimationClockContract.js';
 import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
@@ -8,7 +9,7 @@ import { normalizeAllowedGLBUrl, normalizeGLBModelRole, resolveGLBColliderMode }
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { computeCollectionPlacement } from './GLBCollectionPlacement.js';
 
-const SHARED_GLB_LOADER = new GLTFLoader();
+const SHARED_GLB_LOADER = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const DEFAULT_GLB_SHADOW_CASTER_BUDGET = 24;
 // Generous next to a healthy load (a few seconds on the UHD 630 for the largest world).
 const DEFAULT_OPTIONAL_PROP_TIMEOUT_MS = 20_000;

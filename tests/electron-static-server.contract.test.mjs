@@ -67,9 +67,10 @@ test('desktop static server CSP allows GLB texture and embedded map fetches', as
         assert.ok(connectTokens.includes('blob:'), `connect-src is missing blob:: ${connectSrc}`);
         assert.ok(connectTokens.includes('data:'), `connect-src is missing data:: ${connectSrc}`);
 
-        // The relaxation stays confined to connect-src.
+        // Runtime pages additionally allow the bundled WASM decoder, without JavaScript eval.
         assert.ok(directives.includes("default-src 'self'"), csp);
-        assert.ok(directives.includes("script-src 'self'"), csp);
+        assert.ok(directives.includes("script-src 'self' 'wasm-unsafe-eval'"), csp);
+        assert.doesNotMatch(csp, /script-src[^;]*'unsafe-eval'/);
         assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/);
         assert.ok(directives.includes("object-src 'none'"), csp);
     } finally {
@@ -102,6 +103,8 @@ test('desktop static server hashes only the exact inline script text for each HT
                 .map((match) => hashSource(match[2]));
 
             assert.doesNotMatch(scriptSrc, /'unsafe-inline'/, `${page}: ${scriptSrc}`);
+            assert.equal(scriptSrc.split(/\s+/).includes("'wasm-unsafe-eval'"), page !== '/empty.html');
+            assert.equal(scriptSrc.split(/\s+/).includes("'unsafe-eval'"), false);
             for (const hash of expectedHashes) assert.ok(scriptSrc.split(/\s+/).includes(hash), `${page}: missing ${hash}`);
             assert.equal(scriptSrc.split(/\s+/).includes(hashSource('window.untrusted = true;')), false);
             assert.match(csp, /style-src 'self' 'unsafe-inline'/);

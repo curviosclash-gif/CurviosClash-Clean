@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // Node collision probes retain the exported meshes, transforms and animation bytes.
 // Only materials are omitted because image decoding needs a browser; desktop tests
@@ -30,6 +31,6 @@ export const geometryOnlyGlbLoader = {
         const parseBuffer = result.byteOffset === 0 && result.byteLength === result.buffer.byteLength
             ? result.buffer
             : result.buffer.slice(result.byteOffset, result.byteOffset + result.byteLength);
-        return new GLTFLoader().parseAsync(parseBuffer, '');
+        return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(parseBuffer, '');
     },
 };

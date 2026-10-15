@@ -61,11 +61,11 @@ function collectInlineScriptHashes(html) {
     return [...hashes];
 }
 
-function createCspHeader(connectSources, html = '') {
+function createCspHeader(connectSources, html = '', runtimePage = false) {
     const inlineScriptHashes = collectInlineScriptHashes(html);
     return [
         "default-src 'self'",
-        `script-src 'self'${inlineScriptHashes.length ? ` ${inlineScriptHashes.join(' ')}` : ''}`,
+        `script-src 'self'${runtimePage ? " 'wasm-unsafe-eval'" : ''}${inlineScriptHashes.length ? ` ${inlineScriptHashes.join(' ')}` : ''}`,
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
         `connect-src ${connectSources.join(' ')}`,
@@ -103,7 +103,9 @@ function createStaticRequestHandler(rootDir) {
             let htmlBuffer = null;
             if (contentType.startsWith('text/html')) {
                 htmlBuffer = readFileSync(filePath);
-                headers['Content-Security-Policy'] = createCspHeader(connectSources, htmlBuffer.toString('utf8'));
+                // Only runtime entry pages need the bundled GLB decoder, never JavaScript eval.
+                const runtimePage = ['index.html', 'hangar.html'].includes(path.relative(rootDir, filePath));
+                headers['Content-Security-Policy'] = createCspHeader(connectSources, htmlBuffer.toString('utf8'), runtimePage);
             }
             res.writeHead(200, headers);
             if (htmlBuffer) {

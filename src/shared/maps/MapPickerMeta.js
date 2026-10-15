@@ -74,7 +74,7 @@ const RAW_META = {
     storm_lighthouse_siege: entry('adventure', 3, MID, ['destructible', 'secretRoom'], 'Sturmleuchtturm: ein Leuchtturm, der in HUNT einstürzt, mit Geheimraum.'),
     storm_dam_siege: entry('adventure', 3, SMALL, ['destructible', 'secretRoom'], 'Sturmdamm: ein Staudamm, der in HUNT bricht, mit Geheimraum.'),
     skyline_siege: entry('adventure', 3, MID, ['destructible'], 'Skyline Belagerung: ein Hochhaus aus drei Segmenten, das in HUNT zerstört werden kann.'),
-    cherry_grove: entry('adventure', 2, MID, [], 'Kirschhain: 640 mal 640 Einheiten mit riesigen Kirschbäumen, zwölf Blumen- und Pflanzenarten und zwei Portalpaaren; Szenario für HUNT.'),
+    cherry_grove: entry('adventure', 2, MID, ['huge'], 'Kirschhain: 640 mal 640 Einheiten mit riesigen Kirschbäumen, zwölf Blumen- und Pflanzenarten und zwei Portalpaaren; Szenario für HUNT.'),
 
     // Parcours
     tutorial_classic: entry('parcours', 1, RACE, ['parcours'], 'Lehrparcours mit 6 Checkpoints für den Einstieg in Classic.'),
