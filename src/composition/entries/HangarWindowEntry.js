@@ -6,6 +6,7 @@ import { registerArcadeLabShipsFromStore } from '../../shared/contracts/ArcadeLa
 import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
 import { createBrowserHangarPagePort } from '../../platform/browser/BrowserHangarPagePort.js';
 import { createBrowserAndroidBackPort } from '../../platform/browser/BrowserAndroidBackPort.js';
+import { resolveHangarPlayerProfileContext } from '../../core/runtime/PlayerProfileRuntimeAccess.js';
 
 const store = new SettingsStore();
 const playerProfileManager = new PlayerProfileManager({ recordStore: Object.freeze({
@@ -15,11 +16,15 @@ const playerProfileManager = new PlayerProfileManager({ recordStore: Object.free
     removeJsonRecord: (key) => store.removeJsonRecord(key),
 }) });
 playerProfileManager.bootstrap();
-const playerStore = playerProfileManager.getActiveRecordStorePort();
+const page = createBrowserHangarPagePort(globalThis);
+const context = resolveHangarPlayerProfileContext(playerProfileManager,
+    page.getMode() === 'fight' ? '' : page.getPlayerProfileId());
+if (!context) throw new Error('Das gewählte Spielerprofil ist nicht mehr vorhanden. Bitte den Hangar erneut öffnen.');
+const playerStore = context.store;
 registerArcadeLabShipsFromStore(playerStore);
 const runtimeAccess = Object.freeze({
     getSettingsStore: () => playerStore,
-    getActivePlayerProfile: () => playerProfileManager.getActiveProfile(),
+    getActivePlayerProfile: () => context.profile,
     loadSettings: () => store.loadSettings(),
     saveSettings: (nextSettings) => store.saveSettings(nextSettings),
     arcadeVehicleProfileWorkshop: createArcadeVehicleProfileWorkshopPort(playerStore),
@@ -28,6 +33,6 @@ const runtimeAccess = Object.freeze({
 startHangarWindowApp({
     settings: store.loadSettings(), runtimeAccess,
     hangarWindow: createElectronPreloadHangarAdapter(globalThis),
-    page: createBrowserHangarPagePort(globalThis),
+    page,
     androidBack: createBrowserAndroidBackPort(globalThis),
 });

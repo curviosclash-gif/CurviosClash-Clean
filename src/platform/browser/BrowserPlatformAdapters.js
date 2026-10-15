@@ -166,7 +166,9 @@ export function createBrowserPageHangarAdapter(runtimeGlobal = globalThis) {
     const openWindow = available
         ? async (options = {}) => {
             const mode = options?.mode === 'fight' ? 'fight' : 'arcade';
-            location.assign(`hangar.html?mode=${mode}`);
+            const params = new URLSearchParams({ mode });
+            if (mode === 'arcade' && options.profileId) params.set('profileId', String(options.profileId));
+            location.assign(`hangar.html?${params}`);
             return { ok: true, mode };
         }
         : null;

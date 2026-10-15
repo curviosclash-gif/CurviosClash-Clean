@@ -13,6 +13,10 @@ import { LOBBY_NAME_STORAGE_KEY } from './LobbyNameStorageContract.js';
 import { ARCADE_LAB_SHIPS_STORAGE_KEY } from './ArcadeLabStoreContract.js';
 import { ARCADE_LAB_UNLOCK_STORAGE_KEY } from './ArcadeLabUnlockContract.js';
 import { DEMOLITION_MEDAL_RECORD_STORAGE_KEY } from './DemolitionMedalRecordContract.js';
+import { FIVE_PORTALS_RECORD_KEY } from './FivePortalsContract.js';
+import { SKY_LADDER_RECORD_KEY } from './PortalChainContract.js';
+import { ENDLESS_PARCOURS_RECORDS_STORAGE_KEY } from './EndlessParcoursRecordsContract.js';
+import { ENDLESS_PARCOURS_SETTLEMENT_STORAGE_KEY } from './EndlessParcoursSettlementContract.js';
 
 export const PLAYER_PROFILE_REGISTRY_STORAGE_KEY = 'cuviosclash.player-profiles.v1';
 export const PLAYER_PROFILE_MIGRATION_STORAGE_KEY = 'cuviosclash.player-profile-migration.v1';
@@ -41,12 +45,22 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     ARCADE_COLORS: 'arcadeColors',
     ARCADE_HANGAR_GUIDE: 'arcadeHangarGuide',
     ARCADE_DEMOLITION_MEDALS: 'arcadeDemolitionMedals',
+    FIVE_PORTALS_RECORDS: 'fivePortalsRecords',
+    SKY_LADDER_RECORDS: 'skyLadderRecords',
+    ARENA_WAVES_RECORDS: 'arenaWavesRecords',
+    ENDLESS_PARCOURS_RECORDS: 'endlessParcoursRecords',
+    ENDLESS_PARCOURS_SETTLEMENTS: 'endlessParcoursSettlements',
 });
 
 // The name a player last used in a multiplayer lobby; each player profile keeps its own.
 export { LOBBY_NAME_STORAGE_KEY };
 
 const RECORD_DEFINITIONS = Object.freeze([
+    { kind: PLAYER_PROFILE_RECORD_KINDS.FIVE_PORTALS_RECORDS, legacyKey: FIVE_PORTALS_RECORD_KEY, suffix: 'five-portals-records.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.SKY_LADDER_RECORDS, legacyKey: SKY_LADDER_RECORD_KEY, suffix: 'sky-ladder-records.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ARENA_WAVES_RECORDS, legacyKey: 'curviosclash.arena-waves-records.v1', suffix: 'arena-waves-records.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ENDLESS_PARCOURS_RECORDS, legacyKey: ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, suffix: 'endless-parcours-records.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ENDLESS_PARCOURS_SETTLEMENTS, legacyKey: ENDLESS_PARCOURS_SETTLEMENT_STORAGE_KEY, suffix: 'endless-parcours-settlements.v1' },
     {kind:PLAYER_PROFILE_RECORD_KINDS.ARCADE_HANGAR_GUIDE,legacyKey:'cuviosclash.arcade-hangar-guide.v1',suffix:'arcade-hangar-guide.v1'},
     {kind:PLAYER_PROFILE_RECORD_KINDS.ARCADE_COLORS,legacyKey:'cuviosclash.arcade-colors.v1',suffix:'arcade-colors.v1'},
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_DIFFICULTY, legacyKey: 'cuviosclash.arcade-difficulty-progress.v1', suffix: 'arcade-difficulty-progress.v1' },

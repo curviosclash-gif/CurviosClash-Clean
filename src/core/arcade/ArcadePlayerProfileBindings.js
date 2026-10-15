@@ -8,6 +8,8 @@ export function initializeArcadePlayerProfileBindings(runtime, getRecordStoreFor
         ? getRecordStoreForPlayerIndex
         : () => null;
     runtime._playerProfileBindingsActive = false;
+    runtime._primaryRecordStore = undefined;
+    runtime._primaryPlayerProfileId = '';
     runtime._playerBindings = new Map();
     runtime._playerProfilesByIndex = Object.create(null);
     runtime._playerStoresByIndex = Object.create(null);
@@ -27,6 +29,10 @@ export function prepareArcadePlayerProfileBindings(
     }
     if (runActive && runtime._playerProfileBindingsActive) return true;
 
+    runtime.flushPersistenceSaves?.();
+    if (runtime._persistenceScheduler?.getFailedKinds?.().length || runtime._ghostLibrarySaveFailed) {
+        throw new Error('Der vorherige Arcade-Fortschritt konnte noch nicht gespeichert werden.');
+    }
     runtime._playerProfileBindingsActive = true;
     runtime._playerBindings = new Map();
     runtime._playerProfilesByIndex = Object.create(null);
@@ -45,10 +51,17 @@ export function prepareArcadePlayerProfileBindings(
         runtime._playerProfilesByIndex[playerIndex] = profiles;
         runtime._playerStoresByIndex[playerIndex] = store;
     }
+    runtime._primaryPlayerProfileId = String(profileIds?.[0] || '').trim();
+    runtime._primaryRecordStore = runtime._primaryPlayerProfileId
+        ? runtime._playerStoresByIndex[0] || null
+        : runtime.settingsManager?.getPlayerRecordStorePort?.()
+            || runtime.settingsManager?.getSettingsRecordStorePort?.() || null;
     return true;
 }
 
 export function clearArcadePlayerProfileBindings(runtime) {
+    // Teardown can still finalize and flush this run; its primary store remains pinned
+    // until the next configuration/binding, even after its per-seat cosmetics are cleared.
     runtime._playerProfileBindingsActive = false;
     runtime._playerBindings.clear();
     runtime._playerProfilesByIndex = Object.create(null);

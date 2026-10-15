@@ -9,6 +9,39 @@ import { ArcadeRoundStateController } from '../src/state/arcade/ArcadeRoundState
 import { createPlayingStateRuntimeAccess, PlayingStateSystem } from '../src/core/PlayingStateSystem.js';
 import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
 import { createMatchKernelInteractiveAdapter } from '../src/core/MatchKernelInteractiveAdapter.js';
+import { bindArcadeTestFlightMenu } from '../src/ui/arcade/ArcadeTestFlightMenuOps.js';
+import { ARCADE_TEST_FLIGHT_REQUEST_KEY } from '../src/shared/contracts/ArcadeTestFlightContract.js';
+
+test('test-flight request and hangar return keep selected P1 B without activating it globally', async () => {
+    const previousDocument = globalThis.document;
+    globalThis.document = { querySelector: () => ({ classList: { contains: () => false } }) };
+    const settings = { arcade: { playerProfileIds: ['b', 'c', 'a'] }, mode: '2p', gameMode: 'ARCADE',
+        localSettings: { modePath: 'arcade', sessionType: 'splitscreen', multiplayerTransport: '' } };
+    const request = createArcadeTestFlightRequest({ vehicleId: 'ship5', profileId: 'b' }).request;
+    let listener;
+    let removed = false;
+    let signalStarted;
+    const started = new Promise(resolve => { signalStarted = resolve; });
+    const opened = [];
+    try {
+        const menu = bindArcadeTestFlightMenu({ settings, bind: (_target, _event, handler) => { listener = handler; },
+            runtimeAccess: { getSettingsStore: () => ({ loadJsonRecord: () => request, removeJsonRecord: () => { removed = true; } }),
+                getActivePlayerProfile: () => ({ id: 'a' }), getArcadePrimaryPlayerProfile: () => ({ id: 'b' }) },
+            eventTypes: { START_MATCH: 'start' }, emit: () => signalStarted(),
+            hangarWindow: { getStatus: async () => ({ open: false }), openWindow: options => { opened.push(options); } } });
+        listener({ key: ARCADE_TEST_FLIGHT_REQUEST_KEY, newValue: JSON.stringify(request) });
+        await started;
+        assert.equal(removed, true);
+        assert.deepEqual(settings.arcade.playerProfileIds, ['b']);
+        menu.onMenuReturn();
+        assert.deepEqual(settings.arcade.playerProfileIds, ['b', 'c', 'a']);
+        assert.equal(settings.localSettings.sessionType, 'splitscreen');
+        assert.equal(opened[0].profileId, 'b');
+    } finally {
+        if (previousDocument === undefined) delete globalThis.document;
+        else globalThis.document = previousDocument;
+    }
+});
 
 test('test flight refuses unactivated drafts, stale requests and another player profile', () => {
     const active = { vehicleId: 'ship5', slots: { core: 'standard' }, stoneSlots: { nose: 'damage' } };

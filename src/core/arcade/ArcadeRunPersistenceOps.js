@@ -8,6 +8,7 @@ function toSafeInt(value, fallback = 0) {
 }
 
 export function resolveArcadeSettingsRecordStore(runtime) {
+    if (runtime._primaryRecordStore !== undefined) return runtime._primaryRecordStore;
     return runtime.settingsManager?.getPlayerRecordStorePort?.()
         || runtime.settingsManager?.getSettingsRecordStorePort?.()
         || null;

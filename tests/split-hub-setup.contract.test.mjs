@@ -146,14 +146,14 @@ test('the visibility applier can leave the disabled state of a button to its own
     assert.equal(button.disabled, true, 'the surface policy keeps its own lock');
 });
 
-test('seat 1 is the active profile, seats 2 and 3 keep their saved profile', () => {
+test('seat 1 reflects the explicit Arcade profile and falls back to the active profile only when empty', () => {
     const state = resolveSeatProfiles({
         startSetup: { arcadePlayerProfileIds: ['p-c', 'p-b', 'p-gone'] },
         profiles: PROFILES,
         activeId: 'p-a',
         seatCount: 3,
     });
-    assert.deepEqual(state.ids, ['p-a', 'p-b', '']);
+    assert.deepEqual(state.ids, ['p-c', 'p-b', '']);
     assert.deepEqual(state.missingSeats, [2]);
     assert.deepEqual(state.duplicateSeats, []);
 
@@ -163,7 +163,13 @@ test('seat 1 is the active profile, seats 2 and 3 keep their saved profile', () 
         activeId: 'p-a',
         seatCount: 2,
     });
-    assert.deepEqual(legacy.ids, ['p-a', 'p-c', ''], 'the older arcade field still counts');
+    assert.deepEqual(legacy.ids, ['', 'p-c', ''], 'a stale explicit primary is not silently replaced');
+    assert.deepEqual(legacy.missingSeats, [0]);
+    assert.deepEqual(resolveSeatProfiles({ startSetup: {}, profiles: PROFILES, activeId: 'p-a' }).ids,
+        ['p-a', '', '']);
+    assert.deepEqual(planSeatProfilePick({ startSetup: { arcadePlayerProfileIds: ['p-c', 'p-b', ''] },
+        profiles: PROFILES, activeId: 'p-a', seatCount: 3, seatIndex: 2, profileId: 'p-a' }),
+    { ok: true, ids: ['p-c', 'p-b', 'p-a'] }, 'picking a partner retains the explicit primary');
 });
 
 test('a profile can sit at only one seat of a match', () => {

@@ -36,13 +36,20 @@ export function resolveArcadeGhostLibraryBudgetOptions(runtime, source = null) {
 
 export function configureArcadeRun(runtime, runtimeConfig = null) {
     runtime.flushPersistenceSaves();
+    if (runtime._persistenceScheduler?.getFailedKinds?.().length || runtime._ghostLibrarySaveFailed) {
+        throw new Error('Der vorherige Arcade-Fortschritt konnte noch nicht gespeichert werden.');
+    }
     const nextConfig = createArcadeRunConfig(runtimeConfig?.arcade || null);
     if (!nextConfig.enabled && runtime._state && !runtime._state.finishedAtIso) {
         runtime._finalizeRun(runtime.now());
         runtime.flushPersistenceSaves();
     }
-    const store = runtime._resolveSettingsRecordStore();
     const continuing = nextConfig.enabled && runtime._state && !runtime._state.finishedAtIso;
+    if (!continuing && !runtime._playerProfileBindingsActive) {
+        runtime._primaryRecordStore = undefined;
+        runtime._primaryPlayerProfileId = '';
+    }
+    const store = runtime._resolveSettingsRecordStore();
     if (continuing && runtime._state.config.dailyChallenge) {
         nextConfig.seed = runtime._state.config.seed;
         runtimeConfig.arcade.seed = nextConfig.seed;

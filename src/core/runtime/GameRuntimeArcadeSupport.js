@@ -70,17 +70,17 @@ export class GameRuntimeArcadeSupport {
         // Split-screen partners with an own profile earn their XP in that profile (store of the run's bindings).
         const getPlayerRewardTarget = (playerIndex) => resolveArcadePartnerRewardTarget(this.arcadeRunRuntime, playerIndex);
         this.arenaWavesRuntime = new ArenaWavesRuntime({
-            now: this._nowMs, getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null, getPlayerRewardTarget,
+            now: this._nowMs, getRecordStore: () => this.arcadeRunRuntime._resolveSettingsRecordStore(), getPlayerRewardTarget,
             requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
         });
         this.fivePortalsRuntime = new FivePortalsRuntime({
-            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null, getPlayerRewardTarget,
+            getRecordStore: () => this.arcadeRunRuntime._resolveSettingsRecordStore(), getPlayerRewardTarget,
             requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
             requestAdvance: () => this._requestRunAdvance(),
         });
         this.weaponRaceRuntime = new WeaponRaceRuntime({
             now: this._nowMs,
-            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
+            getRecordStore: () => this.arcadeRunRuntime._resolveSettingsRecordStore(),
         });
 
         this.demolitionSupport = new GameRuntimeDemolitionSupport({
@@ -303,6 +303,7 @@ export class GameRuntimeArcadeSupport {
         const runtimeConfig = runtimeState?.runtimeConfig || null;
         this._bindParcoursCallbacks(runtimeState);
         const localProfileContext = bindLocalArcadeProfilesAndApplyCosmetics(this, runtimeState, runtimeConfig);
+        if (localProfileContext.invalidPrimaryProfile) return null;
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
         }
@@ -321,7 +322,7 @@ export class GameRuntimeArcadeSupport {
         if (isEndlessParcoursConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
             const runtime = this._getEndlessRuntime(runtimeState);
-            const recordStore = this.game?.settingsManager?.getPlayerRecordStorePort?.() || null;
+            const recordStore = this.arcadeRunRuntime._resolveSettingsRecordStore();
             runtime?.setRecordStore?.(recordStore);
             runtime?.setRunProfile?.({
                 recordStore,
@@ -412,8 +413,11 @@ export class GameRuntimeArcadeSupport {
     }
 
     getPostMatchProgression() {
+        const store = this.demolitionSupport.isActive()
+            ? this.demolitionSupport.runtime.playerBindings.get(0)?.store
+            : this.arcadeRunRuntime._resolveSettingsRecordStore();
         return resolveArcadePostMatchProgression(
-            this.game?.settingsManager?.getPlayerRecordStorePort?.(),
+            store,
             this.getRunState(),
         );
     }

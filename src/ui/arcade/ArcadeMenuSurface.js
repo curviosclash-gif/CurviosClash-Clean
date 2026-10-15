@@ -1,3 +1,5 @@
+import { loadSeed, saveSeed, loadLastRunSnapshot, saveLastRunSnapshot } from './ArcadeMenuProfilePersistence.js';
+import { createArcadeLastRunRecord } from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
 import { resolveArcadeDailySettings } from '../../shared/contracts/ArcadeDailyRulesContract.js';
 import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
@@ -5,14 +7,7 @@ import { getArcadeVehicleProfileRecord, loadArcadeVehicleProfileRecord } from '.
 import { resolveArcadeRunVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { applyArcadeLabWindowStorageEvent, applyHangarWindowStorageEvent, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
-import {
-    ARCADE_LAST_RUN_STORAGE_KEY,
-    ARCADE_SEED_STORAGE_KEY,
-    createArcadeLastRunRecord,
-    createArcadeSeedRecord,
-    readArcadeLastRunRecord,
-    readArcadeSeedRecord,
-} from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
+
 import { renderArcadeDailyMenuState } from './ArcadeDailyMenuView.js';
 import { buildArcadeSurface } from './ArcadeMenuSurfaceDom.js';
 import {
@@ -32,6 +27,7 @@ import { loadArcadeDifficultyProgress, resolveArcadeRunTier, ARCADE_DIFFICULTY_T
 import { resolveArcadeParcoursRankKey } from '../../shared/contracts/ArcadeRankedLeaderboardContract.js';
 import { createArcadeMenuRankContext, formatArcadeMenuRankedLine } from './ArcadeMenuRankedLine.js';
 import { bindArcadeTestFlightMenu } from './ArcadeTestFlightMenuOps.js';
+import { renderSplitProfileSeats } from '../start-setup/StartSetupSplitSeatProfiles.js';
 
 // Only phases worth showing; unknown or idle phases stay out of the line.
 const ARCADE_PHASE_LABELS = Object.freeze({
@@ -70,73 +66,6 @@ function formatInteger(value) {
 function formatCompletedRuns(value) {
     const count = Math.max(0, Math.trunc(Number(value) || 0));
     return `${formatInteger(count)} ${count === 1 ? 'Lauf' : 'Läufe'} gespielt`;
-}
-
-function safeReadLocalStorage(key) {
-    try {
-        return window.localStorage.getItem(key);
-    } catch {
-        return null;
-    }
-}
-
-function safeWriteLocalStorage(key, value) {
-    try {
-        window.localStorage.setItem(key, value);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-function loadSeed(store = null) {
-    const raw = store?.loadJsonRecord?.(ARCADE_SEED_STORAGE_KEY, null)
-        ?? safeReadLocalStorage(ARCADE_SEED_STORAGE_KEY);
-    let parsed = raw;
-    try {
-        if (typeof raw !== 'string') throw new TypeError('already_parsed');
-        parsed = JSON.parse(raw);
-    } catch {
-        // Legacy seed payloads were stored as plain integer strings.
-    }
-    const result = readArcadeSeedRecord(parsed);
-    if (result.record) {
-        if (result.shouldPersist) {
-            if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_SEED_STORAGE_KEY, result.record);
-            else safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, JSON.stringify(result.record));
-        }
-        return result.record.seed;
-    }
-    return Math.floor(Math.random() * 1_000_000) + 1;
-}
-
-function saveSeed(seed, store = null) {
-    const record = createArcadeSeedRecord(seed);
-    if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_SEED_STORAGE_KEY, record);
-    else safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, JSON.stringify(record));
-}
-
-function loadLastRunSnapshot(store = null) {
-    const raw = store?.loadJsonRecord?.(ARCADE_LAST_RUN_STORAGE_KEY, null)
-        ?? safeReadLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY);
-    if (!raw) return null;
-    try {
-        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        const result = readArcadeLastRunRecord(parsed);
-        if (result.record && result.shouldPersist) {
-            if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_LAST_RUN_STORAGE_KEY, result.record);
-            else safeWriteLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY, JSON.stringify(result.record));
-        }
-        return result.record;
-    } catch {
-        return null;
-    }
-}
-
-function saveLastRunSnapshot(snapshot, store = null) {
-    const record = createArcadeLastRunRecord(snapshot);
-    if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_LAST_RUN_STORAGE_KEY, record);
-    else safeWriteLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY, JSON.stringify(record));
 }
 
 function formatRunTime(isoTime) {
@@ -212,7 +141,11 @@ export function setupArcadeMenuSurface(ctx = {}) {
     const emit = typeof ctx.emit === 'function' ? ctx.emit : null;
     const eventTypes = ctx.eventTypes && typeof ctx.eventTypes === 'object' ? ctx.eventTypes : {};
     const bind = typeof ctx.bind === 'function' ? ctx.bind : null;
-    const runtimeAccess = normalizeRuntimeAccess(ctx.runtimeAccess);
+    const baseRuntimeAccess = normalizeRuntimeAccess(ctx.runtimeAccess) || {};
+    const unavailableStore = { loadJsonRecord: (_key, fallback) => fallback, saveJsonRecord: () => false };
+    const runtimeAccess = baseRuntimeAccess.getArcadeSettingsStore
+        ? { ...baseRuntimeAccess, getSettingsStore: () => baseRuntimeAccess.getArcadeSettingsStore() || unavailableStore }
+        : baseRuntimeAccess;
     const hangarWindow = createHangarWindowMenuPort(globalThis);
 
     if (!emit || !bind) return;
@@ -228,7 +161,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
     const refs = buildArcadeSurface(level3Body, ui);
     const arcadeProfiles = setupArcadePlayerProfileSelection(refs, runtimeAccess, settings, bind);
     refs.hangarLaunchCard.classList.toggle('hidden', !hangarWindow.isAvailable());
-    let activeProfileId = runtimeAccess?.getActivePlayerProfile?.()?.id || '';
+    const primaryProfile = () => runtimeAccess.getArcadePrimaryPlayerProfile
+        ? runtimeAccess.getArcadePrimaryPlayerProfile() : runtimeAccess.getActivePlayerProfile?.();
+    let activeProfileId = primaryProfile()?.id || '';
     let activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
     let lastRunSnapshot = loadLastRunSnapshot(runtimeAccess?.getSettingsStore?.());
     let leaderboardExpanded = false;
@@ -252,7 +187,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     const sync = () => {
-        const nextProfileId = runtimeAccess?.getActivePlayerProfile?.()?.id || '';
+        const nextProfileId = primaryProfile()?.id || '';
         if (nextProfileId !== activeProfileId) {
             activeProfileId = nextProfileId;
             activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
@@ -275,9 +210,14 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const vehicleId = resolveArcadeMenuVehicleId(settings);
         const botCount = toInt(settings?.numBots, 0);
         const dailySeed = computeDailySeed();
-        const runtimeState = runtimeAccess?.getArcadeMenuSurfaceState?.() || null;
-        const records = runtimeState?.records && typeof runtimeState.records === 'object' ? runtimeState.records : null;
-        const daily = runtimeState?.daily && typeof runtimeState.daily === 'object' ? runtimeState.daily : null;
+        const runProfileId = runtimeAccess.getArcadeRunPrimaryPlayerProfileId?.() || '';
+        const runtimeState = runProfileId && runProfileId !== activeProfileId
+            ? null : runtimeAccess?.getArcadeMenuSurfaceState?.() || null;
+        const profileRecords = runtimeAccess.getArcadePrimaryProfileRecords?.();
+        const records = (runProfileId === activeProfileId && runtimeState?.records)
+            || profileRecords?.records || runtimeState?.records || null;
+        const legacyRecords = profileRecords ? profileRecords.legacyRecords : runtimeState?.legacyRecords;
+        const daily = runtimeState?.daily || profileRecords?.daily || null;
         const replayState = runtimeState?.replay && typeof runtimeState.replay === 'object' ? runtimeState.replay : null;
         const postRunSummary = runtimeState?.postRunSummary && typeof runtimeState.postRunSummary === 'object'
             ? runtimeState.postRunSummary
@@ -311,9 +251,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
         refs.runLine.textContent = `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${resolveTierLabel(standardTierId)}${dailyLabel}${phaseLabel}`;
         refs.recordsLine.textContent = fivePortalsSelected
             ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
-            : `Persönlicher Rekord: ${formatInteger(runtimeState?.records?.bestScore)} Punkte`
+            : `Persönlicher Rekord: ${formatInteger(records?.bestScore)} Punkte`
             + (records ? ` · ${formatCompletedRuns(records.runsPlayed)}` : '')
-            + (runtimeState?.legacyRecords ? ` · Frühere Wertung: ${formatInteger(runtimeState.legacyRecords.bestScore)} Punkte` : '');
+            + (legacyRecords ? ` · Frühere Wertung: ${formatInteger(legacyRecords.bestScore)} Punkte` : '');
         refs.endlessRecordsLine.textContent = summarizeEndlessRecordsLine(
             runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null) || null
         );
@@ -429,8 +369,15 @@ export function setupArcadeMenuSurface(ctx = {}) {
     refs.refreshDemolitionMedalLine = bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, () => activeSeed, arcadeProfiles, runtimeAccess) || (() => {});
 
     bind(refs.openHangarButton, 'click', async () => {
-        const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });
-        if (result?.ok !== true) showToast(runtimeAccess, 'Hangar-Fenster konnte nicht geöffnet werden.', 'warning', 1600);
+        const profileId = primaryProfile()?.id || '';
+        if (runtimeAccess.getArcadePrimaryPlayerProfile && !profileId) {
+            showToast(runtimeAccess, 'Bitte ordne Spieler 1 ein vorhandenes Profil zu.', 'warning', 1600);
+            return;
+        }
+        const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true, profileId });
+        if (result?.ok !== true) showToast(runtimeAccess, result?.reason === 'unsaved_profile_draft'
+            ? 'Bitte schließe den offenen Hangar, bevor du ein anderes Spielerprofil öffnest.'
+            : 'Hangar-Fenster konnte nicht geöffnet werden.', 'warning', 2400);
     });
 
     bind(globalThis, 'storage', (event) => { if (applyArcadeLabWindowStorageEvent(event, runtimeAccess, ui) || applyHangarWindowStorageEvent(event, settings, ui)) sync(); });
@@ -537,6 +484,10 @@ export function setupArcadeMenuSurface(ctx = {}) {
         setTimeout(sync, 0);
     };
 
+    for (const select of refs.demolitionProfileSelects || []) bind(select, 'change', () => {
+        renderSplitProfileSeats({ ui, settings, runtimeAccess });
+        syncOnInteraction();
+    });
     const syncTriggers = [
         ...(Array.isArray(ui.modePathButtons) ? ui.modePathButtons : []),
         ...(Array.isArray(ui.sessionButtons) ? ui.sessionButtons : []),

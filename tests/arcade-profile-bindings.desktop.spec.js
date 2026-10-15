@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { openStartSetupSection, returnToMenu, selectSessionType, waitForLoadedGame } from './helpers.js';
+import { menuScreenSelector, openStartSetupSection, returnToMenu, selectSessionType, waitForLoadedGame } from './helpers.js';
 import {
     createArcadeStoneWorkshopRecord,
     evaluateArcadeStoneUpgrade,
@@ -7,6 +7,8 @@ import {
 } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
 import { applyArcadeStonePlacement, resolveArcadeStoneExtraSteps } from '../src/shared/contracts/ArcadeStonePlacementContract.js';
 import { ARCADE_COLORS_STORAGE_KEY } from '../src/shared/contracts/ArcadeColorProgressContract.js';
+import { ARCADE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import { createArcadeRunRecords } from '../src/state/arcade/ArcadeRunState.js';
 import { arcadeVehicleXpForLevel, createArcadeVehicleProfileRecord, ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import {
     evaluateArcadeSizeResize,
@@ -59,10 +61,10 @@ async function openProfileManager(page) {
     await expect(page.locator('#player-profile-name')).toBeVisible();
 }
 
-async function createProfiles(page) {
+async function createProfiles(page, names = PROFILE_NAMES) {
     await openProfileManager(page);
     const ids = [];
-    for (const name of PROFILE_NAMES) {
+    for (const name of names) {
         await page.locator('#player-profile-name').fill(name);
         await page.locator('#btn-player-profile-create').click();
         await expect(page.locator('#player-profile-select option').filter({ hasText: name })).toHaveCount(1);
@@ -200,6 +202,93 @@ async function startNormalArcade(page, sessionType, humanCount) {
             && game?.runtimeFacade?.arcadeRunRuntime?.getPhase?.() === 'sector_active';
     }, { expectedSessionType: sessionType, expectedHumans: humanCount });
 }
+
+test('Desktop selected P1 owns its records, progression and separate hangar while active A stays unchanged', async ({ page, electronApp }) => {
+    test.setTimeout(180_000);
+    await waitForLoadedGame(page);
+    const names = ['P1 Owner A', 'P1 Owner B', 'P1 Owner C'];
+    const ids = await createProfiles(page, names);
+    await activateProfile(page, ids[0]);
+    await openArcadeMenu(page, 'splitscreen');
+    const vehicleId = await setThreePlayerSetup(page, ids);
+    await seedProfileBuilds(page, ids, vehicleId);
+    await page.evaluate(({ ids, key, template }) => {
+        const manager = window.GAME_INSTANCE.playerProfileManager;
+        manager.getRecordStorePort(ids[0]).saveJsonRecord(key, { ...template, bestScore: 111 });
+        manager.getRecordStorePort(ids[1]).saveJsonRecord(key, { ...template, bestScore: 333 });
+    }, { ids, key: ARCADE_RUN_PROFILE_STORAGE_KEY, template: createArcadeRunRecords() });
+    const selected = [ids[1], ids[2], ids[0]];
+    for (let index = 0; index < selected.length; index++) {
+        await page.getByLabel(`Arcade-Spielerprofil Spieler ${index + 1}`).selectOption(selected[index]);
+    }
+    await expect(page.locator('#arcade-records-line')).toContainText('333');
+    await page.locator(menuScreenSelector('freeplay')).locator('.submenu-header [data-back]').click();
+    await expect(page.locator(menuScreenSelector('modeChoice'))).toBeVisible();
+    await expect(page.locator('#split-profile-p1')).toHaveText(names[1]);
+    await page.locator(menuScreenSelector('modeChoice')).locator('[data-mode-path="arcade"]').click();
+    await openStartSetupSection(page, 'arcade');
+    const expectedBank = await page.evaluate(({ id, key, vehicleId }) =>
+        window.GAME_INSTANCE.playerProfileManager.getRecordStorePort(id).loadJsonRecord(key)[vehicleId].xpBank,
+    { id: ids[1], key: ARCADE_VEHICLE_PROFILE_STORAGE_KEY, vehicleId });
+    const advanced = page.locator('.arcade-advanced-options-summary');
+    if (!await advanced.evaluate(element => element.parentElement.open)) await advanced.click();
+    const opened = electronApp.waitForEvent('window');
+    await page.locator('.hangar-window-open').click();
+    const hangar = await opened;
+    await hangar.waitForLoadState('domcontentloaded');
+    await expect(hangar.locator('.hangar-size-xp')).toContainText(new Intl.NumberFormat('de-DE').format(expectedBank));
+    expect(new URL(hangar.url()).searchParams.get('profileId')).toBe(ids[1]);
+    const beforeFlight = await page.evaluate(({ id, keys }) => {
+        const store = window.GAME_INSTANCE.playerProfileManager.getRecordStorePort(id);
+        return keys.map(key => store.loadJsonRecord(key));
+    }, { id: ids[1], keys: [ARCADE_VEHICLE_PROFILE_STORAGE_KEY, ARCADE_RUN_PROFILE_STORAGE_KEY] });
+    await hangar.locator('#hangar-test-flight').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE.settings.arcade.runType === 'hangar_test');
+    expect(await page.evaluate(() => ({ active: window.GAME_INSTANCE.playerProfileManager.getActiveProfile().id,
+        primary: window.GAME_INSTANCE.runtimeConfig.arcade.playerProfileIds[0] }))).toEqual({ active: ids[0], primary: ids[1] });
+    const reopening = electronApp.waitForEvent('window');
+    await page.keyboard.press('Escape');
+    const returnedHangar = await reopening;
+    await expect(returnedHangar.locator('#arcade-vehicle-manager')).toBeVisible();
+    expect(new URL(returnedHangar.url()).searchParams.get('profileId')).toBe(ids[1]);
+    const afterFlight = await page.evaluate(({ id, keys }) => {
+        const store = window.GAME_INSTANCE.playerProfileManager.getRecordStorePort(id);
+        return keys.map(key => store.loadJsonRecord(key));
+    }, { id: ids[1], keys: [ARCADE_VEHICLE_PROFILE_STORAGE_KEY, ARCADE_RUN_PROFILE_STORAGE_KEY] });
+    expect(afterFlight).toEqual(beforeFlight);
+    await returnedHangar.locator('#hangar-window-close').click();
+    await expect.poll(() => returnedHangar.isClosed()).toBe(true);
+    await openStartSetupSection(page, 'map');
+    await page.selectOption('#map-select', 'standard');
+    await openStartSetupSection(page, 'arcade');
+    await startNormalArcade(page, 'splitscreen', 3);
+    const awarded = await page.evaluate(({ ids, vehicleId, profileKey, recordKey }) => {
+        const game = window.GAME_INSTANCE;
+        const manager = game.playerProfileManager;
+        const activeStore = manager.getRecordStorePort(ids[0]);
+        const selectedStore = manager.getRecordStorePort(ids[1]);
+        const activeBefore = [activeStore.loadJsonRecord(profileKey), activeStore.loadJsonRecord(recordKey)];
+        const xpBefore = selectedStore.loadJsonRecord(profileKey)[vehicleId].xp;
+        // Exercise the public XP consumer in the actual desktop runtime; this is a
+        // storage-routing check, not a claim that the stationary pilot flew a checkpoint.
+        game.runtimeFacade.arcadeRunRuntime.applyParcoursXpEvent('checkpoint', 0, vehicleId);
+        game.runtimeFacade.arcadeRunRuntime.flushPersistenceSaves();
+        return { activeBefore, xpBefore, xpAfter: selectedStore.loadJsonRecord(profileKey)[vehicleId].xp,
+            activeId: manager.getActiveProfile().id, configuredIds: game.runtimeConfig.arcade.playerProfileIds,
+            trail: game.entityManager.humanPlayers[0].arcadeCosmeticLoadout.trailStyleId };
+    }, { ids, vehicleId, profileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY, recordKey: ARCADE_RUN_PROFILE_STORAGE_KEY });
+    expect(awarded.activeId).toBe(ids[0]);
+    expect(awarded.configuredIds).toEqual(selected);
+    expect(awarded.trail).toBe(TRAIL_STYLES[1]);
+    expect(awarded.xpAfter).toBe(awarded.xpBefore + 10);
+    await returnToMenu(page);
+    const activeAfter = await page.evaluate(({ id, profileKey, recordKey }) => {
+        const store = window.GAME_INSTANCE.playerProfileManager.getRecordStorePort(id);
+        return [store.loadJsonRecord(profileKey), store.loadJsonRecord(recordKey)];
+    }, { id: ids[0], profileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY, recordKey: ARCADE_RUN_PROFILE_STORAGE_KEY });
+    expect(activeAfter).toEqual(awarded.activeBefore);
+});
 
 test('Desktop normaler Arcade-Run bindet Profile je Spieler und beim Folgestart neu', async ({ page }) => {
     test.setTimeout(180_000);

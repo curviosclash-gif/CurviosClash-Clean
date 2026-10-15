@@ -58,13 +58,20 @@ export function bindLocalArcadeProfilesAndApplyCosmetics(support, runtimeState, 
             : Boolean(runtimeForKind
                 && runtimeForKind.phase !== 'idle'
                 && runtimeForKind.phase !== 'finished');
-    prepareArcadePlayerProfileBindings(
+    const previousStore = arcadeRuntime._resolveSettingsRecordStore?.();
+    const bound = prepareArcadePlayerProfileBindings(
         arcadeRuntime,
         runtimeState?.entityManager?.humanPlayers,
         runtimeConfig?.arcade?.playerProfileIds,
         shouldBindLocalArcadePlayerProfiles(runtimeConfig),
         runActive,
     );
+    if (bound && !runActive && arcadeRuntime._resolveSettingsRecordStore() !== previousStore) {
+        configureArcadeRunRuntime(arcadeRuntime, runtimeConfig);
+    }
+    if (bound && arcadeRuntime._primaryPlayerProfileId && !arcadeRuntime._resolveSettingsRecordStore()) {
+        return { playerBuildBonuses: null, invalidPrimaryProfile: true };
+    }
     const playerBuildBonuses = applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
     prepareArcadeRunRanking(support, runtimeState, runtimeConfig, runActive, playerBuildBonuses);
     return { playerBuildBonuses };

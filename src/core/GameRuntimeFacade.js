@@ -250,6 +250,9 @@ export class GameRuntimeFacade {
         const getMediaRecorder = () => this.getRuntimeHandle('mediaRecorderSystem');
         return Object.freeze({
             getArcadeMenuSurfaceState: () => this.getArcadeMenuSurfaceState(),
+            getArcadeRunPrimaryPlayerProfileId: () => this._arcadeSupport.demolitionSupport.isActive()
+                ? this._arcadeSupport.demolitionSupport.runtime.playerBindings.get(0)?.profileId || ''
+                : this.arcadeRunRuntime?._primaryPlayerProfileId || '',
             saveSettings: (nextSettings) => game?.settingsManager?.saveSettings?.(nextSettings),
             requestArcadeReplayExport: () => this.requestArcadeReplayExport(),
             showStatusToast: (message, duration, tone) => game?._showStatusToast?.(message, duration, tone),

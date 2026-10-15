@@ -8,7 +8,11 @@ import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { setEndlessRunProfile } from '../src/entities/endless/EndlessParcoursProgressionOps.js';
 import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY, createArcadeVehicleProfileRecord } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import { ARCADE_STONE_WORKSHOP_SCHEMA_VERSION, ARCADE_STONE_WORKSHOP_STORAGE_KEY } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
-import { saveVehicleProfiles } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { loadVehicleProfiles, saveVehicleProfiles } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { FIVE_PORTALS_RECORD_KEY } from '../src/shared/contracts/FivePortalsContract.js';
+import { ARCADE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import { createArcadeRunRecords } from '../src/state/arcade/ArcadeRunState.js';
+import { createPlayerRecordStorePort } from '../src/application/player-profile/PlayerProfileManager.js';
 import { bindValidatedArcadeStartCapture, validateLocalArcadeProfileStart } from '../src/ui/arcade/ArcadeDemolitionProfileSelection.js';
 import { bindArcadeSpecialStartButtons } from '../src/ui/arcade/ArcadeMenuSpecialStartOps.js';
 
@@ -53,7 +57,19 @@ function createStore(index) {
 }
 
 function makeArcadeHarness(runType) {
-    const stores = PROFILE_IDS.map((_, index) => createStore(index));
+    const sharedStore = createStore(0);
+    sharedStore.records.clear();
+    const stores = PROFILE_IDS.map((profileId, index) => {
+        const port = createPlayerRecordStorePort({ profileId, globalRecordStore: sharedStore });
+        for (const [key, value] of createStore(index).records) port.saveJsonRecord(key, JSON.parse(value));
+        return {
+            ...port,
+            get records() {
+                return new Map([...sharedStore.records].filter(([key]) =>
+                    key.startsWith(`cuviosclash.player.${profileId}.`) || !key.startsWith('cuviosclash.player.')));
+            },
+        };
+    });
     const profileManager = {
         getProfiles: () => PROFILE_IDS.map((id) => ({ id })),
         getRecordStorePort: (id) => stores[PROFILE_IDS.indexOf(id)] || null,
@@ -97,6 +113,87 @@ function makeArcadeHarness(runType) {
     });
     return { stores, players, profileManager, runtimeState, support, useStrategy, getAppliedBonuses: () => appliedBonuses };
 }
+
+test('a non-active P1 profile owns Five Portals XP, results and rebuilds without writing the active profile', () => {
+    const { stores, support, runtimeState } = makeArcadeHarness('five_portals');
+    runtimeState.runtimeConfig.arcade.playerProfileIds = [PROFILE_IDS[1], PROFILE_IDS[2], PROFILE_IDS[0]];
+    support.startRunIfEnabled();
+    const activeBefore = [...stores[0].records];
+    const xpBefore = loadVehicleProfiles(stores[1]).ship5.xp;
+    support.fivePortalsRuntime.handleXpEvent('checkpoint', 0);
+    assert.equal(loadVehicleProfiles(stores[1]).ship5.xp, xpBefore + 10);
+    runtimeState.runtimeConfig.arcade.playerProfileIds = ['missing-primary', 'missing-partner', 'missing-third'];
+    support.startRunIfEnabled();
+    support.fivePortalsRuntime.handleXpEvent('checkpoint', 0);
+    assert.equal(loadVehicleProfiles(stores[1]).ship5.xp, xpBefore + 20, 'a session rebuild keeps the original primary UUID');
+    for (let index = 0; index < 5; index++) {
+        support.fivePortalsRuntime.handleParcoursEvent({ type: 'finish', playerIndex: 0, totalTimeMs: 1000 });
+        support.fivePortalsRuntime.handleGameplayEvent({ type: 'exit_portal', playerIndex: 0 });
+        if (index < 4) support.fivePortalsRuntime.start(runtimeState.entityManager);
+    }
+    assert.equal(stores[1].loadJsonRecord(FIVE_PORTALS_RECORD_KEY).bestTotalMs, 5000);
+    assert.deepEqual([...stores[0].records], activeBefore, 'active A receives neither XP nor chain records from P1 B');
+    assert.equal(support.getPostMatchProgression().xpEarned, 20);
+});
+
+test('a general Arcade run loads and saves the selected P1 profile through finalization', () => {
+    const { stores, support, runtimeState } = makeArcadeHarness('gauntlet');
+    stores[0].saveJsonRecord(ARCADE_RUN_PROFILE_STORAGE_KEY, { ...createArcadeRunRecords(), bestScore: 111 });
+    stores[1].saveJsonRecord(ARCADE_RUN_PROFILE_STORAGE_KEY, { ...createArcadeRunRecords(), bestScore: 333 });
+    runtimeState.runtimeConfig.arcade.playerProfileIds = [PROFILE_IDS[1], PROFILE_IDS[2], PROFILE_IDS[0]];
+    support.syncRuntimeConfig();
+    support.startRunIfEnabled();
+    assert.equal(support.arcadeRunRuntime.getStateSnapshot().records.bestScore, 333);
+    const activeBefore = [...stores[0].records];
+    const xpBefore = loadVehicleProfiles(stores[1]).ship5.xp;
+    support.arcadeRunRuntime.applyParcoursXpEvent('checkpoint', 0, 'ship5');
+    support.arcadeRunRuntime.flushPersistenceSaves();
+    assert.equal(loadVehicleProfiles(stores[1]).ship5.xp, xpBefore + 10);
+    support.resetRunState({ force: true });
+    assert.deepEqual([...stores[0].records], activeBefore, 'clearing per-seat cosmetics before finalization must not redirect pending P1 writes');
+});
+
+test('a new run rebinds P1 while an invalid explicit primary cannot fall back to the active store', () => {
+    const { stores, support, runtimeState } = makeArcadeHarness('five_portals');
+    runtimeState.runtimeConfig.arcade.playerProfileIds = [PROFILE_IDS[1], PROFILE_IDS[2], PROFILE_IDS[0]];
+    support.startRunIfEnabled();
+    support.resetRunState({ force: true });
+    runtimeState.runtimeConfig.arcade.playerProfileIds = [PROFILE_IDS[2], PROFILE_IDS[1], PROFILE_IDS[0]];
+    support.startRunIfEnabled();
+    const before = stores.map(store => [...store.records]);
+    const xp = loadVehicleProfiles(stores[2]).ship5.xp;
+    support.fivePortalsRuntime.handleXpEvent('checkpoint', 0);
+    assert.equal(loadVehicleProfiles(stores[2]).ship5.xp, xp + 10);
+    assert.deepEqual([...stores[0].records], before[0]);
+    assert.deepEqual([...stores[1].records], before[1]);
+    support.resetRunState({ force: true });
+    runtimeState.runtimeConfig.arcade.playerProfileIds = ['deleted-primary', PROFILE_IDS[1], PROFILE_IDS[0]];
+    assert.equal(support.startRunIfEnabled(), null);
+    assert.equal(support.arcadeRunRuntime._resolveSettingsRecordStore(), null);
+    assert.deepEqual([...stores[0].records], before[0]);
+});
+
+test('a failed primary save blocks rebinding until the original profile can be flushed', () => {
+    const { stores, support, runtimeState } = makeArcadeHarness('gauntlet');
+    runtimeState.runtimeConfig.arcade.playerProfileIds = [PROFILE_IDS[1], PROFILE_IDS[2], PROFILE_IDS[0]];
+    support.syncRuntimeConfig();
+    support.startRunIfEnabled();
+    const before = loadVehicleProfiles(stores[1]).ship5.xp;
+    support.arcadeRunRuntime.applyParcoursXpEvent('checkpoint', 0, 'ship5');
+    const save = stores[1].saveJsonRecord;
+    stores[1].saveJsonRecord = () => ({ success: false, reason: 'quota' });
+    support.resetRunState({ force: true });
+    runtimeState.runtimeConfig.arcade.playerProfileIds = [PROFILE_IDS[2], PROFILE_IDS[1], PROFILE_IDS[0]];
+    assert.throws(() => support.syncRuntimeConfig(), /noch nicht gespeichert/);
+    assert.throws(() => support.startRunIfEnabled(), /noch nicht gespeichert/);
+    assert.equal(support.arcadeRunRuntime._resolveSettingsRecordStore(), stores[1]);
+    stores[1].saveJsonRecord = save;
+    support.arcadeRunRuntime.flushPersistenceSaves();
+    assert.equal(loadVehicleProfiles(stores[1]).ship5.xp, before + 10);
+    support.startRunIfEnabled();
+    assert.equal(support.arcadeRunRuntime._resolveSettingsRecordStore(), stores[2]);
+    support.resetRunState({ force: true });
+});
 
 test('special-mode start and session rebuild keep same-vehicle UUID pools frozen until next run', () => {
     const harness = makeArcadeHarness('five_portals');

@@ -10,7 +10,9 @@ export function bindArcadeTestFlightMenu({ bind, settings, runtimeAccess, emit, 
             const store = runtimeAccess?.getSettingsStore?.();
             let request;
             for (;;) {
-                request = readArcadeTestFlightRequest(store?.loadJsonRecord?.(ARCADE_TEST_FLIGHT_REQUEST_KEY, null), runtimeAccess?.getActivePlayerProfile?.()?.id || '');
+                const profile = runtimeAccess?.getArcadePrimaryPlayerProfile
+                    ? runtimeAccess.getArcadePrimaryPlayerProfile() : runtimeAccess?.getActivePlayerProfile?.();
+                request = readArcadeTestFlightRequest(store?.loadJsonRecord?.(ARCADE_TEST_FLIGHT_REQUEST_KEY, null), profile?.id || '');
                 if (!request) return;
                 const status = await hangarWindow.getStatus?.();
                 if (!status || status.open === false) break;
@@ -18,7 +20,7 @@ export function bindArcadeTestFlightMenu({ bind, settings, runtimeAccess, emit, 
             }
             store?.removeJsonRecord?.(ARCADE_TEST_FLIGHT_REQUEST_KEY);
             if (!request || document.querySelector('#main-menu')?.classList.contains('hidden')) return;
-            previous = { arcade: { ...settings.arcade }, mode: settings.mode, gameMode: settings.gameMode,
+            previous = { arcade: { ...settings.arcade }, mode: settings.mode, gameMode: settings.gameMode, profileId: request.profileId,
                 modePath: settings.localSettings?.modePath, sessionType: settings.localSettings?.sessionType, multiplayerTransport: settings.localSettings?.multiplayerTransport };
             settings.vehicles ||= {}; settings.vehicles.PLAYER_1 = request.vehicleId;
             settings.arcade ||= {}; Object.assign(settings.arcade, { runType: 'hangar_test', playerProfileIds: [request.profileId], sectorCount: 1, combatProfile: 'hunt', difficultyTierId: 'normal', dailyChallenge: false, replayHooksEnabled: false });
@@ -31,7 +33,8 @@ export function bindArcadeTestFlightMenu({ bind, settings, runtimeAccess, emit, 
         if (!previous) return;
         Object.assign(settings, { arcade: previous.arcade, mode: previous.mode, gameMode: previous.gameMode });
         Object.assign(settings.localSettings, { modePath: previous.modePath, sessionType: previous.sessionType, multiplayerTransport: previous.multiplayerTransport });
+        const profileId = previous.profileId;
         previous = null;
-        void hangarWindow.openWindow?.({ mode: 'arcade', focus: true });
+        void hangarWindow.openWindow?.({ mode: 'arcade', focus: true, profileId });
     } };
 }

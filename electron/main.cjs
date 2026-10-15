@@ -1040,7 +1040,9 @@ const hangarWindowShellCapability = createHangarWindowController({
     resolveWindowUrl: async (options = {}) => {
         const appServer = await startAppServer();
         const mode = String(options.mode || '').trim().toLowerCase() === 'fight' ? 'fight' : 'arcade';
-        return new URL(`hangar.html?mode=${mode}`, appServer.url).href;
+        const url = new URL(`hangar.html?mode=${mode}`, appServer.url);
+        if (mode === 'arcade' && options.profileId) url.searchParams.set('profileId', String(options.profileId));
+        return url.href;
     },
     testRenderMode,
 });
@@ -1355,8 +1357,10 @@ ipcMain.handle('hangar-window:open', withTrustedMainWindowSender(async (options 
     const result = await hangarWindowShellCapability.openHangarWindow({
         mode: options?.mode,
         focus: options?.focus !== false,
+        profileId: typeof options?.profileId === 'string' ? options.profileId : '',
     });
-    return { ok: result.ok === true, reused: result.reused === true };
+    return { ok: result.ok === true, reused: result.reused === true,
+        ...(result.reason ? { reason: result.reason } : {}) };
 }));
 
 ipcMain.handle('hangar-window:get-status', withTrustedMainWindowSender(() => (

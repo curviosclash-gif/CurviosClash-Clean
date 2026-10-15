@@ -29,6 +29,7 @@ function createHangarWindowController({
     if (typeof resolveWindowUrl !== 'function') throw new TypeError('resolveWindowUrl fehlt.');
     let hangarWindow = null;
     let activeMode = null;
+    let activeProfileId = '';
     let hasUnsavedChanges = false;
     let allowWindowClose = false;
     let closeRefused = false;
@@ -63,12 +64,18 @@ function createHangarWindowController({
 
     async function openHangarWindow(options = {}) {
         const requestedMode = String(options.mode || '').trim().toLowerCase() === 'fight' ? 'fight' : 'arcade';
+        const requestedProfileId = requestedMode === 'arcade' ? String(options.profileId || '').trim() : '';
         if (isWindowAlive(hangarWindow)) {
             if (hangarWindow.isMinimized()) hangarWindow.restore();
-            if (activeMode !== requestedMode) {
+            if (activeMode === requestedMode && activeProfileId !== requestedProfileId && hasUnsavedChanges) {
+                if (options.focus !== false && !shouldShowInactive(testRenderMode)) hangarWindow.focus();
+                return { ok: false, reason: 'unsaved_profile_draft', window: hangarWindow };
+            }
+            if (activeMode !== requestedMode || activeProfileId !== requestedProfileId) {
                 const nextUrl = await resolveWindowUrl({ ...options, mode: requestedMode });
                 await hangarWindow.loadURL(nextUrl);
                 activeMode = requestedMode;
+                activeProfileId = requestedProfileId;
             }
             if (options.focus !== false && !shouldShowInactive(testRenderMode)) hangarWindow.focus();
             return { ok: true, reused: true, window: hangarWindow };
@@ -119,6 +126,7 @@ function createHangarWindowController({
         hangarWindow.on('closed', () => {
             hangarWindow = null;
             activeMode = null;
+            activeProfileId = '';
             hasUnsavedChanges = false;
             allowWindowClose = false;
         });
@@ -138,6 +146,7 @@ function createHangarWindowController({
         });
         await current.loadURL(windowUrl);
         activeMode = requestedMode;
+        activeProfileId = requestedProfileId;
         if (options.focus !== false && isWindowAlive(current) && !shouldShowInactive(testRenderMode)) current.focus();
         return { ok: true, reused: false, window: current };
     }

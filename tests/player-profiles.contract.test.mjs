@@ -6,6 +6,7 @@ import { flushArcadePersistenceSavesResult } from '../src/core/arcade/ArcadeRunP
 import {
     PLAYER_PROFILE_MIGRATION_STORAGE_KEY,
     PLAYER_PROFILE_REGISTRY_STORAGE_KEY,
+    listPlayerProfileRecordDefinitions,
     resolvePlayerScopedStorageKey,
 } from '../src/shared/contracts/PlayerProfileStorageContract.js';
 import {
@@ -49,6 +50,68 @@ function createManager(store, ids = createIds()) {
         now: () => '2026-08-17T12:00:00.000Z',
     });
 }
+
+const SPECIAL_RECORD_KEYS = [
+    'curviosclash.five-portals-records.v1',
+    'curviosclash.sky-ladder-records.v1',
+    'curviosclash.arena-waves-records.v1',
+    'curviosclash.endless-parcours-records.v1',
+    'curviosclash.endless-parcours-settlements.v1',
+];
+
+test('real profile ports isolate special-run records and settlements, including export and import', () => {
+    const store = createRecordStore();
+    const manager = createManager(store);
+    assert.equal(manager.bootstrap().ok, true);
+    const first = manager.getActiveProfile();
+    const second = manager.createProfile('Primary B').profile;
+    const firstPort = manager.getRecordStorePort(first.id);
+    const secondPort = manager.getRecordStorePort(second.id);
+    for (const key of SPECIAL_RECORD_KEYS) {
+        assert.ok(firstPort.resolveStorageKey(key), `${key} must have a registered profile scope`);
+        firstPort.saveJsonRecord(key, { owner: 'A' });
+        secondPort.saveJsonRecord(key, { owner: 'B' });
+        assert.deepEqual(firstPort.loadJsonRecord(key), { owner: 'A' });
+        assert.deepEqual(secondPort.loadJsonRecord(key), { owner: 'B' });
+        assert.equal(store.records.has(key), false, 'profile saves must not write shared legacy keys');
+    }
+    const imported = manager.importProfile(manager.exportProfile(second.id).value);
+    assert.equal(imported.ok, true);
+    for (const key of SPECIAL_RECORD_KEYS) {
+        assert.deepEqual(manager.getRecordStorePort(imported.profile.id).loadJsonRecord(key), { owner: 'B' });
+    }
+    assert.equal(manager.getActiveProfile().id, first.id);
+});
+
+test('adding special-run scopes upgrades a completed migration only for its original owner', () => {
+    const store = createRecordStore();
+    const ids = createIds();
+    const manager = createManager(store, ids);
+    assert.equal(manager.bootstrap().ok, true);
+    const first = manager.getActiveProfile();
+    const second = manager.createProfile('Active B').profile;
+    assert.equal(manager.setActiveProfile(second.id).ok, true);
+    const migration = store.records.get(PLAYER_PROFILE_MIGRATION_STORAGE_KEY);
+    for (const key of SPECIAL_RECORD_KEYS) {
+        const definition = listPlayerProfileRecordDefinitions().find(entry => entry.legacyKey === key);
+        delete migration.records[definition.kind]; // persisted schema before these scopes existed
+        store.records.set(key, { owner: 'legacy A' });
+    }
+    const retainedKey = SPECIAL_RECORD_KEYS[1];
+    store.records.set(resolvePlayerScopedStorageKey(first.id, retainedKey), { owner: 'newer A' });
+    const resumed = createManager(store, ids);
+    assert.equal(resumed.bootstrap().ok, true);
+    assert.equal(resumed.getActiveProfile().id, second.id);
+    for (const key of SPECIAL_RECORD_KEYS) {
+        assert.deepEqual(resumed.getRecordStorePort(first.id).loadJsonRecord(key), {
+            owner: key === retainedKey ? 'newer A' : 'legacy A',
+        });
+        assert.equal(resumed.getRecordStorePort(second.id).loadJsonRecord(key), null);
+        assert.deepEqual(store.records.get(key), { owner: 'legacy A' }, 'retain the legacy recovery source');
+    }
+    assert.equal(resumed.bootstrap().ok, true);
+    assert.equal(resumed.getRecordStorePort(second.id).loadJsonRecord(SPECIAL_RECORD_KEYS[0]), null);
+});
 
 test('player profile bootstrap copies legacy records without deleting their source', () => {
     const legacyKey = 'cuviosclash.arcade-run-profile.v1';

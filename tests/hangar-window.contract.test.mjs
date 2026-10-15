@@ -76,3 +76,23 @@ test('desktop hangar explains that closing keeps the automatically saved draft',
     assert.equal(controller.getWindow(), null);
     assert.deepEqual(controller.getStatus(), { open: false, mode: null, hasUnsavedChanges: false });
 });
+
+test('a different primary profile reloads the reused hangar only after its current draft is safe', async () => {
+    const requests = [];
+    const controller = createHangarWindowController({ BrowserWindow: FakeBrowserWindow,
+        resolveWindowUrl: options => { requests.push(options); return `http://127.0.0.1/hangar.html?profileId=${options.profileId}`; } });
+    const first = await controller.openHangarWindow({ mode: 'arcade', profileId: 'profile-a' });
+    assert.equal((await controller.openHangarWindow({ mode: 'arcade', profileId: 'profile-a' })).reused, true);
+    assert.equal(requests.length, 1);
+    controller.setUnsavedChanges(true);
+    const blocked = await controller.openHangarWindow({ mode: 'arcade', profileId: 'profile-b' });
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.reason, 'unsaved_profile_draft');
+    assert.equal(requests.length, 1, 'a profile switch must not unload a dirty workshop');
+    controller.setUnsavedChanges(false);
+    const second = await controller.openHangarWindow({ mode: 'arcade', profileId: 'profile-b' });
+    assert.equal(second.window, first.window);
+    assert.equal(second.reused, true);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[1].profileId, 'profile-b');
+});

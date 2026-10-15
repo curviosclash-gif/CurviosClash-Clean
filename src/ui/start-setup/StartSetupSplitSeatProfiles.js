@@ -1,5 +1,5 @@
-// Profile per seat for the local split screen. Seat 1 is always the active player profile (shown
-// only); seats 2 and 3 pick one of the player profiles or create a new one. The choice lives in the
+// Profile per seat for the local split screen. Seat 1 shows the Arcade selection, defaulting to
+// the active profile; seats 2 and 3 pick a profile or create one. The choice lives in the
 // field the Arcade menu already uses (startSetup.arcadePlayerProfileIds, mirrored to the older
 // demolitionProfileIds), so both menus read and write the same truth.
 
@@ -36,10 +36,13 @@ function resolveSeatCount(settings) {
 export function resolveSeatProfiles({ startSetup, profiles = [], activeId = '', seatCount = 2 }) {
     const known = new Set(profiles.map((profile) => profile.id));
     const saved = readSavedIds(startSetup);
-    const ids = saved.map((id, index) => (index === 0 ? toId(activeId) : (known.has(id) ? id : '')));
+    const ids = saved.map((id, index) => {
+        const requested = index === 0 ? id || toId(activeId) : id;
+        return known.has(requested) ? requested : '';
+    });
     const missingSeats = [];
     const duplicateSeats = [];
-    for (let seat = 1; seat < seatCount; seat += 1) {
+    for (let seat = 0; seat < seatCount; seat += 1) {
         if (saved[seat] && !ids[seat]) missingSeats.push(seat);
     }
     for (let seat = 0; seat < seatCount; seat += 1) {
@@ -59,7 +62,7 @@ export function planSeatProfilePick({ startSetup, profiles = [], activeId = '', 
     const id = toId(profileId);
     if (id && !profiles.some((profile) => profile.id === id)) return { ok: false, reason: 'unknown_profile' };
     const ids = readSavedIds(startSetup);
-    ids[0] = toId(activeId);
+    ids[0] ||= toId(activeId);
     ids[seatIndex] = id;
     if (id && ids.some((other, seat) => seat !== seatIndex && seat < seatCount && other === id)) {
         return { ok: false, reason: 'duplicate' };
@@ -109,9 +112,10 @@ export function renderSplitProfileSeats({ ui, settings, runtimeAccess, notice = 
         seatCount,
     });
     if (ui.splitProfileActiveName) {
-        ui.splitProfileActiveName.textContent = activeProfile
-            ? String(activeProfile.displayName || 'Spielerprofil')
-            : 'Kein aktives Profil';
+        const primary = profiles.find(profile => profile.id === state.ids[0]);
+        ui.splitProfileActiveName.textContent = primary
+            ? String(primary.displayName || 'Spielerprofil')
+            : 'Kein zugeordnetes Profil';
     }
     selects.forEach((select, index) => {
         const seat = index + 1;
