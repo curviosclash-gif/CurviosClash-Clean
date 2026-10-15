@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from math import cos, pi, radians, sin, sqrt
 from pathlib import Path
 import random
+import sys
 
 import bpy
 from mathutils import Vector
@@ -301,6 +302,8 @@ def append_leaf(builder, rng, angle, length, max_width, material_index, segments
 
 
 def build_stem(collection, profile, materials):
+    if profile.label == "SHOOTABLE":
+        return build_hollow_stem(collection, materials)
     builder = MeshBuilder()
     points = []
     radii = []
@@ -318,6 +321,83 @@ def build_stem(collection, profile, materials):
                           segments=profile.stem_sides, rings=6, material_index=0)
     return object_from_builder(f"Scape_{profile.label}", builder, collection,
                                [materials["stem"]], "scape", profile.label)
+
+
+def stem_point(t):
+    return Vector((0.04 + 1.03 * t ** 1.72 + 0.055 * sin(t * pi * 3),
+                   0.025 * sin(t * pi * 2) + 0.045 * sin(t * pi * 5),
+                   STEM_BASE_Z + STEM_RISE * t))
+
+
+def build_hollow_stem(collection, materials):
+    """A closed wall shell with two long side doors, not a non-colliding stem.
+
+    The upper door sits below the attached seeds' full pappus collision envelope.
+    Ring boundaries, rather than booleans, make both rims deterministic and manifold.
+    """
+    builder = MeshBuilder()
+    sides, ring_count, thickness = 32, 51, 0.022
+    rings = []
+    for index in range(ring_count):
+        t = index / (ring_count - 1)
+        point = stem_point(t)
+        tangent = (stem_point(min(1, t + 0.001)) - stem_point(max(0, t - 0.001))).normalized()
+        u = tangent.cross(Vector((0, 1, 0))).normalized()
+        v = tangent.cross(u).normalized()
+        radius = max(0.20, 0.255 * (1 - 0.43 * t) + 0.018 * sin(pi * t))
+        outer, inner = [], []
+        for side in range(sides):
+            angle = 2 * pi * side / sides
+            radial = u * cos(angle) + v * sin(angle)
+            # Fine longitudinal facets in the interior carry the plant fibre rhythm.
+            inner_radius = radius - thickness - (0.002 if side % 4 == 0 else 0)
+            outer.append(builder.vertex(point + radial * radius))
+            inner.append(builder.vertex(point + radial * inner_radius))
+        rings.append((outer, inner))
+
+    inner_for_outer = {a: b for outer, inner in rings for a, b in zip(outer, inner)}
+    border = {}
+    for index in range(ring_count - 1):
+        for side in range(sides):
+            if (3 <= index < 12 or 26 <= index < 33) and 3 <= side < 13:
+                continue
+            nxt = (side + 1) % sides
+            face = (rings[index][0][side], rings[index][0][nxt],
+                    rings[index + 1][0][nxt], rings[index + 1][0][side])
+            builder.face(face, 0)
+            builder.face(tuple(inner_for_outer[a] for a in reversed(face)), 1 + (side % 4 == 0))
+            for a, b in zip(face, face[1:] + face[:1]):
+                key = tuple(sorted((a, b)))
+                if key in border:
+                    del border[key]
+                else:
+                    border[key] = (a, b)
+    for a, b in border.values():
+        builder.face((b, a, inner_for_outer[a], inner_for_outer[b]), 1)
+    builder.add_uv_sphere((0.02, 0, 0.28), (0.48, 0.46, 0.22), segments=32, rings=6)
+    # One material keeps the closed wall in one glTF primitive. Material-split open
+    # surfaces would each be interpreted as a solid by the scene collider's parity test.
+    mat = material("ScapeHollow", (1, 1, 1, 1), 0.88)
+    shader = mat.node_tree.nodes.get("Principled BSDF")
+    shader.inputs["Emission Color"].default_value = (0.19, 0.34, 0.105, 1)
+    shader.inputs["Emission Strength"].default_value = 0.22
+    vertex_color = mat.node_tree.nodes.new("ShaderNodeVertexColor")
+    vertex_color.layer_name = "ScapeColour"
+    mat.node_tree.links.new(vertex_color.outputs["Color"], shader.inputs["Base Color"])
+    obj = object_from_builder("Scape_SHOOTABLE", builder, collection,
+                              [mat], "scape", "SHOOTABLE")
+    colors = obj.data.color_attributes.new(name="ScapeColour", type="FLOAT_COLOR", domain="CORNER")
+    palette = [(0.16, 0.31, 0.085, 1), (0.28, 0.44, 0.16, 1), (0.35, 0.51, 0.20, 1)]
+    for polygon, material_index in zip(obj.data.polygons, builder.material_indices):
+        polygon.material_index = 0
+        for loop_index in polygon.loop_indices:
+            colors.data[loop_index].color = palette[material_index]
+    obj["hollow_stem"] = True
+    obj["stem_wall_thickness"] = thickness
+    obj["stem_lower_door"] = [0.06, 0.24]
+    obj["stem_upper_door"] = [0.52, 0.66]
+    obj["stem_route_range"] = [0.24, 0.52]
+    return obj
 
 
 def build_leaves(collection, profile, materials, rng):
@@ -859,6 +939,7 @@ def validate_roundtrip(path, expected_max_triangles=None):
 
 
 def main():
+    shootable_only = "--shootable-only" in sys.argv
     scene = reset_scene()
     materials = build_materials()
     collections = {profile.label: build_variant(scene, profile, materials)
@@ -873,20 +954,24 @@ def main():
         raise RuntimeError(f"unexpected number of individually shootable seeds: {len(shootable_seeds)}")
     if len({obj["seed_index"] for obj in shootable_seeds}) != len(shootable_seeds):
         raise RuntimeError("shootable seed IDs are not unique")
-    render_previews(scene, cameras)
-    export_collection(collections["HERO"], HERO_PATH, animations=True)
+    if not shootable_only:
+        render_previews(scene, cameras)
+        export_collection(collections["HERO"], HERO_PATH, animations=True)
     export_collection(collections["SHOOTABLE"], SHOOTABLE_PATH, animations=False)
-    export_collection(collections["LOD1"], LOD1_PATH, animations=True)
-    export_collection(collections["LOD2"], LOD2_PATH, animations=False)
-    export_collection(collision, COLLISION_PATH, animations=False)
-    validate_roundtrip(HERO_PATH)
+    if not shootable_only:
+        export_collection(collections["LOD1"], LOD1_PATH, animations=True)
+        export_collection(collections["LOD2"], LOD2_PATH, animations=False)
+        export_collection(collision, COLLISION_PATH, animations=False)
+        validate_roundtrip(HERO_PATH)
     validate_roundtrip(SHOOTABLE_PATH)
-    validate_roundtrip(LOD1_PATH)
-    validate_roundtrip(LOD2_PATH)
-    validate_roundtrip(COLLISION_PATH, expected_max_triangles=500)
+    if not shootable_only:
+        validate_roundtrip(LOD1_PATH)
+        validate_roundtrip(LOD2_PATH)
+        validate_roundtrip(COLLISION_PATH, expected_max_triangles=500)
     scene.camera = cameras["front"]
     scene.frame_set(120)
     BLEND_PATH.parent.mkdir(parents=True, exist_ok=True)
+    bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_PATH), check_existing=False)
     print(f"saved {BLEND_PATH.relative_to(ROOT)}")
 

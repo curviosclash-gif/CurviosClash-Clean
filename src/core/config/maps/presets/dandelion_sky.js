@@ -4,6 +4,7 @@ import {
     DANDELION_SKY_ROOT_CHAMBER_OBSTACLES,
     DANDELION_SKY_ROOT_CHAMBER_TURRETS,
 } from './dandelion_sky/DandelionSkySecretRoom.js';
+import { DANDELION_STEM_GATES, DANDELION_STEM_PICKUPS } from './dandelion_sky/DandelionSkyStem.js';
 
 // The seed crown does not sit over the stem base: the GLB leans it to x=39. Spawns and pickups
 // are laid out around that point, so no start is nearer to the seeds than another.
@@ -77,6 +78,7 @@ export const DANDELION_SKY_MAP = {
         obstacles: DANDELION_SKY_ROOT_CHAMBER_OBSTACLES,
         secretRooms: [DANDELION_SKY_ROOT_CHAMBER],
         staticTurrets: DANDELION_SKY_ROOT_CHAMBER_TURRETS,
+        mapOwnedPickups: DANDELION_STEM_PICKUPS,
         // Lower and upper flight lanes keep both the whole silhouette and individual pappus
         // seeds accessible without making the flower itself a traffic-blocking level wall. The
         // third pair links the middle band, which had no way in or out of its own. Strong, distinct
@@ -91,6 +93,7 @@ export const DANDELION_SKY_MAP = {
             { id: 'dandelion_sky_updraft_east', type: 'slingshot', pos: [126, 131, 114], forward: [-0.2, 1, -0.2], up: [0, 1, 0], params: { duration: 1.8, forwardImpulse: 40, liftImpulse: 34, cooldown: 1.5 } },
             { id: 'dandelion_sky_orbit_north', type: 'boost', pos: [0, 135, -155], forward: [1, 0, 0], params: { duration: 0.9, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
             { id: 'dandelion_sky_orbit_south', type: 'boost', pos: [0, 135, 155], forward: [-1, 0, 0], params: { duration: 0.9, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
+            ...DANDELION_STEM_GATES,
         ],
         // Eight starts on one ring around the crown, 45 degrees apart. The first bots take the
         // far side of the ring, so the ones next to the player only join in larger matches, and

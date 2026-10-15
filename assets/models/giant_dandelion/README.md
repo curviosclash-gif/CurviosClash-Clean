@@ -24,6 +24,10 @@ double-sided runtime material is required; every material culls back faces.
   `seed_index % 4`, which are exactly the templates the game's instanced seed batch draws;
   seeds sharing a mesh share its `pappus_height`. This file has no autoplaying seed flight clip:
   a hit releases only the struck seed, and the game animates its flight.
+  Its stem has a solid hollow wall, a softly lit fibrous interior and two elongated side
+  openings below the attached seed envelope. The Dandelion Sky map uses it as a bidirectional
+  flight route with three upward-only slingshots and eight once-per-round pickups in HUNT
+  (five medium rockets, repair drone, Fan ×5 and shield); ARCADE retains only drone and shield.
 - `giant_dandelion_lod1.glb`: middle-distance mesh with five synchronized animated seeds.
 - `giant_dandelion_lod2.glb`: far-distance silhouette mesh.
 - `giant_dandelion_collision.glb`: simple stem-and-head collision proxy.
@@ -57,6 +61,9 @@ Regenerate deterministically with Blender 4.2 LTS:
 ```powershell
 blender --background --factory-startup --python-exit-code 1 --python scripts/generate_giant_dandelion_asset.py
 ```
+
+To rebuild only the interactive GLB and editable source, without replacing the other exports
+or their previews, append `-- --shootable-only`.
 
 The generator validates bounds, decreasing LOD triangle counts, material count, wind morphs,
 individual flight actions, collision complexity and a GLB roundtrip import before saving the
