@@ -3,8 +3,8 @@ export function isTeamObjectiveFirstTickScenario(scenario = {}) {
     return id === 'H-TEAM-FLAGS' || id === 'H-TEAM-ESCORT';
 }
 
-/** Serializable page-evaluable sampler shared by every bot-validation scenario. */
-export async function captureBotRuntimeSample({ waitForFirstTick = false, timeoutMs = 0 } = {}) {
+/** Serializable runtime/objective sampler; paired start probes share one advancing tick. */
+export async function captureBotRuntimeSample({ waitForFirstTick = false, timeoutMs = 0, captureKind = 'runtime' } = {}) {
     const sampleRuntime = (game, entityManager) => {
         const botPlayers = Array.isArray(entityManager?.players)
             ? entityManager.players.filter((player) => !!player?.isBot)
@@ -25,13 +25,18 @@ export async function captureBotRuntimeSample({ waitForFirstTick = false, timeou
             };
         });
         const botTeamIds = botPlayers.map((player) => String(player?.teamId || '').trim().toUpperCase());
-        const botObjectiveAssignments = botPlayers.map((player) => ({
-            playerIndex: Number(player?.index ?? -1),
-            teamId: String(player?.teamId || '').trim().toUpperCase(),
-            objectiveType: String(player?.botObjectiveType || '').trim().toUpperCase(),
-            objectiveRole: String(player?.flagBotRole || player?.escortBotRole || '').trim().toUpperCase(),
-            objectiveTargetId: String(player?.flagBotTargetId || '').trim(),
-        })).filter((entry) => !!entry.objectiveType);
+        const botObjectiveAssignments = botPlayers.map((player) => {
+            const objectiveType = String(player?.botObjectiveType || '').trim().toUpperCase();
+            const objectiveRole = objectiveType === 'FLAGS' ? player.flagBotRole
+                : objectiveType === 'ESCORT' ? player.escortBotRole : player.flagBotRole || player.escortBotRole;
+            return {
+                playerIndex: Number(player?.index ?? -1),
+                teamId: String(player?.teamId || '').trim().toUpperCase(),
+                objectiveType,
+                objectiveRole: String(objectiveRole || '').trim().toUpperCase(),
+                objectiveTargetId: String(player?.flagBotTargetId || '').trim(),
+            };
+        }).filter((entry) => !!entry.objectiveType);
         const arcadeSeed = Number(game.runtimeConfig?.arcade?.seed);
         const arcadeEnabled = game.runtimeConfig?.arcade?.enabled === true;
         const runtimeGameMode = String(game.runtimeConfig?.session?.activeGameMode || '').trim().toUpperCase();
@@ -59,6 +64,82 @@ export async function captureBotRuntimeSample({ waitForFirstTick = false, timeou
             mgAimBins: entityManager?._overheatGunSystem?.__botValidationMgAimBins || null,
             combatTrace: game.__botValidationCombatTrace || null,
         };
+    };
+
+    const sampleObjective = (game, entityManager) => {
+        if (!game || !entityManager) throw new Error('GAME_INSTANCE runtime missing');
+        const finitePosition = (position) => position && [position.x, position.y, position.z].every(Number.isFinite)
+            ? { x: position.x, y: position.y, z: position.z }
+            : null;
+        const bots = (Array.isArray(entityManager.players) ? entityManager.players : [])
+            .filter((player) => player?.isBot === true)
+            .map((player) => {
+                const objectiveType = String(player.botObjectiveType || '').trim().toUpperCase();
+                const objectiveRole = objectiveType === 'FLAGS'
+                    ? player.flagBotRole
+                    : objectiveType === 'ESCORT' ? player.escortBotRole : '';
+                return {
+                    playerIndex: Number(player.index ?? -1),
+                    teamId: String(player.teamId || '').trim().toUpperCase(),
+                    objectiveType,
+                    objectiveRole: String(objectiveRole || '').trim().toUpperCase(),
+                    objectiveTargetId: objectiveType === 'FLAGS'
+                        ? String(player.flagBotTargetId || '').trim()
+                        : '',
+                    position: finitePosition(player.position),
+                    nearEscortTank: entityManager._mapUnitSystem?.isPositionNearEscortTank?.(player.position) === true,
+                };
+            });
+        const flags = Array.isArray(entityManager._flagObjectiveSystem?.flags)
+            ? entityManager._flagObjectiveSystem.flags.map((flag) => ({
+                id: String(flag.id || ''),
+                teamId: String(flag.teamId || '').trim().toUpperCase(),
+                hp: Number(flag.hp),
+                maxHp: Number(flag.maxHp),
+                position: finitePosition(flag.position),
+            }))
+            : [];
+        const escort = entityManager._mapUnitSystem?.getEscortObjectiveState?.() || null;
+        const scoreboard = entityManager.getHuntScoreboard?.() || [];
+        return {
+            gameState: String(game.state || ''),
+            simulationSeconds: Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001,
+            bots,
+            flags,
+            flagCaptureEvent: entityManager._flagObjectiveSystem?.captureEvent
+                ? { ...entityManager._flagObjectiveSystem.captureEvent }
+                : null,
+            escort: escort ? {
+                phase: String(escort.phase || ''),
+                progress: Number(escort.progress),
+                checkpointsReached: Number(escort.checkpointsReached),
+                checkpointCount: Number(escort.checkpointCount),
+                hp: Number(escort.hp),
+                maxHp: Number(escort.maxHp),
+                position: finitePosition(escort.position),
+            } : null,
+            scoreboard: scoreboard.map((row) => ({
+                playerIndex: Number(row.playerIndex),
+                flagCaptures: Number(row.flagCaptures) || 0,
+                escortSeconds: Number(row.escortSeconds) || 0,
+                escortTankDamage: Number(row.escortTankDamage) || 0,
+                escortGuardKills: Number(row.escortGuardKills) || 0,
+                escortAttackKills: Number(row.escortAttackKills) || 0,
+                escortCheckpointContributions: Number(row.escortCheckpointContributions) || 0,
+                escortRepairHp: Number(row.escortRepairHp) || 0,
+                escortRecoveries: Number(row.escortRecoveries) || 0,
+                escortTankDowns: Number(row.escortTankDowns) || 0,
+                escortFinalDestructions: Number(row.escortFinalDestructions) || 0,
+            })),
+        };
+    };
+
+    const captureCurrent = (game, entityManager) => {
+        if (captureKind === 'objective') return sampleObjective(game, entityManager);
+        const runtimeSample = sampleRuntime(game, entityManager);
+        return captureKind === 'start'
+            ? { runtimeSample, objectiveSnapshot: sampleObjective(game, entityManager) }
+            : runtimeSample;
     };
 
     const readBarrierState = () => {
@@ -93,7 +174,7 @@ export async function captureBotRuntimeSample({ waitForFirstTick = false, timeou
     const game = window.GAME_INSTANCE;
     if (!game) throw new Error('GAME_INSTANCE missing');
     const entityManager = game.entityManager;
-    if (!waitForFirstTick || game.state !== 'PLAYING') return sampleRuntime(game, entityManager);
+    if (!waitForFirstTick || game.state !== 'PLAYING') return captureCurrent(game, entityManager);
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
         throw new Error('objective first-tick barrier requires a positive finite timeout');
     }
@@ -148,6 +229,6 @@ export async function captureBotRuntimeSample({ waitForFirstTick = false, timeou
         }
         if (current.simulationClockMs <= initial.simulationClockMs) continue;
 
-        return sampleRuntime(current.game, current.entityManager);
+        return captureCurrent(current.game, current.entityManager);
     }
 }

@@ -740,75 +740,8 @@ async function captureBotObjectiveSnapshot(page, phasePrefix, deadlines) {
         page,
         `${phasePrefix}:objective-observation`,
         resolveTimeout(EVAL_TIMEOUT_MS, `${phasePrefix}:objective-observation`, deadlines),
-        () => {
-            const game = window.GAME_INSTANCE;
-            const entityManager = game?.entityManager;
-            if (!game || !entityManager) throw new Error('GAME_INSTANCE runtime missing');
-            const finitePosition = (position) => position && [position.x, position.y, position.z].every(Number.isFinite)
-                ? { x: position.x, y: position.y, z: position.z }
-                : null;
-            const bots = (Array.isArray(entityManager.players) ? entityManager.players : [])
-                .filter((player) => player?.isBot === true)
-                .map((player) => {
-                    const objectiveType = String(player.botObjectiveType || '').trim().toUpperCase();
-                    const objectiveRole = objectiveType === 'FLAGS'
-                        ? player.flagBotRole
-                        : objectiveType === 'ESCORT' ? player.escortBotRole : '';
-                    return {
-                        playerIndex: Number(player.index ?? -1),
-                        teamId: String(player.teamId || '').trim().toUpperCase(),
-                        objectiveType,
-                        objectiveRole: String(objectiveRole || '').trim().toUpperCase(),
-                        objectiveTargetId: objectiveType === 'FLAGS'
-                            ? String(player.flagBotTargetId || '').trim()
-                            : '',
-                        position: finitePosition(player.position),
-                        nearEscortTank: entityManager._mapUnitSystem?.isPositionNearEscortTank?.(player.position) === true,
-                    };
-                });
-            const flags = Array.isArray(entityManager._flagObjectiveSystem?.flags)
-                ? entityManager._flagObjectiveSystem.flags.map((flag) => ({
-                    id: String(flag.id || ''),
-                    teamId: String(flag.teamId || '').trim().toUpperCase(),
-                    hp: Number(flag.hp),
-                    maxHp: Number(flag.maxHp),
-                    position: finitePosition(flag.position),
-                }))
-                : [];
-            const escort = entityManager._mapUnitSystem?.getEscortObjectiveState?.() || null;
-            const scoreboard = entityManager.getHuntScoreboard?.() || [];
-            return {
-                gameState: String(game.state || ''),
-                simulationSeconds: Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001,
-                bots,
-                flags,
-                flagCaptureEvent: entityManager._flagObjectiveSystem?.captureEvent
-                    ? { ...entityManager._flagObjectiveSystem.captureEvent }
-                    : null,
-                escort: escort ? {
-                    phase: String(escort.phase || ''),
-                    progress: Number(escort.progress),
-                    checkpointsReached: Number(escort.checkpointsReached),
-                    checkpointCount: Number(escort.checkpointCount),
-                    hp: Number(escort.hp),
-                    maxHp: Number(escort.maxHp),
-                    position: finitePosition(escort.position),
-                } : null,
-                scoreboard: scoreboard.map((row) => ({
-                    playerIndex: Number(row.playerIndex),
-                    flagCaptures: Number(row.flagCaptures) || 0,
-                    escortSeconds: Number(row.escortSeconds) || 0,
-                    escortTankDamage: Number(row.escortTankDamage) || 0,
-                    escortGuardKills: Number(row.escortGuardKills) || 0,
-                    escortAttackKills: Number(row.escortAttackKills) || 0,
-                    escortCheckpointContributions: Number(row.escortCheckpointContributions) || 0,
-                    escortRepairHp: Number(row.escortRepairHp) || 0,
-                    escortRecoveries: Number(row.escortRecoveries) || 0,
-                    escortTankDowns: Number(row.escortTankDowns) || 0,
-                    escortFinalDestructions: Number(row.escortFinalDestructions) || 0,
-                })),
-            };
-        }
+        captureBotRuntimeSample,
+        { captureKind: 'objective' }
     );
 }
 
@@ -1013,16 +946,20 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         await installMgAimProbe(page, roundLabel, deadlines);
     }
     const sampleTimeoutMs = resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:runtime-contract`, deadlines);
-    const startRuntimeSample = await evaluatePhase(
+    const objectiveFirstTick = isTeamObjectiveFirstTickScenario(scenario);
+    const startCapture = await evaluatePhase(
         page,
         `${roundLabel}:runtime-contract`,
         sampleTimeoutMs,
         captureBotRuntimeSample,
         {
-            waitForFirstTick: isTeamObjectiveFirstTickScenario(scenario),
+            waitForFirstTick: objectiveFirstTick,
             timeoutMs: sampleTimeoutMs,
+            captureKind: objectiveFirstTick ? 'start' : 'runtime',
         }
     );
+
+    const startRuntimeSample = objectiveFirstTick ? startCapture.runtimeSample : startCapture;
 
     let forced = false;
     let observationCompleted = false;
@@ -1035,7 +972,9 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         const observationMs = Math.max(1000, Number(scenario.observationSeconds) * 1000);
         if (objectiveObservation) {
             let stateAtObservationEnd = stateAfterStart;
-            objectiveSnapshots.push(await captureBotObjectiveSnapshot(page, `${roundLabel}:objective-start`, deadlines));
+            objectiveSnapshots.push(objectiveFirstTick
+                ? startCapture.objectiveSnapshot
+                : await captureBotObjectiveSnapshot(page, `${roundLabel}:objective-start`, deadlines));
             let observedMs = 0;
             while (observedMs < observationMs && !['ROUND_END', 'MATCH_END'].includes(stateAtObservationEnd)) {
                 const intervalMs = Math.min(5000, observationMs - observedMs);

@@ -91,7 +91,7 @@ function createControlledScheduler() {
     };
 }
 
-function startSample(runtime, scheduler, { waitForFirstTick = true, timeoutMs = 100 } = {}) {
+function startSample(runtime, scheduler, { waitForFirstTick = true, timeoutMs = 100, captureKind = 'runtime', sampler = captureBotRuntimeSample } = {}) {
     const previousWindow = globalThis.window;
     globalThis.window = {
         GAME_INSTANCE: runtime.game,
@@ -102,7 +102,7 @@ function startSample(runtime, scheduler, { waitForFirstTick = true, timeoutMs = 
         clearTimeout: scheduler.clearTimeout,
     };
     return {
-        promise: captureBotRuntimeSample({ waitForFirstTick, timeoutMs }),
+        promise: sampler({ waitForFirstTick, timeoutMs, captureKind }),
         restore() {
             if (previousWindow === undefined) delete globalThis.window;
             else globalThis.window = previousWindow;
@@ -115,6 +115,56 @@ test('only normalized team objective scenario IDs request a first-tick sample', 
     assert.equal(isTeamObjectiveFirstTickScenario({ id: ' H-TEAM-ESCORT ' }), true);
     assert.equal(isTeamObjectiveFirstTickScenario({ id: 'H-TEAM-FLAGS-EXTRA', teamMode: true, teamObjective: 'FLAGS' }), false);
     assert.equal(isTeamObjectiveFirstTickScenario({ id: 'H-OTHER', teamMode: true, teamObjective: 'ESCORT' }), false);
+});
+
+for (const objective of ['FLAGS', 'ESCORT']) test(`serialized ${objective} start captures runtime and objective baseline on the same advancing tick`, async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    const escort = { phase: 'moving', progress: 0, hp: 100, maxHp: 100, position: { x: 1, y: 2, z: 3 } };
+    runtime.entityManager._mapUnitSystem = { getEscortObjectiveState: () => escort, isPositionNearEscortTank: () => true };
+    runtime.player.position = { x: 4, y: 5, z: 6 };
+    const sampler = new Function(`return (${captureBotRuntimeSample.toString()});`)();
+    const pending = startSample(runtime, scheduler, { captureKind: 'start', sampler });
+    try {
+        scheduler.runFrame(() => {
+            runtime.entityManager._simulationClockMs = 25;
+            runtime.player.botObjectiveType = objective;
+            runtime.player.flagBotRole = 'ATTACKER';
+            runtime.player.escortBotRole = 'GUARD';
+            runtime.player.flagBotTargetId = 'flag-2';
+            escort.progress = 0.25;
+        });
+        const { runtimeSample, objectiveSnapshot } = await pending.promise;
+        assert.equal(objectiveSnapshot.simulationSeconds, 0.025);
+        assert.equal(objectiveSnapshot.bots[0].objectiveType, runtimeSample.botObjectiveAssignments[0].objectiveType);
+        assert.equal(objectiveSnapshot.bots[0].objectiveRole, runtimeSample.botObjectiveAssignments[0].objectiveRole);
+        assert.equal(objectiveSnapshot.escort.progress, 0.25);
+        assert.equal(objectiveSnapshot.bots[0].nearEscortTank, true);
+        runtime.entityManager._simulationClockMs = 50;
+        escort.progress = 0.5; escort.position.x = 99; runtime.player.position.x = 88;
+        assert.equal(objectiveSnapshot.simulationSeconds, 0.025);
+        assert.equal(objectiveSnapshot.escort.progress, 0.25);
+        assert.equal(objectiveSnapshot.escort.position.x, 1);
+        assert.equal(objectiveSnapshot.bots[0].position.x, 4);
+        assert.equal(scheduler.frames.size, 0);
+        assert.equal(scheduler.timers.size, 0);
+    } finally { pending.restore(); }
+});
+
+test('objective-only observations keep their immediate snapshot path without waiting for a bot tick', async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    runtime.entityManager._simulationClockMs = 500;
+    const pending = startSample(runtime, scheduler, { waitForFirstTick: false, captureKind: 'objective' });
+    try {
+        const snapshot = await pending.promise;
+        assert.equal(snapshot.simulationSeconds, 0.5);
+        assert.equal(snapshot.gameState, 'PLAYING');
+        assert.equal(snapshot.bots.length, 1);
+        assert.equal(snapshot.runtimeSample, undefined);
+        assert.equal(scheduler.frames.size, 0);
+        assert.equal(scheduler.timers.size, 0);
+    } finally { pending.restore(); }
 });
 
 test('first-tick sample sees objective assignments added on the advancing frame and cleans callbacks', async () => {
@@ -548,8 +598,11 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(runnerSource, /execSync\('npm run build:app'/);
     assert.match(runnerSource, /await g\.runtimeCoordinator\.startMatch\(\{ source: 'bot_validation' \}\)/);
     assert.match(samplerSource, /id === 'H-TEAM-FLAGS' \|\| id === 'H-TEAM-ESCORT'/);
-    assert.match(runnerSource, /waitForFirstTick: isTeamObjectiveFirstTickScenario\(scenario\)/);
-    assert.equal((runnerSource.match(/captureBotRuntimeSample,/g) || []).length, 3, 'the one sampler is imported and used for start and end samples');
+    assert.match(runnerSource, /const objectiveFirstTick = isTeamObjectiveFirstTickScenario\(scenario\)/);
+    assert.match(runnerSource, /waitForFirstTick: objectiveFirstTick/);
+    assert.match(runnerSource, /captureKind: objectiveFirstTick \? 'start' : 'runtime'/);
+    assert.match(runnerSource, /objectiveSnapshots\.push\(objectiveFirstTick\s+\? startCapture\.objectiveSnapshot/);
+    assert.equal((runnerSource.match(/captureBotRuntimeSample,/g) || []).length, 4, 'the shared sampler is imported and used for start, end and objective samples');
     assert.match(
         runnerSource,
         /waitForFunction\(\(\) => \{\s+const game = window\.GAME_INSTANCE;\s+return typeof game\?\.getBotValidationMatrix === 'function'\s+&& typeof game\?\.applyBotValidationScenario === 'function';/
@@ -564,9 +617,10 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(runnerSource, /isObjectiveObservationScenario\(scenario\)/);
     assert.match(runnerSource, /captureBotObjectiveSnapshot\(/);
     assert.match(runnerSource, /Math\.min\(5000, observationMs - observedMs\)/);
-    // The runtime sample lives in bot-validation-first-tick.mjs; the runner keeps only the objective snapshot.
-    assert.equal((runnerSource.match(/const objectiveRole = objectiveType === 'FLAGS'/g) || []).length, 1);
-    assert.equal((runnerSource.match(/objectiveTargetId: objectiveType === 'FLAGS'/g) || []).length, 1);
+    // Runtime and objective capture share one serializable module; the runner only selects the capture kind.
+    assert.equal((runnerSource.match(/const objectiveRole = objectiveType === 'FLAGS'/g) || []).length, 0);
+    assert.equal((samplerSource.match(/const objectiveRole = objectiveType === 'FLAGS'/g) || []).length, 2);
+    assert.equal((samplerSource.match(/objectiveTargetId: objectiveType === 'FLAGS'/g) || []).length, 1);
     assert.match(runnerSource, /A att\/def\/cap=/);
     assert.match(runnerSource, /B tankDamage=/);
     assert.match(runnerSource, /Aktionsbelege sind Beobachtungsdaten, kein Win-\/Erfolgskriterium/);
