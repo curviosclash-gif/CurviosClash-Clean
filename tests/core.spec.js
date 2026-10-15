@@ -580,7 +580,7 @@ async function checkSplitScreenFightHud(page, testInfo) {
     await waitForLoadedGame(page);
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
     await chooseFreePlayVariant(page, 'ffa');
-    await page.locator('#submenu-game:not(.hidden) #btn-start').click({ force: true });
+    await page.locator('#submenu-game:not(.hidden) #btn-start').click();
     await page.waitForFunction(() => {
         const game = window.GAME_INSTANCE;
         const huntHud = document.getElementById('hunt-hud');
