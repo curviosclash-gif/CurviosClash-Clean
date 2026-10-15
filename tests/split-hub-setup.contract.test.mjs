@@ -367,5 +367,5 @@ test('the page offers players and devices in the hub and no longer in the start 
     for (const key of ['arcadeJourney', 'freePlay', 'deviceAssignment', 'profileSlots']) {
         assert.match(hub, new RegExp(`data-menu-visibility-key="${key}"`), `${key} is bound to the visibility contract`);
     }
-    assert.ok(hub.indexOf('id="hub-split-players"') < hub.indexOf('level2-config-section'), 'the block sits above the mode cards');
+    assert.ok(hub.indexOf('id="hub-split-players"') < hub.indexOf('id="journey-hub-mount"'), 'player assignment sits above the journey map');
 });

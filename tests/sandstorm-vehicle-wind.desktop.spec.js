@@ -1,7 +1,9 @@
+import { MAP_SANDSTORM_DIRECTIONS } from '../src/shared/contracts/MapSandstormContract.js';
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant } from './helpers.js';
+import { collectErrors, waitForLoadedGame, waitForRenderFrames, chooseFreePlayVariant, menuScreenSelector } from './helpers.js';
 
 const MAP_KEY = 'clockwork_canyon';
+const MAP_SCALE = 3;
 
 test('sandstorm drift is felt in open air and blocked by the canyon walls @render', async ({ page }, testInfo) => {
     test.setTimeout(240_000);
@@ -9,141 +11,122 @@ test('sandstorm drift is felt in open air and blocked by the canyon walls @rende
     await waitForLoadedGame(page);
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
     await chooseFreePlayVariant(page, 'ffa');
-    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
+    await page.waitForSelector(menuScreenSelector('freeplay'), { timeout: 10_000 });
     await page.selectOption('#map-select', MAP_KEY);
-    await page.locator('#submenu-game:not(.hidden) #btn-start').click({ force: true });
+    await page.locator(`${menuScreenSelector('freeplay')} #btn-start`).click({ force: true });
     await page.waitForFunction((mapKey) => {
         const game = window.GAME_INSTANCE;
         return game?.state === 'PLAYING'
             && game?.arena?.currentMapKey === mapKey
-            && game?.entityManager?.humanPlayers?.length === 2;
+            && game?.entityManager?.getHumanPlayers?.().length === 2;
     }, MAP_KEY, { timeout: 120_000 });
-    await waitForRenderFrames(page, 12);
 
-    await page.evaluate(() => {
-        const manager = window.GAME_INSTANCE.entityManager;
-        const system = manager.runtimePorts.weather.sandstormSystem;
-        system.startRound();
-        system.state.phase = 'ACTIVE';
-        system.state.remainingSeconds = 45;
-        system.state.intensity = 1;
-        const player = manager.humanPlayers[0];
-        player.sandstormVisualIntensity = 1;
-        player.view._reduceMotion = false;
-    });
+    // Exercise the authored storm through its real match clock. The canyon begins with a
+    // 45-90 second calm period, followed by a 20 second warning and ingress.
+    await page.waitForFunction(() => {
+        const storm = window.GAME_INSTANCE?.entityManager?.getMapSandstormState?.();
+        return storm?.phase === 'ACTIVE' && storm.intensity >= 0.9;
+    }, null, { timeout: 180_000 });
     await waitForRenderFrames(page, 8);
-    const visualJitter = await page.evaluate(() => {
-        const player = window.GAME_INSTANCE.entityManager.humanPlayers[0];
-        return {
-            positionOffset: Math.abs(player.group.position.y - player.view._renderPosition.y),
-            angleOffset: player.view._renderQuaternion.angleTo(player.group.quaternion),
-        };
-    });
-    expect(visualJitter.positionOffset + visualJitter.angleOffset).toBeGreaterThan(0.001);
     await page.screenshot({ path: testInfo.outputPath('canyon-vehicle-wind.png') });
 
-    const result = await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        const manager = game.entityManager;
-        const system = manager.runtimePorts.weather.sandstormSystem;
-        const scale = Number(manager.entityRuntimeConfig?.ARENA?.MAP_SCALE) || 1;
-
-        const player = manager.humanPlayers[0];
-        const openPosition = { x: 500 * scale, y: 100 * scale, z: 500 * scale };
-        let openWind = null;
-        for (let directionIndex = 0; directionIndex < 4; directionIndex += 1) {
-            system.state.directionIndex = directionIndex;
-            player.position.set(openPosition.x, openPosition.y, openPosition.z);
-            player._sandstormWindSample.windOcclusionSampleValid = false;
-            const state = system.getVehicleWindState(player.position, player._sandstormWindSample);
-            if (state.exposure === 1) {
-                openWind = { directionIndex, directionX: state.directionX, directionZ: state.directionZ };
-                break;
-            }
+    await page.evaluate(({ directions, mapScale }) => {
+        const manager = window.GAME_INSTANCE.entityManager;
+        const player = manager.getHumanPlayers()[0];
+        const storm = manager.getMapSandstormState();
+        const [directionX, directionZ] = directions[storm.directionIndex] || directions[0];
+        const position = { x: 60.5 * mapScale, y: 6 * mapScale, z: 35 * mapScale };
+        player.spawn(position);
+        player.setLookAtWorld(position.x + directionZ * 100, position.y, position.z - directionX * 100);
+    }, { directions: MAP_SANDSTORM_DIRECTIONS, mapScale: MAP_SCALE });
+    await waitForRenderFrames(page, 4);
+    const neutralJitter = await page.evaluate(() => {
+        const player = window.GAME_INSTANCE.entityManager.getHumanPlayers()[0];
+        const position = player.position.clone();
+        const quaternion = player.quaternion.clone();
+        if (!player.view?.copyRenderTransform?.(position, quaternion)) {
+            throw new Error('The public render-transform snapshot is unavailable.');
         }
-        if (!openWind) throw new Error('The open-air test position is wind-blocked in every direction.');
-
-        player.position.set(openPosition.x, openPosition.y, openPosition.z);
-        player.quaternion.set(0, 0, 0, 1);
-        player._sandstormDriftVelocity.set(0, 0, 0);
-        player._sandstormWindSample.windOcclusionSampleValid = false;
-        const openStartX = player.position.x;
-        const openStartZ = player.position.z;
-        for (let tick = 0; tick < 90; tick += 1) player.update(1 / 60, null, 0, null, 1);
-        const openDrift = {
-            displacementX: player.position.x - openStartX,
-            displacementZ: player.position.z - openStartZ,
-            driftSpeed: player._sandstormDriftVelocity.length(),
-            intensity: player.sandstormVisualIntensity,
-            directionX: openWind.directionX,
-            directionZ: openWind.directionZ,
+        return {
+            positionOffset: player.group.position.distanceTo(position),
+            angleOffset: player.group.quaternion.angleTo(quaternion),
         };
-
-        const obstacles = Array.isArray(game.arena.obstacles) ? game.arena.obstacles : [];
-        const windCases = [
-            { index: 0, axis: 'z', side: 'min' },
-            { index: 1, axis: 'x', side: 'max' },
-            { index: 2, axis: 'z', side: 'max' },
-            { index: 3, axis: 'x', side: 'min' },
-        ];
-        let blockedCase = null;
-        for (const windCase of windCases) {
-            system.state.directionIndex = windCase.index;
-            for (const obstacle of obstacles) {
-                const box = obstacle?.box;
-                if (!obstacle?.isWall || obstacle.tunnel || obstacle.tube || !box?.min || !box?.max) continue;
-                const crosswindSize = windCase.axis === 'x'
-                    ? box.max.z - box.min.z
-                    : box.max.x - box.min.x;
-                const height = box.max.y - box.min.y;
-                if (crosswindSize < 3 || height < 2) continue;
-                const position = {
-                    x: (box.min.x + box.max.x) * 0.5,
-                    y: (box.min.y + box.max.y) * 0.5,
-                    z: (box.min.z + box.max.z) * 0.5,
-                };
-                if (windCase.side === 'max') position[windCase.axis] = box.max[windCase.axis] + 2;
-                else position[windCase.axis] = box.min[windCase.axis] - 2;
-                if (system.isSheltered(position)) continue;
-
-                player.position.set(position.x, position.y, position.z);
-                player._sandstormWindSample.windOcclusionSampleValid = false;
-                const state = system.getVehicleWindState(player.position, player._sandstormWindSample);
-                if (state.exposure < 1) {
-                    blockedCase = {
-                        exposure: state.exposure,
-                        sourceName: obstacle.sourceName || '',
-                        directionIndex: windCase.index,
-                    };
-                    break;
-                }
-            }
-            if (blockedCase) break;
-        }
-        if (!blockedCase) throw new Error('No canyon wall produced a wind shadow.');
-
-        player._sandstormDriftVelocity.set(0, 0, 0);
-        player._sandstormWindSample.windOcclusionSampleValid = false;
-        player.update(1 / 60, null, 0, null, 1);
-        const shelteredStep = {
-            exposure: player._sandstormWindSample.exposure,
-            intensity: player.sandstormVisualIntensity,
-            driftSpeed: player._sandstormDriftVelocity.length(),
-        };
-        system.reset();
-        return { mapKey: game.arena.currentMapKey, scale, openWind, openDrift, blockedCase, shelteredStep };
     });
 
+    await page.evaluate(({ directions, mapScale }) => {
+        const manager = window.GAME_INSTANCE.entityManager;
+        const player = manager.getHumanPlayers()[0];
+        const storm = manager.getMapSandstormState();
+        const [directionX, directionZ] = directions[storm.directionIndex] || directions[0];
+        const position = { x: 500 * mapScale, y: 100 * mapScale, z: 500 * mapScale };
+        player.spawn(position);
+        player.setLookAtWorld(position.x + directionZ * 100, position.y, position.z - directionX * 100);
+    }, { directions: MAP_SANDSTORM_DIRECTIONS, mapScale: MAP_SCALE });
+    let visualJitter = { positionOffset: 0, angleOffset: 0, intensity: 0 };
+    for (let sample = 0; sample < 4; sample += 1) {
+        await waitForRenderFrames(page, 2);
+        const current = await page.evaluate(() => {
+            const player = window.GAME_INSTANCE.entityManager.getHumanPlayers()[0];
+            const position = player.position.clone();
+            const quaternion = player.quaternion.clone();
+            if (!player.view?.copyRenderTransform?.(position, quaternion)) {
+                throw new Error('The public render-transform snapshot is unavailable.');
+            }
+            return {
+                positionOffset: player.group.position.distanceTo(position),
+                angleOffset: player.group.quaternion.angleTo(quaternion),
+                intensity: player.sandstormVisualIntensity,
+            };
+        });
+        if (current.positionOffset + current.angleOffset > visualJitter.positionOffset + visualJitter.angleOffset) {
+            visualJitter = current;
+        }
+    }
+    expect(neutralJitter.positionOffset + neutralJitter.angleOffset).toBeLessThan(0.001);
+    expect(visualJitter.intensity).toBeGreaterThan(0.9);
+    expect(visualJitter.positionOffset + visualJitter.angleOffset).toBeGreaterThan(0.001);
+
+    const result = await page.evaluate(({ directions, mapScale }) => {
+        const game = window.GAME_INSTANCE;
+        const manager = game.entityManager;
+        const player = manager.getHumanPlayers()[0];
+        const storm = manager.getMapSandstormState();
+        const direction = directions[storm.directionIndex] || directions[0];
+        const [directionX, directionZ] = direction;
+        // Keep ordinary forward travel perpendicular to the wind so this measures the
+        // force applied by the live Player.update path, not the vehicle's heading.
+        const forwardX = directionZ;
+        const forwardZ = -directionX;
+
+        const measure = (position, ticks) => {
+            player.spawn(position);
+            if (!player.setLookAtWorld(
+                position.x + forwardX * 100,
+                position.y,
+                position.z + forwardZ * 100,
+            )) throw new Error('Could not orient the public player API for the wind measurement.');
+            const start = player.position.clone();
+            for (let tick = 0; tick < ticks; tick += 1) player.update(1 / 60, null, 0, null, 1);
+            const dx = player.position.x - start.x;
+            const dz = player.position.z - start.z;
+            return {
+                alongWind: dx * directionX + dz * directionZ,
+                visualIntensity: player.sandstormVisualIntensity,
+            };
+        };
+
+        // The open-air point is outside all authored canyon geometry; the nook is the
+        // authored east shelter scaled with the arena's geometry.
+        const openAir = measure({ x: 500 * mapScale, y: 100 * mapScale, z: 500 * mapScale }, 90);
+        const sheltered = measure({ x: 60.5 * mapScale, y: 6 * mapScale, z: 35 * mapScale }, 12);
+        return { mapKey: game.arena.currentMapKey, storm, openAir, sheltered };
+    }, { directions: MAP_SANDSTORM_DIRECTIONS, mapScale: MAP_SCALE });
+
     expect(result.mapKey).toBe(MAP_KEY);
-    expect(result.openWind.directionX !== 0 || result.openWind.directionZ !== 0).toBe(true);
-    const driftAlongWind = result.openDrift.displacementX * result.openDrift.directionX
-        + result.openDrift.displacementZ * result.openDrift.directionZ;
-    expect(driftAlongWind).toBeGreaterThan(0.3);
-    expect(result.openDrift.driftSpeed).toBeGreaterThan(0.3);
-    expect(result.openDrift.intensity).toBe(1);
-    expect(result.blockedCase.exposure).toBeLessThan(1);
-    expect(result.shelteredStep.exposure).toBe(result.blockedCase.exposure);
-    expect(result.shelteredStep.intensity).toBe(result.blockedCase.exposure);
-    expect(result.shelteredStep.driftSpeed).toBeLessThanOrEqual(0.1);
+    expect(result.storm.phase).toBe('ACTIVE');
+    expect(result.openAir.visualIntensity).toBeGreaterThan(0.9);
+    expect(result.openAir.alongWind).toBeGreaterThan(0.3);
+    expect(result.sheltered.visualIntensity).toBe(0);
+    expect(Math.abs(result.sheltered.alongWind)).toBeLessThan(0.1);
     expect(errors).toEqual([]);
 });

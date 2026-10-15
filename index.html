@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="src/ui/menu/MenuPause.css">
     <link rel="stylesheet" href="src/ui/menu/MenuStage5.css">
     <link rel="stylesheet" href="src/ui/menu/MenuJourney.css">
+    <link rel="stylesheet" href="src/ui/menu/MenuFreePlayStage.css">
     <script type="importmap">
     {
         "imports": {
@@ -79,11 +80,13 @@
                     </div>
 
                     <div class="menu-primary-action">
+                        <p class="menu-continue-kicker">Weiterfliegen</p>
+                        <h2 id="menu-continue-title" class="menu-continue-title">Dein nächster Flug</h2>
+                        <span id="quick-last-summary" class="menu-primary-start-summary">Mit der letzten Auswahl weiterspielen</span>
                         <button type="button" id="btn-quick-last-settings"
                             class="start-btn menu-primary-start" data-menu-main-action
                             data-menu-action="quickstart-last">
                             <span class="menu-primary-start-label" data-menu-text-id="menu.level2.quick_last.label">Weiterspielen</span>
-                            <span id="quick-last-summary" class="menu-primary-start-summary">Mit der letzten Auswahl weiterspielen</span>
                         </button>
                     </div>
 
@@ -104,14 +107,13 @@
                             <svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 4h20v13H2ZM12 4v13M8 21h8M12 17v4"/></svg>
                             <span class="nav-btn-label" data-menu-text-id="menu.level1.splitscreen.label">Geteilter Bildschirm</span>
                         </button>
-                    </div>
-
-                    <div class="menu-utility-shell menu-side-links" role="navigation" aria-label="Weitere Bereiche">
+                        <div class="menu-utility-shell menu-side-links" role="group" aria-label="Weitere Bereiche">
                         <button type="button" id="btn-main-tutorial" class="secondary-btn menu-tutorial-entry" data-menu-text-id="menu.utility.tutorial.label">Steuerung lernen</button>
                         <button type="button" id="btn-main-media" class="secondary-btn menu-utility-btn"
                             data-menu-step-target="submenu-media">Aufnahme &amp; Content</button>
                         <button type="button" id="btn-main-tools" class="secondary-btn menu-utility-btn"
                             data-menu-step-target="submenu-tools" data-menu-text-id="menu.utility.tools.label">Werkzeuge</button>
+                        </div>
                     </div>
 
                     <div class="menu-stage-footer">
@@ -173,11 +175,6 @@
                                 <span><strong>Regeln</strong><small>Runde abstimmen</small></span>
                             </button>
                             <div class="start-step-rail-divider" aria-hidden="true"></div>
-                            <button type="button" class="start-step-tab start-step-tab-utility"
-                                data-start-section-target="arcade" aria-controls="arcade-inline-surface">
-                                <span class="start-step-tab-glyph" aria-hidden="true">⚡</span>
-                                <span><strong>Arcade Run</strong><small>Seed, Daily und Mastery</small></span>
-                            </button>
                         </nav>
 
 
@@ -1002,6 +999,12 @@
                             <span data-hub-title-for="single" data-menu-text-id="menu.level2.hub.single.title">Einzelspieler</span>
                             <span data-hub-title-for="splitscreen" class="hidden" data-menu-text-id="menu.level2.hub.splitscreen.title">Geteilter Bildschirm</span>
                         </h2>
+                        <div id="journey-hub-actions" class="journey-hub-actions">
+                            <button type="button" id="btn-quick-random-map" class="secondary-btn" data-menu-action="quickstart-random"
+                                data-menu-visibility-key="freePlay">Zufallskarte starten</button>
+                            <button type="button" class="secondary-btn" data-menu-action="level4-open"
+                                data-level4-section="controls" data-level4-return-target="journey">Einstellungen</button>
+                        </div>
                     </div>
                     <div class="submenu-body">
                         <div id="hub-split-players" class="menu-section hub-split-players hidden" aria-hidden="true"
@@ -1072,16 +1075,9 @@
                                 <p id="split-profile-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
                             </div>
                         </div>
-                        <div class="menu-section level2-config-section">
-                            <h2 class="section-title" data-menu-text-id="menu.level2.mode.title">Wie möchtest du spielen?</h2>
-                            <div class="level2-mode-grid">
-                                <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="arcade"
-                                    data-menu-visibility-key="arcadeJourney"
-                                    aria-description="Fliege von Etappe zu Etappe durch die Welten, sammle Medaillen und verbessere deine Bestwerte.">
-                                    <span class="menu-choice-eyebrow" data-menu-text-id="menu.level2.arcade.eyebrow">Etappen und Medaillen</span>
-                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.arcade.label">Arcade-Reise</span>
-                                    <span class="menu-choice-copy" data-menu-text-id="menu.level2.arcade.description">Fliege von Etappe zu Etappe durch die Welten, sammle Medaillen und verbessere deine Bestwerte.</span>
-                                </button>
+                        <div id="journey-planar-entry" class="level2-mode-grid"></div>
+                        <div id="journey-hub-mount" data-menu-visibility-key="arcadeJourney"></div>
+                        <div class="journey-free-play-entry">
                                 <button type="button" id="btn-free-play" class="mode-btn free-play-entry-btn menu-choice-card"
                                     data-menu-visibility-key="freePlay"
                                     aria-description="Kampf, Team, Flaggen, Eskorte oder Klassisch – auf einer Karte deiner Wahl gegen Bots.">
@@ -1089,21 +1085,17 @@
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.free_play.label">Freies Spiel gegen Bots</span>
                                     <span class="menu-choice-copy" data-menu-text-id="menu.level2.free_play.description">Kampf, Team, Flaggen, Eskorte oder Klassisch – auf einer Karte deiner Wahl gegen Bots.</span>
                                 </button>
-                            </div>
                         </div>
-                        <div class="menu-section level2-alternative-section">
+                        <details class="menu-section level2-alternative-section">
+                            <summary>Weitere lokale Starts</summary>
                             <h2 class="section-title" data-menu-text-id="menu.level2.quick.title">Weitere Schnellstarts</h2>
                             <div class="level2-action-grid">
                                 <button type="button" id="btn-classic-tutorial" class="start-btn menu-choice-card">
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.tutorial.label">Flugschule starten</span>
                                     <span class="menu-choice-copy" data-menu-text-id="menu.level2.tutorial.description">Steuerung, Boost, Hindernisse und Power-ups auf einem kurzen Parcours lernen.</span>
                                 </button>
-                                <button type="button" id="btn-quick-random-map" class="secondary-btn menu-choice-card"
-                                    data-menu-action="quickstart-random">
-                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.quick_random.label">Random Map starten</span>
-                                </button>
                             </div>
-                        </div>
+                        </details>
                     </div>
                 </div>
 

@@ -111,18 +111,22 @@ function bindQuickPickList(listNode, attributeName, selectNode, listen) {
 
 function bindStartSectionFlow(controller, listen) {
     const root = controller.ui?.mainMenu || document.getElementById('main-menu');
-    const getSections = () => Array.from(root?.querySelectorAll?.('details[data-start-section]') || [])
+    const getPanel = (section) => section?.closest?.('.submenu-panel') || root;
+    const getSections = (scope = root) => Array.from(scope?.querySelectorAll?.('details[data-start-section]') || [])
         .filter((entry) => entry.dataset.startSection !== 'multiplayer');
-    const syncSectionState = (activeSection = null) => {
-        const sections = getSections();
+    const allowsParallelSections = (scope) => scope?.id === 'submenu-game'
+        && scope.getAttribute?.('data-free-play-stage') === 'true';
+    const syncSectionState = (scope = root, activeSection = null) => {
+        const sections = getSections(scope);
         sections.forEach((section) => {
-            if (activeSection && section !== activeSection && section.open) section.open = false;
+            if (activeSection && !allowsParallelSections(scope) && section !== activeSection && section.open) section.open = false;
             const summary = section.querySelector(':scope > summary');
             summary?.setAttribute('aria-expanded', String(section.open));
             section.dataset.startSectionState = section.open ? 'open' : 'closed';
         });
         const activeSectionId = String(activeSection?.dataset?.startSection || '').trim();
         root?.querySelectorAll?.('[data-start-section-target]').forEach((button) => {
+            if (getPanel(button) !== scope) return;
             const isActive = !!activeSectionId
                 && String(button.dataset.startSectionTarget || '').trim() === activeSectionId;
             button.classList.toggle('active', isActive);
@@ -133,20 +137,22 @@ function bindStartSectionFlow(controller, listen) {
     listen(root, 'toggle', (event) => {
         const section = event.target;
         if (section?.matches?.('details[data-start-section]:not([data-start-section="multiplayer"])')) {
+            const scope = getPanel(section);
             const activeSection = section.open
                 ? section
-                : getSections().find((entry) => entry.open) || null;
-            syncSectionState(activeSection);
+                : getSections(scope).find((entry) => entry.open) || null;
+            syncSectionState(scope, activeSection);
         }
     }, true);
     listen(root, 'click', (event) => {
         const button = event.target?.closest?.('[data-start-section-target]');
         if (!button || !root?.contains?.(button)) return;
+        const scope = getPanel(button);
         const sectionId = String(button.dataset.startSectionTarget || '').trim();
-        const target = getSections().find((section) => section.dataset.startSection === sectionId);
+        const target = getSections(scope).find((section) => section.dataset.startSection === sectionId);
         if (!target) return;
         target.open = true;
-        syncSectionState(target);
+        syncSectionState(scope, target);
         target.querySelector(':scope > summary')?.focus?.();
         const launchBayActive = !!root.querySelector?.('.start-step-rail')
             && globalThis.matchMedia?.('(min-width: 1180px)')?.matches === true;
@@ -155,7 +161,11 @@ function bindStartSectionFlow(controller, listen) {
         }
     });
     const sections = getSections();
-    syncSectionState(sections.find((section) => section.open) || null);
+    const panels = new Set(sections.map(getPanel));
+    for (const panel of panels) {
+        const panelSections = getSections(panel);
+        syncSectionState(panel, panelSections.find((section) => section.open) || null);
+    }
 }
 
 export function bindStartSetupControls(controller, listen, getSettings) {

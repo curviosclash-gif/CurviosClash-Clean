@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { handleLevel4CloseAction } from '../src/core/runtime/MenuRuntimeSessionService.js';
+import { handleLevel4CloseAction, handleLevel4OpenAction } from '../src/core/runtime/MenuRuntimeSessionService.js';
+import { menuScreenPanelId } from './support/menu-screens.js';
 
 function createGame() {
     const calls = { saved: 0, drawer: [] };
@@ -27,6 +28,18 @@ test('closing the options window stores the closed state right away', () => {
     assert.equal('level4ReturnTarget' in game.settings.localSettings.toolsState, false);
     assert.deepEqual(calls.drawer, [false]);
     assert.equal(calls.saved, 1);
+});
+
+test('opening options from the journey keeps its hub as the return target', () => {
+    const { game } = createGame();
+    const panels = [];
+    const attributes = new Map();
+    game.ui = { level4Drawer: { setAttribute: (key, value) => attributes.set(key, value) } };
+    game.uiManager.menuNavigationRuntime = { showPanel: panel => panels.push(panel) };
+    handleLevel4OpenAction({ game, event: { returnTarget: 'journey' } });
+    assert.deepEqual(panels, [menuScreenPanelId('modeChoice')]);
+    assert.equal(attributes.get('data-level4-return-target'), 'journey');
+    assert.equal(game.settings.localSettings.toolsState.level4ReturnTarget, 'journey');
 });
 
 function readSource(relativePath) {

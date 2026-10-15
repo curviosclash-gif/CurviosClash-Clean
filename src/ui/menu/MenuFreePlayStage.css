@@ -1,0 +1,159 @@
+/* Free play uses the existing map, vehicle and rule panels as a side-by-side launch bay. */
+#main-menu #submenu-game[data-free-play-stage="true"] .level3-body {
+    grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.95fr);
+    grid-template-rows: auto min-content min-content minmax(0, 1fr);
+    grid-template-areas:
+        "steps steps"
+        "map vehicle"
+        "map match"
+        "map summary";
+    align-items: start;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-step-rail {
+    position: static;
+    grid-area: steps;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-step-rail-heading {
+    margin: 0 auto 0 0;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-step-tab {
+    min-width: 120px;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail {
+    grid-area: summary;
+    grid-column: 2;
+    grid-row: 4;
+    padding: 12px;
+    gap: 12px;
+    position: static;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-block {
+    display: grid;
+    gap: 4px;
+    padding: 8px;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-value {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions #btn-start {
+    grid-column: 1 / -1;
+    min-height: 48px;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions .secondary-btn {
+    min-height: 44px;
+    width: auto;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] #start-map-section {
+    grid-area: map;
+    grid-column: 1;
+    grid-row: 2 / span 3;
+    display: block;
+    min-width: 0;
+    margin: 0;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section {
+    grid-area: vehicle;
+    grid-column: 2;
+    grid-row: 2;
+    display: block;
+    min-width: 0;
+    margin: 0;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] #start-match-section {
+    grid-area: match;
+    grid-column: 2;
+    grid-row: 3;
+    display: block;
+    min-width: 0;
+    margin: 0;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-section-card > .menu-accordion-summary {
+    min-height: 48px;
+    cursor: pointer;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-section-card > .menu-accordion-summary::after {
+    display: block;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-picker {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-stage {
+    height: clamp(320px, 46vh, 460px);
+    min-height: 320px;
+}
+
+#main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section[open] > .menu-accordion-body,
+#main-menu #submenu-game[data-free-play-stage="true"] #start-match-section[open] > .menu-accordion-body {
+    max-height: min(46vh, 400px);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+@media (max-width: 899px) {
+    #main-menu #submenu-game[data-free-play-stage="true"] .level3-body {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto auto auto auto;
+        grid-template-areas:
+            "steps"
+            "map"
+            "vehicle"
+            "match"
+            "summary";
+    }
+
+    #main-menu #submenu-game[data-free-play-stage="true"] .start-step-rail {
+        flex-wrap: wrap;
+    }
+
+    #main-menu #submenu-game[data-free-play-stage="true"] #start-map-section,
+    #main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section,
+    #main-menu #submenu-game[data-free-play-stage="true"] #start-match-section {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    #main-menu #submenu-game[data-free-play-stage="true"] .start-rail {
+        grid-column: 1;
+        grid-row: 5;
+    }
+
+    #main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-stage {
+        height: clamp(280px, 46vh, 400px);
+        min-height: 280px;
+    }
+}

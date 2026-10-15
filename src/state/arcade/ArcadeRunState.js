@@ -32,6 +32,7 @@ export const ARCADE_RUN_PHASES = Object.freeze({
     FINISHED: 'finished',
 });
 
+/** @type {Set<string>} */
 const ARCADE_PHASE_SET = new Set(Object.values(ARCADE_RUN_PHASES));
 
 import { toSafeNumber, clampNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';

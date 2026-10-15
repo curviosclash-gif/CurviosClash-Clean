@@ -1,19 +1,82 @@
-.arcade-journey { padding: 1rem; border: 1px solid var(--menu-line); border-radius: .75rem; background: var(--menu-surface); }
-.arcade-journey-worlds, .arcade-journey-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .75rem; margin-top: .75rem; }
-.arcade-journey-world { display: flex; flex-direction: column; gap: .6rem; min-height: 7rem; text-align: left; white-space: normal; }
-.arcade-journey-stage { display: flex; flex-direction: column; gap: .5rem; padding: .9rem; border: 1px solid var(--menu-line); border-radius: .5rem; background: var(--menu-surface-2); }
-.arcade-journey-stage h4 { margin: 0; color: var(--menu-text); font-size: 1.1rem; }
-.arcade-journey-stage .start-btn { margin-top: auto; }
-.arcade-journey-stage.is-recommended { border-width: 2px; border-color: var(--menu-accent); }
-.arcade-journey-medal { color: var(--menu-text); }
+.arcade-journey { padding: 0; color: var(--menu-text); }
+.arcade-journey > .section-title { margin: 8px 0; }
+.journey-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .48fr); gap: 20px; align-items: start; }
+.journey-map { min-width: 0; border: 1px solid var(--menu-line); border-radius: var(--menu-radius-m); background: radial-gradient(ellipse at 50% 45%, #25365488, transparent 68%), var(--menu-surface-pattern), var(--menu-bg); }
+.journey-map-canvas { position: relative; height: clamp(330px, 49vh, 470px); overflow: hidden; }
+.journey-map-links { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: var(--menu-line); stroke-width: 2; stroke-dasharray: 6 5; pointer-events: none; }
+#main-menu .journey-map-world, #main-menu .journey-map-node { position: absolute; top: var(--journey-y); left: var(--journey-x); transform: translate(-50%, -50%); margin: 0; padding: 8px; min-height: 48px; width: 30%; max-width: 210px; color: var(--menu-text); background: var(--menu-surface-pattern), var(--menu-surface); border: 1px solid var(--menu-line); border-radius: var(--menu-radius-m); font-family: var(--menu-font-display); font-size: var(--menu-font-size-body); cursor: pointer; }
+#main-menu .journey-map-world:first-of-type { max-width: 140px; width: 24%; }
+.journey-map-progress { display: block; margin-top: 4px; color: var(--menu-accent-2); }
+.journey-map-reward { display: block; font: var(--menu-font-size-body) var(--menu-font-body); color: var(--menu-muted); margin-top: 4px; }
+#main-menu .journey-map-world[data-journey-world="orbit"] { width: 18%; }
+#main-menu .journey-map-node { width: 48px; height: 48px; border-radius: 50%; padding: 0; }
+.journey-map-node-mark { color: var(--menu-accent); font-size: 22px; }
+.journey-map-node-label { position: absolute; width: 130px; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); color: var(--menu-text); line-height: 1.2; }
+.journey-map-node-status { position: absolute; width: 130px; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); font: var(--menu-font-size-body) var(--menu-font-body); color: var(--menu-muted); line-height: 1.2; }
+#main-menu .journey-map-node.is-selected { border: 3px solid var(--menu-accent-2); background: var(--menu-surface-2); }
+#main-menu .journey-map-node.is-complete { border-color: var(--menu-ok); }
+#main-menu .journey-map-node.is-locked { border-style: dashed; }
+.journey-map-node.is-locked .journey-map-node-mark { color: var(--menu-muted); }
+.journey-map-legend { color: var(--menu-muted); font-size: var(--menu-font-size-body); line-height: 1.5; margin: 10px 0; }
+.journey-detail { min-width: 0; display: grid; gap: 12px; }
+.arcade-journey-stage { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--menu-line); border-radius: var(--menu-radius-m); background: var(--menu-surface-pattern), var(--menu-surface); max-height: min(470px, 53vh); overflow-y: auto; }
+.arcade-journey-stage h4 { margin: 0; color: var(--menu-text); font: 700 24px var(--menu-font-display); text-transform: uppercase; }
+.arcade-journey-stage p { margin: 0; }
+#main-menu .arcade-journey-stage .start-btn, #main-menu .arcade-journey-stage .secondary-btn { margin: 0; min-height: 44px; width: 100%; }
+.arcade-journey-medal { color: var(--menu-accent-2); }
 .arcade-journey .hidden { display: none; }
-.arcade-journey-rank-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
-.arcade-journey-rank-tabs [aria-pressed="true"] { outline: 2px solid var(--menu-focus); outline-offset: 2px; }
-.arcade-journey-board { min-height: 2rem; padding-left: 1.5rem; }
+#main-menu .arcade-journey-rank-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+#main-menu .arcade-journey-rank-tabs[hidden] { display: none; }
+#main-menu .arcade-journey-rank-tabs .secondary-btn { margin: 0; min-width: 0; width: auto; white-space: normal; min-height: 44px; padding: 6px; }
+.arcade-journey-rank-tabs [aria-pressed="true"] { border-color: var(--menu-accent); }
+.arcade-journey-board { margin: 0; padding-left: 24px; font-size: var(--menu-font-size-body); }
+.journey-hub-actions, .journey-hub-options { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.journey-hub-actions { margin-left: auto; }
+#main-menu .journey-hub-actions .secondary-btn { width: auto; min-height: 44px; margin: 0; }
+.journey-hub-options { margin: 10px 0; }
+.journey-hub-options label { display: flex; align-items: center; gap: 10px; }
+.journey-free-play-entry .menu-choice-card { width: 100%; min-height: 72px; margin: 0; padding: 12px; text-align: left; }
+.journey-free-play-entry .menu-choice-eyebrow { display: none; }
+.journey-extra-runs { margin: 8px 0; }
+.journey-extra-runs .secondary-btn { margin: 8px 8px 0 0; width: auto; }
+#journey-hub-mount > .arcade-inline-surface { margin: 12px 0; }
+#main-menu:not([data-menu-depth="1"]) .menu-shell { display: none; }
 .has-journey-result #message-actions { display: none; }
 .arcade-journey-result-medal { color: var(--menu-text); font-size: 1.5rem; font-weight: 700; }
-
-#main-menu .arcade-journey-rank-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-#main-menu .arcade-journey-rank-tabs .secondary-btn { min-width: 0; width: auto; white-space: normal; }
 .has-journey-result [data-journey-action] { min-height: 44px; min-width: 10rem; margin: .25rem .5rem .25rem 0; padding: .5rem .75rem; font: inherit; }
 .has-journey-result [data-journey-action]:focus-visible { outline: 3px solid var(--menu-focus, #fff); outline-offset: 2px; }
+@media (max-width: 760px) {
+    .journey-layout { grid-template-columns: 1fr; }
+    .journey-map-canvas { height: 370px; }
+    .arcade-journey-stage { max-height: none; }
+    .journey-hub-actions { margin-left: 0; }
+}
+/* The complete route graph remains visible before entering a world. */
+.journey-map-canvas { height: auto; aspect-ratio: 900 / 470; min-height: 420px; }
+.journey-map-region { fill: var(--menu-surface); fill-opacity: .65; stroke: var(--menu-line); stroke-width: 1; }
+.journey-map-path { fill: none; stroke: var(--menu-line); stroke-width: 2; stroke-dasharray: 4 5; }
+.journey-map-path.is-complete { stroke: var(--menu-ok); stroke-dasharray: none; }
+.journey-map-links { z-index: 0; }
+#main-menu .journey-map-world { transform: none; width: auto; max-width: none; min-height: 28px; padding: 0; border: 0; background: transparent; text-align: left; z-index: 1; font-size: var(--menu-font-size-body); line-height: 1.2; }
+#main-menu .journey-map-world:first-of-type, #main-menu .journey-map-world[data-journey-world="orbit"] { width: auto; max-width: none; }
+.journey-map-world-label { display: inline; }
+.journey-map-progress { display: inline; margin: 0 0 0 8px; font-size: var(--menu-font-size-body); }
+#main-menu .journey-map-node { z-index: 2; width: 44px; height: 44px; min-height: 44px; border-width: 2px; }
+.journey-map-node-mark { font-size: 16px; }
+.journey-map-node-label { width: 110px; font: 600 16px var(--menu-font-body); top: calc(100% + 4px); }
+.journey-map-node-status { width: 120px; font-size: 16px; }
+.journey-map-overview .journey-map-node-status { display: none; }
+#main-menu .journey-map-node.is-optional { border-radius: 3px; }
+#main-menu .journey-map-node.is-boss { outline: 2px solid var(--menu-line); outline-offset: 4px; }
+.journey-map-world-view .journey-map-node { width: 48px; height: 48px; }
+.journey-map .hidden { display: none; }
+@media (max-width: 1100px) and (min-width: 761px) {
+    .journey-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; }
+    .journey-map-canvas { min-height: 420px; }
+    .journey-map-node-label { width: 82px; }
+    #main-menu .journey-map-node { width: 44px; height: 44px; min-height: 44px; }
+    .journey-map-progress { display: none; }
+}
+.journey-daily-panel { padding: 24px; display: grid; gap: 20px; max-width: 850px; margin: 20px auto; background: var(--menu-surface-pattern), var(--menu-surface); border: 1px solid var(--menu-line); }
+#main-menu .journey-daily-panel.hidden, #main-menu .journey-hub-options.hidden { display: none; }
+#main-menu .journey-daily-panel .secondary-btn { width: auto; min-height: 44px; }

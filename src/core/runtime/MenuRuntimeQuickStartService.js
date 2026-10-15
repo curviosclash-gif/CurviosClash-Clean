@@ -10,10 +10,15 @@ import { PLATFORM_SURFACE_QUICK_START_ACTION_IDS } from '../../shared/contracts/
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { readGamepad } from '../../shared/input/GamepadInputSource.js';
-import { resolveSplitScreenDeviceIssue } from '../../four-player-planar/FourPlayerPlanarContract.js';
+import { isFourPlayerPlanarVariant, isThreePlayerSplitVariant, resolveSplitScreenDeviceIssue } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { handleSessionTypeChangeAction } from './MenuRuntimeSessionSwitchService.js';
 import { appendMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 import { createSessionSettingsRestorePlan } from './SessionSettingsRestorePlan.js';
+import { createPlayerProfileMenuRuntimeAccess } from './PlayerProfileRuntimeAccess.js';
+import { startMatchWithBorrowedSettings } from './BorrowedMatchSettingsOps.js';
+import { ARCADE_LAST_RUN_STORAGE_KEY } from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
+import { resolveArcadeJourneyContinue } from '../../shared/contracts/ArcadeJourneyContinueContract.js';
+import { loadArcadeJourneyProgress } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
 
 // The one value a playlist start is allowed to keep: its cursor is persisted on purpose.
 const EVENT_PLAYLIST_STATE_PATH = 'localSettings.eventPlaylistState';
@@ -80,6 +85,13 @@ function resolveProductSurfaceId(game) {
     return productSurfaceId;
 }
 
+function resolveArcadeJourneyPlayerCount(settings) {
+    if (settings?.localSettings?.sessionType !== 'splitscreen') return 1;
+    if (isFourPlayerPlanarVariant(settings)) return 4;
+    if (isThreePlayerSplitVariant(settings)) return 3;
+    return settings?.mode === '2p' ? 2 : 1;
+}
+
 // "Weiterspielen" never opens the lobby for a fresh start: it resumes the last local session.
 // Only a lobby the player already joined is worth returning to.
 function resumeLocalSessionForContinue(ctx) {
@@ -125,7 +137,11 @@ function openHubForMissingDevices(ctx, deviceIssue) {
 }
 
 export async function handleQuickStartLastStartAction(ctx) {
-    const { game, recordMenuTelemetry, startMatch } = ctx;
+    const { game, recordMenuTelemetry, startMatch, getMultiplayerSessionState } = ctx;
+    if (getMultiplayerSessionState?.()?.joined === true) {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-multiplayer', { trigger: 'quickstart_lobby' });
+        return false;
+    }
     if (game?.settings?.localSettings?.sessionType === 'multiplayer' && !resumeLocalSessionForContinue(ctx)) {
         return false;
     }
@@ -138,6 +154,65 @@ export async function handleQuickStartLastStartAction(ctx) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Direktstart');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
         return false;
+    }
+    const profileAccess = createPlayerProfileMenuRuntimeAccess(game);
+    const profile = profileAccess.getArcadePrimaryPlayerProfile();
+    const profileId = String(profile?.id || '').trim();
+    const profileStore = profileAccess.getArcadeSettingsStore();
+    let lastRunRecord = null;
+    try {
+        const read = profileStore?.readJsonRecordResult?.(ARCADE_LAST_RUN_STORAGE_KEY);
+        if (read?.status === 'found') lastRunRecord = read.value;
+    } catch { /* The generic local-session continue remains available if Journey storage is unavailable. */ }
+    if (profileId && !lastRunRecord) {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-custom', { trigger: 'quickstart_first_journey' });
+        return false;
+    }
+    if (profileId && lastRunRecord) {
+        const progress = loadArcadeJourneyProgress(profileStore);
+        const profileRecords = profileAccess.getArcadePrimaryProfileRecords()?.records;
+        const legacyAccess = Number(profileRecords?.runsPlayed) > 0
+            || Number(profileStore?.loadJsonRecord?.('curviosclash.five-portals-records.v1', null)?.bestTotalMs) > 0;
+        const continuation = resolveArcadeJourneyContinue(lastRunRecord, {
+            profileId,
+            progress: progress.progress,
+            progressAvailable: progress.status !== 'unavailable',
+            playerCount: resolveArcadeJourneyPlayerCount(game.settings),
+            legacyAccess,
+        });
+        if (continuation.status === 'ready') {
+            let journeyStarted = false;
+            try {
+                journeyStarted = await startMatchWithBorrowedSettings({
+                    game,
+                    startMatch,
+                    settingsHandler: {
+                        holdSessionSettingsRestore: ctx.holdSessionSettingsRestore,
+                        restoreSessionSettings: ctx.restoreSessionSettings,
+                    },
+                }, { journeyStageId: continuation.stageId });
+            } catch {
+                journeyStarted = false;
+            }
+            if (!journeyStarted) {
+                game._showStatusToast('Fortsetzen fehlgeschlagen: Die Etappe konnte nicht gestartet werden.', 2000, 'error');
+                return false;
+            }
+            recordMenuTelemetry('quickstart', {
+                variant: 'journey_continue', stageId: continuation.stageId, profileId,
+                sessionType: game?.settings?.localSettings?.sessionType || 'single',
+            });
+            game._showStatusToast('Arcade-Reise fortgesetzt.', 1000, 'info');
+            return true;
+        }
+        if (continuation.status === 'locked' || continuation.status === 'unavailable') {
+            game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-custom', { trigger: 'quickstart_journey_locked' });
+            game.ui?.arcadeJourneyOpenStage?.(continuation.stageId);
+            game._showStatusToast(continuation.status === 'locked'
+                ? 'Diese Etappe ist für das aktive Profil noch gesperrt.'
+                : 'Reisefortschritt ist gerade nicht verfügbar.', 2200, 'info');
+            return false;
+        }
     }
     let started = false;
     try {

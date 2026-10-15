@@ -302,7 +302,7 @@ export async function selectSessionType(page, sessionType = 'single') {
 
 const FREE_PLAY_VARIANT_BY_MODE_PATH = Object.freeze({ normal: 'classic', fight: 'ffa' });
 
-// Picks a mode path from the hub: arcade is a hub card, normal and fight are free play variants.
+// Arcade challenges live in the journey hub; normal and fight are free-play variants.
 export async function chooseMenuModePath(page, modePath) {
     const variant = FREE_PLAY_VARIANT_BY_MODE_PATH[modePath];
     if (variant) {
@@ -393,6 +393,12 @@ export async function openStartSetupSection(page, sectionId) {
     const normalizedSectionId = String(sectionId || '').trim();
     if (!normalizedSectionId) {
         throw new Error('Start-Setup-Sektion fehlt.');
+    }
+    if (normalizedSectionId === 'arcade' && await page.locator('#journey-hub-mount').count()) {
+        await openViaNavigationRuntime(page, 'submenu-custom');
+        const challenges = page.locator('#journey-hub-mount #arcade-inline-surface');
+        if (!await challenges.evaluate(element => element.open)) await challenges.locator('summary').first().click();
+        return;
     }
     if (normalizedSectionId === 'players') {
         const matchPanel = page.locator(menuScreenSelector('freeplay'));

@@ -15,6 +15,7 @@ export function createEntityRuntimePorts(runtime) {
             projectileSystem: systems.projectileSystem || null,
             staticTurretSystem: systems.staticTurretSystem || null,
             mapUnitSystem: systems.mapUnitSystem || null,
+            repairDroneSystem: systems.repairDroneSystem || null,
             huntScoring: support.huntScoring || null,
             roundOutcomeSystem: systems.roundOutcomeSystem || null,
         },

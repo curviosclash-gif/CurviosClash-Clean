@@ -177,7 +177,7 @@ export function handleLevel4OpenAction(ctx) {
     const { game, event } = ctx;
     const requestedSectionId = String(event?.sectionId || '').trim();
     const returnTarget = String(event?.returnTarget || '').trim().toLowerCase();
-    const requestedReturnTarget = ['main', 'lobby'].includes(returnTarget) ? returnTarget : 'game';
+    const requestedReturnTarget = ['main', 'lobby', 'journey'].includes(returnTarget) ? returnTarget : 'game';
     const validSectionIds = new Set(Object.values(LEVEL4_SECTION_IDS));
     if (!game.settings.localSettings.toolsState || typeof game.settings.localSettings.toolsState !== 'object') {
         game.settings.localSettings.toolsState = {};
@@ -186,7 +186,9 @@ export function handleLevel4OpenAction(ctx) {
     game.ui?.level4Drawer?.setAttribute?.('data-level4-return-target', requestedReturnTarget);
     // Opened from the start screen the drawer lies over the start screen itself, not over free play.
     if (requestedReturnTarget !== 'main') {
-        game.uiManager?.menuNavigationRuntime?.showPanel?.(requestedReturnTarget === 'lobby' ? 'submenu-multiplayer' : 'submenu-game', { trigger: 'open_level4' });
+        const panel = requestedReturnTarget === 'lobby' ? 'submenu-multiplayer'
+            : requestedReturnTarget === 'journey' ? 'submenu-custom' : 'submenu-game';
+        game.uiManager?.menuNavigationRuntime?.showPanel?.(panel, { trigger: 'open_level4' });
     }
     if (validSectionIds.has(requestedSectionId)) {
         game.settings.localSettings.toolsState.activeSection = requestedSectionId;

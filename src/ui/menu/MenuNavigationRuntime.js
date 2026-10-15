@@ -440,6 +440,7 @@ export class MenuNavigationRuntime {
 
     _moveFocusByDirection(direction, { gamepad = false } = {}) {
         const active = document.activeElement;
+        if (active?.closest?.('[data-journey-map]') && this.ui.arcadeJourneyMoveFocus?.(direction, active)) return;
         const delta = direction === 'left' || direction === 'up' ? -1 : 1;
         if (gamepad && adjustGamepadControl(active, direction)) return;
         if ((direction === 'left' || direction === 'right') && this._moveStartSetupChoice(direction)) {
@@ -477,6 +478,11 @@ export class MenuNavigationRuntime {
 
     _activateFocusedElement(event = null) {
         const activeElement = document.activeElement;
+        if (!this._isLevel4Open() && activeElement?.closest?.('[data-journey-map]')
+            && this.ui.arcadeJourneyActivateFocused?.(activeElement)) {
+            event?.preventDefault?.();
+            return;
+        }
         if (!isAvailable(activeElement) || typeof activeElement.click !== 'function') return;
         if (!activeElement.matches('button, summary, input[type="checkbox"], input[type="radio"], [role="button"], .nav-btn, .secondary-btn, .mode-btn')) return;
         event?.preventDefault?.();
@@ -509,6 +515,7 @@ export class MenuNavigationRuntime {
         }
 
         const visiblePanel = this._getVisiblePanelElement();
+        if (visiblePanel?.id === 'submenu-custom' && this.ui.arcadeDailyClose?.()) return true;
         const journeyBack = this.ui.arcadeJourneyBackButton;
         if (journeyBack && visiblePanel?.contains?.(journeyBack) && !journeyBack.classList.contains('hidden')
             && !journeyBack.closest?.('.hidden')) {

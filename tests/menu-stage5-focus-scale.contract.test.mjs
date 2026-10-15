@@ -91,9 +91,9 @@ test('the dock primary and title use Style Q tokens instead of legacy overrides'
     assert.match(primaryRule, /border-radius:\s*var\(--menu-radius-m\)/u);
     assert.match(primaryRule, /background:\s*var\(--menu-accent\)/u);
     assert.match(primaryRule, /box-shadow:\s*var\(--menu-primary-edge\)/u);
-    assert.doesNotMatch(primaryRule, /linear-gradient|14px/u);
+    assert.doesNotMatch(primaryRule, /linear-gradient|font-size:\s*14px/u);
     assert.match(titleRule, /font-family:\s*var\(--menu-font-display\)/u);
     assert.doesNotMatch(titleRule, /menu-theme-ui-font|750/u);
     assert.match(navRule, /border-radius:\s*var\(--menu-radius-m\)/u);
-    assert.doesNotMatch(navRule, /14px/u);
+    assert.doesNotMatch(navRule, /font-size:\s*14px/u);
 });

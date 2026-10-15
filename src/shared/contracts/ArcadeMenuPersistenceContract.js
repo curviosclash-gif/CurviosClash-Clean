@@ -1,4 +1,5 @@
 import { normalizeString } from './ContractNormalizeUtils.js';
+import { getArcadeJourneyStage } from './ArcadeJourneyContract.js';
 
 export const ARCADE_SEED_STORAGE_KEY = 'cuviosclash.arcade.seed.v1';
 export const ARCADE_SEED_SCHEMA_VERSION = 'arcade-seed.v1';
@@ -44,6 +45,7 @@ export function readArcadeSeedRecord(source) {
 
 export function createArcadeLastRunRecord(source = null) {
     const input = isRecord(source) ? source : {};
+    const rawJourneyStageId = normalizeString(input.journeyStageId);
     return {
         schemaVersion: ARCADE_LAST_RUN_SCHEMA_VERSION,
         at: normalizeString(input.at),
@@ -55,6 +57,8 @@ export function createArcadeLastRunRecord(source = null) {
         dailyChallenge: input.dailyChallenge === true,
         buildId: normalizeString(input.buildId),
         buildSchemaVersion: normalizeString(input.buildSchemaVersion),
+        profileId: normalizeString(input.profileId),
+        journeyStageId: rawJourneyStageId && getArcadeJourneyStage(rawJourneyStageId) ? rawJourneyStageId : '',
     };
 }
 
@@ -64,6 +68,10 @@ export function readArcadeLastRunRecord(source) {
     }
     if (isUnsupportedSchema(source, ARCADE_LAST_RUN_SCHEMA_VERSION)) {
         return { record: null, shouldPersist: false, reason: 'unsupported_schema' };
+    }
+    const rawJourneyStageId = normalizeString(source.journeyStageId);
+    if (rawJourneyStageId && !getArcadeJourneyStage(rawJourneyStageId)) {
+        return { record: null, shouldPersist: false, reason: 'invalid_journey_stage' };
     }
     const record = createArcadeLastRunRecord(source);
     if (!record.at || record.seed <= 0) {

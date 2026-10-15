@@ -48,12 +48,19 @@ export function buildArcadeSurface(level3Body, ui) {
     ));
     // The global tier stays at the hub head above both journey zoom levels.
     const runOptions = createArcadeRunOptionToggles();
-    startGroup.append(...runOptions.labels);
     const journey = createArcadeJourneyMenuView(createElement);
-    startGroup.appendChild(journey.element);
+    const journeyMount = document.getElementById?.('journey-hub-mount');
+    const journeyOptions = createElement('div', 'journey-hub-options');
+    journeyOptions.append(...runOptions.labels);
+    if (journeyMount) journeyMount.append(journeyOptions, journey.element);
+    else startGroup.append(journeyOptions, journey.element);
     ui.arcadeJourneyBackButton = journey.back;
     ui.arcadeJourneyOpenStage = journey.openStage;
     ui.arcadeJourneyStartButtons = journey.startButtons;
+    ui.arcadeJourneyMoveFocus = journey.moveFocus;
+    ui.arcadeJourneyActivateFocused = journey.activateFocused;
+    const freePlayEntry = document.getElementById?.('btn-free-play')?.parentElement;
+    if (freePlayEntry) journey.element.querySelector('.journey-detail')?.appendChild(freePlayEntry);
     const runLine = createElement('p', 'menu-hint arcade-run-line');
     runLine.id = 'arcade-run-line';
     startGroup.appendChild(runLine);
@@ -203,7 +210,12 @@ export function buildArcadeSurface(level3Body, ui) {
     details.appendChild(body);
 
     const multiplayerSection = level3Body.querySelector('[data-start-section="multiplayer"]');
-    if (multiplayerSection && multiplayerSection.parentElement === level3Body) {
+    if (journeyMount) {
+        summary.dataset.modePath = 'arcade';
+        summaryTitle.textContent = 'Weitere Arcade-Läufe';
+        summaryCopy.textContent = 'Freie Herausforderungen, Seed und Aufzeichnungen';
+        journeyMount.appendChild(details);
+    } else if (multiplayerSection && multiplayerSection.parentElement === level3Body) {
         level3Body.insertBefore(details, multiplayerSection);
     } else {
         level3Body.appendChild(details);
@@ -223,6 +235,36 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeSeedApplyButton = applySeedButton;
     ui.arcadeReplayButton = replayButton;
     ui.arcadeDailyButton = dailyButton;
+    const hubActions = document.getElementById?.('journey-hub-actions');
+    if (hubActions) {
+        dailyButton.textContent = 'Tageslauf starten';
+        openHangarButton.textContent = 'Arcade-Hangar';
+        const dailyEntry = createElement('button', 'secondary-btn', 'Tageslauf');
+        dailyEntry.type = 'button'; dailyEntry.id = 'btn-arcade-daily-open';
+        dailyEntry.setAttribute('aria-controls', 'arcade-daily-panel'); dailyEntry.setAttribute('aria-expanded', 'false');
+        dailyCard.id = 'arcade-daily-panel';
+        dailyCard.classList.add('journey-daily-panel');
+        dailyCard.setAttribute('aria-label', 'Tageslauf');
+        const closeDaily = createElement('button', 'secondary-btn', '← Zur Arcade-Reise');
+        closeDaily.type = 'button'; dailyCard.prepend(closeDaily);
+        const showDaily = open => {
+            dailyCard.classList.toggle('hidden', !open);
+            journey.element.classList.toggle('hidden', open);
+            journeyOptions.classList.toggle('hidden', open);
+            dailyEntry.setAttribute('aria-expanded', String(open));
+            (open ? dailyButton : dailyEntry).focus();
+        };
+        dailyEntry.addEventListener('click', () => showDaily(true));
+        closeDaily.addEventListener('click', () => showDaily(false));
+        ui.arcadeDailyClose = () => {
+            if (dailyCard.classList.contains('hidden')) return false;
+            showDaily(false); return true;
+        };
+        hubActions.prepend(dailyEntry, openHangarButton);
+        journeyMount.appendChild(dailyCard);
+        dailyCard.classList.add('hidden');
+        hangarLaunchCard.classList.add('hidden');
+    }
 
     return {
         journey,

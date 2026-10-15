@@ -231,7 +231,10 @@ export function renderStartSetupSummaryAndPreview({
         ].filter(Boolean).join(' · ');
     }
     const quickLabel = ui.quickStartLastButton?.querySelector?.('.menu-primary-start-label');
+    if (ui.quickStartLastTitle) ui.quickStartLastTitle.textContent = hasActiveLobbySession ? 'Deine Lobby'
+        : continueMapPreview?.name || mapPreview.name;
     if (quickLabel) quickLabel.textContent = hasActiveLobbySession ? 'Zur Lobby' : 'Weiterspielen';
+    ui.syncArcadeContinueSummary?.({ hasActiveLobbySession });
     renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePreviewP2);
 }
 

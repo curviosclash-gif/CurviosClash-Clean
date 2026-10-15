@@ -22,9 +22,12 @@ import {
 } from './player/PlayerInventoryOps.js';
 import {
     initializePlayerHitbox,
+    initializePlayerSandstormState,
     isSphereInPlayerOBB,
     preparePlayerObbCollisionQuery,
+    resetPlayerSandstormState,
     setPlayerLookAtWorld,
+    setPlayerSpawnOrientation,
     updatePlayerMotion,
 } from './player/PlayerMotionOps.js';
 import { resetPlayerCharges, resolveMotionClockFactor } from './player/PlayerChargeOps.js';
@@ -57,15 +60,7 @@ export class Player {
         // Physics
         this.position = new THREE.Vector3();
         this.velocity = new THREE.Vector3(0, 0, -1);
-        this._sandstormDriftVelocity = new THREE.Vector3();
-        this._sandstormWindSample = {
-            directionX: 0,
-            directionZ: 0,
-            intensity: 0,
-            exposure: 0,
-            windOcclusionSampleValid: false,
-        };
-        this.sandstormVisualIntensity = 0;
+        initializePlayerSandstormState(this, new THREE.Vector3());
         this.quaternion = new THREE.Quaternion();
         this.speed = this.baseSpeed = playerConfig.SPEED;
         this.altitudeSpeedFactor = 1;
@@ -195,9 +190,7 @@ export class Player {
         const playerConfig = this.gameplayConfig.PLAYER;
         const gameplaySection = this.gameplayConfig.GAMEPLAY;
         this.position.copy(position);
-        this._sandstormDriftVelocity.set(0, 0, 0);
-        this.sandstormVisualIntensity = 0;
-        this._sandstormWindSample.windOcclusionSampleValid = false;
+        resetPlayerSandstormState(this);
         this.alive = true;
         if (Number.isFinite(this._speedEffectBaseSpeed)) {
             this.baseSpeed = this._speedEffectBaseSpeed;
@@ -236,15 +229,7 @@ export class Player {
         this.trail.resetWidth();
         this.view?.setVisible(true);
 
-        if (startDirection && startDirection.lengthSq() > 0.0001) {
-            this._tmpVec.copy(startDirection).normalize();
-            this.quaternion.setFromUnitVectors(this._tmpDir.set(0, 0, -1), this._tmpVec);
-        } else {
-            const roll = this.entityManager?.runtimeRng?.next;
-            const angle = (typeof roll === 'function' ? roll() : this._fallbackRuntimeRng.next()) * Math.PI * 2;
-            this._tmpEuler.set(0, angle, 0, 'YXZ');
-            this.quaternion.setFromEuler(this._tmpEuler);
-        }
+        setPlayerSpawnOrientation(this, startDirection);
 
         applyFourPlayerPlanarPhysicsConstraint(this);
 

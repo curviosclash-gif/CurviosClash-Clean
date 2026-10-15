@@ -9,6 +9,12 @@ import { createSessionSettingsRestorePlan } from './SessionSettingsRestorePlan.j
 import { writeHangarMapSelection } from '../../composition/core-ui/CoreUiMenuPorts.js';
 import { getArcadeJourneyStage } from '../../shared/contracts/ArcadeJourneyContract.js';
 import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import {
+    ARCADE_LAST_RUN_STORAGE_KEY,
+    createArcadeLastRunRecord,
+    readArcadeLastRunRecord,
+} from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
+import { createPlayerProfileMenuRuntimeAccess } from './PlayerProfileRuntimeAccess.js';
 
 function cloneJsonSnapshot(value) {
     try {
@@ -18,11 +24,61 @@ function cloneJsonSnapshot(value) {
     }
 }
 
+function saveJourneyContinueAfterStart(game, stageId) {
+    const profileAccess = createPlayerProfileMenuRuntimeAccess(game);
+    const profile = profileAccess.getArcadePrimaryPlayerProfile();
+    const profileId = String(profile?.id || '').trim();
+    const store = profileAccess.getArcadeSettingsStore();
+    if (!profileId || typeof store?.readJsonRecordResult !== 'function' || typeof store?.saveJsonRecord !== 'function') return;
+
+    let read;
+    try { read = store.readJsonRecordResult(ARCADE_LAST_RUN_STORAGE_KEY); } catch { return; }
+    let base;
+    if (read?.status === 'missing') {
+        const settings = game?.settings;
+        const seed = Math.floor(Number(settings?.arcade?.seed) || 0);
+        if (seed <= 0) return;
+        base = createArcadeLastRunRecord({
+            at: new Date().toISOString(), mapKey: settings?.mapKey,
+            vehicleId: settings?.vehicles?.PLAYER_1, botCount: settings?.numBots,
+            botDifficulty: settings?.botDifficulty, seed,
+            dailyChallenge: settings?.arcade?.dailyChallenge,
+        });
+    } else if (read?.status === 'found') {
+        const parsed = readArcadeLastRunRecord(read.value);
+        if (!parsed.record) return;
+        base = parsed.record;
+    } else {
+        return;
+    }
+    try {
+        store.saveJsonRecord(ARCADE_LAST_RUN_STORAGE_KEY, {
+            ...base,
+            profileId,
+            journeyStageId: stageId,
+        });
+    } catch { /* The successful run remains valid if profile storage is unavailable. */ }
+}
+
+function clearJourneyContinueAfterDailyStart(game) {
+    const store = createPlayerProfileMenuRuntimeAccess(game).getArcadeSettingsStore();
+    if (typeof store?.readJsonRecordResult !== 'function' || typeof store?.saveJsonRecord !== 'function') return;
+    let read;
+    try { read = store.readJsonRecordResult(ARCADE_LAST_RUN_STORAGE_KEY); } catch { return; }
+    if (read?.status !== 'found') return;
+    const parsed = readArcadeLastRunRecord(read.value);
+    if (!parsed.record?.journeyStageId) return;
+    try {
+        store.saveJsonRecord(ARCADE_LAST_RUN_STORAGE_KEY, { ...parsed.record, journeyStageId: '' });
+    } catch { /* The daily run remains valid if profile storage is unavailable. */ }
+}
+
 export function normalizeBorrowedMatchSettings(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
-    if (source.tutorial === true) return { tutorial: true };
+    if (source.dailyChallenge === true) return { dailyChallenge: true };
+    if (source.tutorial === true) return { tutorial: true, journeyStageId: 'flight_school' };
     const journeyStage = getArcadeJourneyStage(source.journeyStageId);
-    if (journeyStage?.runType === 'classic_tutorial') return { tutorial: true };
+    if (journeyStage?.runType === 'classic_tutorial') return { tutorial: true, journeyStageId: journeyStage.id };
     if (journeyStage) return { journeyStageId: journeyStage.id };
     const borrowed = {};
     const mapKey = typeof source.mapKey === 'string' ? source.mapKey.trim() : '';
@@ -65,6 +121,10 @@ export async function startMatchWithBorrowedSettings(facade, rawBorrowed = null)
         settings.localSettings = { ...settings.localSettings, modePath: 'arcade' };
         settings.numBots = stage.botCount;
         writeHangarMapSelection(settings, stage.mapKey, stage.mapKey, { modePath: 'arcade' });
+    } else if (borrowed.dailyChallenge) {
+        settings.arcade = { ...settings.arcade, dailyChallenge: true, journeyStageId: '' };
+        settings.gameMode = 'ARCADE';
+        settings.localSettings = { ...settings.localSettings, modePath: 'arcade' };
     } else {
         Object.assign(settings, borrowed);
     }
@@ -76,5 +136,7 @@ export async function startMatchWithBorrowedSettings(facade, rawBorrowed = null)
         started = false;
     }
     if (!started) facade.settingsHandler?.restoreSessionSettings?.();
+    else if (borrowed.journeyStageId) saveJourneyContinueAfterStart(facade?.game, borrowed.journeyStageId);
+    else if (borrowed.dailyChallenge) clearJourneyContinueAfterDailyStart(facade?.game);
     return started;
 }

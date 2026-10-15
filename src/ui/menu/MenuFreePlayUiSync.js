@@ -27,6 +27,8 @@ export function syncFreePlayUi({ ui, settings, sessionType, isModePathAllowed = 
     const isFreePlay = variant !== null;
     const hubSession = sessionType === 'splitscreen' ? 'splitscreen' : 'single';
 
+    ui.setupPanel?.setAttribute?.('data-free-play-stage', String(isFreePlay));
+
     (ui.hubTitleSpans || []).forEach((span) => toggleHidden(span, span.dataset.hubTitleFor !== hubSession));
     (ui.freePlayOnlyElements || []).forEach((element) => toggleHidden(element, !isFreePlay));
     (ui.freePlayHiddenElements || []).forEach((element) => toggleHidden(element, isFreePlay));

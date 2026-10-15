@@ -58,7 +58,9 @@ export function resolveArcadeJourneyAccess(stageId, progress, { playerCount = 1,
     if (!Number.isInteger(playerCount) || playerCount < 1 || playerCount > stage.maxPlayers) {
         return { unlocked: false, reason: 'player_count', label: `Für ${stage.maxPlayers === 1 ? 'einen Spieler' : 'bis zu drei Spieler'}` };
     }
-    if (legacyAccess) return { unlocked: true, reason: '' };
+    if (legacyAccess || (progress?.schema === ARCADE_JOURNEY_SCHEMA && progress?.allStagesUnlocked === true)) {
+        return { unlocked: true, reason: '' };
+    }
     const world = ARCADE_JOURNEY_WORLDS.find((entry) => entry.id === stage.worldId);
     if (getArcadeJourneyStars(progress) < world.starsRequired) {
         return { unlocked: false, reason: 'stars', label: `${world.starsRequired} Sterne für diese Welt` };

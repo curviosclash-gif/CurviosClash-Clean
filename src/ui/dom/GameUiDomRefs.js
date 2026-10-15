@@ -73,6 +73,7 @@ export function createGameUiRefs(doc = document) {
         hubTitleSpans: Array.from(doc.querySelectorAll('[data-hub-title-for]')),
         quickStartLastButton: doc.getElementById('btn-quick-last-settings'),
         quickStartLastSummary: doc.getElementById('quick-last-summary'),
+        quickStartLastTitle: doc.getElementById('menu-continue-title'),
         quickStartEventPlaylistButton: doc.getElementById('btn-quick-event-playlist'),
         quickStartRandomButton: doc.getElementById('btn-quick-random-map'),
         classicTutorialButton: doc.getElementById('btn-classic-tutorial'),

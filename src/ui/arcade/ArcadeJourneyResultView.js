@@ -46,7 +46,7 @@ export function renderArcadeJourneyResult(panel, state, onAction) {
 /** Return through the established lifecycle, then reuse the menu's validated start and hangar actions. */
 export async function requestArcadeJourneyResultAction(controller, action, stageId) {
     if (typeof controller.runtimePort?.returnToMenu !== 'function') throw new Error('Menu lifecycle unavailable');
-    await Promise.resolve(controller.runtimePort.returnToMenu({ reason: `journey_${action}`, panelId: 'submenu-game' }));
+    await Promise.resolve(controller.runtimePort.returnToMenu({ reason: `journey_${action}`, panelId: 'submenu-custom' }));
     const ui = controller.game?.ui;
     ui?.arcadeJourneyOpenStage?.(stageId);
     if (action === 'retry' || action === 'next') ui?.arcadeJourneyStartButtons?.[stageId]?.click();

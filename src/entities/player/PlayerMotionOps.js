@@ -13,6 +13,37 @@ import { sphereHitsArcadePartBoxes } from './ArcadePartHitboxOps.js';
 const MIN_HITBOX_RADIUS = 0.2;
 const HITBOX_HEIGHT_FACTOR = 0.7;
 const ZERO_VECTOR = Object.freeze({ x: 0, y: 0, z: 0 });
+
+export function initializePlayerSandstormState(player, driftVelocity) {
+    player._sandstormDriftVelocity = driftVelocity;
+    player._sandstormWindSample = {
+        directionX: 0,
+        directionZ: 0,
+        intensity: 0,
+        exposure: 0,
+        windOcclusionSampleValid: false,
+    };
+    player.sandstormVisualIntensity = 0;
+}
+
+export function resetPlayerSandstormState(player) {
+    player._sandstormDriftVelocity.set(0, 0, 0);
+    player.sandstormVisualIntensity = 0;
+    player._sandstormWindSample.windOcclusionSampleValid = false;
+}
+
+export function setPlayerSpawnOrientation(player, startDirection = null) {
+    if (startDirection && startDirection.lengthSq() > 0.0001) {
+        player._tmpVec.copy(startDirection).normalize();
+        player.quaternion.setFromUnitVectors(player._tmpDir.set(0, 0, -1), player._tmpVec);
+        return;
+    }
+    const roll = player.entityManager?.runtimeRng?.next;
+    const angle = (typeof roll === 'function' ? roll() : player._fallbackRuntimeRng.next()) * Math.PI * 2;
+    player._tmpEuler.set(0, angle, 0, 'YXZ');
+    player.quaternion.setFromEuler(player._tmpEuler);
+}
+
 function applyFallbackHitbox(player, fallbackRadius) {
     player.hitboxBox.set(
         player._tmpVec.set(-fallbackRadius, -fallbackRadius * HITBOX_HEIGHT_FACTOR, -fallbackRadius),

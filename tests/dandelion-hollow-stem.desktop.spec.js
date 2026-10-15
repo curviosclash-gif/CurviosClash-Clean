@@ -20,7 +20,7 @@ async function readState(page) {
             cameraBlocked: game.arena.checkCollisionFast(camera.position, 0.15),
             items: manager.powerupManager.items.filter((item) => item.ownerId?.startsWith('map-owned:dandelion_stem_'))
                 .map((item) => item.type),
-            drones: manager._repairDroneSystem.drones.filter((drone) => drone.alive).length,
+            drones: manager.runtimePorts.combat.repairDroneSystem.getTargets().length,
             damage: window.__playtest.events.filter((event) => event.type === 'damage' && event.targetIndex === player.index),
             gateCooldowns: game.arena.specialGates.slice(-3).map((gate) => gate.cooldowns.size),
         };

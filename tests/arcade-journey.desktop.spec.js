@@ -1,13 +1,11 @@
 import { test, expect } from './helpers.desktop.js';
-import { waitForLoadedGame, returnToMenu, selectSessionType, chooseMenuModePath, openStartSetupSection } from './helpers.js';
+import { waitForLoadedGame, returnToMenu, selectSessionType, openStartSetupSection, chooseFreePlayVariant, menuScreenSelector } from './helpers.js';
 import { ARCADE_JOURNEY_STORAGE_KEY, ARCADE_JOURNEY_SCHEMA } from '../src/shared/contracts/ArcadeJourneyContract.js';
 
 async function openJourney(page, sessionType = 'single') {
     await waitForLoadedGame(page);
     await returnToMenu(page);
     await selectSessionType(page, sessionType);
-    await chooseMenuModePath(page, 'arcade');
-    await openStartSetupSection(page, 'arcade');
     await expect(page.getByRole('region', { name: 'Arcade-Reise', exact: true })).toBeVisible();
 }
 
@@ -18,23 +16,24 @@ async function readJourney(page) {
     }, ARCADE_JOURNEY_STORAGE_KEY);
 }
 
+async function openExtraStage(page, stageId) {
+    const group = page.locator('.journey-extra-runs');
+    if (!await group.evaluate(element => element.open)) await group.locator('summary').click();
+    await group.locator(`[data-journey-extra="extra_${stageId}"]`).click();
+}
+
 test('journey overview, world focus, party boards and native Hangar return keep the selected stage', async ({ page, electronApp }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await openJourney(page);
     const root = page.getByRole('region', { name: 'Arcade-Reise', exact: true });
-    await expect(root.locator('[data-journey-world]')).toHaveCount(3);
-    await root.locator('[data-journey-world="departure"]').click();
-    await expect(root.locator('[data-journey-start="flight_school"]')).toBeFocused();
-    await root.locator('[data-journey-players="3"]').click();
-    await expect(root.locator('[data-journey-players="3"]')).toHaveAttribute('aria-pressed', 'true');
-    const rankBoxes = await root.locator('[data-journey-players]').evaluateAll(nodes => nodes.map(node => {
-        const box = node.getBoundingClientRect(); return { top: box.top, width: box.width, height: box.height };
-    }));
-    expect(Math.max(...rankBoxes.map(box => box.top)) - Math.min(...rankBoxes.map(box => box.top))).toBeLessThan(2);
-    expect(rankBoxes.every(box => box.height >= 44)).toBe(true);
+    await expect(root.locator('[data-journey-world]')).toHaveCount(6);
+    await root.locator('[data-journey-world="flight_school"]').click();
+    await expect(root.locator('[data-journey-node="first_flight"]')).toBeFocused();
+    await expect(root.locator('[data-journey-players="2"]')).toBeHidden();
+    await expect(root.locator('[data-journey-players="3"]')).toBeHidden();
     await root.locator('[data-journey-back]').click();
-    await expect(root.locator('[data-journey-world="departure"]')).toBeFocused();
-    await root.locator('[data-journey-world="portals"]').click();
+    await expect(root.locator('[data-journey-world="flight_school"]')).toBeFocused();
+    await openExtraStage(page, 'five_portals');
     await expect(root.locator('[data-journey-start="five_portals"]')).toBeDisabled();
     await page.screenshot({ path: testInfo.outputPath('journey-locked-portals-1280.png') });
     const opening = electronApp.waitForEvent('window');
@@ -42,7 +41,7 @@ test('journey overview, world focus, party boards and native Hangar return keep 
     const hangar = await opening;
     await expect(hangar.locator('#arcade-vehicle-manager')).toBeVisible();
     await hangar.locator('#hangar-window-close').click();
-    await expect(root.locator('[data-journey-world-panel="portals"]')).toBeVisible();
+    await expect(root.locator('[data-journey-world-panel="extras"]')).toBeVisible();
     await expect(page.locator('#arcade-difficulty-tier')).toBeEnabled();
     await expect(page.locator('#btn-arcade-daily')).toBeEnabled();
 });
@@ -50,7 +49,8 @@ test('journey overview, world focus, party boards and native Hangar return keep 
 test('controlled round outcomes exercise native journey result, persisted medal and validated next-stage launch', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await openJourney(page);
-    await page.locator('[data-journey-world="departure"]').click();
+    await page.locator('[data-journey-world="flight_school"]').click();
+    await page.locator('[data-journey-node="first_route"]').click();
     await page.locator('[data-journey-start="first_run"]').click();
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING');
     const config = await page.evaluate(() => window.GAME_INSTANCE.runtimeConfig.arcade);
@@ -78,17 +78,18 @@ test('controlled round outcomes exercise native journey result, persisted medal 
 test('controlled tutorial crossings award only at finish and return to the journey world', async ({ page }, testInfo) => {
     await openJourney(page);
     const beforeTutorial = await readJourney(page);
-    await page.locator('[data-journey-world="departure"]').click();
+    await page.locator('[data-journey-world="flight_school"]').click();
     await page.locator('[data-journey-start="flight_school"]').click();
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING'
-        && window.GAME_INSTANCE.entityManager._parcoursProgressSystem.getRouteSnapshot()?.routeId === 'classic_tutorial_v1');
+        && window.GAME_INSTANCE.entityManager.getParcoursRouteSnapshot()?.routeId === 'classic_tutorial_v1');
     expect(await page.evaluate(() => window.GAME_INSTANCE.runtimeConfig.arcade.enabled)).toBe(false);
     // Controlled geometry fixture, not a native flight proof: real ordered ring predicates and finish callback.
     const checkpoints = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const manager = game.entityManager;
-        const system = manager._parcoursProgressSystem;
+        const system = manager.runtimePorts.spawn.parcoursProgressSystem;
         const player = manager.humanPlayers[0];
+        let fixtureNowMs = performance.now();
         for (const entry of system.getRouteSnapshot().checkpoints) {
             const length = Math.hypot(...entry.forward) || 1;
             const unit = entry.forward.map(value => value / length);
@@ -96,8 +97,8 @@ test('controlled tutorial crossings award only at finish and return to the journ
                 y: entry.pos[1] - unit[1] * entry.radius * 0.5, z: entry.pos[2] - unit[2] * entry.radius * 0.5 };
             player.position.set(entry.pos[0] + unit[0] * entry.radius * 0.5,
                 entry.pos[1] + unit[1] * entry.radius * 0.5, entry.pos[2] + unit[2] * entry.radius * 0.5);
-            manager._simulationClockMs += 1000;
-            system.updatePlayerProgress(player, previous, manager._simulationClockMs);
+            fixtureNowMs += 1000;
+            system.updatePlayerProgress(player, previous, fixtureNowMs);
         }
         return system.getPlayerProgressSnapshot(0);
     });
@@ -105,7 +106,7 @@ test('controlled tutorial crossings award only at finish and return to the journ
     expect(await readJourney(page)).toEqual(beforeTutorial);
     await page.evaluate(() => {
         const manager = window.GAME_INSTANCE.entityManager;
-        const system = manager._parcoursProgressSystem;
+        const system = manager.runtimePorts.spawn.parcoursProgressSystem;
         const player = manager.humanPlayers[0];
         const entry = system.getRouteSnapshot().finish;
         const length = Math.hypot(...entry.forward) || 1;
@@ -114,8 +115,8 @@ test('controlled tutorial crossings award only at finish and return to the journ
             y: entry.pos[1] - unit[1] * entry.radius * 0.5, z: entry.pos[2] - unit[2] * entry.radius * 0.5 };
         player.position.set(entry.pos[0] + unit[0] * entry.radius * 0.5,
             entry.pos[1] + unit[1] * entry.radius * 0.5, entry.pos[2] + unit[2] * entry.radius * 0.5);
-        manager._simulationClockMs += 1000;
-        system.updatePlayerProgress(player, previous, manager._simulationClockMs);
+        const fixtureNowMs = Math.max(performance.now(), system.getPlayerProgressSnapshot(0).lastCheckpointAtMs) + 1000;
+        system.updatePlayerProgress(player, previous, fixtureNowMs);
     });
     await expect(page.locator('[data-journey-action="map"]')).toBeVisible();
     const saved = await readJourney(page);
@@ -123,7 +124,7 @@ test('controlled tutorial crossings award only at finish and return to the journ
     expect(saved.value.boards['flight_school:normal:1']).toHaveLength(1);
     await page.screenshot({ path: testInfo.outputPath('flight-school-result.png') });
     await page.locator('[data-journey-action="map"]').click();
-    await expect(page.locator('[data-journey-world-panel="departure"]')).toBeVisible();
+    await expect(page.locator('[data-journey-world-panel="flight_school"]')).toBeVisible();
     await expect(page.locator('[data-journey-start="first_run"]')).toBeEnabled();
 });
 
@@ -147,8 +148,8 @@ async function finishJourneyFixture(page) {
 
 async function openJourneyProfileManager(page) {
     await returnToMenu(page);
-    for (const id of ['submenu-game', 'submenu-custom']) {
-        const panel = page.locator(`#${id}:not(.hidden)`);
+    for (const screen of ['freeplay', 'modeChoice']) {
+        const panel = page.locator(menuScreenSelector(screen));
         if (await panel.count()) await panel.locator('.submenu-header [data-back]').click();
     }
     await expect(page.locator('#menu-nav')).toBeVisible();
@@ -162,9 +163,10 @@ async function activateJourneyProfile(page, id) {
         await page.locator('#btn-close-level4').click(); return;
     }
     await page.locator('#player-profile-select').selectOption(id);
-    await page.evaluate(() => { window.__journeyProfileSwitchPending = true; });
-    await page.locator('#btn-player-profile-activate').click();
-    await expect.poll(() => page.evaluate(() => window.__journeyProfileSwitchPending !== true)).toBe(true);
+    await Promise.all([
+        page.waitForEvent('domcontentloaded'),
+        page.locator('#btn-player-profile-activate').click(),
+    ]);
     await waitForLoadedGame(page);
     await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.playerProfileManager.getActiveProfile()?.id)).toBe(id);
 }
@@ -203,6 +205,7 @@ async function chooseJourneyParty(page, count, ids) {
     await openStartSetupSection(page, 'players');
     await page.locator(`[data-split-player-count="${count}"]`).click();
     for (const device of await page.locator('[data-split-device]:visible').all()) await device.selectOption('keyboard');
+    await chooseFreePlayVariant(page, 'ffa');
     await openStartSetupSection(page, 'vehicle');
     await page.locator('#vehicle-select-p1').selectOption('ship5');
     await page.locator('#vehicle-p2-container').click();
@@ -224,12 +227,13 @@ for (const count of [2, 3]) test(`journey ${count}-player result belongs to all 
     const seats = ids.slice(0, count);
     await chooseJourneyParty(page, count, seats);
     const root = page.getByRole('region', { name: 'Arcade-Reise', exact: true });
-    await root.locator('[data-journey-world="portals"]').click();
+    await openExtraStage(page, 'five_portals');
     await expect(root.locator('[data-journey-start="five_portals"]')).toBeEnabled();
     await expect(root).toContainText('Journey B');
     await root.locator('[data-journey-back]').click();
-    await root.locator('[data-journey-world="departure"]').click();
+    await root.locator('[data-journey-world="flight_school"]').click();
     await expect(root.locator('[data-journey-start="flight_school"]')).toBeDisabled();
+    await root.locator('[data-journey-node="first_route"]').click();
     await root.locator('[data-journey-start="first_run"]').click();
     await page.waitForFunction(expected => window.GAME_INSTANCE.state === 'PLAYING'
         && window.GAME_INSTANCE.entityManager.humanPlayers.length === expected
@@ -246,7 +250,7 @@ for (const count of [2, 3]) test(`journey ${count}-player result belongs to all 
     if (count === 2) expect(records[3].status).toBe('missing');
     await page.screenshot({ path: testInfo.outputPath(`journey-${count}-profiles-result.png`) });
     await page.locator('[data-journey-action="map"]').click();
-    await expect(root.locator('[data-journey-world-panel="departure"]')).toBeVisible();
+    await expect(root.locator('[data-journey-world-panel="flight_school"]')).toBeVisible();
     const snapshot = await readJourneyProfiles(page, [neutral, ...ids]);
     expect(snapshot).toEqual(records);
 });
@@ -257,11 +261,11 @@ test('switching real profiles reloads only their own journey gates and keeps the
     const before = await readJourneyProfiles(page, [neutral, ...ids]);
     await activateJourneyProfile(page, ids[0]);
     await openJourney(page);
-    await page.locator('[data-journey-world="portals"]').click();
+    await openExtraStage(page, 'five_portals');
     await expect(page.locator('[data-journey-start="five_portals"]')).toBeEnabled();
     await activateJourneyProfile(page, neutral);
     await openJourney(page);
-    await page.locator('[data-journey-world="portals"]').click();
+    await openExtraStage(page, 'five_portals');
     await expect(page.locator('[data-journey-start="five_portals"]')).toBeDisabled();
     expect(await readJourneyProfiles(page, [neutral, ...ids])).toEqual(before);
 });

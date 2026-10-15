@@ -38,7 +38,7 @@ const WARNED_BACKUP_KEYS = new Set();
  * Copies the raw text of an unreadable profile record once to a backup key and warns once per
  * session. The original record and an existing backup are never touched; saves stay blocked.
  * @param {any} store record store port
- * @param {{ storageKey: string, status: string, raw: string }|undefined} record
+ * @param {{ storageKey: string, status: string, raw: string, sourceKey?: string }|undefined} record
  */
 export function backupUnreadableProfileRecord(store, record, nowMs = Date.now()) {
     if (!record || typeof record.raw !== 'string' || typeof store?.saveJsonRecord !== 'function') return false;
@@ -153,7 +153,7 @@ export function buildUpgradeState(
     profile,
     slotName,
     targetTier,
-    { upgradePurchaseCodes } = {}
+    { upgradePurchaseCodes = undefined } = {}
 ) {
     const normalizedProfile = ensureProfile(profile);
     if (!normalizedProfile) {

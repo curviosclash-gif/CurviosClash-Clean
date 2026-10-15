@@ -236,6 +236,8 @@ export class UINavigationLifecycleController {
             } else if (returnTarget === 'lobby') {
                 this.manager.menuNavigationRuntime?.showPanel?.('submenu-multiplayer', { trigger: 'level4_close', backNavigation: true });
                 focusWithoutScroll(this.ui.multiplayerPanel?.querySelector?.('.lobby-settings'));
+            } else if (returnTarget === 'journey') {
+                this.manager.menuNavigationRuntime?.showPanel?.('submenu-custom', { trigger: 'level4_close', backNavigation: true });
             } else if (this._getActiveSubmenu() === 'submenu-game') {
                 focusWithoutScroll(this.ui.openLevel4Button);
             }
@@ -299,7 +301,7 @@ export class UINavigationLifecycleController {
                     const refresh = manager.refreshLocalMapCatalog?.();
                     if (refresh && typeof refresh.catch === 'function') refresh.catch(() => {});
                 }
-                if (panelId !== 'submenu-game' && panelId !== 'submenu-multiplayer' && this._getSettings()?.localSettings?.toolsState?.level4Open) {
+                if (panelId !== 'submenu-game' && panelId !== 'submenu-custom' && panelId !== 'submenu-multiplayer' && this._getSettings()?.localSettings?.toolsState?.level4Open) {
                     this._updateToolsState({ level4Open: false });
                     manager.setLevel4Open(false);
                 }
