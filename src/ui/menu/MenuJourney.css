@@ -86,3 +86,5 @@
 .journey-daily-panel { padding: 24px; display: grid; gap: 20px; max-width: 850px; margin: 20px auto; background: var(--menu-surface-pattern), var(--menu-surface); border: 1px solid var(--menu-line); }
 #main-menu .journey-daily-panel.hidden, #main-menu .journey-hub-options.hidden { display: none; }
 #main-menu .journey-daily-panel .secondary-btn { width: auto; min-height: 44px; }
+.arcade-journey-board-history > summary { min-height: 44px; padding: .5rem 0; box-sizing: border-box; cursor: pointer; }
+.arcade-journey-board-history > summary:focus-visible { outline: 3px solid var(--menu-focus, #fff); outline-offset: 2px; }

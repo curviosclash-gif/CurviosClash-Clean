@@ -107,14 +107,14 @@ export function recordArcadeJourneyMedal(store, award = {}) {
     return persistProgress(store, previous, merged.progress);
 }
 
-/** @param {{stageId?: string, tierId?: string, medal?: number, runId?: string, value?: number, playerCount?: number}} [result] */
+/** @param {{stageId?: string, tierId?: string, medal?: number, runId?: string, value?: number, playerCount?: number, leaderboardVersion?: number}} [result] */
 export function recordArcadeJourneyResult(store, result = {}) {
     const { stageId, tierId, medal, runId, value, playerCount } = result;
     const id = String(stageId || '').trim();
     const tier = String(tierId || '').trim();
     const receipt = String(runId || '').trim();
-    const request = validateLeaderboardRequest(id, tier, playerCount, value);
-    if (!request || !Number.isInteger(medal) || medal < 0 || medal > 3 || !receipt) {
+    const request = validateLeaderboardRequest(id, tier, playerCount, value, result.leaderboardVersion);
+    if (!request || !Number.isFinite(value) || !Number.isInteger(medal) || medal < 0 || medal > 3 || !receipt) {
         return { status: 'invalid', progress: emptyProgress(), rank: null, count: 0 };
     }
     const loaded = safeRead(store);

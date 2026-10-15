@@ -97,12 +97,13 @@ test('invalid requests, nonpositive time and malformed target boards fail closed
         result({ playerCount: 0 }), result({ playerCount: 4 }), result({ playerCount: 2, stageId: 'weapon_race' }),
         result({ stageId: 'unknown' }), result({ tierId: 'any' }), result({ runId: ' ' }),
         result({ medal: -1 }), result({ medal: 4 }), result({ value: Infinity }), result({ value: -1 }),
+        result({ value: undefined }), result({ value: null }), result({ value: '4000' }),
         result({ stageId: 'five_portals', value: 0 }),
     ]) {
         assert.equal(recordArcadeJourneyResult(store, invalid).status, 'invalid');
     }
     assert.equal(store.writes.length, 0);
-    const corrupt = createStore({ schema: ARCADE_JOURNEY_SCHEMA, stages: {}, boards: { 'first_run:normal:1': [{ runId: 'bad', value: 5, medal: 1, playerCount: 2 }] } });
+    const corrupt = createStore({ schema: ARCADE_JOURNEY_SCHEMA, stages: {}, boards: { 'first_run:normal:1:v2': [{ runId: 'bad', value: 5, medal: 1, playerCount: 2 }] } });
     const before = corrupt.readValue();
     assert.equal(recordArcadeJourneyResult(corrupt, result()).status, 'unavailable');
     assert.deepEqual(corrupt.readValue(), before);

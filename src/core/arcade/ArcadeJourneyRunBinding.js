@@ -63,6 +63,7 @@ export function createArcadeJourneyRunBinding({
     };
     const binding = {};
     defineFixed(binding, 'stageId', stage.id);
+    defineFixed(binding, 'leaderboardVersion', stage.leaderboardVersion);
     defineFixed(binding, 'runType', stage.runType);
     defineFixed(binding, 'portalChainId', stage.portalChainId || '');
     defineFixed(binding, 'tierId', tier);
@@ -105,6 +106,7 @@ export function settleArcadeJourneyRun(binding, { succeeded, value, aborted } = 
         if (recipient.status !== 'pending') continue;
         const result = recordArcadeJourneyResult(recipient.store, {
             stageId: binding.stageId,
+            leaderboardVersion: binding.leaderboardVersion,
             tierId: binding.tierId,
             medal: state.medal,
             runId: binding.runId,

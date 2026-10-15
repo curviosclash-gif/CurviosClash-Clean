@@ -12,6 +12,7 @@ const stages = [
     { id: 'flight_school', worldId: 'departure', label: 'Flugschule · Etappe 1', runType: 'classic_tutorial', mapKey: 'tutorial_classic', botCount: 0,
         goal: 'Durchfliege alle sechs Ringe und den Zielring der Flugschule.', metric: 'completion', silver: 1, gold: 1, maxPlayers: 1, optional: true },
     { id: 'first_run', worldId: 'departure', label: 'Erster Lauf', runType: 'gauntlet', mapKey: 'parcours_rift', botCount: 1, sectorCount: 3, parcours: true,
+        leaderboardVersion: 2, legacyLeaderboardMetric: 'score', leaderboardLabel: 'Drei-Sektoren-Kurs',
         goal: 'Meistere drei Sektoren auf Parcours Rift. Sektor 2 ist ohne Waffen. Silber: 3.500 Punkte, Gold: 5.000 Punkte.', metric: 'score', silver: 3500, gold: 5000 },
     { id: 'notre_dame', worldId: 'departure', label: 'Notre-Dame', runType: 'gauntlet', mapKey: 'notre_dame', botCount: 0, sectorCount: 1, parcours: true,
         predecessorId: 'first_run', goal: 'Durchfliege den vollständigen Notre-Dame-Kurs mit seinen Abzweigungen bis zum Ziel. Silber: 270 Sekunden, Gold: 180 Sekunden, inklusive Strafzeit.', metric: 'time', silver: 270000, gold: 180000 },
@@ -32,7 +33,7 @@ const stages = [
         goal: 'Erlege den Riesenwurm innerhalb von zwei Minuten. Silber: 90 Sekunden, Gold: 60 Sekunden.', metric: 'time', silver: 90000, gold: 60000 },
 ];
 
-export const ARCADE_JOURNEY_STAGES = Object.freeze(stages.map((stage) => Object.freeze({ maxPlayers: 3, ...stage })));
+export const ARCADE_JOURNEY_STAGES = Object.freeze(stages.map((stage) => Object.freeze({ maxPlayers: 3, leaderboardVersion: 1, ...stage })));
 export const getArcadeJourneyStage = (id) => ARCADE_JOURNEY_STAGES.find((stage) => stage.id === id) || null;
 
 export function getArcadeJourneyMaxStars(stageId) {

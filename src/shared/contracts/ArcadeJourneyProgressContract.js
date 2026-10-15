@@ -37,11 +37,12 @@ export function loadArcadeJourneyProgress(store) {
     return safeRead(store);
 }
 
-export function validateLeaderboardRequest(stageId, tierId, playerCount, value) {
+export function validateLeaderboardRequest(stageId, tierId, playerCount, value, leaderboardVersion) {
     const id = String(stageId || '').trim();
     const tier = String(tierId || '').trim();
     const stage = getArcadeJourneyStage(id);
     if (!stage || !STAGE_ID_PATTERN.test(id) || !TIERS.has(tier)
+        || (leaderboardVersion !== undefined && leaderboardVersion !== stage.leaderboardVersion)
         || !Number.isInteger(playerCount) || playerCount < 1 || playerCount > 3 || playerCount > stage.maxPlayers
         || (value !== undefined && (!Number.isFinite(value) || value < 0 || (stage.metric === 'time' && value <= 0)))) {
         return null;
@@ -49,8 +50,9 @@ export function validateLeaderboardRequest(stageId, tierId, playerCount, value) 
     return { stage, stageId: id, tierId: tier, playerCount };
 }
 
-export function leaderboardKey(stageId, tierId, playerCount) {
-    return `${stageId}:${tierId}:${playerCount}`;
+export function leaderboardKey(stageId, tierId, playerCount, version = getArcadeJourneyStage(stageId)?.leaderboardVersion || 1) {
+    const base = `${stageId}:${tierId}:${playerCount}`;
+    return version === 1 ? base : `${base}:v${version}`;
 }
 
 export function compareRows(metric, left, right) {
@@ -76,4 +78,14 @@ export function getArcadeJourneyLeaderboard(progress, stageId, tierId, playerCou
     if (rows === undefined) return [];
     if (!validBoardRows(rows, request.playerCount, request.stage.metric)) return [];
     return [...rows].sort((left, right) => compareRows(request.stage.metric, left, right)).slice(0, 10);
+}
+
+/** Known previous score rules remain readable without becoming today's competing scores. */
+export function getArcadeJourneyLegacyLeaderboard(progress, stageId, tierId, playerCount) {
+    const request = validateLeaderboardRequest(stageId, tierId, playerCount);
+    if (!request?.stage.legacyLeaderboardMetric || request.stage.leaderboardVersion !== 2
+        || !isValidProgress(progress) || !isRecord(progress.boards)) return [];
+    const rows = progress.boards[leaderboardKey(request.stageId, request.tierId, request.playerCount, 1)];
+    if (!validBoardRows(rows, request.playerCount, request.stage.legacyLeaderboardMetric)) return [];
+    return [...rows].sort((left, right) => compareRows(request.stage.legacyLeaderboardMetric, left, right)).slice(0, 10);
 }

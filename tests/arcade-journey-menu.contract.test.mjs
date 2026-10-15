@@ -29,6 +29,26 @@ test('adding Notre-Dame keeps the previously earned departure badge visible', ()
     assert.equal(stages.notre_dame, undefined);
 });
 
+test('the three-sector list and earlier scores are displayed separately for the selected party and tier', () => {
+    const old = { runId: 'old', value: 99999, medal: 3, playerCount: 2 };
+    const current = { runId: 'new', value: 4000, medal: 2, playerCount: 2 };
+    const { view, state, find } = setup({ progress: { schema: ARCADE_JOURNEY_SCHEMA, stages: {}, boards: {
+        'first_run:normal:2': [old], 'first_run:normal:2:v2': [current],
+    } } });
+    view.openStage('first_run');
+    const card = find('[data-journey-stage="first_run"]');
+    const board = card.querySelectorAll('.arcade-journey-board')[0];
+    const history = card.querySelectorAll('.arcade-journey-board-history')[0];
+    assert.deepEqual(board.children.map(row => row.textContent), ['4.000 Punkte']);
+    assert.equal(history.classList.contains('hidden'), false);
+    assert.deepEqual(card.querySelectorAll('.arcade-journey-legacy-board')[0].children.map(row => row.textContent), ['99.999 Punkte']);
+    find('[data-journey-players="1"]').click();
+    assert.equal(history.classList.contains('hidden'), true);
+    view.render({ ...state, tiers: { first_run: 'hard' } });
+    assert.equal(history.classList.contains('hidden'), true);
+    assert.equal(state.progress.boards['first_run:normal:2'][0], old);
+});
+
 test('world zoom focuses a map node; controller back returns one level and restores world focus', () => {
     const { view, starts, find } = setup();
     const flightSchool = find('[data-journey-world="flight_school"]');
@@ -102,7 +122,7 @@ test('rank tabs display ten stored rows and preserve independent human-party boa
         runId: `run-${count}-${index}`, value: 10000 - index * 100, medal: 1, playerCount: count,
     }));
     view.render({ ...state, progress: { ...state.progress, boards: {
-        'first_run:normal:1': rows(1), 'first_run:normal:2': rows(2),
+        'first_run:normal:1:v2': rows(1), 'first_run:normal:2:v2': rows(2),
     } } });
     view.openStage('first_run');
     const card = find('[data-journey-stage="first_run"]');

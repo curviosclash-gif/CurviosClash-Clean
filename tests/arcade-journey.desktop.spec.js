@@ -63,7 +63,7 @@ test('controlled Rift crossings exercise the three-sector result, persisted meda
     const result = await readJourney(page);
     expect(result.status).toBe('found');
     expect(result.value.stages.first_run.medals.normal.medal).toBeGreaterThanOrEqual(1);
-    expect(result.value.boards['first_run:normal:1']).toHaveLength(1);
+    expect(result.value.boards['first_run:normal:1:v2']).toHaveLength(1);
     for (const button of await page.locator('[data-journey-action]').all()) {
         const box = await button.boundingBox(); expect(box.height).toBeGreaterThanOrEqual(44);
     }
@@ -126,6 +126,52 @@ test('controlled tutorial crossings award only at finish and return to the journ
     await page.locator('[data-journey-action="map"]').click();
     await expect(page.locator('[data-journey-world-panel="flight_school"]')).toBeVisible();
     await expect(page.locator('[data-journey-start="first_run"]')).toBeEnabled();
+});
+
+test('First Run keeps old scores and gold while new course results survive menu return and reload separately', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    await waitForLoadedGame(page);
+    const old = { schema: ARCADE_JOURNEY_SCHEMA, note: 'keep historic rules',
+        stages: { first_run: { note: 'earned gold', medals: { normal: { medal: 3, runId: 'old-course' } } } },
+        boards: { 'first_run:normal:1': [{ runId: 'old-course', value: 99999, medal: 3, playerCount: 1 }] } };
+    expect(await page.evaluate(({ key, value }) => {
+        const manager = window.GAME_INSTANCE.playerProfileManager;
+        return manager.getRecordStorePort(manager.getActiveProfile().id).saveJsonRecord(key, value);
+    }, { key: ARCADE_JOURNEY_STORAGE_KEY, value: old })).toMatchObject({ success: true });
+    await openJourney(page);
+    await page.locator('[data-journey-world="flight_school"]').click();
+    await page.locator('[data-journey-node="first_route"]').click();
+    const card = page.locator('[data-journey-stage="first_run"]');
+    const history = card.locator('.arcade-journey-board-history');
+    await expect(card.locator('.arcade-journey-board')).toHaveText('Noch kein Ergebnis');
+    await expect(card).toContainText('Drei-Sektoren-Kurs');
+    await history.locator('summary').click();
+    await expect(history.locator('li')).toHaveText('99.999 Punkte');
+    const hitbox = await history.locator('summary').boundingBox();
+    expect(hitbox.height).toBeGreaterThanOrEqual(44);
+    await page.locator('[data-journey-start="first_run"]').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING');
+    await finishJourneyFixture(page);
+    const saved = (await readJourney(page)).value;
+    expect(saved.boards['first_run:normal:1']).toEqual(old.boards['first_run:normal:1']);
+    expect(saved.boards['first_run:normal:1:v2']).toHaveLength(1);
+    expect(saved.boards['first_run:normal:1:v2'][0].value).toBeGreaterThan(0);
+    expect(saved.boards['first_run:normal:1:v2'][0].value).toBeLessThan(99999);
+    expect(saved.stages).toEqual(old.stages); expect(saved.note).toBe(old.note);
+    await page.locator('[data-journey-action="map"]').click();
+    await expect(card.locator('.arcade-journey-board li')).toHaveCount(1);
+    await expect(card.locator('.arcade-journey-board')).not.toContainText('99.999');
+    await page.reload();
+    await openJourney(page);
+    await page.locator('[data-journey-world="flight_school"]').click();
+    await page.locator('[data-journey-node="first_route"]').click();
+    expect((await readJourney(page)).value).toEqual(saved);
+    await expect(card.locator('.arcade-journey-board li')).toHaveCount(1);
+    await expect(card.locator('.arcade-journey-board')).not.toContainText('99.999');
+    await history.locator('summary').click();
+    await expect(history.locator('li')).toHaveText('99.999 Punkte');
+    await history.locator('summary').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath('journey-current-and-historic-scores.png') });
 });
 
 async function finishJourneyFixture(page, testInfo = null) {
@@ -288,8 +334,8 @@ for (const count of [2, 3]) test(`journey ${count}-player result belongs to all 
     expect(records[0].status).toBe('missing');
     for (let index = 0; index < count; index++) {
         expect(records[index + 1].value.stages.first_run.medals.normal.medal).toBeGreaterThanOrEqual(1);
-        expect(records[index + 1].value.boards[`first_run:normal:${count}`]).toHaveLength(1);
-        expect(records[index + 1].value.boards['first_run:normal:1']).toBeUndefined();
+        expect(records[index + 1].value.boards[`first_run:normal:${count}:v2`]).toHaveLength(1);
+        expect(records[index + 1].value.boards['first_run:normal:1:v2']).toBeUndefined();
     }
     if (count === 2) expect(records[3].status).toBe('missing');
     await page.screenshot({ path: testInfo.outputPath(`journey-${count}-profiles-result.png`) });

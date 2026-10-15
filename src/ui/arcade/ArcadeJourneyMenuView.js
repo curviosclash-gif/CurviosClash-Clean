@@ -1,6 +1,6 @@
 import { ARCADE_JOURNEY_STAGES, ARCADE_JOURNEY_WORLDS, getArcadeJourneyStage, getArcadeJourneyStars, getArcadeJourneyMaxStars, resolveArcadeJourneyAccess } from '../../shared/contracts/ArcadeJourneyContract.js';
 import { ARCADE_JOURNEY_MAP_WORLDS, ARCADE_JOURNEY_MAP_NODES, ARCADE_JOURNEY_MAP_LINKS } from '../../shared/contracts/ArcadeJourneyMapContract.js';
-import { getArcadeJourneyLeaderboard } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
+import { getArcadeJourneyLeaderboard, getArcadeJourneyLegacyLeaderboard } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
 import { createArcadeJourneyMapView } from './ArcadeJourneyMapView.js';
 
 function medalDescription(stage) {
@@ -58,9 +58,13 @@ export function createArcadeJourneyMenuView(createElement) {
         hangar.type = 'button'; hangar.dataset.journeyHangar = stage?.id || node.id;
         const boardLabel = createElement('p', 'menu-hint');
         const board = createElement('ol', 'arcade-journey-board');
-        card.append(title, goal, briefing, thresholds, medal, condition, start, hangar, boardLabel, board);
+        const history = createElement('details', 'arcade-journey-board-history hidden');
+        history.appendChild(createElement('summary', '', 'Frühere Regeln · Bestwerte erhalten'));
+        const historyBoard = createElement('ol', 'arcade-journey-legacy-board');
+        history.appendChild(historyBoard);
+        card.append(title, goal, briefing, thresholds, medal, condition, start, hangar, boardLabel, board, history);
         side.appendChild(card);
-        cards.set(node.id, { node, stage, card, title, briefing, medal, condition, start, hangar, boardLabel, board });
+        cards.set(node.id, { node, stage, card, title, briefing, medal, condition, start, hangar, boardLabel, board, history, historyBoard });
     }
     layout.append(map.element, side);
     const legend = createElement('p', 'journey-map-legend', '★ Geschafft · ○ Offen · ◇ Nebenetappe · ◎ Endgegner · Pfeiltasten wählen, Enter / A startet');
@@ -98,7 +102,7 @@ export function createArcadeJourneyMenuView(createElement) {
         rankButtons.forEach((button, index) => button.setAttribute('aria-pressed', String(index + 1 === rankPlayers)));
         nodeStates = new Map();
         for (const [id, ref] of cards) {
-            const { node, stage, card, title, briefing, medal, condition, start, hangar, board, boardLabel } = ref;
+            const { node, stage, card, title, briefing, medal, condition, start, hangar, board, boardLabel, history, historyBoard } = ref;
             const access = stage ? resolveArcadeJourneyAccess(stage.id, state.progress, state) : { unlocked: false, label: 'Kommt bald' };
             const stars = stage ? getArcadeJourneyStars(state.progress, stage.id) : 0;
             // Preserve earned historical medals even if today's objective awards fewer stars.
@@ -117,12 +121,16 @@ export function createArcadeJourneyMenuView(createElement) {
             start.disabled = !stage || !state.available || !access.unlocked;
             hangar.disabled = !state.profileId || !stage;
             board.replaceChildren();
+            historyBoard.replaceChildren(); history.classList.add('hidden');
             if (!stage) { boardLabel.textContent = ''; continue; }
             const count = Math.min(rankPlayers, stage.maxPlayers), tierId = state.tiers?.[stage.id] || 'normal';
             const rows = getArcadeJourneyLeaderboard(state.progress, stage.id, tierId, count);
-            boardLabel.textContent = `Persönliche Bestenliste · ${['Allein', 'Zu zweit', 'Zu dritt'][count - 1]} · ${{ normal: 'Normal', hard: 'Hart', nightmare: 'Albtraum' }[tierId]}`;
+            boardLabel.textContent = `Persönliche Bestenliste${stage.leaderboardLabel ? ` · ${stage.leaderboardLabel}` : ''} · ${['Allein', 'Zu zweit', 'Zu dritt'][count - 1]} · ${{ normal: 'Normal', hard: 'Hart', nightmare: 'Albtraum' }[tierId]}`;
             if (!rows.length) board.appendChild(createElement('li', 'menu-hint', 'Noch kein Ergebnis'));
             for (const row of rows) board.appendChild(createElement('li', '', leaderboardValue(stage, row.value)));
+            const oldRows = getArcadeJourneyLegacyLeaderboard(state.progress, stage.id, tierId, count);
+            history.classList.toggle('hidden', !oldRows.length);
+            for (const row of oldRows) historyBoard.appendChild(createElement('li', '', leaderboardValue({ metric: stage.legacyLeaderboardMetric }, row.value)));
         }
         map.render(selectedWorld, selectedNode, nodeStates);
     };
