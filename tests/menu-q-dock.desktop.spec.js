@@ -164,11 +164,8 @@ test('free play remains separate and the four-player planar entry survives the n
             return { map: box('start-map-preview-stage'), vehicle: box('start-vehicle-section'), rules: box('start-match-section'),
                 contentWidth: menu.clientWidth, scrollWidth: menu.scrollWidth };
         });
-        expect(geometry.vehicle.x).toBeGreaterThan(geometry.map.x);
-        expect(geometry.vehicle.y).toBeGreaterThan(geometry.map.y);
-        expect(geometry.vehicle.right).toBeLessThanOrEqual(geometry.map.right);
-        expect(geometry.vehicle.bottom).toBeLessThanOrEqual(geometry.map.bottom);
-        expect(geometry.vehicle.width).toBeLessThan(geometry.map.width * .65);
+        expect(geometry.vehicle.x).toBeGreaterThanOrEqual(geometry.map.right);
+        expect(geometry.rules.y).toBeGreaterThanOrEqual(geometry.vehicle.bottom);
         expect(geometry.rules.x).toBeGreaterThanOrEqual(geometry.map.right);
         expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.contentWidth + 1);
         await expect(page.locator('.start-step-rail')).toBeHidden();

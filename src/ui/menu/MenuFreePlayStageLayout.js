@@ -21,7 +21,7 @@ export function syncFreePlayStageLayout(panel, active, settings) {
         const stage = panel.querySelector('#start-map-preview-stage');
         if (!map || !vehicle || !match || !stage) return;
         layout = { moves: [], created: [], sections: [map, vehicle, match].map(node => [node, node.open]) };
-        for (const section of [map, match]) {
+        for (const section of [map, vehicle, match]) {
             const heading = doc.createElement('h3');
             heading.className = 'free-play-stage-heading';
             heading.textContent = section.querySelector('.section-title').textContent;
@@ -49,14 +49,18 @@ export function syncFreePlayStageLayout(panel, active, settings) {
         rules.className = 'free-play-rules';
         panel.querySelector('.level3-body').appendChild(rules);
         layout.created.push(rules);
-        move(match, rules);
+        const sidebarSettings = doc.createElement('div');
+        sidebarSettings.className = 'free-play-sidebar-settings';
+        rules.appendChild(sidebarSettings);
+        layout.created.push(sidebarSettings);
+        move(vehicle, sidebarSettings);
+        move(match, sidebarSettings);
         move(panel.querySelector('.start-rail'), rules);
-        move(vehicle, stage);
         const body = vehicle.querySelector(':scope > .menu-accordion-body');
         const vehicleMore = more(body, 'free-play-vehicle-more', 'Details und Filter');
         for (const selector of ['.setup-search-grid', '#vehicle-search-empty', '.start-vehicle-description',
             '.start-vehicle-badges', '.start-vehicle-stats', '#btn-vehicle-favorite-toggle',
-            '#btn-vehicle-previous', '#btn-vehicle-next', '#btn-vehicle-view-reset',
+            '#btn-vehicle-view-reset',
             '.start-vehicle-preview-hint', '#start-vehicle-choice-strip', '.setup-chip-grid']) {
             move(vehicle.querySelector(selector), vehicleMore);
         }

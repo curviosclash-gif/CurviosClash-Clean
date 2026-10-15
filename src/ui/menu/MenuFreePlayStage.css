@@ -1,4 +1,4 @@
-/* Reference Kartenbühne: map left, aircraft inside it, rules right. */
+/* Free play: unobstructed map left, aircraft and rules in the right sidebar. */
 #main-menu #submenu-game[data-free-play-stage="true"] .level3-body {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 32%);
     grid-template-rows: auto;
@@ -6,7 +6,8 @@
     align-items: start;
     gap: 16px;
 }
-#main-menu #submenu-game[data-free-play-stage="true"] .free-play-rules { grid-area: rules; display: grid; gap: 12px; min-width: 0; align-content: start; }
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-rules { grid-area: rules; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; min-width: 0; max-height: calc(100dvh - 200px); }
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-sidebar-settings { display: grid; grid-auto-rows: max-content; align-content: start; gap: 12px; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 #main-menu #submenu-game[data-free-play-stage="true"] :is(.start-step-rail, .start-step-next, .start-step-index, .menu-accordion-copy) { display: none; }
 #main-menu #submenu-game[data-free-play-stage="true"] .menu-accordion-summary::after { display: none; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-section-card > .menu-accordion-summary { display: none; }
@@ -30,19 +31,21 @@
 #main-menu #submenu-game[data-free-play-stage="true"] .free-play-map-reset { grid-column: 1 / -1; margin: 0; min-height: 44px; }
 #main-menu .free-play-map-reset[hidden] { display: none !important; }
 #main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section {
-    position: absolute; z-index: 6; right: 12px; bottom: 12px; width: min(360px, 58%); min-width: 0; margin: 0; display: block;
-    background: var(--menu-surface); border: var(--menu-border) solid var(--menu-accent); border-radius: var(--menu-radius-m); box-shadow: 0 8px 24px #0008;
+    position: static; width: auto; min-width: 0; margin: 0; display: block;
+    background: var(--menu-surface); border: var(--menu-border) solid var(--menu-line); border-radius: var(--menu-radius-m);
 }
 #main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section > summary { display: none; }
 #main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section > .menu-accordion-body { padding: 10px; }
-#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-picker { grid-template-columns: 88px minmax(0, 1fr); gap: 10px; }
-#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-preview-stage { min-height: 100px; height: 100%; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-picker { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-preview-stage { min-height: 150px; height: 150px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-cycle { width: 44px; height: 44px; min-height: 44px; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-preview-mount .arcade-vehicle-preview-status { display: none; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-details { grid-template-rows: auto auto auto; gap: 6px; padding: 0; border: 0; background: transparent; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-title { font-size: var(--menu-font-size-body); }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-identity { display: block; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-pilot-switch { flex-wrap: wrap; gap: 4px; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-pilot-switch > button { min-height: 44px; margin: 0; padding: 6px; font-size: var(--menu-font-size-body); }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-pilot-switch:not(:has(> button:not(.hidden) ~ button:not(.hidden))) { display: none; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-direct-select label { font-size: var(--menu-font-size-body); }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-direct-select select { min-height: 44px; }
 #main-menu #submenu-game[data-free-play-stage="true"] .free-play-vehicle-more { margin-top: 8px; }
@@ -52,18 +55,16 @@
 #main-menu #submenu-game[data-free-play-stage="true"] :is(.free-play-vehicle-more, .free-play-map-more) > summary:focus-visible { outline: 3px solid var(--menu-focus); outline-offset: -3px; }
 #main-menu #submenu-game[data-free-play-stage="true"] .free-play-vehicle-more :is(.start-vehicle-cycle, .start-vehicle-view-reset, .start-vehicle-preview-hint) { position: static; transform: none; display: inline-block; margin: 6px; min-height: 44px; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-rail { position: static; padding: 12px; gap: 10px; }
-#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-copy { grid-template-columns: 1fr; gap: 8px; }
-#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-block { display: grid; gap: 4px; padding: 6px; }
-#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-block.is-secondary { display: none; }
-#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-value { white-space: normal; overflow-wrap: anywhere; }
+/* Map, aircraft and rules already show the selection immediately above these actions. */
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-copy { display: none; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions #btn-start { grid-column: 1 / -1; min-height: 48px; }
 #main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions .secondary-btn { min-height: 44px; width: auto; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 @media (max-width: 899px) {
     #main-menu #submenu-game[data-free-play-stage="true"] .level3-body { grid-template-columns: 1fr; grid-template-areas: "map" "rules"; }
+    #main-menu #submenu-game[data-free-play-stage="true"] .free-play-rules { max-height: none; }
+    #main-menu #submenu-game[data-free-play-stage="true"] .free-play-sidebar-settings { overflow: visible; scrollbar-gutter: auto; }
     #main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-stage { height: auto; }
     #main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-mount { height: 300px; }
-    #main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section { position: relative; inset: auto; width: auto; margin: 12px; }
     #main-menu #submenu-game[data-free-play-stage="true"] .start-map-view-reset { top: 244px; bottom: auto; }
 }
