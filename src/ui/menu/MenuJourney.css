@@ -35,7 +35,21 @@
 #main-menu .journey-hub-actions .secondary-btn { width: auto; min-height: 44px; margin: 0; }
 .journey-hub-options { margin: 10px 0; }
 .journey-hub-options label { display: flex; align-items: center; gap: 10px; }
-.journey-free-play-entry .menu-choice-card { width: 100%; min-height: 72px; margin: 0; padding: 12px; text-align: left; }
+#main-menu .journey-free-play-entry .menu-choice-card {
+    width: 100%;
+    min-height: 120px;
+    margin: 0;
+    padding: 24px;
+    gap: 8px;
+    text-align: left;
+    color: var(--menu-on-accent);
+    background: var(--menu-accent-2);
+    border-color: var(--menu-accent-2);
+    text-shadow: none;
+}
+#main-menu .journey-free-play-entry .menu-choice-title { color: inherit; font-size: max(22px, calc(22px * var(--menu-scale))); line-height: 1.2; }
+#main-menu .journey-free-play-entry .menu-choice-copy { color: inherit; }
+#main-menu .journey-free-play-entry .menu-choice-card:hover { color: var(--menu-on-accent); border-color: var(--menu-text); }
 .journey-free-play-entry .menu-choice-eyebrow { display: none; }
 .journey-extra-runs { margin: 8px 0; }
 .journey-extra-runs .secondary-btn { margin: 8px 8px 0 0; width: auto; }
