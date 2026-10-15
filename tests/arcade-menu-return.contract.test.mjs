@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { GameRuntimeSessionHandler } from '../src/core/runtime/GameRuntimeSessionHandler.js';
+import { menuScreenPanelId } from './support/menu-screens.js';
 
 function returnHarness(session, state = 'PAUSED') {
     const calls = [];
@@ -27,7 +28,7 @@ for (const [name, session] of [
     test(`${name} captures its hub destination before settings restore`, () => {
         const { handler, calls } = returnHarness(session);
         const result = handler.returnToMenu({ reason: 'pause_menu_return' });
-        assert.equal(result.panelId, 'submenu-custom');
+        assert.equal(result.panelId, menuScreenPanelId('modeChoice'));
         assert.equal(result.reason, 'pause_menu_return');
         assert.equal(result.applyReturnToMenuUi, true);
         assert.deepEqual(calls, ['scenario', 'restore', 'finalize']);
@@ -48,7 +49,7 @@ for (const [name, session, state] of [
 }
 
 test('an explicit result or lobby destination takes priority over the Arcade hub', () => {
-    for (const panelId of ['submenu-multiplayer', 'submenu-custom', 'submenu-game']) {
+    for (const panelId of ['lobby', 'modeChoice', 'freeplay'].map(menuScreenPanelId)) {
         const { handler } = returnHarness({ sessionType: 'single', modePath: 'arcade' });
         const result = handler.returnToMenu({ panelId, trigger: 'explicit', showMenuPanel: false });
         assert.equal(result.panelId, panelId);

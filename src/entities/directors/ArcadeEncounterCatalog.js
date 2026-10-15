@@ -249,6 +249,7 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         isBoss: entry.isBoss === true,
         scenarioId: String(entry.scenarioId || '').trim() || null,
         combatProfile: entry.combatProfile === 'hunt' ? 'hunt' : '',
+        weaponsDisabled: entry.weaponsDisabled === true,
         ...(Array.isArray(entry.mapUnits) ? { mapUnits: entry.mapUnits } : {}),
         ...(typeof entry.mapUnitsMode === 'string' ? { mapUnitsMode: entry.mapUnitsMode === 'replace' ? 'replace' : 'overlay' } : {}),
         waterZoneTriggerSec: Math.max(0, Number(entry.waterZoneTriggerSec) || 0),

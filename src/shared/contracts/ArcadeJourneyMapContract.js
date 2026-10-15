@@ -35,7 +35,7 @@ export const ARCADE_JOURNEY_MAP_WORLDS = Object.freeze([
 export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([
     Object.freeze({ id: 'first_flight', worldId: 'flight_school', label: 'Erster Flug', goal: 'Durchfliege alle sechs Ringe und den Zielring der Flugschule.', x: 72, y: 196, stageId: 'flight_school', maxPlayers: 1 }),
     Object.freeze({ id: 'gaps_lesson', worldId: 'flight_school', label: 'Lücken', goal: 'Noch offen: Eigene Lückenroute durch Spurlücken der Flugschule.', x: 150, y: 268, stageId: '', maxPlayers: 1 }),
-    Object.freeze({ id: 'first_route', worldId: 'flight_school', label: 'Erster Lauf', goal: 'Meistere alle Pflichtsektoren. Danach kannst du freiwillig weiterfliegen.', x: 214, y: 200, stageId: 'first_run', maxPlayers: 3 }),
+    Object.freeze({ id: 'first_route', worldId: 'flight_school', label: 'Erster Lauf', goal: 'Meistere drei Sektoren auf Parcours Rift. Sektor 2 ist ohne Waffen.', x: 214, y: 200, stageId: 'first_run', maxPlayers: 3 }),
     Object.freeze({ id: 'endless_hunt', worldId: 'flight_school', label: 'Endlosjagd', goal: 'Sammle mindestens 5.000 Punkte, bevor dein Lauf endet.', x: 88, y: 350, stageId: 'endless_hunt', optional: true, maxPlayers: 3 }),
 
     Object.freeze({ id: 'notre_dame', worldId: 'tower_city', label: 'Notre-Dame', goal: 'Noch offen: Sektoren durch das Kirchenschiff.', x: 330, y: 78, stageId: '', maxPlayers: 3 }),

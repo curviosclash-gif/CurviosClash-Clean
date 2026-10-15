@@ -191,6 +191,7 @@ export function resolveArcadeSectorTransition(transition, runtimeConfig, current
     const next = withArcadeCompanions(transition, runtimeConfig);
     const requiresSessionRebuild = currentMapKey !== nextMapKey || currentBotCount !== next.sessionBotCount
         || next.companionCount > 0
+        || (runtimeConfig?.arcade?.weaponsDisabled === true) !== (transition.weaponsDisabled === true)
         || String(runtimeConfig?.arcade?.combatProfile || '') !== String(transition.combatProfile || '');
     return { ...next, mapKey: nextMapKey, toMap: nextMapKey, requiresSessionRebuild };
 }

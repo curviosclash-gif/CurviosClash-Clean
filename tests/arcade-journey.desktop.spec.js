@@ -46,7 +46,7 @@ test('journey overview, world focus, party boards and native Hangar return keep 
     await expect(page.locator('#btn-arcade-daily')).toBeEnabled();
 });
 
-test('controlled round outcomes exercise native journey result, persisted medal and validated next-stage launch', async ({ page }, testInfo) => {
+test('controlled Rift crossings exercise the three-sector result, persisted medal and next-stage launch', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await openJourney(page);
     await page.locator('[data-journey-world="flight_school"]').click();
@@ -55,10 +55,10 @@ test('controlled round outcomes exercise native journey result, persisted medal 
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING');
     const config = await page.evaluate(() => window.GAME_INSTANCE.runtimeConfig.arcade);
     expect(config.journeyStageId).toBe('first_run');
-    expect(config.sectorCount).toBe(5);
+    expect(config.sectorCount).toBe(3);
     // Integration fixture: enter normal round outcomes at the established lifecycle seam.
     // This checks wiring/storage/UI; it is not a gameplay or flight-completion acceptance proof.
-    await finishJourneyFixture(page);
+    await finishJourneyFixture(page, testInfo);
     await expect(page.locator('[data-journey-action="next"]')).toBeEnabled();
     const result = await readJourney(page);
     expect(result.status).toBe('found');
@@ -128,21 +128,65 @@ test('controlled tutorial crossings award only at finish and return to the journ
     await expect(page.locator('[data-journey-start="first_run"]')).toBeEnabled();
 });
 
-async function finishJourneyFixture(page) {
-    for (let sector = 1; sector <= 5; sector++) {
-        await page.evaluate(() => {
+async function finishJourneyFixture(page, testInfo = null) {
+    for (let sector = 1; sector <= 3; sector++) {
+        const profile = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
-            for (const player of game.entityManager.humanPlayers) { player.alive = true; player.hp = Math.max(60, player.hp); }
-            const human = game.entityManager.humanPlayers[0];
-            game.matchFlowUiController.onRoundEnd(human, { reason: 'ARCADE_OBJECTIVE' });
+            const strategy = game.entityManager.gameModeStrategy;
+            return { map: game.runtimeConfig.session.mapKey, sector: game.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex,
+                weaponless: game.runtimeConfig.arcade.weaponsDisabled, allowsWeapons: strategy.allowsWeaponActions(),
+                machineGun: strategy.hasMachineGun(), weaponPickups: strategy.filterSpawnableTypes(['ROCKET_HEAVY', 'ROCKET_TURRET'], game.entityManager.entityRuntimeConfig.POWERUP.TYPES), route: game.entityManager.getParcoursRouteSnapshot().routeId };
         });
-        if (sector < 5) {
+        expect(profile).toEqual({ map: 'parcours_rift', sector, weaponless: sector === 2, allowsWeapons: sector !== 2,
+            machineGun: sector !== 2, weaponPickups: sector === 2 ? [] : ['ROCKET_HEAVY'], route: 'rift_gauntlet_v1' });
+        if (sector === 2) {
+            const pickups = await page.evaluate(() => {
+                const manager = window.GAME_INSTANCE.entityManager.powerupManager;
+                manager.clear();
+                for (let index = 0; index < 8; index++) manager.update(10);
+                return manager.items.map(item => item.type);
+            });
+            expect(pickups.length).toBeGreaterThan(0);
+            expect(pickups.every(type => ['SHIELD', 'SPEED_UP'].includes(type))).toBe(true);
+        }
+        if (testInfo && sector === 2) await page.screenshot({ path: testInfo.outputPath('first-route-weaponless-sector.png') });
+        // Controlled ordered ring crossings exercise the real route predicates and outcome callback.
+        // This is integration evidence, not a manually flown route or a full-flight acceptance claim.
+        const crossed = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const manager = game.entityManager;
+            const system = manager.runtimePorts.spawn.parcoursProgressSystem;
+            const player = manager.humanPlayers[0];
+            for (const human of manager.humanPlayers) { human.alive = true; human.hp = Math.max(60, human.hp); }
+            const route = system.getRouteSnapshot();
+            const ids = ['CP01', 'CP02', 'CP03', 'CP04', 'CP04A_TUNNEL', 'CP05', 'CP06', 'CP07', 'CP08'];
+            let nowMs = Math.max(performance.now(), system.getPlayerProgressSnapshot(0).lastCheckpointAtMs || 0) + 1000;
+            for (const entry of [...ids.map(id => route.checkpoints.find(cp => cp.id === id)), route.finish]) {
+                if (!entry) throw new Error('Rift fixture checkpoint missing');
+                const length = Math.hypot(...entry.forward) || 1;
+                const unit = entry.forward.map(value => value / length);
+                const previous = { x: entry.pos[0] - unit[0] * entry.radius * 0.5,
+                    y: entry.pos[1] - unit[1] * entry.radius * 0.5, z: entry.pos[2] - unit[2] * entry.radius * 0.5 };
+                player.position.set(entry.pos[0] + unit[0] * entry.radius * 0.5,
+                    entry.pos[1] + unit[1] * entry.radius * 0.5, entry.pos[2] + unit[2] * entry.radius * 0.5);
+                nowMs += 1000;
+                system.updatePlayerProgress(player, previous, nowMs);
+            }
+            const progress = system.getPlayerProgressSnapshot(0);
+            const outcome = system.getRoundOutcome();
+            if (!outcome?.shouldEnd) throw new Error('Ordered Rift crossings did not finish the route: ' + JSON.stringify(progress));
+            game.matchFlowUiController.onRoundEnd(player, outcome);
+            return { completed: progress.completed, reason: outcome.reason };
+        });
+        expect(crossed).toEqual({ completed: true, reason: 'PARCOURS_COMPLETE' });
+        if (sector < 3) {
             await page.locator('#btn-arcade-intermission-continue').click();
             await page.waitForFunction(next => window.GAME_INSTANCE.state === 'PLAYING'
                 && window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex === next, sector + 1);
         }
     }
-    await page.locator('#btn-arcade-victory-finish').click();
+    await expect(page.locator('[data-journey-action="map"]')).toBeVisible();
+    await expect(page.locator('#btn-arcade-victory-continue')).toBeHidden();
 }
 
 

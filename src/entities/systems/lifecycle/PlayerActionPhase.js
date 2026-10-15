@@ -83,6 +83,11 @@ export class PlayerActionPhase {
 
         if (input.nextItem) player.cycleItem();
         if (input.dropItem) player.dropItem();
+        // An authored weaponless sector also blocks carried rockets, turrets and special guns.
+        if (strategy?.allowsWeaponActions?.() === false) {
+            this._mgRefusalShown.delete(player.index);
+            return;
+        }
 
         const wantsUseItem = Number.isInteger(input.useItem) && input.useItem >= 0;
         const wantsShootItem = input.shootItem === true;

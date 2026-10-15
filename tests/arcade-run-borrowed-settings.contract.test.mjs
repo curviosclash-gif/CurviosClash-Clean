@@ -75,7 +75,7 @@ test('journey score rules last only for the match and a failed journey start res
         await startMatchWithBorrowedSettings(facade, { journeyStageId: 'first_run' });
         if (startResult) {
             assert.equal(facade.game.settings.arcade.journeyStageId, 'first_run');
-            assert.equal(facade.game.settings.arcade.sectorCount, 5);
+            assert.equal(facade.game.settings.arcade.sectorCount, 3);
             assert.equal(facade.game.settings.arcade.companionCount, 0);
             assert.equal(facade.game.settings.arcade.difficultyTierId, 'hard');
             facade.settingsHandler.restoreSessionSettings();

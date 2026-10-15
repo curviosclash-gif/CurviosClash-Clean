@@ -1,5 +1,6 @@
 import { test, expect } from './helpers.desktop.js';
-import { waitForLoadedGame, selectSessionType } from './helpers.js';
+import { waitForLoadedGame, selectSessionType, menuScreenSelector } from './helpers.js';
+import { ARCADE_JOURNEY_STORAGE_KEY } from '../src/shared/contracts/ArcadeJourneyContract.js';
 
 async function leaveThroughPause(page) {
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING');
@@ -8,8 +9,8 @@ async function leaveThroughPause(page) {
     await page.locator('#btn-pause-menu').click();
     await expect(page.locator('#btn-pause-menu')).toHaveAttribute('data-confirm-armed', 'true');
     await page.locator('#btn-pause-menu').click();
-    await expect(page.locator('#submenu-custom')).toBeVisible();
-    await expect(page.locator('#submenu-game')).toBeHidden();
+    await expect(page.locator(menuScreenSelector('modeChoice'))).toBeVisible();
+    await expect(page.locator(menuScreenSelector('freeplay', { visible: false }))).toBeHidden();
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'MENU');
 }
 
@@ -37,4 +38,27 @@ test('leaving the daily returns to its hub while restoring the personal selectio
     expect(await selection()).toEqual(before);
     await expect(page.locator('#journey-hub-mount')).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('daily-pause-return-hub.png') });
+});
+
+test('aborting the first Rift route returns without a medal and restores the personal setup', async ({ page }) => {
+    await waitForLoadedGame(page);
+    await selectSessionType(page, 'single');
+    const selection = () => page.evaluate(() => {
+        const s = window.GAME_INSTANCE.settings;
+        return { map: s.mapKey, bots: s.numBots, sectors: s.arcade.sectorCount, vehicles: s.vehicles };
+    });
+    const progress = () => page.evaluate(key => {
+        const manager = window.GAME_INSTANCE.playerProfileManager;
+        return manager.getRecordStorePort(manager.getActiveProfile().id).readJsonRecordResult(key);
+    }, ARCADE_JOURNEY_STORAGE_KEY);
+    const before = await selection();
+    const records = await progress();
+    await page.locator('[data-journey-world="flight_school"]').click();
+    await page.locator('[data-journey-node="first_route"]').click();
+    await page.locator('[data-journey-start="first_run"]').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING'
+        && window.GAME_INSTANCE.runtimeConfig.session.mapKey === 'parcours_rift');
+    await leaveThroughPause(page);
+    expect(await progress()).toEqual(records);
+    expect(await selection()).toEqual(before);
 });

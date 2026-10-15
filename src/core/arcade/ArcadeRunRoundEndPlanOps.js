@@ -46,6 +46,9 @@ export function deriveArcadeRoundEndPlan(runtime, { players, inputs = {}, baseCo
         ? !hasAliveHuman
         : outcomeReason !== 'PARCOURS_COMPLETE';
     const terminalReason = resolveTerminalReason({ outcomeReason, weaponRaceBotWon, weaponRaceHumanWon, allHumansDead });
+    // This mission is a route, never an elimination or a generic arena objective.
+    if (!terminalReason && runtime._state.config?.journeyStageId === 'first_run'
+        && outcomeReason !== 'PARCOURS_COMPLETE') return null;
     const objectiveState = runtime._state.objectiveState;
     const objectiveFailed = outcomeReason === 'ARCADE_OBJECTIVE_FAILED' && objectiveState?.failed === true;
     const objectiveTimedOut = objectiveFailed && objectiveState.failureReason === 'time_limit';
@@ -88,7 +91,7 @@ export function deriveArcadeRoundEndPlan(runtime, { players, inputs = {}, baseCo
     }
     // A fixed Journey mission ends at its goal; it has no voluntary endless continuation.
     if (runtime._state.phase === ARCADE_RUN_PHASES.VICTORY
-        && getArcadeJourneyStage(runtime._state.config.journeyStageId)?.scenarioId) {
+        && getArcadeJourneyStage(runtime._state.config.journeyStageId)?.sectorCount) {
         runtime._state.phase = ARCADE_RUN_PHASES.FINISHED;
         runtime._state.victory = null;
         runtime._state.intermission = null;

@@ -92,6 +92,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._runType = String(options.runType || 'gauntlet').trim().toLowerCase();
         this._isDailyChallenge = options.isDailyChallenge === true;
         this._combatProfile = resolveArcadeRunCombatProfile(this._runType, options.combatProfile);
+        this._weaponsDisabled = options.weaponsDisabled === true;
         this._regenHealWorld = { strategy: this };
         this._huntCombat = this._combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE || this._combatProfile === ARENA_WAVES_COMBAT_PROFILE
             ? new HuntModeStrategy({
@@ -522,8 +523,9 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     // --- Actions ---
+    allowsWeaponActions() { return !this._weaponsDisabled; }
     requiresShootItemIndex() { return this._huntCombat?.requiresShootItemIndex() || false; }
-    hasMachineGun() { return this._huntCombat?.hasMachineGun() || false; }
+    hasMachineGun() { return !this._weaponsDisabled && (this._huntCombat?.hasMachineGun() || false); }
 
     // --- Projectiles ---
     resolveRocketProjectileParams(type, config) {
@@ -533,7 +535,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     isRespawnEnabled() { return false; }
 
     filterSpawnableTypes(typeKeys, powerupTypes) {
-        if (this.isWeaponRace()) return typeKeys.filter((type) => type === 'SHIELD' || type === 'SPEED_UP'); if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(
+        if (this._weaponsDisabled || this.isWeaponRace()) return typeKeys.filter((type) => type === 'SHIELD' || type === 'SPEED_UP'); if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(
             this.isSectorParcours() ? typeKeys.filter((type) => type !== 'ROCKET_TURRET') : typeKeys, powerupTypes);
         return typeKeys.filter((typeKey) => {
             const entry = powerupTypes[typeKey];

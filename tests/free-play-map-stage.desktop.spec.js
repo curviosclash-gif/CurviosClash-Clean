@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.desktop.js';
-import { waitForLoadedGame, returnToMenu, selectSessionType, chooseFreePlayVariant } from './helpers.js';
+import { waitForLoadedGame, returnToMenu, selectSessionType, chooseFreePlayVariant, menuScreenSelector } from './helpers.js';
 
 test('single-player free combat restores filtered adventure maps and starts Dandelion', async ({ page }, testInfo) => {
     test.setTimeout(180000);
@@ -33,11 +33,11 @@ test('single-player free combat restores filtered adventure maps and starts Dand
     await page.screenshot({ path: testInfo.outputPath('free-combat-dandelion-playing.png') });
     await returnToMenu(page);
     await expect(page.locator('#map-select')).toHaveValue('dandelion_sky');
-    await page.locator('#submenu-game .submenu-header [data-back]').click();
+    await page.locator(menuScreenSelector('freeplay')).locator('.submenu-header [data-back]').click();
     await page.locator('[data-journey-node="first_route"]').click();
     await page.locator('[data-journey-start="first_run"]').click();
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING');
-    await expect(page.locator('#submenu-game > .level3-body > #start-vehicle-section')).toHaveCount(1);
+    await expect(page.locator(`${menuScreenSelector('freeplay', { visible: false })} > .level3-body > #start-vehicle-section`)).toHaveCount(1);
     await expect(page.locator('.free-play-vehicle-more')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(page.locator('#pause-overlay')).toBeVisible();
@@ -45,7 +45,7 @@ test('single-player free combat restores filtered adventure maps and starts Dand
     await expect(page.locator('#btn-pause-menu')).toHaveAttribute('data-confirm-armed', 'true');
     await page.locator('#btn-pause-menu').click();
     await expect(page.getByRole('region', { name: 'Arcade-Reise', exact: true })).toBeVisible();
-    await expect(page.locator('#submenu-game')).toBeHidden();
+    await expect(page.locator(menuScreenSelector('freeplay', { visible: false }))).toBeHidden();
     await chooseFreePlayVariant(page, 'ffa');
     await expect(page.locator('#start-map-preview-stage > #start-vehicle-section')).toHaveCount(1);
     await expect(page.locator('.free-play-vehicle-more')).toHaveCount(1);

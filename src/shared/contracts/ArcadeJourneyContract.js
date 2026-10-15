@@ -11,8 +11,8 @@ export const ARCADE_JOURNEY_WORLDS = Object.freeze([
 const stages = [
     { id: 'flight_school', worldId: 'departure', label: 'Flugschule · Etappe 1', runType: 'classic_tutorial', mapKey: 'tutorial_classic', botCount: 0,
         goal: 'Durchfliege alle sechs Ringe und den Zielring der Flugschule.', metric: 'completion', silver: 1, gold: 1, maxPlayers: 1, optional: true },
-    { id: 'first_run', worldId: 'departure', label: 'Erster Einsatz', runType: 'gauntlet', mapKey: 'standard', botCount: 3,
-        goal: 'Meistere alle Pflichtsektoren. Danach kannst du freiwillig weiterfliegen.', metric: 'score', silver: 15000, gold: 30000 },
+    { id: 'first_run', worldId: 'departure', label: 'Erster Lauf', runType: 'gauntlet', mapKey: 'parcours_rift', botCount: 1, sectorCount: 3,
+        goal: 'Meistere drei Sektoren auf Parcours Rift. Sektor 2 ist ohne Waffen. Silber: 3.500 Punkte, Gold: 5.000 Punkte.', metric: 'score', silver: 3500, gold: 5000 },
     { id: 'weapon_race', worldId: 'departure', label: 'Waffenrennen', runType: 'weapon_race', mapKey: 'parcours_assault', botCount: 4,
         goal: 'Erreiche als Erster das Ziel.', metric: 'place', silver: 1, gold: 1, maxPlayers: 1, optional: true },
     { id: 'five_portals', worldId: 'portals', label: 'Fünf Portale', runType: 'five_portals', portalChainId: 'five_portals', mapKey: 'micro_maw', botCount: 0,

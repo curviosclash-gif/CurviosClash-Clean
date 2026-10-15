@@ -139,7 +139,7 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
     pushChoice(baseMapKey, baseModifierId, 'plan');
     // The Daily is the same run for everyone, so it offers no alternative routes. A scenario is
     // bound to its map: its objective names units that only that map carries.
-    if (isScenario || runtime._state?.isDailyChallenge === true || runtime._config?.dailyChallenge === true) return choices;
+    if (isScenario || encounterEntry?.mapKeyLocked === true || runtime._state?.isDailyChallenge === true || runtime._config?.dailyChallenge === true) return choices;
 
     const nextSectorIsParcours = encounterEntry?.parcoursEnabled === true;
     const candidateMaps = mapCatalogKeys.filter((mapKey) => {

@@ -65,7 +65,7 @@ function disposeMeshMaterials(mesh) {
     });
 }
 
-function resolveAuthoredPickupType(anchor, modeType, entityRuntimeConfig) {
+function resolveAuthoredPickupType(anchor, modeType, entityRuntimeConfig, allowedTypes = null) {
     if (!anchor || typeof anchor !== 'object') return null;
     const candidates = [
         anchor.pickupType,
@@ -75,7 +75,7 @@ function resolveAuthoredPickupType(anchor, modeType, entityRuntimeConfig) {
     for (const candidate of candidates) {
         const normalizedType = normalizePickupType(candidate);
         if (!normalizedType) continue;
-        if (isTypeAllowedForMode(normalizedType, modeType, entityRuntimeConfig)) {
+        if (isTypeAllowedForMode(normalizedType, modeType, entityRuntimeConfig) && (!allowedTypes || allowedTypes.includes(normalizedType))) {
             return normalizedType;
         }
     }
@@ -222,7 +222,7 @@ export class PowerupManager {
         if (!authoredAnchor && itemSpawnAuthoring.requiresAuthoredAnchor) return;
         if (!authoredAnchor && itemSpawnAuthoring.usesRandomFallback !== true) return;
 
-        const fixedType = resolveAuthoredPickupType(authoredAnchor?.anchor, modeType, config) || null;
+        const fixedType = resolveAuthoredPickupType(authoredAnchor?.anchor, modeType, config, spawnableTypes) || null;
         let type = fixedType;
         if (strategy) {
             type = strategy.resolveSpawnType(spawnableTypes, config, {

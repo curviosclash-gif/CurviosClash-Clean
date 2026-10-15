@@ -112,6 +112,7 @@ export class EntitySetupOps {
             runtimeRng: owner.runtimeRng,
             runType: owner.runtimeConfig?.arcade?.runType,
             combatProfile: owner.runtimeConfig?.arcade?.combatProfile,
+            weaponsDisabled: owner.runtimeConfig?.arcade?.weaponsDisabled === true,
             isDailyChallenge: owner.runtimeConfig?.arcade?.dailyChallenge === true,
         });
         owner.combatModeType = owner.gameModeStrategy.getPickupModeType();

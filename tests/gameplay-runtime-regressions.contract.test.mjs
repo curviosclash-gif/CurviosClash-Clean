@@ -538,6 +538,7 @@ test('Arcade sector profiles apply authored squad pressure and request session r
         isBoss: true,
         scenarioId: null,
         combatProfile: '',
+        weaponsDisabled: false,
         waterZoneTriggerSec: 0,
     });
 
