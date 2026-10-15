@@ -12,6 +12,7 @@ import { sphereHitsArcadePartBoxes } from './ArcadePartHitboxOps.js';
 
 const MIN_HITBOX_RADIUS = 0.2;
 const HITBOX_HEIGHT_FACTOR = 0.7;
+const ZERO_VECTOR = Object.freeze({ x: 0, y: 0, z: 0 });
 function applyFallbackHitbox(player, fallbackRadius) {
     player.hitboxBox.set(
         player._tmpVec.set(-fallbackRadius, -fallbackRadius * HITBOX_HEIGHT_FACTOR, -fallbackRadius),
@@ -43,6 +44,55 @@ function clampAxisInput(value) {
     if (numeric > 1) return 1;
     if (numeric < -1) return -1;
     return numeric;
+}
+
+function applySandstormWind(player, dt, planarMode) {
+    const drift = player?._sandstormDriftVelocity;
+    const wind = player?._sandstormWindSample;
+    if (!drift || !wind) return;
+
+    const sandstorm = player.entityManager?._mapSandstormSystem;
+    if (typeof sandstorm?.getVehicleWindState === 'function') {
+        sandstorm.getVehicleWindState(player.position, wind);
+    } else {
+        wind.directionX = 0;
+        wind.directionZ = 0;
+        wind.intensity = 0;
+        wind.exposure = 0;
+    }
+    const submerged = player.waterSubmerged === true;
+    const force = submerged
+        ? 0
+        : Math.max(0, Math.min(1, Number(wind.intensity) || 0))
+            * Math.max(0, Math.min(1, Number(wind.exposure) || 0));
+    player.sandstormVisualIntensity = force;
+
+    if (submerged) {
+        drift.set(0, 0, 0);
+        return;
+    }
+
+    const safeDt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
+    const directionX = Number(wind.directionX) || 0;
+    const directionZ = Number(wind.directionZ) || 0;
+    if (force > 0 && safeDt > 0) {
+        const storm = player.entityManager?._mapSandstormSystem;
+        const stormDuration = Math.max(0, Number(storm?.config?.activeSeconds) || 0);
+        const stormRemaining = Math.max(0, Number(storm?.state?.remainingSeconds) || 0);
+        const stormElapsed = Math.max(0, stormDuration - stormRemaining);
+        const eventPhase = Math.max(0, Number(storm?.state?.eventIndex) || 0) * 2.399;
+        const gust = 0.82 + (Math.sin(stormElapsed * 1.7 + eventPhase + (Number(player.index) || 0) * 1.91) + 1) * 0.09;
+        const maxDriftSpeed = Math.max(0, Number(player.baseSpeed) || Number(player.speed) || 0) * 0.055;
+        const accelerationStep = maxDriftSpeed * 2.2 * gust * force * safeDt;
+        drift.x += directionX * accelerationStep;
+        drift.z += directionZ * accelerationStep;
+        drift.y = 0;
+        const maxDriftSq = maxDriftSpeed * maxDriftSpeed;
+        if (drift.lengthSq() > maxDriftSq && maxDriftSq > 0) drift.setLength(maxDriftSpeed);
+    }
+
+    drift.multiplyScalar(Math.exp(-safeDt * (force > 0 ? 2.2 : 12)));
+    if (planarMode) drift.y = 0;
 }
 
 export function initializePlayerHitbox(player, radius) {
@@ -184,6 +234,9 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
         player.velocity.addScaledVector(player.slingshotForward, fStrength);
         player.velocity.addScaledVector(player.slingshotUp, uStrength);
     }
+
+    applySandstormWind(player, resolvedMotionDt, config.GAMEPLAY.PLANAR_MODE);
+    player.velocity.add(player._sandstormDriftVelocity || ZERO_VECTOR);
 
     if (player.waterSubmerged === true) {
         player.velocity.y += Math.max(0, Number(player.waterBuoyancy) || 0);

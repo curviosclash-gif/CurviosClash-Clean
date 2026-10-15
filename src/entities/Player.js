@@ -57,6 +57,15 @@ export class Player {
         // Physics
         this.position = new THREE.Vector3();
         this.velocity = new THREE.Vector3(0, 0, -1);
+        this._sandstormDriftVelocity = new THREE.Vector3();
+        this._sandstormWindSample = {
+            directionX: 0,
+            directionZ: 0,
+            intensity: 0,
+            exposure: 0,
+            windOcclusionSampleValid: false,
+        };
+        this.sandstormVisualIntensity = 0;
         this.quaternion = new THREE.Quaternion();
         this.speed = this.baseSpeed = playerConfig.SPEED;
         this.altitudeSpeedFactor = 1;
@@ -186,6 +195,9 @@ export class Player {
         const playerConfig = this.gameplayConfig.PLAYER;
         const gameplaySection = this.gameplayConfig.GAMEPLAY;
         this.position.copy(position);
+        this._sandstormDriftVelocity.set(0, 0, 0);
+        this.sandstormVisualIntensity = 0;
+        this._sandstormWindSample.windOcclusionSampleValid = false;
         this.alive = true;
         if (Number.isFinite(this._speedEffectBaseSpeed)) {
             this.baseSpeed = this._speedEffectBaseSpeed;

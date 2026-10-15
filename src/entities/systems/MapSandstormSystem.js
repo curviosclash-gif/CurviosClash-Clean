@@ -14,8 +14,14 @@ import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { MapSandstormVisualController } from '../effects/MapSandstormVisualController.js';
 import { ownsGuidedRocketCamera } from '../runtime/GuidedRocketCameraOps.js';
+import {
+    createSandstormWindOcclusionScratch,
+    resolveSandstormWindExposure,
+} from './MapSandstormWindOcclusionOps.js';
 
 const SAND_SEED_SALT = 0x53414e44;
+const WIND_OCCLUSION_REFRESH_MS = 100;
+const WIND_OCCLUSION_MOVE_REFRESH_DISTANCE_SQ = 9;
 
 function sampleRange(rng, range) {
     const min = Number(range?.[0]) || 0;
@@ -42,6 +48,8 @@ export class MapSandstormSystem {
         this._rayDirection = new THREE.Vector3();
         this._localDirection = new THREE.Vector3();
         this._inverseCameraQuaternion = new THREE.Quaternion();
+        this._windOcclusionScratch = createSandstormWindOcclusionScratch();
+        this._windDirection = { x: 0, z: -1 };
         this._visual = new MapSandstormVisualController(this.entityManager?.renderer);
     }
 
@@ -183,6 +191,52 @@ export class MapSandstormSystem {
 
     isSheltered(position) {
         return isPositionInSandstormShelter(position, this.config, this.scale);
+    }
+
+    getVehicleWindState(position, out) {
+        if (!out || typeof out !== 'object') return null;
+        out.directionX = 0;
+        out.directionZ = 0;
+        out.intensity = 0;
+        out.exposure = 0;
+        if (!this.isActive() || !position || this.isSheltered(position)) {
+            out.windOcclusionSampleValid = false;
+            return out;
+        }
+
+        const direction = this.getDirection();
+        this._windDirection.x = direction[0];
+        this._windDirection.z = direction[1];
+        out.directionX = direction[0];
+        out.directionZ = direction[1];
+        out.intensity = Math.max(0, Math.min(1, Number(this.state.intensity) || 0));
+        if (out.intensity <= 0) {
+            out.windOcclusionSampleValid = false;
+            return out;
+        }
+
+        const nowMs = Math.max(0, Number(this.entityManager?._simulationClockMs) || 0);
+        const movedX = position.x - Number(out.windOcclusionSampleX || 0);
+        const movedZ = position.z - Number(out.windOcclusionSampleZ || 0);
+        const refreshSample = out.windOcclusionSampleValid !== true
+            || out.windOcclusionDirectionIndex !== this.state.directionIndex
+            || nowMs >= Number(out.windOcclusionExpiresAtMs)
+            || movedX * movedX + movedZ * movedZ >= WIND_OCCLUSION_MOVE_REFRESH_DISTANCE_SQ;
+        if (refreshSample) {
+            out.cachedWindExposure = resolveSandstormWindExposure(
+                this.entityManager?.arena,
+                position,
+                this._windDirection,
+                this._windOcclusionScratch,
+            );
+            out.windOcclusionSampleX = position.x;
+            out.windOcclusionSampleZ = position.z;
+            out.windOcclusionDirectionIndex = this.state.directionIndex;
+            out.windOcclusionExpiresAtMs = nowMs + WIND_OCCLUSION_REFRESH_MS;
+            out.windOcclusionSampleValid = true;
+        }
+        out.exposure = Math.max(0, Math.min(1, Number(out.cachedWindExposure) || 0));
+        return out;
     }
 
     _getAuthoredVisibilityRange(observerPosition) {

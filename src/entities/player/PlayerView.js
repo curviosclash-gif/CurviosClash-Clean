@@ -83,6 +83,9 @@ export class PlayerView {
         this._renderPosition = new THREE.Vector3();
         this._renderQuaternion = new THREE.Quaternion();
         this._renderDirection = new THREE.Vector3(0, 0, -1);
+        this._windJitterEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+        this._windJitterQuaternion = new THREE.Quaternion();
+        this._reduceMotion = false;
         this._visualTime = 0;
         this._exhaustAccumulator = 0;
         this._tmpExhaustOrigin = new THREE.Vector3();
@@ -262,6 +265,20 @@ export class PlayerView {
         this.player.resolveRenderTransform(renderAlpha, this._renderPosition, this._renderQuaternion);
         this.group.position.copy(this._renderPosition);
         this.group.quaternion.copy(this._renderQuaternion);
+        const storm = Math.max(0, Math.min(1, Number(this.player.sandstormVisualIntensity) || 0));
+        if (storm > 0) {
+            const motionScale = this._reduceMotion ? 0.4 : 1;
+            const phase = Number(this.player.index) || 0;
+            this.group.position.y += Math.sin(this._visualTime * 26 + phase * 1.7) * 0.025 * storm * motionScale;
+            this._windJitterEuler.set(
+                Math.sin(this._visualTime * 23 + phase * 0.7) * 0.0055 * storm * motionScale,
+                Math.sin(this._visualTime * 19 + phase * 1.3) * 0.0025 * storm * motionScale,
+                Math.cos(this._visualTime * 29 + phase * 0.9) * 0.0065 * storm * motionScale,
+                'YXZ',
+            );
+            this._windJitterQuaternion.setFromEuler(this._windJitterEuler);
+            this.group.quaternion.multiply(this._windJitterQuaternion);
+        }
         this._renderDirection.set(0, 0, -1).applyQuaternion(this._renderQuaternion).normalize();
         if (this.player.alive) {
             this.player.trail?.updateVisualHead?.(this._renderPosition, this._renderDirection);
@@ -405,6 +422,7 @@ export class PlayerView {
 
         const time = this._visualTime;
         const perspectiveSettings = this.renderer?.getCameraPerspectiveSettings?.() || null;
+        this._reduceMotion = perspectiveSettings?.reduceMotion === true;
         updatePlayerHealthAura(this.healthAura, {
             hp: this.player.hp,
             maxHp: this.player.maxHp,
