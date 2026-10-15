@@ -84,14 +84,39 @@ test('free play remains separate and the four-player planar entry survives the n
     await expect(page.locator(menuScreenSelector('freeplay'))).toBeVisible();
     await expect(page.locator('#journey-hub-mount')).toBeHidden();
     await expect(page.locator('#start-map-preview-mount')).toBeVisible();
-    const stageGeometry = await page.evaluate(() => {
-        const map = document.getElementById('start-map-section').getBoundingClientRect();
-        const vehicle = document.getElementById('start-vehicle-section').getBoundingClientRect();
-        return { map: { x: map.x, right: map.right }, vehicle: { x: vehicle.x, right: vehicle.right } };
-    });
-    expect(stageGeometry.map.right).toBeLessThanOrEqual(stageGeometry.vehicle.x);
-    await expect(page.locator('#btn-start')).toBeInViewport();
-    await page.screenshot({ path: testInfo.outputPath('free-play-stage.png') });
+    for (const [width, height] of [[1280, 800], [1024, 768]]) {
+        await page.setViewportSize({ width, height });
+        const geometry = await page.evaluate(() => {
+            const box = id => {
+                const r = document.getElementById(id).getBoundingClientRect();
+                return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width };
+            };
+            const menu = document.querySelector('#main-menu .menu-content');
+            return { map: box('start-map-preview-stage'), vehicle: box('start-vehicle-section'), rules: box('start-match-section'),
+                contentWidth: menu.clientWidth, scrollWidth: menu.scrollWidth };
+        });
+        expect(geometry.vehicle.x).toBeGreaterThan(geometry.map.x);
+        expect(geometry.vehicle.y).toBeGreaterThan(geometry.map.y);
+        expect(geometry.vehicle.right).toBeLessThanOrEqual(geometry.map.right);
+        expect(geometry.vehicle.bottom).toBeLessThanOrEqual(geometry.map.bottom);
+        expect(geometry.vehicle.width).toBeLessThan(geometry.map.width * .65);
+        expect(geometry.rules.x).toBeGreaterThanOrEqual(geometry.map.right);
+        expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.contentWidth + 1);
+        await expect(page.locator('.start-step-rail')).toBeHidden();
+        await expect(page.locator('#vehicle-select-p1')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`free-play-stage-${width}.png`) });
+        await expect(page.locator('#btn-start')).toBeInViewport();
+    }
+    const choices = await page.locator('#vehicle-select-p1 option').evaluateAll(options => options.map(option => option.value));
+    const current = await page.locator('#vehicle-select-p1').inputValue();
+    const next = choices.find(value => value !== current);
+    expect(next).toBeTruthy();
+    await page.locator('#vehicle-select-p1').selectOption(next);
+    expect(await page.evaluate(() => window.GAME_INSTANCE.settings.vehicles.PLAYER_1)).toBe(next);
+    await page.locator('.free-play-vehicle-more > summary').click();
+    await expect(page.locator('#vehicle-filter-select')).toBeVisible();
+    await expect(page.locator('#start-vehicle-stat-armor')).toBeVisible();
+    await page.locator('.free-play-vehicle-more > summary').click();
     await page.locator(`${menuScreenSelector('freeplay')} .submenu-header [data-back]`).click();
     await expect(page.getByRole('region', { name: 'Arcade-Reise', exact: true })).toBeVisible();
     await home(page);

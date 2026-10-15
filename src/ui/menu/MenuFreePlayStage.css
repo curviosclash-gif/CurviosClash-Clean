@@ -1,159 +1,69 @@
-/* Free play uses the existing map, vehicle and rule panels as a side-by-side launch bay. */
+/* Reference Kartenbühne: map left, aircraft inside it, rules right. */
 #main-menu #submenu-game[data-free-play-stage="true"] .level3-body {
-    grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.95fr);
-    grid-template-rows: auto min-content min-content minmax(0, 1fr);
-    grid-template-areas:
-        "steps steps"
-        "map vehicle"
-        "map match"
-        "map summary";
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 32%);
+    grid-template-rows: auto;
+    grid-template-areas: "map rules";
     align-items: start;
+    gap: 16px;
 }
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-step-rail {
-    position: static;
-    grid-area: steps;
-    grid-column: 1 / -1;
-    grid-row: 1;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-step-rail-heading {
-    margin: 0 auto 0 0;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-step-tab {
-    min-width: 120px;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-rail {
-    grid-area: summary;
-    grid-column: 2;
-    grid-row: 4;
-    padding: 12px;
-    gap: 12px;
-    position: static;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-block {
-    display: grid;
-    gap: 4px;
-    padding: 8px;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-value {
-    white-space: normal;
-    overflow-wrap: anywhere;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions #btn-start {
-    grid-column: 1 / -1;
-    min-height: 48px;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions .secondary-btn {
-    min-height: 44px;
-    width: auto;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] #start-map-section {
-    grid-area: map;
-    grid-column: 1;
-    grid-row: 2 / span 3;
-    display: block;
-    min-width: 0;
-    margin: 0;
-}
-
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-rules { grid-area: rules; display: grid; gap: 12px; min-width: 0; align-content: start; }
+#main-menu #submenu-game[data-free-play-stage="true"] :is(.start-step-rail, .start-step-next, .start-step-index, .menu-accordion-copy) { display: none; }
+#main-menu #submenu-game[data-free-play-stage="true"] .menu-accordion-summary::after { display: none; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-section-card > .menu-accordion-summary { display: none; }
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-stage-heading { margin: 0; padding: 12px 14px; font: 700 18px var(--menu-font-display); border-bottom: 1px solid var(--menu-line); }
+#main-menu #submenu-game[data-free-play-stage="true"] #start-map-section { grid-area: map; display: block; min-width: 0; margin: 0; }
+#main-menu #submenu-game[data-free-play-stage="true"] #start-match-section { display: block; min-width: 0; margin: 0; }
+#main-menu #submenu-game[data-free-play-stage="true"] #start-match-section > .menu-accordion-body { max-height: clamp(140px, calc(100vh - 620px), 220px); overflow: auto; overscroll-behavior: contain; }
+#main-menu #submenu-game[data-free-play-stage="true"] .match-settings-grid { grid-template-columns: 1fr; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-picker { display: flex; flex-direction: column; gap: 10px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-details { order: -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 0; border: 0; background: transparent; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-details > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-details > select { margin: 0; }
+#main-menu #submenu-game[data-free-play-stage="true"] #btn-map-random { width: auto; min-height: 44px; margin: 0; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-details > .menu-field-hint,
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-map-more { grid-column: 1 / -1; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-stage { position: relative; height: clamp(340px, 45vh, 460px); min-height: 340px; overflow: visible; isolation: isolate; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-cycle { top: 12px; transform: none; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-status { left: 68px; top: 18px; max-width: calc(100% - 136px); }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-map-view-reset { top: auto; right: auto; bottom: 12px; left: 12px; }
+#main-menu #submenu-game[data-free-play-stage="true"] #start-map-choice-strip { max-height: 100px; overflow-y: auto; }
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-map-reset { grid-column: 1 / -1; margin: 0; min-height: 44px; }
+#main-menu .free-play-map-reset[hidden] { display: none !important; }
 #main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section {
-    grid-area: vehicle;
-    grid-column: 2;
-    grid-row: 2;
-    display: block;
-    min-width: 0;
-    margin: 0;
+    position: absolute; z-index: 6; right: 12px; bottom: 12px; width: min(360px, 58%); min-width: 0; margin: 0; display: block;
+    background: var(--menu-surface); border: var(--menu-border) solid var(--menu-accent); border-radius: var(--menu-radius-m); box-shadow: 0 8px 24px #0008;
 }
-
-#main-menu #submenu-game[data-free-play-stage="true"] #start-match-section {
-    grid-area: match;
-    grid-column: 2;
-    grid-row: 3;
-    display: block;
-    min-width: 0;
-    margin: 0;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-section-card > .menu-accordion-summary {
-    min-height: 48px;
-    cursor: pointer;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-section-card > .menu-accordion-summary::after {
-    display: block;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-map-picker {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-stage {
-    height: clamp(320px, 46vh, 460px);
-    min-height: 320px;
-}
-
-#main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section[open] > .menu-accordion-body,
-#main-menu #submenu-game[data-free-play-stage="true"] #start-match-section[open] > .menu-accordion-body {
-    max-height: min(46vh, 400px);
-    overflow: auto;
-    overscroll-behavior: contain;
-}
-
+#main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section > summary { display: none; }
+#main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section > .menu-accordion-body { padding: 10px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-picker { grid-template-columns: 88px minmax(0, 1fr); gap: 10px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-preview-stage { min-height: 100px; height: 100%; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-preview-mount .arcade-vehicle-preview-status { display: none; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-details { grid-template-rows: auto auto auto; gap: 6px; padding: 0; border: 0; background: transparent; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-title { font-size: var(--menu-font-size-body); }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-identity { display: block; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-pilot-switch { flex-wrap: wrap; gap: 4px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-pilot-switch > button { min-height: 44px; margin: 0; padding: 6px; font-size: var(--menu-font-size-body); }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-direct-select label { font-size: var(--menu-font-size-body); }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-vehicle-direct-select select { min-height: 44px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-vehicle-more { margin-top: 8px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-vehicle-more[open] { max-height: 220px; overflow: auto; overscroll-behavior: contain; }
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-map-more[open] { max-height: 220px; overflow: auto; }
+#main-menu #submenu-game[data-free-play-stage="true"] :is(.free-play-vehicle-more, .free-play-map-more) > summary { min-height: 44px; padding: 10px 6px; cursor: pointer; color: var(--menu-text); }
+#main-menu #submenu-game[data-free-play-stage="true"] :is(.free-play-vehicle-more, .free-play-map-more) > summary:focus-visible { outline: 3px solid var(--menu-focus); outline-offset: -3px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .free-play-vehicle-more :is(.start-vehicle-cycle, .start-vehicle-view-reset, .start-vehicle-preview-hint) { position: static; transform: none; display: inline-block; margin: 6px; min-height: 44px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail { position: static; padding: 12px; gap: 10px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-copy { grid-template-columns: 1fr; gap: 8px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-block { display: grid; gap: 4px; padding: 6px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-block.is-secondary { display: none; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-summary-value { white-space: normal; overflow-wrap: anywhere; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions #btn-start { grid-column: 1 / -1; min-height: 48px; }
+#main-menu #submenu-game[data-free-play-stage="true"] .start-rail-actions .secondary-btn { min-height: 44px; width: auto; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 @media (max-width: 899px) {
-    #main-menu #submenu-game[data-free-play-stage="true"] .level3-body {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto auto auto auto auto;
-        grid-template-areas:
-            "steps"
-            "map"
-            "vehicle"
-            "match"
-            "summary";
-    }
-
-    #main-menu #submenu-game[data-free-play-stage="true"] .start-step-rail {
-        flex-wrap: wrap;
-    }
-
-    #main-menu #submenu-game[data-free-play-stage="true"] #start-map-section,
-    #main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section,
-    #main-menu #submenu-game[data-free-play-stage="true"] #start-match-section {
-        grid-column: 1;
-        grid-row: auto;
-    }
-
-    #main-menu #submenu-game[data-free-play-stage="true"] .start-rail {
-        grid-column: 1;
-        grid-row: 5;
-    }
-
-    #main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-stage {
-        height: clamp(280px, 46vh, 400px);
-        min-height: 280px;
-    }
+    #main-menu #submenu-game[data-free-play-stage="true"] .level3-body { grid-template-columns: 1fr; grid-template-areas: "map" "rules"; }
+    #main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-stage { height: auto; }
+    #main-menu #submenu-game[data-free-play-stage="true"] .start-map-preview-mount { height: 300px; }
+    #main-menu #submenu-game[data-free-play-stage="true"] #start-vehicle-section { position: relative; inset: auto; width: auto; margin: 12px; }
+    #main-menu #submenu-game[data-free-play-stage="true"] .start-map-view-reset { top: 244px; bottom: auto; }
 }

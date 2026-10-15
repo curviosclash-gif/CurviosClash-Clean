@@ -5,6 +5,7 @@ import {
 import { MENU_VISIBILITY_REASONS, resolveMenuVisibility } from '../../shared/contracts/MenuVisibilityContract.js';
 import { applyMenuVisibility } from './MenuVisibilityApplier.js';
 import { isThreePlayerSplitSelected } from '../start-setup/StartSetupSplitPlayersSection.js';
+import { syncFreePlayStageLayout } from './MenuFreePlayStageLayout.js';
 
 const DISABLED_VARIANT_HINTS = Object.freeze({
     [MENU_VISIBILITY_REASONS.THREE_PLAYERS_NO_TEAMS]: 'Mit drei Spielern gibt es keine Teams.',
@@ -28,6 +29,7 @@ export function syncFreePlayUi({ ui, settings, sessionType, isModePathAllowed = 
     const hubSession = sessionType === 'splitscreen' ? 'splitscreen' : 'single';
 
     ui.setupPanel?.setAttribute?.('data-free-play-stage', String(isFreePlay));
+    syncFreePlayStageLayout(ui.setupPanel, isFreePlay, settings);
 
     (ui.hubTitleSpans || []).forEach((span) => toggleHidden(span, span.dataset.hubTitleFor !== hubSession));
     (ui.freePlayOnlyElements || []).forEach((element) => toggleHidden(element, !isFreePlay));
