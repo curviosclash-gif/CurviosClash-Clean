@@ -47,7 +47,7 @@ export function deriveArcadeRoundEndPlan(runtime, { players, inputs = {}, baseCo
         : outcomeReason !== 'PARCOURS_COMPLETE';
     const terminalReason = resolveTerminalReason({ outcomeReason, weaponRaceBotWon, weaponRaceHumanWon, allHumansDead });
     // This mission is a route, never an elimination or a generic arena objective.
-    if (!terminalReason && runtime._state.config?.journeyStageId === 'first_run'
+    if (!terminalReason && getArcadeJourneyStage(runtime._state.config?.journeyStageId)?.parcours === true
         && outcomeReason !== 'PARCOURS_COMPLETE') return null;
     const objectiveState = runtime._state.objectiveState;
     const objectiveFailed = outcomeReason === 'ARCADE_OBJECTIVE_FAILED' && objectiveState?.failed === true;

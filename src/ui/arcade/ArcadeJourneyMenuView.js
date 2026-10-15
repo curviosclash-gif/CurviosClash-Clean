@@ -91,8 +91,8 @@ export function createArcadeJourneyMenuView(createElement) {
             ? `${state.profileName || 'Spieler 1'} · ${getArcadeJourneyStars(state.progress)} Sterne · ${state.playerCount} Spieler`
             : 'Reisefortschritt kann gerade nicht sicher gelesen werden. Deine gespeicherten Daten bleiben erhalten.';
         back.classList.toggle('hidden', !selectedWorld);
-        const earnedRewards = ARCADE_JOURNEY_WORLDS.filter(world => ARCADE_JOURNEY_STAGES.filter(stage => stage.worldId === world.id)
-            .every(stage => getArcadeJourneyStars(state.progress, stage.id) > 0)).map(world => world.reward);
+        const earnedRewards = ARCADE_JOURNEY_WORLDS.filter(world => world.rewardStageIds
+            .every(stageId => getArcadeJourneyStars(state.progress, stageId) > 0)).map(world => world.reward);
         legacyRewards.textContent = earnedRewards.length ? `Bereits verdient: ${earnedRewards.join(' · ')}` : '';
         legacyRewards.classList.toggle('hidden', !earnedRewards.length);
         rankButtons.forEach((button, index) => button.setAttribute('aria-pressed', String(index + 1 === rankPlayers)));

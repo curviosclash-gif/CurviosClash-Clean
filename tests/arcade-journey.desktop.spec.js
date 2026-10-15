@@ -70,7 +70,7 @@ test('controlled Rift crossings exercise the three-sector result, persisted meda
     await page.screenshot({ path: testInfo.outputPath('journey-result.png') });
     await page.locator('[data-journey-action="next"]').click();
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING'
-        && window.GAME_INSTANCE.runtimeConfig.arcade.journeyStageId === 'five_portals');
+        && window.GAME_INSTANCE.runtimeConfig.arcade.journeyStageId === 'notre_dame');
     expect((await readJourney(page)).value).toEqual(result.value);
 });
 

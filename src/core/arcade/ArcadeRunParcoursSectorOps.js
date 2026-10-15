@@ -27,7 +27,8 @@ export function completeArcadeParcoursSector(runtime, parcoursResult = {}, optio
     const references = (map?.missions || []).filter(m => m.type === 'TIME_TRIAL')
         .map(m => Number(m.params?.target)).filter(value => value > 0 && Number.isFinite(value));
     runtime._state.lastCompletedSectorResult = { ...runtime._state.lastCompletedSectorResult,
-        parcours: { ...parcoursResult.parcours, referenceTimeMs: (references.length ? Math.min(...references) : 60) * 1000 } };
+        parcours: { ...parcoursResult.parcours, completionTimeMs: completionMs,
+            referenceTimeMs: (references.length ? Math.min(...references) : 60) * 1000 } };
     // Fixed Journey routes finish at their last goal, without generating a fourth sector.
     const runFinished = runtime._state.phase === ARCADE_RUN_PHASES.VICTORY
         && Boolean(getArcadeJourneyStage(runtime._state.config.journeyStageId)?.sectorCount);
@@ -43,7 +44,7 @@ export function completeArcadeParcoursSector(runtime, parcoursResult = {}, optio
     const sectorLabel = `${runtime._state.completedSectors}/${runtime._state.config.sectorCount}`;
     const completionSec = completionMs > 0 ? (completionMs / 1000).toFixed(2) : '?';
     const requiredWins = Math.max(1, Number(options?.winsNeeded) || 1);
-    const messageText = runFinished ? 'Erster Lauf geschafft!' : runtime._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!'
+    const messageText = runFinished ? `${getArcadeJourneyStage(runtime._state.config.journeyStageId).label} geschafft!` : runtime._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!'
         : completionReason === 'WEAPON_RACE_COMPLETE'
             ? `Weapon Race gewonnen — ${completionSec}s | Sektor ${sectorLabel}`
             : `Parcours abgeschlossen — ${completionSec}s | Sektor ${sectorLabel}`;

@@ -232,7 +232,8 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
     const botDifficulty = resolveHigherArcadeBotDifficulty(baseDifficulty, pressureDifficulty);
     const parcoursEnabled = entry.parcoursEnabled === true;
     const parcoursRacer = parcoursEnabled && (entry.parcoursRacer === true || entry.templateId === 'sector_parcours');
-    const botCount = parcoursEnabled ? (parcoursRacer ? 1 : 0) : (Number.isInteger(entry.botCount) ? entry.botCount : (squad?.botCount ?? fallbackBotCount));
+    const botCount = Number.isInteger(entry.botCount) && entry.botCount >= 0 ? entry.botCount
+        : parcoursEnabled ? (parcoursRacer ? 1 : 0) : (squad?.botCount ?? fallbackBotCount);
 
     return {
         sectorIndex: Math.max(1, Math.trunc(Number(entry.sectorNumber) || Number(options.sectorIndex) || 1)),

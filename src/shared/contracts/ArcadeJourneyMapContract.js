@@ -38,7 +38,7 @@ export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([
     Object.freeze({ id: 'first_route', worldId: 'flight_school', label: 'Erster Lauf', goal: 'Meistere drei Sektoren auf Parcours Rift. Sektor 2 ist ohne Waffen.', x: 214, y: 200, stageId: 'first_run', maxPlayers: 3 }),
     Object.freeze({ id: 'endless_hunt', worldId: 'flight_school', label: 'Endlosjagd', goal: 'Sammle mindestens 5.000 Punkte, bevor dein Lauf endet.', x: 88, y: 350, stageId: 'endless_hunt', optional: true, maxPlayers: 3 }),
 
-    Object.freeze({ id: 'notre_dame', worldId: 'tower_city', label: 'Notre-Dame', goal: 'Noch offen: Sektoren durch das Kirchenschiff.', x: 330, y: 78, stageId: '', maxPlayers: 3 }),
+    Object.freeze({ id: 'notre_dame', worldId: 'tower_city', label: 'Notre-Dame', goal: 'Den vollständigen Kurs durch Notre-Dame mit seinen Abzweigungen bis zum Ziel durchfliegen.', x: 330, y: 78, stageId: 'notre_dame', maxPlayers: 3 }),
     Object.freeze({ id: 'brandnacht', worldId: 'tower_city', label: 'Brandnacht', goal: 'Noch offen: Spuren ausweichen, Letzter gewinnt (ohne Waffen).', x: 445, y: 66, stageId: '', maxPlayers: 3 }),
     Object.freeze({ id: 'five_fronts', worldId: 'tower_city', label: 'Fünf Fronten', goal: 'Kämpfe in allen fünf Arenen und sammle mindestens 5.000 Punkte.', x: 560, y: 80, stageId: 'five_fronts', maxPlayers: 3 }),
     Object.freeze({ id: 'eiffel_siege', worldId: 'tower_city', label: 'Eiffel-Belagerung', goal: 'Noch offen: Den Turm auf Zeit fällen.', x: 675, y: 66, stageId: '', boss: true, maxPlayers: 3 }),
@@ -91,6 +91,7 @@ export const ARCADE_JOURNEY_MAP_LINKS = Object.freeze([
 const EXPECTED_RUNTIME_STAGE_IDS = new Set([
     'flight_school',
     'first_run',
+    'notre_dame',
     'endless_hunt',
     'five_fronts',
     'sky_ladder',

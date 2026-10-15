@@ -19,6 +19,16 @@ function setup(overrides = {}) {
     return { view, starts, state, find };
 }
 
+test('adding Notre-Dame keeps the previously earned departure badge visible', () => {
+    const stages = Object.fromEntries(['flight_school', 'first_run', 'weapon_race'].map(id =>
+        [id, { medals: { normal: { medal: 1 } } }]));
+    const { find } = setup({ progress: { schema: ARCADE_JOURNEY_SCHEMA, stages } });
+    const rewards = find('.journey-legacy-rewards');
+    assert.match(rewards.textContent, /Aufbruch-Abzeichen/);
+    assert.equal(rewards.classList.contains('hidden'), false);
+    assert.equal(stages.notre_dame, undefined);
+});
+
 test('world zoom focuses a map node; controller back returns one level and restores world focus', () => {
     const { view, starts, find } = setup();
     const flightSchool = find('[data-journey-world="flight_school"]');

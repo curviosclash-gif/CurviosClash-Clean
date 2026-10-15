@@ -10,12 +10,14 @@ function journeyStage(config) {
 /** A selected mission is fixed; a free run and the Daily retain their seeded plans. */
 export function buildArcadeJourneyEncounterPlan(runtimeConfig, plan) {
     const stage = journeyStage(runtimeConfig?.arcade);
-    if (stage?.id === 'first_run') {
+    if (stage?.parcours === true) {
         return { ...plan, sectorCount: stage.sectorCount, sequence: Array.from({ length: stage.sectorCount }, (_, index) => ({
             sectorNumber: index + 1, templateId: 'sector_parcours', squadId: null, objectiveId: 'parcours_run',
             modifierId: null, scoreBonus: 0, rewardChoices: [], pressure: 0, difficultyTierId: plan.difficulty,
             mapKey: stage.mapKey, mapKeyLocked: true, isBoss: false, bossMultiplier: 1,
-            parcoursEnabled: true, parcoursRacer: true, combatProfile: index === 1 ? '' : 'hunt', weaponsDisabled: index === 1,
+            botCount: stage.botCount, parcoursEnabled: true, parcoursRacer: true,
+            combatProfile: stage.id === 'first_run' && index === 1 ? '' : 'hunt',
+            weaponsDisabled: stage.id === 'first_run' && index === 1,
         })) };
     }
     if (!stage?.scenarioId) return null;
@@ -30,10 +32,15 @@ export function buildArcadeJourneyEncounterPlan(runtimeConfig, plan) {
     return { ...plan, sectorCount: stage.sectorCount, sequence: [entry] };
 }
 
-/** Only the authored creature objective can settle this stage; score alone cannot. */
+/** Use the selected mission's actual goal result, never a substitute score. */
 export function resolveArcadeJourneyRunResult(runtime, summary) {
     const state = runtime?._state;
     const stage = journeyStage(state?.config);
+    if (stage?.parcours === true && stage.metric === 'time') {
+        const value = Number(state.lastCompletedSectorResult?.parcours?.completionTimeMs);
+        const completed = state.completedSectors === stage.sectorCount && Number.isFinite(value) && value > 0;
+        return { succeeded: summary.succeeded && completed, value: completed ? value : 0, aborted: summary.aborted };
+    }
     if (!stage?.scenarioId) return { succeeded: summary.succeeded, value: summary.score, aborted: summary.aborted };
     const encounter = state.encounterSequence?.[0];
     const completed = encounter?.scenarioId === stage.scenarioId
