@@ -52,7 +52,7 @@ test('session opens the graphic journey directly; planned nodes, settings and ba
     await expect(flightWorld.locator('.journey-map-progress')).toHaveText('0/7 ★');
     await expect(flightWorld).toHaveAttribute('aria-label', /0 von 7 Sternen, weitere Etappen offen/);
     await expect(journey.locator('[data-journey-world="storm_coast"] .journey-map-progress')).toHaveText('Etappen folgen');
-    for (const [width, height] of [[1024, 768], [1280, 800]]) {
+    for (const [width, height] of [[1024, 768], [1101, 800], [1280, 800]]) {
         await page.setViewportSize({ width, height });
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         const bounds = await journey.locator('.journey-map').evaluate(map => {
@@ -63,8 +63,53 @@ test('session opens the graphic journey directly; planned nodes, settings and ba
         });
         expect(bounds.canvasRight, `map canvas stays inside its column at ${width}px`).toBeLessThanOrEqual(bounds.outerRight + 1);
         expect(bounds.nodeRight, `map nodes stay outside the detail panel at ${width}px`).toBeLessThanOrEqual(bounds.outerRight + 1);
+        const labels = await journey.locator('.journey-map').evaluate(map => {
+            const rect = value => ({ left: value.left, right: value.right, top: value.top, bottom: value.bottom });
+            const nodes = Array.from(map.querySelectorAll('.journey-map-node')).filter(node => node.getClientRects().length);
+            const markers = nodes.map(node => ({ owner: node.dataset.journeyNode, ...rect(node.getBoundingClientRect()) }));
+            const texts = [], brokenWords = [];
+            const read = (element, owner) => {
+                const range = document.createRange(); range.selectNodeContents(element);
+                for (const box of range.getClientRects()) if (box.width && box.height) {
+                    texts.push({ owner, text: element.textContent, ...rect(box) });
+                }
+            };
+            for (const node of nodes) {
+                const label = node.querySelector('.journey-map-node-label');
+                const range = document.createRange(); range.selectNodeContents(label);
+                if (!/[\s-]/u.test(label.textContent) && range.getClientRects().length > 1) brokenWords.push(label.textContent);
+                read(label, node.dataset.journeyNode);
+            }
+            for (const world of map.querySelectorAll('.journey-map-world')) {
+                if (!world.getClientRects().length) continue;
+                read(world.querySelector('.journey-map-world-label'), `world:${world.dataset.journeyWorld}`);
+                read(world.querySelector('.journey-map-progress'), `world:${world.dataset.journeyWorld}`);
+            }
+            const overlaps = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1
+                && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+            const collisions = [];
+            texts.forEach((text, index) => {
+                for (const marker of markers) if (text.owner !== marker.owner && overlaps(text, marker)) {
+                    collisions.push(`${text.text} covers marker ${marker.owner}`);
+                }
+                for (const other of texts.slice(index + 1)) if (text.owner !== other.owner && overlaps(text, other)) {
+                    collisions.push(`${text.text} overlaps ${other.text}`);
+                }
+            });
+            return { nodeCount: nodes.length, collisions, brokenWords };
+        });
+        expect(labels.nodeCount).toBe(22);
+        expect(labels.collisions, `all map labels remain readable at ${width}px`).toEqual([]);
+        expect(labels.brokenWords, `unbroken stage names fit their labels at ${width}px`).toEqual([]);
         await expect(flightWorld).toHaveAttribute('aria-label', /0 von 7 Sternen/);
         await page.screenshot({ path: testInfo.outputPath(`journey-stars-${width}.png`) });
+        await journey.locator('[data-journey-node="hydra"]').click();
+        await expect(journey.locator('[data-journey-stage="hydra"] h4')).toBeInViewport();
+        await expect(journey.locator('[data-journey-start="hydra"]')).toBeInViewport();
+        await expect(journey.locator('[data-journey-start="hydra"]')).toBeDisabled();
+        await page.screenshot({ path: testInfo.outputPath(`journey-lower-route-${width}.png`) });
+        await journey.locator('[data-journey-node="first_flight"]').click();
+        await expect(journey.locator('[data-journey-stage="flight_school"] h4')).toBeInViewport();
     }
     await expect(page.locator('#btn-quick-random-map')).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('journey-full-map.png') });

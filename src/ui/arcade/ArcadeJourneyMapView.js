@@ -30,7 +30,7 @@ export function createArcadeJourneyMapView(createElement, worlds, nodes, links) 
         button.appendChild(createElement('span', 'journey-map-world-label', world.label));
         const progress = createElement('span', 'journey-map-progress'); button.appendChild(progress);
         const reward = createElement('span', 'journey-map-reward sr-only'); button.appendChild(reward);
-        place(button, { x: (world.x + 12) / 9, y: (world.y + 12) / 4.7 });
+        place(button, { x: (world.x + 12) / 9, y: (world.y + 2) / 4.7 });
         canvas.appendChild(button); worldButtons.set(world.id, { button, progress, reward });
     }
     for (const [from, to] of links) {
@@ -41,8 +41,10 @@ export function createArcadeJourneyMapView(createElement, worlds, nodes, links) 
     nodes.forEach((node, index) => {
         const button = createElement('button', 'journey-map-node');
         button.type = 'button'; button.dataset.journeyNode = node.id;
+        button.dataset.journeyLabelRow = String(index % 2);
         const mark = createElement('span', 'journey-map-node-mark', String(index + 1)); mark.setAttribute('aria-hidden', 'true');
         const label = createElement('span', 'journey-map-node-label', node.label);
+        label.lang = 'de';
         const status = createElement('span', 'journey-map-node-status');
         button.append(mark, label, status); canvas.appendChild(button);
         nodeButtons.set(node.id, { button, mark, status, index });
