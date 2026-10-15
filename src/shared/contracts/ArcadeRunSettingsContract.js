@@ -1,5 +1,5 @@
 import { normalizeArcadeCompanionCount } from './ArcadeCompanionContract.js';
-import { normalizeArcadeJourneyStageId } from './ArcadeJourneyContract.js';
+import { getArcadeJourneyStage, normalizeArcadeJourneyStageId } from './ArcadeJourneyContract.js';
 import {
     ENDLESS_PARCOURS_COMBAT_PROFILE,
     ENDLESS_PARCOURS_RUN_TYPE,
@@ -147,7 +147,9 @@ export function normalizeArcadeRunSettings(
         seed: runType === HUNT_PARCOURS_RUN_TYPE
             ? resolveHuntParcoursVariant(normalizeArcadeHuntParcoursVariantId(runType, input.huntParcoursVariantId)).seed
             : clampInteger(input.seed, ARCADE_RUN_SETTINGS_RANGES.seed, DEFAULTS.seed),
-        sectorCount: clampInteger(input.sectorCount, ARCADE_RUN_SETTINGS_RANGES.sectorCount, DEFAULTS.sectorCount),
+        sectorCount: getArcadeJourneyStage(normalizeArcadeJourneyStageId(input.journeyStageId, {
+            runType, portalChainId: normalizePortalChainId(input.portalChainId), dailyChallenge: input.dailyChallenge,
+        }))?.sectorCount || clampInteger(input.sectorCount, ARCADE_RUN_SETTINGS_RANGES.sectorCount, DEFAULTS.sectorCount),
         intermissionSeconds: clampNumber(
             input.intermissionSeconds,
             ARCADE_RUN_SETTINGS_RANGES.intermissionSeconds,

@@ -7,6 +7,7 @@ import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
 import { ARCADE_TEST_FLIGHT_DURATION_MS, ARCADE_TEST_FLIGHT_RUN_TYPE } from '../../shared/contracts/ArcadeTestFlightContract.js';
 import { readArcadeMoments } from '../../state/arcade/ArcadeRunMomentLog.js';
 import { selectArcadeRunHighlights } from '../../state/arcade/ArcadeRunHighlights.js';
+import { resolveArcadeJourneyRunResult } from './ArcadeJourneyEncounterPlan.js';
 
 export function finalizeExpiredArcadeTestFlight(runtime) {
     if (runtime._config?.runType !== ARCADE_TEST_FLIGHT_RUN_TYPE || runtime._state?.gameplayTimeMs < ARCADE_TEST_FLIGHT_DURATION_MS) return null;
@@ -125,8 +126,7 @@ export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
     };
     const finalizedRunId = String(summary.runId || '');
     postRunSummary.ranking = settleArcadeRunRanking(runtime, summary, nowMs);
-    postRunSummary.journey = runtime._onJourneyCompleted?.({ succeeded: summary.succeeded,
-        value: summary.score, aborted: summary.aborted }) || null;
+    postRunSummary.journey = runtime._onJourneyCompleted?.(resolveArcadeJourneyRunResult(runtime, summary)) || null;
     runtime._scheduleRecordsSave(runtime._records, () => {
         if (String(runtime._state?.runId || '') !== finalizedRunId) return;
         runtime._state.persistedAtIso = summary.finishedAtIso;

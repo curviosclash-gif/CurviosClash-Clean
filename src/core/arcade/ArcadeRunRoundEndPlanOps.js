@@ -3,6 +3,7 @@
 import { ARCADE_RUN_PHASES, completeArcadeSector } from '../../state/arcade/ArcadeRunState.js';
 import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { captureArcadeHumanVitals } from './ArcadeIntermissionEffects.js';
+import { getArcadeJourneyStage } from '../../shared/contracts/ArcadeJourneyContract.js';
 
 const ARCADE_RUN_ABORT_REASONS = new Set(['ABORT', 'ABORTED', 'MATCH_ABORT', 'QUIT', 'RUN_ABORT']);
 
@@ -84,6 +85,13 @@ export function deriveArcadeRoundEndPlan(runtime, { players, inputs = {}, baseCo
         } else {
             runtime._prepareIntermission(nowMs);
         }
+    }
+    // A fixed Journey mission ends at its goal; it has no voluntary endless continuation.
+    if (runtime._state.phase === ARCADE_RUN_PHASES.VICTORY
+        && getArcadeJourneyStage(runtime._state.config.journeyStageId)?.scenarioId) {
+        runtime._state.phase = ARCADE_RUN_PHASES.FINISHED;
+        runtime._state.victory = null;
+        runtime._state.intermission = null;
     }
     const runFinished = runtime._state.phase === ARCADE_RUN_PHASES.FINISHED;
     const scoreTotal = Math.max(0, toSafeNumber(runtime._state?.score?.total, 0));

@@ -13,6 +13,7 @@ import { prepareArcadeRunRanking } from '../arcade/ArcadeRunRankingOps.js';
 import { loadArcadeDifficultyProgress, resolveArcadeRunTier } from '../../shared/contracts/ArcadeDifficultyContract.js';
 import { resolvePlayerRecordStorePortForIndex } from './PlayerProfileRuntimeAccess.js';
 import { resolveActiveArcadeCompanionCount } from '../../shared/contracts/ArcadeCompanionContract.js';
+import { buildArcadeJourneyEncounterPlan } from '../arcade/ArcadeJourneyEncounterPlan.js';
 
 export function resolveArcadeP1RecordStore(support, config) {
     const id = String(config?.arcade?.playerProfileIds?.[0] || '').trim();
@@ -105,7 +106,8 @@ export function buildArcadeEncounterPlan(runtimeConfig, store = null) {
         difficulty: tierId === 'any' ? 'normal' : tierId,
         dailyChallenge: runtimeConfig?.arcade?.dailyChallenge === true,
     });
-    return { ...lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog()), tierId };
+    const journeyPlan = buildArcadeJourneyEncounterPlan(runtimeConfig, plan);
+    return { ...(journeyPlan || lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog())), tierId };
 }
 
 export function handleWeaponRaceLeaderboard(support, runtimeState, data) {

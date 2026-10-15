@@ -38,6 +38,7 @@ const ARCADE_PHASE_SET = new Set(Object.values(ARCADE_RUN_PHASES));
 import { toSafeNumber, clampNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
 import { normalizeArcadeGhostDuelMode } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { normalizeArcadeRunPace } from './ArcadeRunPaceOps.js';
+import { getArcadeJourneyStage, normalizeArcadeJourneyStageId } from '../../shared/contracts/ArcadeJourneyContract.js';
 
 function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -86,13 +87,16 @@ function resolveSectorPhase(config, sectorIndex) {
 
 export function createArcadeRunConfig(source = null) {
     const input = source && typeof source === 'object' ? source : {};
+    const journeyStageId = normalizeArcadeJourneyStageId(input.journeyStageId, input);
     return {
         enabled: input.enabled === true,
         profileId: normalizeText(input.profileId, DEFAULT_ARCADE_RUN_CONFIG.profileId),
         runType: normalizeText(input.runType, DEFAULT_ARCADE_RUN_CONFIG.runType),
+        journeyStageId,
         seed: clampInteger(input.seed, 0, 2_147_483_647, DEFAULT_ARCADE_RUN_CONFIG.seed),
         scoreModel: normalizeArcadeScoreModel(input.scoreModel),
-        sectorCount: clampInteger(input.sectorCount, 1, 20, DEFAULT_ARCADE_RUN_CONFIG.sectorCount),
+        sectorCount: getArcadeJourneyStage(journeyStageId)?.sectorCount
+            || clampInteger(input.sectorCount, 1, 20, DEFAULT_ARCADE_RUN_CONFIG.sectorCount),
         intermissionSeconds: clampNumber(input.intermissionSeconds, 0.5, 20, DEFAULT_ARCADE_RUN_CONFIG.intermissionSeconds),
         comboWindowMs: clampInteger(input.comboWindowMs, 800, 20_000, DEFAULT_ARCADE_RUN_CONFIG.comboWindowMs),
         comboDecayPerSecond: clampNumber(input.comboDecayPerSecond, 0, 10, DEFAULT_ARCADE_RUN_CONFIG.comboDecayPerSecond),

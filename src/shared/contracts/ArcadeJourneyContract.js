@@ -25,6 +25,9 @@ const stages = [
         goal: 'Schließe alle drei Belagerungen ab.', predecessorId: 'five_fronts', metric: 'ratio', silver: 0.7, gold: 0.9 },
     { id: 'endless_hunt', worldId: 'frontier', label: 'Endlosjagd', runType: 'endless_parcours', mapKey: 'standard', botCount: 0,
         goal: 'Sammle mindestens 5.000 Punkte, bevor dein Lauf endet.', predecessorId: 'five_fronts', metric: 'score', bronze: 5000, silver: 15000, gold: 30000 },
+    { id: 'worm_hunt', worldId: 'frontier', label: 'Wurmjagd', runType: 'gauntlet', mapKey: 'standard', botCount: 2,
+        scenarioId: 'worm_hunt', sectorCount: 1, predecessorId: 'first_run',
+        goal: 'Erlege den Riesenwurm innerhalb von zwei Minuten. Silber: 90 Sekunden, Gold: 60 Sekunden.', metric: 'time', silver: 90000, gold: 60000 },
 ];
 
 export const ARCADE_JOURNEY_STAGES = Object.freeze(stages.map((stage) => Object.freeze({ maxPlayers: 3, ...stage })));

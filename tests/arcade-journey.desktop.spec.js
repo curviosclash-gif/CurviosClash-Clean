@@ -269,3 +269,81 @@ test('switching real profiles reloads only their own journey gates and keeps the
     await expect(page.locator('[data-journey-start="five_portals"]')).toBeDisabled();
     expect(await readJourneyProfiles(page, [neutral, ...ids])).toEqual(before);
 });
+
+async function startWormJourney(page) {
+    await waitForLoadedGame(page);
+    // Test-profile fixture, never the real user profile: unlock without seeding earned medals.
+    await page.evaluate(({ key, schema }) => {
+        const game = window.GAME_INSTANCE;
+        const manager = game.playerProfileManager;
+        manager.getRecordStorePort(manager.getActiveProfile().id).saveJsonRecord(key, { schema, stages: {}, allStagesUnlocked: true });
+        game.settings.arcade.difficultyTierId = 'normal';
+    }, { key: ARCADE_JOURNEY_STORAGE_KEY, schema: ARCADE_JOURNEY_SCHEMA });
+    await openJourney(page);
+    await page.locator('[data-journey-world="exclusion_zone"]').click();
+    await page.locator('[data-journey-node="worm_hunt"]').click();
+    await page.locator('[data-journey-start="worm_hunt"]').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING');
+}
+
+function wormState(page) {
+    return page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const run = game.runtimeFacade.arcadeRunRuntime.getStateSnapshot();
+        return { state: game.state, stageId: game.runtimeConfig.arcade.journeyStageId,
+            sectorCount: run?.config?.sectorCount, scenarioId: run?.encounterSequence?.[0]?.scenarioId,
+            objective: run?.objectiveState?.status, gameplayTimeMs: run?.gameplayTimeMs,
+            creatures: (game.entityManager?.runtimePorts?.combat?.mapUnitSystem?.getTargets() || [])
+                .filter(unit => unit.kind === 'creature' && unit.alive).length };
+    });
+}
+
+test('Wurmjagd: real creature destruction settles a timed mission and retry creates a fresh worm', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    await startWormJourney(page);
+    await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', stageId: 'worm_hunt', sectorCount: 1,
+        scenarioId: 'worm_hunt', objective: 'active', creatures: 1 });
+    // Controlled clock/damage fixture: exercise the real unit/objective/result chain, not a flight proof.
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const human = game.entityManager.humanPlayers[0];
+        human.spawnProtectionTimer = 5;
+        for (const bot of game.entityManager.players.filter(player => player.isBot)) { bot.alive = false; bot.hp = 0; }
+        game.runtimeFacade.arcadeRunRuntime.tickGameplay(61);
+    });
+    await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', objective: 'active', creatures: 1 });
+    expect((await readJourney(page)).value.stages.worm_hunt).toBeUndefined();
+    await page.screenshot({ path: testInfo.outputPath('worm-journey-active.png') });
+    await page.evaluate(() => {
+        const manager = window.GAME_INSTANCE.entityManager;
+        const worm = manager.runtimePorts.combat.mapUnitSystem.getTargets().find(unit => unit.kind === 'creature' && unit.alive);
+        worm.takeDamage(worm.hp + 1, { sourcePlayer: manager.humanPlayers[0] });
+    });
+    await expect(page.locator('[data-journey-action="retry"]')).toBeVisible();
+    const saved = (await readJourney(page)).value;
+    expect(saved.stages.worm_hunt.medals.normal.medal).toBe(2);
+    expect(saved.boards['worm_hunt:normal:1'][0].value).toBeGreaterThanOrEqual(61000);
+    expect(saved.boards['worm_hunt:normal:1'][0].value).toBeLessThan(90000);
+    await expect(page.locator('.arcade-journey-result-time')).toHaveText(`Zeit: ${(saved.boards['worm_hunt:normal:1'][0].value / 1000).toFixed(2)} s`);
+    await page.screenshot({ path: testInfo.outputPath('worm-journey-result.png') });
+    await page.locator('[data-journey-action="retry"]').click();
+    await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', objective: 'active', creatures: 1 });
+    expect((await wormState(page)).gameplayTimeMs).toBeLessThan(10000);
+    expect((await readJourney(page)).value.boards['worm_hunt:normal:1']).toHaveLength(1);
+});
+
+test('Wurmjagd: the authored deadline loses the mission without awarding a medal', async ({ page }, testInfo) => {
+    await startWormJourney(page);
+    await page.evaluate(() => window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.tickGameplay(121));
+    await expect(page.locator('[data-journey-action="retry"]')).toBeVisible();
+    await expect(page.locator('.arcade-journey-result-medal')).toHaveText('Ziel noch nicht erreicht');
+    expect((await readJourney(page)).value.stages.worm_hunt).toBeUndefined();
+    await page.screenshot({ path: testInfo.outputPath('worm-journey-deadline.png') });
+});
+
+test('Wurmjagd: returning before destroying the worm preserves profile progress', async ({ page }) => {
+    await startWormJourney(page);
+    const before = await readJourney(page);
+    await returnToMenu(page);
+    expect(await readJourney(page)).toEqual(before);
+});

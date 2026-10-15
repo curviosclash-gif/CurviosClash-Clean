@@ -117,6 +117,7 @@ export async function startMatchWithBorrowedSettings(facade, rawBorrowed = null)
             combatProfile: stage.runType === 'gauntlet' ? '' : 'hunt', dailyChallenge: false, companionCount: 0,
             portalChainId: stage.portalChainId || defaults.portalChainId };
         for (const key of ['sectorCount', 'comboWindowMs', 'comboDecayPerSecond', 'maxMultiplier']) settings.arcade[key] = defaults[key];
+        if (stage.sectorCount) settings.arcade.sectorCount = stage.sectorCount;
         settings.gameMode = 'ARCADE';
         settings.localSettings = { ...settings.localSettings, modePath: 'arcade' };
         settings.numBots = stage.botCount;

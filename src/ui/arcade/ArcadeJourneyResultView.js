@@ -12,6 +12,9 @@ export function renderArcadeJourneyResult(panel, state, onAction) {
     panel.appendChild(element('h2', stage.label));
     const medal = Math.max(0, Math.min(3, journey.medal || 0));
     panel.appendChild(element('p', medal ? `${'★'.repeat(medal)} ${['', 'Bronze', 'Silber', 'Gold'][medal]}` : 'Ziel noch nicht erreicht', 'arcade-journey-result-medal'));
+    if (stage.metric === 'time' && Number.isFinite(journey.result.value) && journey.result.value > 0) {
+        panel.appendChild(element('p', `Zeit: ${(journey.result.value / 1000).toFixed(2)} s`, 'arcade-journey-result-time'));
+    }
     const xp = Number(state.vehicleXpEarned ?? state.xpEarned ?? state.postRunSummary?.xpEarned) || 0;
     panel.appendChild(element('p', `${Math.max(0, Math.round(xp))} Fahrzeug-XP`));
     const primary = journey.recipients?.[0];

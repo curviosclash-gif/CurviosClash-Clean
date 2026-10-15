@@ -50,7 +50,7 @@ export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([
 
     Object.freeze({ id: 'reactor', worldId: 'exclusion_zone', label: 'Reaktor', goal: 'Noch offen: Sektoren durch die Sperrzone.', x: 330, y: 288, stageId: '', maxPlayers: 3 }),
     Object.freeze({ id: 'clockwork', worldId: 'exclusion_zone', label: 'Uhrwerk-Schlucht', goal: 'Noch offen: Spuren ausweichen, Letzter gewinnt (ohne Waffen).', x: 445, y: 278, stageId: '', maxPlayers: 3 }),
-    Object.freeze({ id: 'worm_hunt', worldId: 'exclusion_zone', label: 'Wurmjagd', goal: 'Noch offen: Den Wurm zerstören.', x: 560, y: 292, stageId: '', boss: true, maxPlayers: 3 }),
+    Object.freeze({ id: 'worm_hunt', worldId: 'exclusion_zone', label: 'Wurmjagd', goal: 'Den Riesenwurm innerhalb von zwei Minuten zerstören.', x: 560, y: 292, stageId: 'worm_hunt', boss: true, maxPlayers: 3 }),
     Object.freeze({ id: 'weapon_mastery', worldId: 'exclusion_zone', label: 'Waffenrennen', goal: 'Noch offen: Mit jeder Waffe einen Abschuss erzielen.', x: 675, y: 278, stageId: '', optional: true, maxPlayers: 1 }),
 
     Object.freeze({ id: 'giant_forest', worldId: 'giant_forest', label: 'Riesenwald', goal: 'Noch offen: Sektoren zwischen Riesenbäumen.', x: 330, y: 394, stageId: '', maxPlayers: 3 }),
@@ -94,6 +94,7 @@ const EXPECTED_RUNTIME_STAGE_IDS = new Set([
     'endless_hunt',
     'five_fronts',
     'sky_ladder',
+    'worm_hunt',
 ]);
 
 for (const node of ARCADE_JOURNEY_MAP_NODES) {

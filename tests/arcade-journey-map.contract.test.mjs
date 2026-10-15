@@ -85,7 +85,8 @@ test('journey map links reference known nodes and form an acyclic graph', () => 
 
 test('only existing playable stage IDs are referenced and legacy IDs remain intact', () => {
     const stageIds = ARCADE_JOURNEY_STAGES.map(({ id }) => id);
-    assert.deepEqual(stageIds, EXPECTED_LEGACY_STAGE_IDS);
+    assert.deepEqual(stageIds.slice(0, EXPECTED_LEGACY_STAGE_IDS.length), EXPECTED_LEGACY_STAGE_IDS);
+    assert.deepEqual(stageIds.slice(EXPECTED_LEGACY_STAGE_IDS.length), ['worm_hunt']);
     assert.equal(ARCADE_JOURNEY_SCHEMA, 'arcade-journey.v1');
 
     const expectedBindings = new Map([
@@ -94,6 +95,7 @@ test('only existing playable stage IDs are referenced and legacy IDs remain inta
         ['endless_hunt', 'endless_hunt'],
         ['five_fronts', 'five_fronts'],
         ['sky_ladder', 'sky_ladder'],
+        ['worm_hunt', 'worm_hunt'],
     ]);
     for (const node of ARCADE_JOURNEY_MAP_NODES) {
         assert.equal(node.stageId, expectedBindings.get(node.id) || '', node.id + ' binding must stay explicit');

@@ -83,3 +83,19 @@ test('journey score rules last only for the match and a failed journey start res
         assert.deepEqual(facade.game.settings, before);
     }
 });
+
+test('a worm mission borrows one sector and restores the personal run after success or a failed start', async () => {
+    for (const startResult of [true, false]) {
+        const { facade } = createFacade({ startResult });
+        facade.game.settings.arcade = { runType: 'gauntlet', sectorCount: 17, difficultyTierId: 'hard' };
+        const before = structuredClone(facade.game.settings);
+        await startMatchWithBorrowedSettings(facade, { journeyStageId: 'worm_hunt' });
+        if (startResult) {
+            assert.equal(facade.game.settings.arcade.sectorCount, 1);
+            assert.equal(facade.game.settings.mapKey, 'standard');
+            assert.equal(facade.game.settings.arcade.journeyStageId, 'worm_hunt');
+            facade.settingsHandler.restoreSessionSettings();
+        }
+        assert.deepEqual(facade.game.settings, before);
+    }
+});
