@@ -3,6 +3,8 @@ import { toSafeNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
 import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 import { collectArcadeSectorTotals, mergeArcadeRunPace, resolveArcadeRunPaceKey } from './ArcadeRunPaceOps.js';
 
+import { mergeArcadeDailyRecord, normalizeArcadeDailyRulesVersion } from './ArcadeDailyRecordOps.js';
+
 const SURVIVAL_POINTS_PER_SECOND = 5;
 const OBJECTIVE_TIME_BONUS_PER_SECOND = 10;
 const DEFAULT_UNTIMED_OBJECTIVE_SCORE_WINDOW_SEC = 90;
@@ -389,6 +391,7 @@ export function buildArcadeRunSummary(runState, { endedAtMs = Date.now(), replay
         breakdown: createScoreBreakdown(safeScore.breakdown),
         suddenDeathScore: Math.max(0, toSafeNumber(safeScore.suddenDeathScore, 0)),
         isDailyChallenge: runState.isDailyChallenge === true || runState?.config?.dailyChallenge === true,
+        dailyRulesVersion: normalizeArcadeDailyRulesVersion(runState.config?.dailyRulesVersion),
         seed: Math.max(0, clampInteger(runState?.config?.seed, 0, 2_147_483_647, 0)),
         paceKey: resolveArcadeRunPaceKey(runState),
         sectorTotals: collectArcadeSectorTotals(runState.sectorHistory),
@@ -459,22 +462,7 @@ export function mergeArcadeRunRecords(records, summary) {
         total: next.breakdownTotals.total + summaryBreakdown.total,
     });
 
-    if (summary.isDailyChallenge === true && (!summary.runId || next.daily.lastRecordedRunId !== summary.runId)) {
-        const dailySeed = Math.max(0, clampInteger(summary.seed, 0, 2_147_483_647, 0));
-        const sameDailySeed = next.daily.seed === dailySeed;
-        const previousBestScore = sameDailySeed ? next.daily.bestScore : 0;
-        next.daily = {
-            lastRecordedRunId: String(summary.runId || ''),
-            lastSucceeded: summary.succeeded === true,
-            lastCompletedSectors: completedSectors,
-            seed: dailySeed,
-            runsPlayed: sameDailySeed ? next.daily.runsPlayed + 1 : 1,
-            bestScore: Math.max(previousBestScore, score),
-            bestRunAt: score >= previousBestScore ? finishedAtIso : (sameDailySeed ? next.daily.bestRunAt : finishedAtIso),
-            lastScore: score,
-            lastRunAt: finishedAtIso,
-        };
-    }
+    if (summary.isDailyChallenge === true) next.daily = mergeArcadeDailyRecord(next.daily, summary);
 
     return next;
 }

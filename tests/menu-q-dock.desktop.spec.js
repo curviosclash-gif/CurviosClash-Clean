@@ -1,6 +1,10 @@
 import { test, expect } from './helpers.desktop.js';
 import { waitForLoadedGame, returnToMenu, selectSessionType, chooseFreePlayVariant, menuScreenSelector } from './helpers.js';
 import { ARCADE_JOURNEY_STORAGE_KEY } from '../src/shared/contracts/ArcadeJourneyContract.js';
+import { ARCADE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import { ARCADE_DAILY_RULES_VERSION } from '../src/shared/contracts/ArcadeDailyRulesContract.js';
+import { createArcadeRunRecords } from '../src/state/arcade/ArcadeRunState.js';
+import { computeDailySeed } from '../src/shared/utils/ArcadeUtils.js';
 
 async function home(page) {
     await waitForLoadedGame(page);
@@ -131,6 +135,16 @@ test('free play remains separate and the four-player planar entry survives the n
 test('daily starts with fixed equipment and restores the personal setup on return', async ({ page }, testInfo) => {
     await home(page);
     await selectSessionType(page, 'single');
+    const fixture = createArcadeRunRecords();
+    fixture.daily = { seed: computeDailySeed(), runsPlayed: 3, bestScore: 99999, lastScore: 90000, note: 'legacy fixture' };
+    const seeded = await page.evaluate(async ({ key, records }) => {
+        const game = window.GAME_INSTANCE;
+        const manager = game.playerProfileManager;
+        const saved = await manager.getRecordStorePort(manager.getActiveProfile().id).saveJsonRecord(key, records);
+        game.runtimeFacade.arcadeRunRuntime.configure({ arcade: { ...game.runtimeConfig.arcade, enabled: false } });
+        return saved;
+    }, { key: ARCADE_RUN_PROFILE_STORAGE_KEY, records: fixture });
+    expect(seeded === true || seeded?.success === true || seeded?.ok === true).toBe(true);
     const readSelection = () => page.evaluate(() => {
         const s = window.GAME_INSTANCE.settings;
         return { mapKey: s.mapKey, modePath: s.localSettings.modePath, gameMode: s.gameMode,
@@ -138,6 +152,7 @@ test('daily starts with fixed equipment and restores the personal setup on retur
     });
     const before = await readSelection();
     await page.locator('#btn-arcade-daily-open').click();
+    await expect(page.locator('#arcade-daily-line')).toContainText('Heute noch nicht gespielt');
     await page.locator('#btn-arcade-daily').click();
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING');
     const config = await page.evaluate(() => window.GAME_INSTANCE.runtimeConfig);
@@ -145,8 +160,19 @@ test('daily starts with fixed equipment and restores the personal setup on retur
     expect(config.session.numHumans).toBe(1);
     expect(config.arcade.sectorCount).toBe(5);
     expect(config.arcade.dailyChallenge).toBe(true);
+    expect(config.arcade.dailyRulesVersion).toBe(ARCADE_DAILY_RULES_VERSION);
     expect(config.arcade.journeyStageId).toBe('');
     await page.screenshot({ path: testInfo.outputPath('daily-fixed-equipment.png') });
     await returnToMenu(page);
     expect(await readSelection()).toEqual(before);
+    const readDaily = () => page.evaluate(key => {
+        const manager = window.GAME_INSTANCE.playerProfileManager;
+        return manager.getRecordStorePort(manager.getActiveProfile().id).readJsonRecordResult(key).value?.daily;
+    }, ARCADE_RUN_PROFILE_STORAGE_KEY);
+    await expect.poll(async () => (await readDaily())?.rulesVersion).toBe(ARCADE_DAILY_RULES_VERSION);
+    const daily = await readDaily();
+    expect(daily.runsPlayed).toBe(1);
+    expect(daily.bestScore).toBeLessThan(99999);
+    expect(daily.history).toHaveLength(1);
+    expect(daily.history[0]).toMatchObject({ bestScore: 99999, runsPlayed: 3, note: 'legacy fixture', rulesVersion: '' });
 });

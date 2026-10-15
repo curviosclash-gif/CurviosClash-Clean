@@ -26,9 +26,10 @@ export function startArcadeRun(runtime, options = {}) {
     runtime._strategy = options.strategy || runtime._strategy || null;
     runtime._resetStrategyRuntimeState();
     // 61.10.1: Allow options.seed to override config seed (e.g., for daily challenge)
-    const runConfig = options.seed != null
-        ? { ...runtime._config, seed: toSafeNumber(options.seed, runtime._config.seed) }
-        : runtime._config;
+    const runConfig = { ...runtime._config,
+        seed: options.seed != null ? toSafeNumber(options.seed, runtime._config.seed) : runtime._config.seed,
+        dailyChallenge: options.dailyChallenge === true || runtime._config.dailyChallenge === true,
+    };
     const activeRunSeed = runtime._resolveActiveRunSeed(runConfig);
     runtime._state = createArcadeRunState({
         config: runConfig,

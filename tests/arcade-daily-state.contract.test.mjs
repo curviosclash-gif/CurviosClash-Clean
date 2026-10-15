@@ -8,12 +8,14 @@ import {
 } from '../src/state/arcade/ArcadeDailyState.js';
 import { createArcadeRunState } from '../src/state/arcade/ArcadeRunState.js';
 import { mergeArcadeRunRecords } from '../src/state/arcade/ArcadeScoreOps.js';
+import { ARCADE_DAILY_RULES_VERSION } from '../src/shared/contracts/ArcadeDailyRulesContract.js';
 import { computeDailySeed } from '../src/shared/utils/ArcadeUtils.js';
 import { buildArcadeSectorPlan } from '../src/entities/directors/ArcadeEncounterCatalog.js';
 
 test('Arcade Daily projection hides the previous day and exposes only the current German seed', () => {
     const records = {
         daily: {
+            rulesVersion: ARCADE_DAILY_RULES_VERSION,
             seed: 20260817,
             runsPlayed: 3,
             bestScore: 4200,
@@ -127,6 +129,7 @@ test('Arcade runtime projects current Daily records and attaches the completed a
     runtime._enabled = true;
     runtime._records = mergeArcadeRunRecords(null, {
         score: 3200,
+        dailyRulesVersion: ARCADE_DAILY_RULES_VERSION,
         completedSectors: 4,
         finishedAtIso: '2026-08-17T12:00:00.000Z',
         isDailyChallenge: true,

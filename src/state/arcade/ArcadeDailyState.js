@@ -1,5 +1,7 @@
 import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { mergeArcadeRunRecords } from './ArcadeScoreOps.js';
+import { ARCADE_DAILY_RULES_VERSION } from '../../shared/contracts/ArcadeDailyRulesContract.js';
+import { findArcadeDailyRecord } from './ArcadeDailyRecordOps.js';
 
 function toNonNegativeInteger(value) {
     return Math.max(0, Math.floor(Number(value) || 0));
@@ -9,22 +11,10 @@ function toNonNegativeNumber(value) {
     return Math.max(0, Number(value) || 0);
 }
 
-function normalizeDailyRecord(records = null) {
-    const daily = records?.daily && typeof records.daily === 'object' ? records.daily : {};
-    return {
-        seed: toNonNegativeInteger(daily.seed),
-        runsPlayed: toNonNegativeInteger(daily.runsPlayed),
-        bestScore: toNonNegativeNumber(daily.bestScore),
-        bestRunAt: typeof daily.bestRunAt === 'string' ? daily.bestRunAt : '',
-        lastScore: toNonNegativeNumber(daily.lastScore),
-        lastRunAt: typeof daily.lastRunAt === 'string' ? daily.lastRunAt : '',
-    };
-}
-
 export function createArcadeDailyProjection(records = null, date = null) {
     const seed = computeDailySeed(date);
-    const daily = normalizeDailyRecord(records);
-    const playedToday = daily.seed === seed && daily.runsPlayed > 0;
+    const daily = findArcadeDailyRecord(records?.daily, seed, ARCADE_DAILY_RULES_VERSION) || {};
+    const playedToday = daily.seed === seed && (daily.runsPlayed > 0 || daily.bestScore > 0);
     return {
         seed,
         status: playedToday ? 'played' : 'unplayed',
@@ -46,9 +36,9 @@ export function createArcadeDailyRunResult({
 
     const seed = toNonNegativeInteger(summary.seed);
     const score = toNonNegativeNumber(summary.score);
-    const previousDaily = normalizeDailyRecord(previousRecords);
-    const completedDaily = normalizeDailyRecord(completedRecords);
-    const hadPreviousAttempt = previousDaily.seed === seed && previousDaily.runsPlayed > 0;
+    const previousDaily = findArcadeDailyRecord(previousRecords?.daily, seed, summary.dailyRulesVersion) || {};
+    const completedDaily = findArcadeDailyRecord(completedRecords?.daily, seed, summary.dailyRulesVersion) || {};
+    const hadPreviousAttempt = previousDaily.seed === seed && (previousDaily.runsPlayed > 0 || previousDaily.bestScore > 0);
     const previousBestScore = hadPreviousAttempt ? previousDaily.bestScore : 0;
     const completedForSeed = completedDaily.seed === seed;
 

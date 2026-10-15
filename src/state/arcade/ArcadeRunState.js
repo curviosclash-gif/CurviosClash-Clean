@@ -4,6 +4,9 @@ import {
     normalizeArcadeScoreModel,
 } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
+import { ARCADE_DAILY_RULES_VERSION } from '../../shared/contracts/ArcadeDailyRulesContract.js';
+import { normalizeArcadeDailyRecord, normalizeArcadeDailyRulesVersion } from './ArcadeDailyRecordOps.js';
+
 const DEFAULT_ARCADE_RUN_CONFIG = Object.freeze({
     enabled: false,
     profileId: 'arcade-default',
@@ -103,6 +106,8 @@ export function createArcadeRunConfig(source = null) {
         maxMultiplier: clampInteger(input.maxMultiplier, 1, 25, DEFAULT_ARCADE_RUN_CONFIG.maxMultiplier),
         replayHooksEnabled: input.replayHooksEnabled !== false,
         dailyChallenge: input.dailyChallenge === true,
+        dailyRulesVersion: input.dailyChallenge === true
+            ? normalizeArcadeDailyRulesVersion(input.dailyRulesVersion) || ARCADE_DAILY_RULES_VERSION : '',
         ghostDuelMode: normalizeArcadeGhostDuelMode(input.ghostDuelMode, DEFAULT_ARCADE_RUN_CONFIG.ghostDuelMode),
         ghostLibraryMaxRoutes: clampInteger(
             input.ghostLibraryMaxRoutes,
@@ -152,17 +157,7 @@ export function createArcadeRunRecords(source = null) {
         },
         breakdownTotals: createEmptyBreakdown(comparableInput.breakdownTotals),
         pace: normalizeArcadeRunPace(comparableInput.pace),
-        daily: {
-            lastRecordedRunId: normalizeText(comparableInput?.daily?.lastRecordedRunId, ''),
-            lastSucceeded: comparableInput?.daily?.lastSucceeded === true,
-            lastCompletedSectors: Math.max(0, toSafeNumber(comparableInput?.daily?.lastCompletedSectors, 0)),
-            seed: Math.max(0, clampInteger(comparableInput?.daily?.seed, 0, 2_147_483_647, 0)),
-            runsPlayed: Math.max(0, clampInteger(comparableInput?.daily?.runsPlayed, 0, 999_999, 0)),
-            bestScore: Math.max(0, toSafeNumber(comparableInput?.daily?.bestScore, 0)),
-            bestRunAt: normalizeText(comparableInput?.daily?.bestRunAt, ''),
-            lastScore: Math.max(0, toSafeNumber(comparableInput?.daily?.lastScore, 0)),
-            lastRunAt: normalizeText(comparableInput?.daily?.lastRunAt, ''),
-        },
+        daily: normalizeArcadeDailyRecord(comparableInput.daily),
     };
 }
 
