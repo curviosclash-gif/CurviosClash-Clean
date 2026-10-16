@@ -9,6 +9,7 @@ import {
     waitForLoadedGame,
     waitForRenderFrames,
     chooseFreePlayVariant,
+    openStartSetupSection,
 } from './helpers.js';
 
 test.describe('Desktop Smoke', () => {
@@ -54,6 +55,7 @@ test.describe('Desktop Smoke', () => {
             const actualHashes = scriptSrc.split(/\s+/).filter((token) => token.startsWith("'sha256-")).sort();
 
             expect(scriptSrc, `${route} script-src`).not.toMatch(/'unsafe-inline'/);
+            expect(scriptSrc, `${route} must deny JavaScript eval`).not.toMatch(/'unsafe-eval'/);
             expect(actualHashes, `${route} hashes must match browser DOM script.textContent`).toEqual(expectedHashes);
             expect(await page.evaluate(() => window.__cspViolationEvents), `${route} CSP violation events`).toEqual([]);
         }
@@ -164,9 +166,7 @@ test.describe('Desktop Smoke', () => {
         const errors = collectErrors(page);
         await waitForLoadedGame(page);
         await page.locator('#menu-nav [data-session-type="single"]').click({ force: true });
-        await page.locator('#submenu-custom:not(.hidden) [data-mode-path="arcade"]').click({ force: true });
-        await page.locator('#submenu-game:not(.hidden) [data-start-section-target="arcade"]')
-            .evaluate((button) => button.click());
+        await openStartSetupSection(page, 'arcade');
         await page.locator('.arcade-start-mode-options > summary').click();
         await page.locator('.arcade-advanced-options > summary').click();
         await expect(page.locator('#btn-arcade-endless-start-inline')).toBeVisible();

@@ -104,7 +104,9 @@ function createStaticRequestHandler(rootDir) {
             if (contentType.startsWith('text/html')) {
                 htmlBuffer = readFileSync(filePath);
                 // Only runtime entry pages need the bundled GLB decoder, never JavaScript eval.
-                const runtimePage = ['index.html', 'hangar.html'].includes(path.relative(rootDir, filePath));
+                const runtimePage = ['index.html', 'hangar.html', 'editor/map-editor-3d.html',
+                    'prototypes/vehicle-lab/index.html']
+                    .includes(path.relative(rootDir, filePath).split(path.sep).join('/'));
                 headers['Content-Security-Policy'] = createCspHeader(connectSources, htmlBuffer.toString('utf8'), runtimePage);
             }
             res.writeHead(200, headers);

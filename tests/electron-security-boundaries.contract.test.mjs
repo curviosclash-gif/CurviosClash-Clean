@@ -159,6 +159,14 @@ test('Settings Studio denies renderer navigation, popups, and remote content', (
     assert.match(htmlSource, /connect-src 'none'/);
 });
 
+test('Hangar meta CSP allows its bundled WASM decoder while denying JavaScript eval and inline code', () => {
+    const source = readSource('../hangar.html');
+    const policy = source.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
+    const scriptSources = policy.split(';').map(entry => entry.trim())
+        .find(entry => entry.startsWith('script-src ')).split(/\s+/).slice(1);
+    assert.deepEqual(scriptSources, ["'self'", "'wasm-unsafe-eval'"]);
+});
+
 test('Settings Studio treats legacy profile migration as best effort', () => {
     const source = readSource('../electron/settings-studio/main.cjs');
     assert.match(source, /try\s*\{[\s\S]*fs\.mkdirSync\(sharedUserDataPath/);

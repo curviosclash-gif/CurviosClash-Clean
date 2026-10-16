@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -86,15 +86,18 @@ test('desktop static server hashes only the exact inline script text for each HT
         const indexHtml = '<!doctype html><script type="importmap">\r\n{"imports":{}}\r\n</script><script src="/app.js"></script>';
         const hangarHtml = '<!doctype html><script>window.hangarReady = true;</script>';
         const emptyHtml = '<!doctype html><script src="/external.js"></script>';
+        const pages = [['/', indexHtml, true], ['/hangar.html', hangarHtml, true],
+            ['/editor/map-editor-3d.html', emptyHtml, true], ['/prototypes/vehicle-lab/index.html', emptyHtml, true],
+            ['/empty.html', emptyHtml, false], ['/editor/help.html', emptyHtml, false]];
         await Promise.all([
-            writeFile(path.join(rootDir, 'index.html'), indexHtml, 'utf8'),
-            writeFile(path.join(rootDir, 'hangar.html'), hangarHtml, 'utf8'),
-            writeFile(path.join(rootDir, 'empty.html'), emptyHtml, 'utf8'),
+            mkdir(path.join(rootDir, 'editor'), { recursive: true }),
+            mkdir(path.join(rootDir, 'prototypes/vehicle-lab'), { recursive: true }),
         ]);
+        await Promise.all(pages.map(([url, html]) => writeFile(path.join(rootDir, url === '/' ? 'index.html' : url), html, 'utf8')));
         server = await startStaticServer({ rootDir, port: 0 });
 
         const policies = new Map();
-        for (const [page, html] of [['/', indexHtml], ['/hangar.html', hangarHtml], ['/empty.html', emptyHtml]]) {
+        for (const [page, html, runtimePage] of pages) {
             const response = await fetch(new URL(page, server.url));
             const csp = response.headers.get('content-security-policy') || '';
             const scriptSrc = csp.split(';').map((part) => part.trim()).find((part) => part.startsWith('script-src')) || '';
@@ -103,7 +106,7 @@ test('desktop static server hashes only the exact inline script text for each HT
                 .map((match) => hashSource(match[2]));
 
             assert.doesNotMatch(scriptSrc, /'unsafe-inline'/, `${page}: ${scriptSrc}`);
-            assert.equal(scriptSrc.split(/\s+/).includes("'wasm-unsafe-eval'"), page !== '/empty.html');
+            assert.equal(scriptSrc.split(/\s+/).includes("'wasm-unsafe-eval'"), runtimePage, page);
             assert.equal(scriptSrc.split(/\s+/).includes("'unsafe-eval'"), false);
             for (const hash of expectedHashes) assert.ok(scriptSrc.split(/\s+/).includes(hash), `${page}: missing ${hash}`);
             assert.equal(scriptSrc.split(/\s+/).includes(hashSource('window.untrusted = true;')), false);
