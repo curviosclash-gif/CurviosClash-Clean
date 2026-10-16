@@ -5,6 +5,7 @@
       "values": {
         "speed": 18,
         "turnSensitivity": 2.2,
+        "pitchSensitivity": 2.2,
         "gravityStrength": 20,
         "planeScale": 1,
         "trailWidth": 0.6,
@@ -27,6 +28,7 @@
       "values": {
         "speed": 20,
         "turnSensitivity": 2.4,
+        "pitchSensitivity": 2.4,
         "gravityStrength": 20,
         "planeScale": 1,
         "trailWidth": 0.6,
@@ -49,6 +51,7 @@
       "values": {
         "speed": 18,
         "turnSensitivity": 2.2,
+        "pitchSensitivity": 2.2,
         "gravityStrength": 20,
         "planeScale": 1,
         "trailWidth": 0.6,

@@ -194,6 +194,8 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     // resolveArcadeMotionWorstCase in ArcadeVehicleHitboxContract.js.
     const resolvedMotionDt = Number.isFinite(motionDt) && motionDt > 0 ? motionDt : dt;
     const turnSpeed = resolvedTurnSpeed * turnRateMul * waterTurnMultiplier * resolvedMotionDt;
+    const pitchTurnSpeed = (Number(player?.pitchTurnSpeed) || Number(config.PLAYER.PITCH_TURN_SPEED) || resolvedTurnSpeed)
+        * turnRateMul * waterTurnMultiplier * resolvedMotionDt;
     const rollSpeed = resolvedRollSpeed * waterTurnMultiplier * resolvedMotionDt;
 
     const pitchInput = clampAxisInput(controlState?.pitchInput);
@@ -204,7 +206,7 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     player.isBoosting = boostEffectActive;
 
     player._tmpEuler.set(
-        pitchInput * turnSpeed,
+        pitchInput * pitchTurnSpeed,
         yawInput * turnSpeed,
         rollInput * rollSpeed,
         'YXZ'

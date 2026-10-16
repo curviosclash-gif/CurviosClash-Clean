@@ -61,23 +61,27 @@ const STEERING_SCRIPT = [
     ...Array(20).fill({}),
 ];
 
-test('editor ship turns exactly like the match ship for the same keys', () => {
-    const controller = new PlayerController();
-    const player = createMatchPlayer();
-    const pose = createPose();
-    const state = createShipFlightState();
-    const params = createShipFlightParams({ unitsPerWorldUnit: 1 });
+for (const pitchTurnSpeed of [undefined, 4.5]) {
+    test(`editor ship matches the game with pitch rate ${pitchTurnSpeed ?? 'legacy'}`, () => {
+        const controller = new PlayerController();
+        const player = createMatchPlayer();
+        player.pitchTurnSpeed = pitchTurnSpeed;
+        const pose = createPose();
+        const state = createShipFlightState();
+        const params = createShipFlightParams({ unitsPerWorldUnit: 1,
+            player: { ...CONFIG_SECTIONS.PLAYER, PITCH_TURN_SPEED: pitchTurnSpeed } });
 
-    for (const keys of STEERING_SCRIPT) {
-        const control = controller.resolveControlState(player, keys, false, STEP);
-        updatePlayerMotion(player, STEP, control, 1, STEP);
-        stepShipFlight(state, pose, keys, params, STEP);
-    }
+        for (const keys of STEERING_SCRIPT) {
+            const control = controller.resolveControlState(player, keys, false, STEP);
+            updatePlayerMotion(player, STEP, control, 1, STEP);
+            stepShipFlight(state, pose, keys, params, STEP);
+        }
 
-    assert.ok(player.quaternion.angleTo(new THREE.Quaternion()) > 0.5, 'the script must actually turn the ship');
-    assert.ok(pose.quaternion.angleTo(player.quaternion) < 1e-9,
-        `editor and match orientation differ by ${pose.quaternion.angleTo(player.quaternion)} rad`);
-});
+        assert.ok(player.quaternion.angleTo(new THREE.Quaternion()) > 0.5, 'the script must actually turn the ship');
+        assert.ok(pose.quaternion.angleTo(player.quaternion) < 1e-9,
+            `editor and match orientation differ by ${pose.quaternion.angleTo(player.quaternion)} rad`);
+    });
+}
 
 test('the ship flies forward at match speed scaled into editor units', () => {
     const pose = createPose();

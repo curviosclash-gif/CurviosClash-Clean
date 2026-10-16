@@ -156,6 +156,7 @@ export function createEntityRuntimeConfig(runtimeConfig = null, baseConfig = nul
     if (runtimeConfig?.player) {
         contract.PLAYER.SPEED = toFiniteNumber(runtimeConfig.player.speed, contract.PLAYER.SPEED);
         contract.PLAYER.TURN_SPEED = toFiniteNumber(runtimeConfig.player.turnSpeed, contract.PLAYER.TURN_SPEED);
+        contract.PLAYER.PITCH_TURN_SPEED = toFiniteNumber(runtimeConfig.player.pitchTurnSpeed, contract.PLAYER.TURN_SPEED);
         contract.PLAYER.GRAVITY_STRENGTH = toFiniteNumber(runtimeConfig.player.gravityStrength, contract.PLAYER.GRAVITY_STRENGTH);
         contract.PLAYER.MODEL_SCALE = toFiniteNumber(runtimeConfig.player.modelScale, contract.PLAYER.MODEL_SCALE);
         contract.PLAYER.AUTO_ROLL = runtimeConfig.player.autoRoll === true;

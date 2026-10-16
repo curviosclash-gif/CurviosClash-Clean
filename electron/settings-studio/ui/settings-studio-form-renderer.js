@@ -366,7 +366,7 @@ export function renderLimitsSection(schema, draft, baseDraft, t) {
         const stepInput = `<input class="limits-input" type="number" step="any" min="0" data-limit-path="${esc(field.path)}" data-limit-key="step" value="${esc(activeStep)}" />`;
 
         const defStr = `${def.min ?? '?'} / ${def.max ?? '?'} / ${def.step ?? '?'}`;
-        return `<tr class="${rowClass}"><td title="${esc(field.path)}">${esc(fieldLabel(field.path))}</td><td><small style="color:var(--muted)">${esc(defStr)}</small></td><td>${minInput}</td><td>${maxInput}</td><td>${stepInput}</td></tr>`;
+        return `<tr class="${rowClass}"><td title="${esc(field.path)}">${esc(field.label?.[t.language] || fieldLabel(field.path))}</td><td><small style="color:var(--muted)">${esc(defStr)}</small></td><td>${minInput}</td><td>${maxInput}</td><td>${stepInput}</td></tr>`;
     });
 
     return `<table class="limits-table"><thead><tr><th>${t('limitsColField')}</th><th>${t('limitsColDefault')}</th><th>${t('limitsColMin')}</th><th>${t('limitsColMax')}</th><th>${t('limitsColStep')}</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;

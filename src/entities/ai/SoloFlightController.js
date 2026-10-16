@@ -12,10 +12,10 @@ const HISTORY_SAMPLES = 48;
 const FULL_PATH_BONUS = 10;
 const SAFETY_IMPROVEMENT_SECONDS = 0.12;
 
-function resolveTurnSpeed(player, manager) {
+function resolveTurnSpeed(player, manager, pitch = false) {
     const modeMultiplier = Number(manager?.gameModeStrategy?.getTurnRateMultiplier?.(player));
     const waterMultiplier = Number(player.waterTurnMultiplier);
-    return Math.max(0.1, Number(player.turnSpeed) || 3.4)
+    return Math.max(0.1, Number(pitch ? player.pitchTurnSpeed ?? player.turnSpeed : player.turnSpeed) || 3.4)
         * (Number.isFinite(modeMultiplier) ? Math.max(0.1, modeMultiplier) : 1)
         * (Number.isFinite(waterMultiplier) ? Math.max(0.1, waterMultiplier) : 1);
 }
@@ -104,6 +104,7 @@ export class SoloFlightController {
 
     _score(player, arena, manager, yaw, pitch, speed, turnSpeed, wallRadius, trailRadius, skipRecent,
         planarMode = false, turnSeconds = TURN_SECONDS) {
+        const pitchTurnSpeed = resolveTurnSpeed(player, manager, true);
         this.position.copy(player.position);
         this.orientation.copy(player.quaternion);
         let clearTime = HORIZON_SECONDS;
@@ -114,7 +115,7 @@ export class SoloFlightController {
         for (let step = 1; step <= steps; step += 1) {
             const elapsed = step * stepSeconds;
             const steering = elapsed <= turnSeconds + 0.00001;
-            this.euler.set(steering && !planarMode ? pitch * turnSpeed * stepSeconds : 0,
+            this.euler.set(steering && !planarMode ? pitch * pitchTurnSpeed * stepSeconds : 0,
                 steering ? yaw * turnSpeed * stepSeconds : 0, 0, 'YXZ');
             this.turn.setFromEuler(this.euler);
             this.orientation.multiply(this.turn);

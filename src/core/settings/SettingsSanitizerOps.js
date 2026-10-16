@@ -146,7 +146,9 @@ const GAMEPLAY_CLAMP_FIELDS = Object.freeze(Object.keys(SETTINGS_LIMITS.gameplay
 function applyGameplaySanitization({ merged, src, defaults, runtimeLimits }) {
     for (const field of GAMEPLAY_CLAMP_FIELDS) {
         merged.gameplay[field] = clampSettingValue(
-            src?.gameplay?.[field] ?? defaults.gameplay[field],
+            src?.gameplay?.[field]
+                ?? (field === 'pitchSensitivity' ? src?.gameplay?.turnSensitivity : undefined)
+                ?? defaults.gameplay[field],
             runtimeLimits.gameplay[field],
             defaults.gameplay[field]
         );

@@ -106,7 +106,7 @@ test('EntityManager live runtime apply propagates updated config to runtime cach
         HUNT: { PLAYER_MAX_HP: 220 },
     });
     const nextErc = createEntityRuntimeConfigFixture({
-        PLAYER: { SPEED: 33, TURN_SPEED: 2.8, ROLL_SPEED: 2.3, MODEL_SCALE: 1.2 },
+        PLAYER: { SPEED: 33, TURN_SPEED: 2.8, PITCH_TURN_SPEED: 4.5, ROLL_SPEED: 2.3, MODEL_SCALE: 1.2 },
         POWERUP: {
             TYPES: {
                 BOOST: {},
@@ -203,6 +203,7 @@ test('EntityManager live runtime apply propagates updated config to runtime cach
     assert.deepEqual(controlOptionCalls, [{
         speed: 33,
         turnSpeed: 2.8,
+        pitchTurnSpeed: 4.5,
         rollSpeed: 2.3,
         modelScale: 1.2,
     }]);

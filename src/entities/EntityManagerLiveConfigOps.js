@@ -92,6 +92,7 @@ export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
             const controlOptions = {
                 speed: Number(playerSection.SPEED),
                 turnSpeed: Number(playerSection.TURN_SPEED),
+                pitchTurnSpeed: Number(playerSection.PITCH_TURN_SPEED ?? playerSection.TURN_SPEED),
                 rollSpeed: Number(playerSection.ROLL_SPEED),
                 modelScale: Number(playerSection.MODEL_SCALE),
             };

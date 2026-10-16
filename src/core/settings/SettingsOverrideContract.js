@@ -8,9 +8,7 @@ import { BOT_HEURISTIC_FIELD_HELP_METADATA, BOT_HEURISTIC_FIELD_LIMITS } from '.
 import {
     collectPrimitiveLeafPaths, deepCloneJson,
     deepMergeKnownShape,
-    isPlainObject,
-    readPathValue,
-    writePathValue,
+    isPlainObject, readPathValue, writePathValue,
 } from './SettingsOverrideMergeOps.js';
 import { dropRetiredOverridePaths } from './SettingsOverrideRetiredPaths.js';
 import {
@@ -53,7 +51,8 @@ const FIELD_HELP_METADATA = Object.freeze({
     'baseSettings.numBots': Object.freeze({ riskLevel: 'low', unit: null, example: '3', help: { de: 'Anzahl der KI-Gegner pro Match.', en: 'Number of AI opponents per match.' }, impact: { de: 'Mehr Bots erzeugen mehr Spielaktion, erhöhen aber den Rechenaufwand.', en: 'More bots create more action, but increase CPU load.' } }),
     'baseSettings.winsNeeded': Object.freeze({ riskLevel: 'low', unit: null, example: '3', help: { de: 'Rundensiege, die zum Matchgewinn benötigt werden.', en: 'Round wins needed to win the match.' }, impact: { de: 'Bestimmt die Matchlänge direkt.', en: 'Directly determines match length.' } }),
     'baseSettings.gameplay.speed': Object.freeze({ riskLevel: 'medium', unit: null, example: '21', help: { de: 'Grundgeschwindigkeit der Flugzeuge.', en: 'Base flight speed of the planes.' }, impact: { de: 'Beeinflusst Schwierigkeit und Reaktionszeit stark. Extreme Werte können das Spiel unspielbar machen.', en: 'Strongly affects difficulty and reaction time. Extreme values may make the game unplayable.' } }),
-    'baseSettings.gameplay.turnSensitivity': Object.freeze({ riskLevel: 'medium', unit: null, example: '2.4', help: { de: 'Lenkempfindlichkeit der Flugzeuge.', en: 'Steering sensitivity of the planes.' }, impact: { de: 'Höhere Werte erlauben engere Kurven. Zu hohe Werte machen die Steuerung unbeherrschbar.', en: 'Higher values allow tighter turns. Too high makes control unpredictable.' } }),
+    'baseSettings.gameplay.turnSensitivity': Object.freeze({ label: { de: 'Lenkung Links/Rechts (Yaw)', en: 'Left/right steering (Yaw)' }, riskLevel: 'medium', unit: 'rad/s', example: '3.0', help: { de: 'Drehgeschwindigkeit links/rechts. Hoch/runter wird separat eingestellt.', en: 'Left/right turn rate. Up/down has its own setting.' }, impact: { de: 'Höhere Werte erlauben engere Kurven. Zu hohe Werte machen die Steuerung unbeherrschbar.', en: 'Higher values allow tighter turns. Too high makes control unpredictable.' } }),
+    'baseSettings.gameplay.pitchSensitivity': Object.freeze({ label: { de: 'Lenkung Hoch/Runter (Pitch)', en: 'Up/down steering (Pitch)' }, riskLevel: 'medium', unit: 'rad/s', example: '4.5', help: { de: 'Drehgeschwindigkeit hoch/runter, unabhängig von links/rechts.', en: 'Up/down turn rate, independent of left/right.' }, impact: { de: 'Ein höherer Wert als bei Yaw ergibt bei gleichem Tempo einen kleineren vertikalen Kurvenradius.', en: 'A higher value than Yaw gives a smaller vertical turn radius at the same speed.' } }),
     'baseSettings.gameplay.planeScale': Object.freeze({ riskLevel: 'low', unit: null, example: '1.0', help: { de: 'Skalierung der Flugzeug-Modelle.', en: 'Scale of the plane models.' }, impact: { de: 'Rein visuell; beeinflusst keine Spielmechanik.', en: 'Visual only; does not affect gameplay mechanics.' } }),
     'baseSettings.gameplay.trailWidth': Object.freeze({ riskLevel: 'low', unit: null, example: '0.15', help: { de: 'Breite der Kursspur jedes Flugzeugs.', en: "Width of each plane's flight trail." }, impact: { de: 'Breitere Spuren erhöhen die Kollisionswahrscheinlichkeit.', en: 'Wider trails increase collision probability.' } }),
     'baseSettings.gameplay.gapSize': Object.freeze({ riskLevel: 'medium', unit: null, example: '0.5', help: { de: 'Größe der Lücken in der Flugspur.', en: 'Size of gaps in the flight trail.' }, impact: { de: 'Größere Lücken erlauben Durchschlüpfen durch die eigene Spur.', en: 'Larger gaps allow passing through own trail.' } }),
@@ -97,6 +96,7 @@ const DEFAULT_FIELD_LIMITS = Object.freeze({
     'baseSettings.hunt.deathmatchKillLimit': Object.freeze({ ...SETTINGS_LIMITS.hunt.deathmatchKillLimit, step: 1 }),
     'baseSettings.gameplay.speed': Object.freeze({ min: 0, max: 50, step: 0.1 }),
     'baseSettings.gameplay.turnSensitivity': Object.freeze({ ...SETTINGS_LIMITS.gameplay.turnSensitivity, step: 0.1 }),
+    'baseSettings.gameplay.pitchSensitivity': Object.freeze({ ...SETTINGS_LIMITS.gameplay.pitchSensitivity, step: 0.1 }),
     'baseSettings.gameplay.gravityStrength': Object.freeze({ ...SETTINGS_LIMITS.gameplay.gravityStrength, step: 1 }),
     'baseSettings.gameplay.planeScale': Object.freeze({ ...SETTINGS_LIMITS.gameplay.planeScale, step: 0.05 }),
     'baseSettings.gameplay.trailWidth': Object.freeze({ ...SETTINGS_LIMITS.gameplay.trailWidth, step: 0.05 }),
@@ -119,6 +119,7 @@ const DEFAULT_FIELD_LIMITS = Object.freeze({
     'configShare.winsNeeded': Object.freeze({ ...SETTINGS_LIMITS.session.winsNeeded, step: 1 }),
     'configShare.gameplay.speed': Object.freeze({ min: 0, max: 50, step: 0.1 }),
     'configShare.gameplay.turnSensitivity': Object.freeze({ ...SETTINGS_LIMITS.gameplay.turnSensitivity, step: 0.1 }),
+    'configShare.gameplay.pitchSensitivity': Object.freeze({ ...SETTINGS_LIMITS.gameplay.pitchSensitivity, step: 0.1 }),
     'configShare.gameplay.gravityStrength': Object.freeze({ ...SETTINGS_LIMITS.gameplay.gravityStrength, step: 1 }),
     'configShare.gameplay.planeScale': Object.freeze({ ...SETTINGS_LIMITS.gameplay.planeScale, step: 0.05 }),
     'configShare.gameplay.trailWidth': Object.freeze({ ...SETTINGS_LIMITS.gameplay.trailWidth, step: 0.05 }),
@@ -146,12 +147,8 @@ function toFiniteNumber(value, fallback = null) {
 }
 
 function inferFieldType(value) {
-    if (Array.isArray(value)) return 'json';
     const type = typeof value;
-    if (type === 'number') return 'number';
-    if (type === 'boolean') return 'boolean';
-    if (type === 'string') return 'string';
-    return 'json';
+    return type === 'number' || type === 'boolean' || type === 'string' ? type : 'json';
 }
 
 function resolveFieldCategory(path, fallbackCategory) {
@@ -284,6 +281,9 @@ function mergeDraftCandidate(candidate) {
             continue;
         }
         merged[key] = deepMergeKnownShape(baseDraft[key], source[key]);
+        if ((key === 'baseSettings' || key === 'configShare') && source[key]?.gameplay?.pitchSensitivity == null && source[key]?.gameplay?.turnSensitivity != null) {
+            merged[key].gameplay.pitchSensitivity = source[key].gameplay.turnSensitivity;
+        }
     }
 
     return merged;

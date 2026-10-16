@@ -7,6 +7,50 @@ import { _electron as electron, expect, test } from '@playwright/test';
 const requireElectron = createRequire(new URL('../electron/package.json', import.meta.url));
 const electronExecutablePath = requireElectron('electron');
 
+test('Settings Studio saves independent pitch and yaw controls', async () => {
+    const profilePath = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-pitch-studio-'));
+    const appDataPath = path.join(profilePath, 'AppData', 'Roaming');
+    const localAppDataPath = path.join(profilePath, 'AppData', 'Local');
+    await Promise.all([fs.mkdir(appDataPath, { recursive: true }), fs.mkdir(localAppDataPath, { recursive: true })]);
+    const env = { ...process.env, APPDATA: appDataPath, LOCALAPPDATA: localAppDataPath,
+        USERPROFILE: profilePath, CURVIOS_ELECTRON_SHOW_WINDOW: '1',
+        CURVIOS_SETTINGS_STUDIO_PROJECT_ROOT: profilePath };
+    delete env.ELECTRON_RUN_AS_NODE;
+    const app = await electron.launch({ executablePath: electronExecutablePath,
+        args: [path.resolve('electron/settings-studio/main.cjs')], env });
+    const window = await app.firstWindow();
+    try {
+        await expect(window.locator('[data-bind="status"]')).not.toHaveText('Lade Daten...');
+        await window.locator('[data-nav-section="baseSettings"]').click();
+        const yaw = window.locator('input[data-path="baseSettings.gameplay.turnSensitivity"]');
+        const pitch = window.locator('input[data-path="baseSettings.gameplay.pitchSensitivity"]');
+        await expect(yaw.locator('..')).toContainText('Lenkung Links/Rechts (Yaw)');
+        await expect(pitch.locator('..')).toContainText('Lenkung Hoch/Runter (Pitch)');
+        await yaw.fill('3');
+        await pitch.fill('4.5');
+        await expect(yaw).toHaveValue('3');
+        await window.locator('[data-action="save"]').click();
+        await expect(window.locator('[data-bind="save-preview-modal"]')).toBeVisible();
+        await expect(window.locator('[data-bind="save-preview-body"]')).toContainText('Lenkung Hoch/Runter (Pitch)');
+        await window.locator('[data-action="confirm-save"]').click();
+        await expect(window.locator('[data-bind="status"]')).toContainText('Gespeichert');
+        const persisted = await window.evaluate(async () => window.settingsStudioApi.load());
+        expect(persisted.draft.baseSettings.gameplay.turnSensitivity).toBe(3);
+        expect(persisted.draft.baseSettings.gameplay.pitchSensitivity).toBe(4.5);
+        await window.reload();
+        await expect(window.locator('[data-bind="status"]')).not.toHaveText('Lade Daten...');
+        await window.locator('[data-nav-section="baseSettings"]').click();
+        await expect(yaw).toHaveValue('3');
+        await expect(pitch).toHaveValue('4.5');
+        await pitch.scrollIntoViewIfNeeded();
+        await window.screenshot({ path: path.join(profilePath, 'pitch-yaw-settings.png') });
+        console.log(`Pitch/yaw desktop evidence: ${profilePath}`);
+    } finally {
+        await window.evaluate(() => window.settingsStudioApi?.setDirtyState?.(false)).catch(() => {});
+        await app.close();
+    }
+});
+
 test('Settings Studio edits a numeric default and interval without losing focus', async () => {
     const profilePath = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-settings-studio-e2e-'));
     const appDataPath = path.join(profilePath, 'AppData', 'Roaming');

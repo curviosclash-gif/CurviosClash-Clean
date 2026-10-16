@@ -31,6 +31,7 @@ const state = {
 const RUNTIME_PATHS = Object.freeze({
     speed: ['player', 'speed'],
     turnSensitivity: ['player', 'turnSpeed'],
+    pitchSensitivity: ['player', 'pitchTurnSpeed'],
     gravityStrength: ['player', 'gravityStrength'],
     planeScale: ['player', 'modelScale'],
     trailWidth: ['trail', 'width'],

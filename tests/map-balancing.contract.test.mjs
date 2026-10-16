@@ -76,7 +76,7 @@ test('B0: the mode defaults file holds exactly the values a fresh profile plays 
 test('B0: every field carries the runtime limits instead of its own copy', () => {
     const keys = MAP_BALANCING_FIELDS.map((field) => field.key);
     assert.equal(new Set(keys).size, keys.length);
-    assert.equal(MAP_BALANCING_FIELDS.filter((field) => field.group === 'map').length, 16);
+    assert.equal(MAP_BALANCING_FIELDS.filter((field) => field.group === 'map').length, 17);
     assert.equal(MAP_BALANCING_FIELDS.filter((field) => field.group === 'arcadeStage').length, 5);
     for (const field of MAP_BALANCING_FIELDS) {
         if (field.type === 'boolean') continue;

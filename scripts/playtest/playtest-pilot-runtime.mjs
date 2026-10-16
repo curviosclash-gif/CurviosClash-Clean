@@ -240,7 +240,7 @@ export function installPilotRuntime(version) {
         // Behind the ship atan2 is near +-pi: turn hard toward the nearer side.
         const behind = local.ahead < 0;
         const turn = behind ? (local.right >= 0 ? 1 : -1) : clamp(-yawError * gain / turnRate(player) * 2.4, -1, 1);
-        const climb = clamp(pitchError * gain / turnRate(player) * 2.4, -1, 1);
+        const climb = clamp(pitchError * gain / finite(player.pitchTurnSpeed, turnRate(player)) * 2.4, -1, 1);
         return { turn, climb, local };
     };
 

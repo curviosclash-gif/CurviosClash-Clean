@@ -72,7 +72,9 @@ const ARCADE = ARCADE_RUN_SETTINGS_RANGES;
 export const MAP_BALANCING_FIELDS = Object.freeze([
     field('speed', 'map', 'gameplay.speed', GAMEPLAY.speed, 0.5, ['Tempo', 'Speed'], 'Grundgeschwindigkeit der Flugzeuge.'),
     field('turnSensitivity', 'map', 'gameplay.turnSensitivity', GAMEPLAY.turnSensitivity, 0.1,
-        ['Lenkempfindlichkeit', 'Turn sensitivity'], 'Wie schnell Flugzeuge drehen; enge Karten brauchen mehr.'),
+        ['Lenkung Links/Rechts (Yaw)', 'Left/right steering (Yaw)'], 'Drehgeschwindigkeit links/rechts; höhere Werte ergeben engere Kurven.'),
+    field('pitchSensitivity', 'map', 'gameplay.pitchSensitivity', GAMEPLAY.pitchSensitivity, 0.1,
+        ['Lenkung Hoch/Runter (Pitch)', 'Up/down steering (Pitch)'], 'Drehgeschwindigkeit hoch/runter; höher als Yaw ergibt einen kleineren vertikalen Kurvenradius.'),
     field('gravityStrength', 'map', 'gameplay.gravityStrength', GAMEPLAY.gravityStrength, 1,
         ['Gravitationswirkung', 'Gravity'], 'Wie stark Steigen bremst und Sinken beschleunigt.'),
     field('planeScale', 'map', 'gameplay.planeScale', GAMEPLAY.planeScale, 0.05,
@@ -222,6 +224,12 @@ export function normalizeMapBalancingModesDocument(source) {
     const modes = {};
     for (const modeId of Object.values(MAP_BALANCING_MODE_IDS)) {
         modes[modeId] = normalizeMapBalancingLayer(rawModes[modeId]);
+        // Older complete mode defaults used one rate for both axes. Sparse map and stage
+        // layers stay independent so resetting pitch really restores the inherited value.
+        const values = modes[modeId].values;
+        if (values.pitchSensitivity === undefined && values.turnSensitivity !== undefined) {
+            values.pitchSensitivity = values.turnSensitivity;
+        }
     }
     return { version: MAP_BALANCING_CONTRACT_VERSION, modes };
 }
@@ -292,7 +300,9 @@ export function validateMapBalancingModesDocument(source) {
         if (!isPlainObject(rawValues)) continue;
         for (const entry of MAP_BALANCING_FIELDS) {
             const required = entry.group !== 'arcadeStage' || modeId === MAP_BALANCING_MODE_IDS.ARCADE;
-            if (required && !(entry.key in rawValues)) errors.push(`${modeId}.${entry.key}: missing`);
+            const legacyPitch = entry.key === 'pitchSensitivity' && !('pitchSensitivity' in rawValues)
+                && 'turnSensitivity' in rawValues;
+            if (required && !legacyPitch && !(entry.key in rawValues)) errors.push(`${modeId}.${entry.key}: missing`);
         }
     }
     return { ok: errors.length === 0, errors };

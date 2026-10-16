@@ -66,6 +66,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     HUNT_TEAM_BOT_DIFFICULTY: 'hunt.teamBotDifficulty',
     GAMEPLAY_SPEED: 'gameplay.speed',
     GAMEPLAY_TURN_SENSITIVITY: 'gameplay.turnSensitivity',
+    GAMEPLAY_PITCH_SENSITIVITY: 'gameplay.pitchSensitivity',
     GAMEPLAY_GRAVITY_STRENGTH: 'gameplay.gravityStrength',
     GAMEPLAY_PLANE_SCALE: 'gameplay.planeScale',
     GAMEPLAY_TRAIL_WIDTH: 'gameplay.trailWidth',

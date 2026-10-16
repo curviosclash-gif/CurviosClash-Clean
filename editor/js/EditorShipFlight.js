@@ -44,6 +44,7 @@ export function createShipFlightParams({ unitsPerWorldUnit = 1, player = CONFIG_
     return {
         speed: positive(player?.SPEED, 45) * units,
         turnSpeed: positive(player?.TURN_SPEED, 3.4),
+        pitchTurnSpeed: positive(player?.PITCH_TURN_SPEED, positive(player?.TURN_SPEED, 3.4)),
         rollSpeed: positive(player?.ROLL_SPEED, 3),
         boostMultiplier: positive(player?.BOOST_MULTIPLIER, 2.3),
         hitboxRadius: positive(player?.HITBOX_RADIUS, 0.8) * units,
@@ -99,7 +100,7 @@ export function stepShipFlight(state, pose, input, params, dt) {
         state.ramp, 'roll', digitalAxisInput(input?.rollLeft, input?.rollRight), Number.NaN, RAMP_RATES, step));
 
     const turnStep = params.turnSpeed * step;
-    state.euler.set(pitch * turnStep, yaw * turnStep, roll * params.rollSpeed * step, 'YXZ');
+    state.euler.set(pitch * (params.pitchTurnSpeed ?? params.turnSpeed) * step, yaw * turnStep, roll * params.rollSpeed * step, 'YXZ');
     pose.quaternion.multiply(state.turn.setFromEuler(state.euler));
 
     // Mouse look turns directly, without the ramp, so the crosshair stays on the mouse.

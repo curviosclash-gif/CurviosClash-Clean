@@ -344,6 +344,7 @@ export function createRuntimeConfigSnapshot(settings, {
         player: {
             speed: clampSettingValue(gameplaySource.speed, runtimeLimits.gameplay.speed, playerDefaults.SPEED),
             turnSpeed: clampSettingValue(gameplaySource.turnSensitivity, runtimeLimits.gameplay.turnSensitivity, playerDefaults.TURN_SPEED),
+            pitchTurnSpeed: clampSettingValue(gameplaySource.pitchSensitivity ?? gameplaySource.turnSensitivity, runtimeLimits.gameplay.pitchSensitivity, playerDefaults.PITCH_TURN_SPEED ?? playerDefaults.TURN_SPEED),
             gravityStrength: clampSettingValue(gameplaySource.gravityStrength, runtimeLimits.gameplay.gravityStrength, DEFAULT_GRAVITY_STRENGTH),
             modelScale: clampSettingValue(gameplaySource.planeScale, runtimeLimits.gameplay.planeScale, playerDefaults.MODEL_SCALE),
             autoRoll: typeof source.autoRoll === 'boolean' ? source.autoRoll : !!playerDefaults.AUTO_ROLL,
@@ -485,6 +486,7 @@ export function applyRuntimeConfigCompatibility(runtimeConfig, targetConfig = CO
 
     nextConfig.PLAYER.SPEED = runtimeConfig.player.speed;
     nextConfig.PLAYER.TURN_SPEED = runtimeConfig.player.turnSpeed;
+    nextConfig.PLAYER.PITCH_TURN_SPEED = runtimeConfig.player.pitchTurnSpeed ?? runtimeConfig.player.turnSpeed;
     nextConfig.PLAYER.GRAVITY_STRENGTH = runtimeConfig.player.gravityStrength;
     nextConfig.PLAYER.MODEL_SCALE = runtimeConfig.player.modelScale;
     nextConfig.PLAYER.AUTO_ROLL = runtimeConfig.player.autoRoll;

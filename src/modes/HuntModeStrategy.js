@@ -132,9 +132,13 @@ export class HuntModeStrategy extends GameModeContract {
         const hpBonus = Math.max(-60, Math.min(60, Number(bonuses.maxHpBonus) || 0));
         if (!Number.isFinite(player._fightBaseSpeed)) player._fightBaseSpeed = player.baseSpeed;
         if (!Number.isFinite(player._fightBaseTurnSpeed)) player._fightBaseTurnSpeed = player.turnSpeed;
+        if (!Number.isFinite(player._fightBasePitchTurnSpeed)) {
+            player._fightBasePitchTurnSpeed = player.pitchTurnSpeed ?? player.turnSpeed;
+        }
         player.baseSpeed = player._fightBaseSpeed * (1 + (speedPct / 100));
         player.speed = player.baseSpeed;
         player.turnSpeed = player._fightBaseTurnSpeed * (1 + (turningPct / 100));
+        player.pitchTurnSpeed = player._fightBasePitchTurnSpeed * (1 + (turningPct / 100));
         player.maxHp = Math.max(1, player.maxHp + hpBonus);
         player.hp = player.maxHp;
     }

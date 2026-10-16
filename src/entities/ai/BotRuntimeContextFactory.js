@@ -55,14 +55,18 @@ function modeDimensionKey(mode, planarMode) {
     return `${mode}-${planarMode ? '2d' : '3d'}`;
 }
 
+function pitchProfileToken(control) {
+    return control.pitchTurnSpeed === control.turnSpeed ? '' : `:p${toProfileToken(control.pitchTurnSpeed)}`;
+}
+
 function buildRampControlProfileId(mode, planarMode, control) {
     const dimensionKey = modeDimensionKey(mode, planarMode);
-    return `${CONTROL_PROFILE_VERSION}:${dimensionKey}:s${toProfileToken(control.speed)}:t${toProfileToken(control.turnSpeed)}:r${toProfileToken(control.rollSpeed)}:ra${toProfileToken(control.rampAttackRate)}:rr${toProfileToken(control.rampReleaseRate)}`;
+    return `${CONTROL_PROFILE_VERSION}:${dimensionKey}:s${toProfileToken(control.speed)}:t${toProfileToken(control.turnSpeed)}${planarMode ? '' : pitchProfileToken(control)}:r${toProfileToken(control.rollSpeed)}:ra${toProfileToken(control.rampAttackRate)}:rr${toProfileToken(control.rampReleaseRate)}`;
 }
 
 function buildLegacyControlProfileId(mode, planarMode, control) {
     const dimensionKey = modeDimensionKey(mode, planarMode);
-    return `${LEGACY_CONTROL_PROFILE_VERSION}:${dimensionKey}:s${toProfileToken(control.speed)}:t${toProfileToken(control.turnSpeed)}:r${toProfileToken(control.rollSpeed)}`;
+    return `${LEGACY_CONTROL_PROFILE_VERSION}:${dimensionKey}:s${toProfileToken(control.speed)}:t${toProfileToken(control.turnSpeed)}${planarMode ? '' : pitchProfileToken(control)}:r${toProfileToken(control.rollSpeed)}`;
 }
 
 function matchesProfileList(value, rampControlProfileId) {
@@ -138,6 +142,9 @@ function resolveControlDynamics(entityManager, player, target = null) {
     const out = target || {};
     out.speed = speed;
     out.turnSpeed = turnSpeed;
+    out.pitchTurnSpeed = toPositiveNumber(player?.pitchTurnSpeed,
+        toPositiveNumber(runtimePlayerConfig?.pitchTurnSpeed,
+            toPositiveNumber(entityRuntimeConfig?.PLAYER?.PITCH_TURN_SPEED, turnSpeed)));
     out.rollSpeed = rollSpeed;
     out.rampAttackRate = rampAttackRate;
     out.rampReleaseRate = rampReleaseRate;
@@ -152,6 +159,7 @@ function resolveControlProfileIds(cache, mode, planarMode, control) {
         && cache.planarMode === planarMode
         && cache.speed === control.speed
         && cache.turnSpeed === control.turnSpeed
+        && cache.pitchTurnSpeed === control.pitchTurnSpeed
         && cache.rollSpeed === control.rollSpeed
         && cache.rampAttackRate === control.rampAttackRate
         && cache.rampReleaseRate === control.rampReleaseRate) {
@@ -161,6 +169,7 @@ function resolveControlProfileIds(cache, mode, planarMode, control) {
     cache.planarMode = planarMode;
     cache.speed = control.speed;
     cache.turnSpeed = control.turnSpeed;
+    cache.pitchTurnSpeed = control.pitchTurnSpeed;
     cache.rollSpeed = control.rollSpeed;
     cache.rampAttackRate = control.rampAttackRate;
     cache.rampReleaseRate = control.rampReleaseRate;
@@ -197,6 +206,7 @@ function createCachedRuntimeContext() {
         controlDynamics: {
             speed: 0,
             turnSpeed: 0,
+            pitchTurnSpeed: 0,
             rollSpeed: 0,
             rampAttackRate: 0,
             rampReleaseRate: 0,
@@ -260,6 +270,7 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     const controlDynamics = runtimeContext.controlDynamics || (runtimeContext.controlDynamics = {
         speed: 0,
         turnSpeed: 0,
+        pitchTurnSpeed: 0,
         rollSpeed: 0,
         rampAttackRate: 0,
         rampReleaseRate: 0,
@@ -333,6 +344,7 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
 
     controlDynamics.speed = resolvedControl.speed;
     controlDynamics.turnSpeed = resolvedControl.turnSpeed;
+    controlDynamics.pitchTurnSpeed = resolvedControl.pitchTurnSpeed;
     controlDynamics.rollSpeed = resolvedControl.rollSpeed;
     controlDynamics.rampAttackRate = resolvedControl.rampAttackRate;
     controlDynamics.rampReleaseRate = resolvedControl.rampReleaseRate;

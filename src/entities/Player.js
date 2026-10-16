@@ -65,6 +65,7 @@ export class Player {
         this.speed = this.baseSpeed = playerConfig.SPEED;
         this.altitudeSpeedFactor = 1;
         this.turnSpeed = playerConfig.TURN_SPEED;
+        this.pitchTurnSpeed = playerConfig.PITCH_TURN_SPEED ?? playerConfig.TURN_SPEED;
         this.rollSpeed = playerConfig.ROLL_SPEED;
 
         // Reused temp objects
@@ -352,6 +353,9 @@ export class Player {
         }
         if (typeof options.turnSpeed === 'number' && Number.isFinite(options.turnSpeed) && options.turnSpeed > 0) {
             this.turnSpeed = options.turnSpeed;
+        }
+        if (typeof options.pitchTurnSpeed === 'number' && Number.isFinite(options.pitchTurnSpeed) && options.pitchTurnSpeed > 0) {
+            this.pitchTurnSpeed = options.pitchTurnSpeed;
         }
         if (typeof options.rollSpeed === 'number' && Number.isFinite(options.rollSpeed) && options.rollSpeed > 0) {
             this.rollSpeed = options.rollSpeed;

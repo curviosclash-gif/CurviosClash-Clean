@@ -16,6 +16,7 @@ export const SETTINGS_LIMITS = Object.freeze({
     gameplay: Object.freeze({
         speed: Object.freeze({ min: 8, max: 40 }),
         turnSensitivity: Object.freeze({ min: 0.8, max: 5 }),
+        pitchSensitivity: Object.freeze({ min: 0.8, max: 5 }),
         gravityStrength: Object.freeze({ min: 0, max: MAX_GRAVITY_STRENGTH, integer: true }),
         planeScale: Object.freeze({ min: 0.6, max: 2 }),
         trailWidth: Object.freeze({ min: 0.2, max: 2.5 }),

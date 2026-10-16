@@ -718,7 +718,7 @@ function renderSavePreviewBody(dirtyFields, paths, options = {}) {
             html += renderBrowserDemoPreviewHints(entries);
         }
         for (const { field, current, base } of entries) {
-            const label = field.previewLabel
+            const label = field.previewLabel || field.label?.[state.language]
                 || String(field.path.split('.').pop() || field.path).replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
             const riskLevel = field.riskLevel || 'low';
             const riskClass = riskLevel !== 'low' ? ` preview-row--risk-${riskLevel}` : '';
