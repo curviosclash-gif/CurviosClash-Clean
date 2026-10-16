@@ -90,7 +90,7 @@ export class Trail {
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.mesh.castShadow = false;
         this.mesh.receiveShadow = false;
-        this.mesh.frustumCulled = false;
+        this.mesh.frustumCulled = true;
         this.mesh.count = 0;
         this.glowMesh = this.glowMaterial
             ? new THREE.InstancedMesh(TRAIL_SEGMENT_GEOMETRY, this.glowMaterial, this.maxSegments)
@@ -99,7 +99,7 @@ export class Trail {
             this.glowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
             this.glowMesh.castShadow = false;
             this.glowMesh.receiveShadow = false;
-            this.glowMesh.frustumCulled = false;
+            this.glowMesh.frustumCulled = true;
             this.glowMesh.count = 0;
             this.glowMesh.onBeforeRender = (activeRenderer) => {
                 this.glowMaterial.colorWrite = activeRenderer.getRenderTarget() === null;
@@ -331,13 +331,14 @@ export class Trail {
     _flushDirtyMatrices() {
         if (!this._dirty) return;
         this.mesh.count = Math.min(this.segmentCount, this.maxSegments);
-        this.mesh.instanceMatrix.needsUpdate = true;
+        this.mesh.instanceMatrix.needsUpdate = true; this.mesh.computeBoundingSphere();
         if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
         if (this.glowMesh) {
             this.glowMesh.count = this.mesh.count;
-            this.glowMesh.instanceMatrix.needsUpdate = true;
+            this.glowMesh.instanceMatrix.needsUpdate = true; this.glowMesh.computeBoundingSphere();
             if (this.glowMesh.instanceColor) this.glowMesh.instanceColor.needsUpdate = true;
         }
+        // Matrices change with segment add/recycle/destroy; refresh bounds so offscreen trails are skipped.
         this._dirty = false;
     }
 
