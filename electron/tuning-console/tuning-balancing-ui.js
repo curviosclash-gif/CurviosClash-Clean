@@ -78,7 +78,9 @@ export function createTuningBalancingUi({ tuningApi, container, setStatus }) {
             `${changed} auf dieser Karte geändert`,
             description.inMatch ? 'Match läuft' : 'kein Match – Änderungen wirken ab dem nächsten Start',
         ];
-        if (!description.authoritative) parts.push('Schalter aus: ohne Live-Änderung gelten die Spieler-Einstellungen');
+        if (!description.authoritative) parts.push(description.applied
+            ? 'Übernommene Kartenwerte aktiv. Änderungen hier starten einen neuen Test.'
+            : 'Schalter aus: ohne Live-Änderung gelten die Spieler-Einstellungen');
         if (description.store && !description.store.writable) parts.push(description.store.message || 'Speichern nicht möglich');
         meta.textContent = parts.join(' · ');
         authoritativeToggle.checked = description.authoritative === true;

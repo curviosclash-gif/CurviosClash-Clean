@@ -69,6 +69,7 @@ const {
     sessionDataDirName: SETTINGS_STUDIO_SESSION_DATA_DIR_NAME,
 });
 const settingsDataApp = Object.freeze({
+    isPackaged: app.isPackaged,
     getPath(pathName) {
         return pathName === 'userData' ? settingsDataPath : app.getPath(pathName);
     },

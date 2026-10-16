@@ -109,7 +109,10 @@ function createMapBalancingStore({ root, writable, dataRoot = '', reason = '', m
         return { contract, catalog: contract.createMapBalancingCatalog({ modesDocument, mapDocuments }) };
     }
 
-    /** `layer` previews an unsaved draft for this map instead of the file. */
+    /**
+     * `layer` previews an unsaved draft for this map instead of the file.
+     * @param {{mapKey?: string, modePath?: string, layer?: unknown}} [options]
+     */
     async function describe({ mapKey, modePath, layer = null } = {}) {
         const { contract, catalog } = await readCatalog();
         const filePath = await getMapFilePath(String(mapKey || ''));

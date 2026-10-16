@@ -23,6 +23,14 @@ beschreibbaren Settings-Dateien unter dem Benutzerprofil.
 
 ## Entwicklung und Qualität
 
+Karten-Balancing wird im Entwicklungs-Settings-Studio (`start_settings.bat --development`)
+zunächst als Entwurf gespeichert und getestet. „Für normales Spiel übernehmen“ aktiviert einen
+Snapshot für diese Karte und diesen Modus in lokalen Spielen ab dem nächsten Spielstart;
+„Übernahme zurücknehmen“ stellt die Spieleinstellungen wieder her. Die Übernahme liegt im
+gemeinsamen Benutzerprofil und unter `data/balancing/applied/`. Diese Projektdateien werden
+mit Commit und Push auf GitHub gesichert und beim nächsten Build in neue Spielversionen
+eingebunden. Spätere Entwurfsänderungen werden erst nach erneuter Übernahme wirksam.
+
 ```powershell
 npm run dev                 # Vite-Entwicklung
 npm run quality             # Lint, Typen, Architektur und Contracts

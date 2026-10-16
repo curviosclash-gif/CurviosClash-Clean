@@ -57,6 +57,7 @@ function describe(target, { mapKey, modePath } = {}) {
         inMatch: target.inMatch,
         isRunningMap: key === target.mapKey,
         authoritative: isMapBalancingAuthoritative(),
+        applied: isMapBalancingAuthoritative({ mapKey: key, modePath: modePath || target.modePath }) && !isMapBalancingAuthoritative(),
         dirty: isMapBalancingWorkingLayerDirty(key),
         layer: getMapBalancingWorkingLayer(key),
     };

@@ -34,6 +34,7 @@ import { createSettingsDiagnosticsFacade } from './settings/SettingsDiagnosticsF
 import { reconcileSettingsSnapshot } from './settings/SettingsDomainUtils.js';
 import { MODE_PATH_TO_PRESET_ID, seedFreshProfileStylePreset } from './settings/FreshProfileSettingsOps.js';
 import { registerArcadeLabShipsFromStore } from '../shared/contracts/ArcadeLabStoreContract.js';
+import { setLocalAppliedMapBalancing } from '../shared/maps/MapBalancingBundledData.js';
 
 /**
  * @typedef {object} SettingsManagerOptions
@@ -75,6 +76,7 @@ export class SettingsManager {
             onMigrationResult: options.onMigrationResult,
         };
         const settingsDefaultsSnapshot = this.settingsDefaultsPort?.getOverrideSnapshot?.();
+        setLocalAppliedMapBalancing(settingsDefaultsSnapshot?.appliedMapBalancing?.document);
         const desktopMenuTextOverrides = settingsDefaultsSnapshot?.menuTextOverrides;
         this.#settingsStore = new SettingsStore({
             ...storeOptions,

@@ -31,6 +31,7 @@ const { createRecordingVideoExportJob } = require('./recording-video-export-job.
 const { createCinematicReplayVideoExportJob } = require('./cinematic-replay-video-export-job.cjs');
 const { createTuningWindowController } = require('./tuning-window.cjs');
 const { registerTuningIpc } = require('./tuning-ipc.cjs');
+const { APPLIED_MAP_BALANCING_FILE, readAppliedMapBalancingSnapshotSync } = require('./settings-studio/services/AppliedMapBalancingService.cjs');
 const { createHangarWindowController } = require('./hangar-window.cjs');
 const {
     createEditorWindowOpenHandler,
@@ -1003,6 +1004,9 @@ function readMenuDefaultsOverrideSnapshotSync() {
         parseError,
         draft,
         menuTextOverrides: readMenuTextOverridesSnapshotSync(),
+        appliedMapBalancing: readAppliedMapBalancingSnapshotSync(path.join(
+            resolveAppDataRoot(app), SHARED_USER_DATA_DIR_NAME, APPLIED_MAP_BALANCING_FILE
+        )),
     };
 }
 

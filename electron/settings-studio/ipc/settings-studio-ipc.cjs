@@ -6,6 +6,7 @@ const { SettingsBrowserDemoPolicyService } = require('../services/SettingsBrowse
 const { SettingsMenuTextOverrideService } = require('../services/SettingsMenuTextOverrideService.cjs');
 const { assertTrustedWindowSender } = require('../../ipc-sender-guard.cjs');
 const { createMapBalancingStore, resolveMapBalancingStoreRoot } = require('../../map-balancing-store.cjs');
+const { AppliedMapBalancingService } = require('../services/AppliedMapBalancingService.cjs');
 
 const CHANNELS = Object.freeze({
     load: 'settings-studio:load',
@@ -48,6 +49,7 @@ function registerSettingsStudioIpc({
     const fileService = new SettingsOverrideFileService({ app });
     const backupService = new SettingsBackupService({ app });
     const prefsService = new SettingsPrefsService({ app });
+    const appliedMapBalancing = new AppliedMapBalancingService({ app, projectRoot: mapBalancingStore.root });
     const browserDemoPolicyService = new SettingsBrowserDemoPolicyService({
         app,
         projectRootPath: browserDemoProjectRootPath,
@@ -309,9 +311,23 @@ function registerSettingsStudioIpc({
         try {
             switch (String(request.op || '')) {
                 case 'list-maps': return { ok: true, status, maps: await store.listMaps() };
-                case 'describe': return { ok: true, status, description: await store.describe({ mapKey, modePath: request.modePath, layer }) };
+                case 'describe': {
+                    const description = await store.describe({ mapKey, modePath: request.modePath, layer });
+                    description.appliedState = await appliedMapBalancing.describe(description);
+                    return { ok: true, status, description };
+                }
                 case 'validate': return { ok: true, status, validation: await store.validateMapLayer(mapKey, layer) };
                 case 'save': return { ok: true, status, saved: await store.saveMapLayer(mapKey, layer) };
+                case 'apply':
+                case 'retract': {
+                    const known = await store.listMaps();
+                    if (!known.some((entry) => entry.mapKey === mapKey)) throw new Error('Unbekannte Karte.');
+                    if (!['normal', 'fight', 'arcade'].includes(request.modePath)) throw new Error('Ungültiger Modus.');
+                    // Always approve the saved, validated file; a renderer cannot publish an unsaved draft.
+                    const description = await store.describe({ mapKey, modePath: request.modePath });
+                    const applied = await appliedMapBalancing.change(description, request.op === 'apply', request.expectedValues);
+                    return { ok: true, status, applied };
+                }
                 default: return { ok: false, reason: 'unknown_op', status };
             }
         } catch (error) {

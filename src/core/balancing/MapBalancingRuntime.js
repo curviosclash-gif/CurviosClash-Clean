@@ -2,7 +2,7 @@
 // working copies the F7 console and the balancing MCP edit, and the single place where
 // resolved values replace the player's gameplay values in a runtime config.
 
-import { bundledMapDocuments, bundledModesDocument as modesDocument } from '../../shared/maps/MapBalancingBundledData.js';
+import { bundledMapDocuments, bundledModesDocument as modesDocument, getAppliedMapBalancing } from '../../shared/maps/MapBalancingBundledData.js';
 import {
     createMapBalancingCatalog,
     normalizeMapBalancingLayer,
@@ -47,8 +47,8 @@ const RUNTIME_PATHS = Object.freeze({
     planarLevelCount: ['gameplay', 'planarLevelCount'],
 });
 
-export function isMapBalancingAuthoritative() {
-    return state.authoritativeOverride ?? MAP_BALANCING_AUTHORITATIVE;
+export function isMapBalancingAuthoritative(target = {}) {
+    return state.authoritativeOverride ?? (MAP_BALANCING_AUTHORITATIVE || !!getAppliedMapBalancing(target));
 }
 
 /** Dev only: lets the F7 console and the MCP play a session with map values while the switch is off. */
@@ -122,9 +122,14 @@ function isFivePortalsRun(runtimeConfig) {
  */
 export function applyMapBalancingToRuntimeConfig(runtimeConfig, { force = false, clampBots = false } = {}) {
     if (!runtimeConfig || typeof runtimeConfig !== 'object') return runtimeConfig;
-    if (!force && !isMapBalancingAuthoritative()) return runtimeConfig;
     const session = runtimeConfig.session || {};
-    const { values } = resolveRuntimeMapBalancing({ modePath: session.modePath, mapKey: session.mapKey });
+    // Private PC approvals must never replace a network session's host settings.
+    if (!force && session.networkEnabled && state.authoritativeOverride === null && !MAP_BALANCING_AUTHORITATIVE) return runtimeConfig;
+    const target = { modePath: session.modePath, mapKey: session.mapKey };
+    if (!force && !isMapBalancingAuthoritative(target)) return runtimeConfig;
+    // A developer preview uses the current draft. Ordinary play uses the immutable approved snapshot.
+    const applied = !force && state.authoritativeOverride !== true ? getAppliedMapBalancing(target) : null;
+    const { values } = applied || resolveRuntimeMapBalancing(target);
     const next = { ...runtimeConfig, session: { ...session } };
     for (const [key, [section, field]] of Object.entries(RUNTIME_PATHS)) {
         if (!(key in values)) continue;

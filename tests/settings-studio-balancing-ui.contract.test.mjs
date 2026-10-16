@@ -34,10 +34,13 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 function createApi() {
     const calls = [];
     const files = { maze: { speed: 24 } };
-    const describe = ({ mapKey, layer }) => {
+    const applied = {};
+    const describe = ({ mapKey, modePath = 'fight', layer }) => {
         const values = layer ? layer.values : (files[mapKey] || {});
+        const active = applied[`${modePath}:${mapKey}`];
         return {
-            mapKey, modePath: 'fight', hasMapFile: !!files[mapKey], path: `data/balancing/maps/${mapKey}.json`,
+            mapKey, modePath, hasMapFile: !!files[mapKey], path: `data/balancing/maps/${mapKey}.json`,
+            appliedState: { enabled: !!active, matches: !!active && active.speed === (values.speed ?? 20) },
             fields: [{ key: 'speed', group: 'map', type: 'number', label: 'Tempo', help: '', min: 8, max: 40, step: 0.5, integer: false,
                 value: values.speed ?? 20, origin: 'speed' in values ? 'map' : 'mode', mapValue: values.speed ?? null, inherited: 20 }],
         };
@@ -54,15 +57,84 @@ function createApi() {
                 files[payload.mapKey] = { ...payload.layer.values };
                 return { ok: true, status, saved: { path: 'x.json', backupPath: '', removed: false, layer: payload.layer } };
             }
+            if (op === 'apply' || op === 'retract') {
+                applied[`${payload.modePath}:${payload.mapKey}`] = op === 'apply' ? { ...payload.expectedValues } : null;
+                return { ok: true, status, applied: { enabled: op === 'apply' } };
+            }
             return { ok: false, reason: 'unknown_op', status };
         },
     };
-    return { api, files };
+    return { api, files, applied };
 }
 
 const mapButton = (container, mapKey) => container.findAll((node) => node.tagName === 'BUTTON' && node.text.includes(mapKey))[0];
 const numberInput = (container) => container.findAll((node) => node.className === 'map-balancing__number')[0];
 const button = (container, label) => container.findAll((node) => node.tagName === 'BUTTON' && node.textContent === label)[0];
+
+test('a delayed description cannot replace the newly selected map before approval', async () => {
+    const { api } = createApi();
+    const original = api.mapBalancing;
+    let releaseOld;
+    api.mapBalancing = async (op, payload) => {
+        const response = await original(op, payload);
+        if (op === 'describe' && payload.mapKey === 'maze') {
+            await new Promise((resolve) => { releaseOld = resolve; });
+        }
+        return response;
+    };
+    const section = createStudioBalancingSection({ api });
+    const container = new FakeElement('div');
+    await section.mount(container);
+    mapButton(container, 'maze').dispatch('click');
+    await flush();
+    mapButton(container, 'standard').dispatch('click');
+    await flush();
+    releaseOld();
+    await flush();
+    assert.equal(container.querySelector('.map-balancing__title').textContent, 'Standard (standard)');
+    assert.equal(numberInput(container).value, '20');
+});
+
+test('applied values require a saved draft, survive new edits and can be withdrawn per map/mode', async () => {
+    const { api, applied } = createApi();
+    const section = createStudioBalancingSection({ api });
+    const container = new FakeElement('div');
+    await section.mount(container);
+    mapButton(container, 'maze').dispatch('click');
+    await flush();
+    numberInput(container).value = '26';
+    numberInput(container).dispatch('change');
+    await flush();
+    assert.equal(button(container, 'Für normales Spiel übernehmen').disabled, true);
+    button(container, 'Für normales Spiel übernehmen').dispatch('click');
+    await flush();
+    assert.equal(applied['fight:maze'], undefined);
+    button(container, 'Für Karte speichern').dispatch('click');
+    await flush();
+    button(container, 'Für normales Spiel übernehmen').dispatch('click');
+    await flush();
+    assert.deepEqual(applied['fight:maze'], { speed: 26 });
+    assert.match(container.text, /nächsten Spielstart/);
+    assert.equal(button(container, 'Für normales Spiel übernehmen').disabled, true);
+    numberInput(container).value = '30';
+    numberInput(container).dispatch('change');
+    await flush();
+    assert.equal(applied['fight:maze'].speed, 26);
+    button(container, 'Verwerfen').dispatch('click');
+    await flush();
+    const mode = container.querySelector('.map-balancing__mode');
+    mode.value = 'normal';
+    mode.dispatch('change');
+    await flush();
+    assert.equal(button(container, 'Übernahme zurücknehmen').disabled, true);
+    mode.value = 'fight';
+    mode.dispatch('change');
+    await flush();
+    button(container, 'Übernahme zurücknehmen').dispatch('click');
+    await flush();
+    assert.equal(applied['fight:maze'], null);
+    assert.equal(button(container, 'Für normales Spiel übernehmen').disabled, false);
+});
 
 test('B3 UI: drafts survive a map switch without any confirmation dialog', async () => {
     const { api, files } = createApi();

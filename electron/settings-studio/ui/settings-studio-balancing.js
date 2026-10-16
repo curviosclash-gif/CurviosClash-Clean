@@ -47,8 +47,11 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         description: null,
         message: '',
         errors: [],
+        busy: false,
+        loading: false,
     };
     let root = null;
+    let selectionGeneration = 0;
 
     async function call(op, payload = {}) {
         const response = await api.mapBalancing(op, { ...payload, op });
@@ -64,12 +67,15 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
 
     async function describe() {
         if (!state.mapKey) return;
+        const { mapKey, modePath, draftValues } = state;
         const response = await call('describe', {
-            mapKey: state.mapKey,
-            modePath: state.modePath,
-            layer: { values: state.draftValues },
+            mapKey,
+            modePath,
+            layer: { values: draftValues },
         });
-        if (response) state.description = response.description;
+        if (response && state.mapKey === mapKey && state.modePath === modePath && state.draftValues === draftValues) {
+            state.description = response.description;
+        }
         render();
     }
 
@@ -80,10 +86,15 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
     }
 
     async function selectMap(mapKey) {
+        if (state.busy) return;
+        const selection = ++selectionGeneration;
         rememberDraft();
         state.mapKey = mapKey;
+        state.description = null;
+        state.loading = true;
         state.errors = [];
         state.message = '';
+        render();
         const kept = drafts.get(mapKey);
         if (kept) {
             // The open map's draft lives in state; the list only holds the other maps.
@@ -91,9 +102,12 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
             state.savedValues = kept.savedValues;
             state.draftValues = kept.draftValues;
             await describe();
+            if (selection === selectionGeneration) { state.loading = false; render(); }
             return;
         }
         const response = await call('describe', { mapKey, modePath: state.modePath });
+        if (selection !== selectionGeneration) return;
+        state.loading = false;
         if (!response) { render(); return; }
         state.description = response.description;
         const fileValues = {};
@@ -104,12 +118,14 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
     }
 
     function setDraftValue(key, value) {
+        if (state.busy) return;
         state.draftValues = { ...state.draftValues, [key]: value };
         state.errors = [];
         void describe();
     }
 
     function resetDraftValue(key) {
+        if (state.busy) return;
         const next = { ...state.draftValues };
         delete next[key];
         state.draftValues = next;
@@ -143,6 +159,27 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         await describe();
     }
 
+    async function applyToGame(op) {
+        if (state.busy || isDirty() || state.description?.mapKey !== state.mapKey
+            || state.description?.modePath !== state.modePath) return;
+        state.busy = true;
+        const expectedValues = Object.fromEntries(state.description.fields
+            .filter((field) => field.group !== 'arcadeStage').map((field) => [field.key, field.value]));
+        render();
+        try {
+            const response = await call(op, { mapKey: state.mapKey, modePath: state.modePath, expectedValues });
+            if (response) state.message = op === 'apply'
+                ? 'Übernommen. Ab dem nächsten Spielstart gelten diese Kartenwerte in lokalen Spielen. Die Projektdatei ist für Commit und Push nach GitHub bereit.'
+                : 'Übernahme zurückgenommen. Ab dem nächsten Spielstart gelten wieder die Spieleinstellungen.';
+            await describe();
+        } catch (error) {
+            state.message = `Übernahme fehlgeschlagen: ${error.message}`;
+        } finally {
+            state.busy = false;
+            render();
+        }
+    }
+
     function renderToolbar() {
         const bar = el('div', 'map-balancing__bar');
         const search = el('input', 'map-balancing__search');
@@ -151,6 +188,7 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         search.value = state.filter;
         search.addEventListener('input', () => { state.filter = search.value; renderMapList(); });
         const mode = el('select', 'map-balancing__mode');
+        mode.disabled = state.busy || state.loading;
         for (const [value, label] of MODES) {
             const option = el('option', '', label);
             option.value = value;
@@ -178,6 +216,7 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
             .map((entry) => {
                 const button = el('button', `map-balancing__map${entry.mapKey === state.mapKey ? ' is-active' : ''}`);
                 button.type = 'button';
+                button.disabled = state.busy;
                 button.append(el('span', '', entry.name), el('small', '', entry.mapKey));
                 const unsaved = entry.mapKey === state.mapKey ? isDirty() : drafts.has(entry.mapKey);
                 if (unsaved) button.append(el('span', 'map-balancing__dot is-unsaved', '✎'));
@@ -196,12 +235,14 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         if (row.type === 'boolean') {
             const toggle = el('input');
             toggle.type = 'checkbox';
+            toggle.disabled = state.busy;
             toggle.checked = draftValue === true;
             toggle.addEventListener('change', () => setDraftValue(row.key, toggle.checked));
             return toggle;
         }
         const input = el('input', 'map-balancing__number');
         input.type = 'number';
+        input.disabled = state.busy;
         input.min = String(row.min);
         input.max = String(row.max);
         input.step = String(row.step);
@@ -221,7 +262,7 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         const origin = el('span', `map-balancing__origin origin-${row.origin || 'none'}`, ORIGIN_LABELS[row.origin] || '–');
         const reset = el('button', 'btn btn--ghost map-balancing__reset', '↺ geerbt');
         reset.type = 'button';
-        reset.disabled = !Object.hasOwn(state.draftValues, row.key);
+        reset.disabled = state.busy || !Object.hasOwn(state.draftValues, row.key);
         reset.title = `Zurück auf den geerbten Wert ${formatValue(row, row.inherited)}`;
         reset.addEventListener('click', () => resetDraftValue(row.key));
         const cells = [label, el('td'), el('td', 'map-balancing__range', range), el('td'), el('td', 'map-balancing__inherited', formatValue(row, row.inherited)), el('td')];
@@ -241,6 +282,11 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         }
         const mapEntry = state.maps.find((entry) => entry.mapKey === state.mapKey);
         detail.append(el('h3', 'map-balancing__title', `${mapEntry?.name || state.mapKey} (${state.mapKey})`));
+        const modeName = MODES.find(([id]) => id === state.modePath)?.[1] || state.modePath;
+        const applied = description.appliedState;
+        detail.append(el('p', 'map-balancing__hint', applied?.enabled
+            ? `Für ${modeName} übernommen.${applied.matches ? '' : ' Die aktuellen Änderungen sind noch nicht übernommen.'}`
+            : `Für ${modeName} noch nicht übernommen. Erst nach dem Test übernehmen; wirksam in lokalen Spielen ab dem nächsten Spielstart.`));
         detail.append(el('p', 'map-balancing__hint', description.hasMapFile
             ? `Datei: ${description.path}`
             : 'Noch keine Kartendatei: alle Werte sind geerbt.'));
@@ -263,12 +309,22 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         const saveButton = el('button', 'btn btn--primary', 'Für Karte speichern');
         const discardButton = el('button', 'btn btn--ghost', 'Verwerfen');
         for (const button of [validateButton, saveButton, discardButton]) button.type = 'button';
-        saveButton.disabled = !isDirty();
-        discardButton.disabled = !isDirty();
+        saveButton.disabled = state.busy || !isDirty();
+        discardButton.disabled = state.busy || !isDirty();
+        validateButton.disabled = state.busy;
         validateButton.addEventListener('click', () => void validate());
         saveButton.addEventListener('click', () => void save());
         discardButton.addEventListener('click', () => { state.draftValues = { ...state.savedValues }; state.errors = []; void describe(); });
         actions.append(validateButton, saveButton, discardButton);
+        const applyButton = el('button', 'btn btn--primary', 'Für normales Spiel übernehmen');
+        const retractButton = el('button', 'btn btn--ghost', 'Übernahme zurücknehmen');
+        applyButton.type = retractButton.type = 'button';
+        const ready = description.mapKey === state.mapKey && description.modePath === state.modePath;
+        applyButton.disabled = state.busy || isDirty() || !ready || applied?.matches === true;
+        retractButton.disabled = state.busy || isDirty() || !ready || applied?.enabled !== true;
+        applyButton.addEventListener('click', () => void applyToGame('apply'));
+        retractButton.addEventListener('click', () => void applyToGame('retract'));
+        actions.append(applyButton, retractButton);
         if (isDirty()) actions.append(el('span', 'map-balancing__dirty', 'ungespeichert'));
         detail.append(actions);
         if (state.errors.length > 0) {
@@ -293,7 +349,7 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
     }
 
     return {
-        isDirty: () => isDirty() || drafts.size > 0,
+        isDirty: () => isDirty() || drafts.size > 0 || state.busy,
         /** Called whenever the section becomes visible; the first call loads the map list. */
         async mount(container) {
             root ||= el('div', 'map-balancing');
