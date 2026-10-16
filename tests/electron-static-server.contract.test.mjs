@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { createRequire } from 'node:module';
+import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 
 const require = createRequire(import.meta.url);
 const { isPortUnavailable, startStaticServer } = require('../electron/static-server.cjs');
@@ -87,7 +88,7 @@ test('desktop static server hashes only the exact inline script text for each HT
         const hangarHtml = '<!doctype html><script>window.hangarReady = true;</script>';
         const emptyHtml = '<!doctype html><script src="/external.js"></script>';
         const pages = [['/', indexHtml, true], ['/hangar.html', hangarHtml, true],
-            ['/editor/map-editor-3d.html', emptyHtml, true], ['/prototypes/vehicle-lab/index.html', emptyHtml, true],
+            [EDITOR_VIEW_PATHS.MAP_EDITOR, emptyHtml, true], [EDITOR_VIEW_PATHS.VEHICLE_LAB, emptyHtml, true],
             ['/empty.html', emptyHtml, false], ['/editor/help.html', emptyHtml, false]];
         await Promise.all([
             mkdir(path.join(rootDir, 'editor'), { recursive: true }),
