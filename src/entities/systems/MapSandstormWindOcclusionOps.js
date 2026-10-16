@@ -16,7 +16,7 @@ export function createSandstormWindOcclusionScratch() {
 /**
  * Estimate how much wind reaches a position by checking three parallel paths from upwind.
  * Wind direction points in the direction the wind travels. The upwind origins are therefore
- * placed along the wind direction and rays travel back toward the player.
+ * placed against the wind direction and rays travel with the wind toward the player.
  *
  * Arena.raycast skips tunnel obstacle AABBs because those boxes enclose hollow space. Keep that
  * behavior here: a tunnel must not become a false solid wind barrier until it has exact ray tests.
@@ -46,15 +46,15 @@ export function resolveSandstormWindExposure(arena, position, windDirectionXZ, s
 
     const { origin, direction, crosswind } = scratch;
     crosswind.set(-windZ, 0, windX);
-    direction.set(-windX, 0, windZ === 0 ? 0 : -windZ);
+    direction.set(windX, 0, windZ);
 
     let clearProbes = 0;
     for (let probe = -1; probe <= 1; probe += 1) {
         const lateral = probe * crosswindOffset;
         origin.set(
-            position.x + windX * maxDistance + crosswind.x * lateral,
+            position.x - windX * maxDistance + crosswind.x * lateral,
             position.y,
-            position.z + windZ * maxDistance + crosswind.z * lateral,
+            position.z - windZ * maxDistance + crosswind.z * lateral,
         );
         // ArenaCollision reuses its ray result object, so consume the hit bit before raycasting
         // the next lateral probe mutates that same object.

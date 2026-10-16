@@ -34,15 +34,15 @@ test('one blocked lateral path leaves two thirds exposure', () => {
     assert.equal(resolveSandstormWindExposure(arena, position, wind, createSandstormWindOcclusionScratch()), 2 / 3);
 });
 
-test('clear paths give full exposure and probe from upwind toward the player', () => {
+test('clear paths give full exposure and probe from upwind with the wind toward the player', () => {
     const arena = fakeArena();
     assert.equal(resolveSandstormWindExposure(arena, position, wind, createSandstormWindOcclusionScratch()), 1);
     assert.deepEqual(arena.calls.map((call) => call.origin), [
-        [26, 4, -4.25],
-        [26, 4, -3],
-        [26, 4, -1.75],
+        [-6, 4, -4.25],
+        [-6, 4, -3],
+        [-6, 4, -1.75],
     ]);
-    assert.deepEqual(arena.calls[0].direction, [-1, 0, 0]);
+    assert.deepEqual(arena.calls[0].direction, [1, 0, 0]);
     assert.equal(arena.calls[0].maxDistance, 16);
 });
 
@@ -76,9 +76,9 @@ test('probe distance and lateral spacing can be tuned', () => {
         crosswindOffset: 2,
     });
     assert.deepEqual(arena.calls.map((call) => call.origin), [
-        [18, 4, -5],
-        [18, 4, -3],
-        [18, 4, -1],
+        [2, 4, -5],
+        [2, 4, -3],
+        [2, 4, -1],
     ]);
     assert.equal(arena.calls[0].maxDistance, 8);
 });

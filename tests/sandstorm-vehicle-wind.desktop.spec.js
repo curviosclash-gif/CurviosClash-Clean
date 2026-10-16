@@ -119,7 +119,27 @@ test('sandstorm drift is felt in open air and blocked by the canyon walls @rende
         // authored east shelter scaled with the arena's geometry.
         const openAir = measure({ x: 500 * mapScale, y: 100 * mapScale, z: 500 * mapScale }, 90);
         const sheltered = measure({ x: 60.5 * mapScale, y: 6 * mapScale, z: 35 * mapScale }, 12);
-        return { mapKey: game.arena.currentMapKey, storm, openAir, sheltered };
+        const system = manager._mapSandstormSystem;
+        const previousDirectionIndex = system.state.directionIndex;
+        // Clockwork Canyon's free-standing rock pillar is centered at map x=-40, z=18,
+        // with a 5x16 footprint. Force eastward wind to test both sides well inside the arena.
+        system.state.directionIndex = 1;
+        const exposureAt = (x) => {
+            const position = player.position.clone().set(x * mapScale, 10 * mapScale, 18 * mapScale);
+            return system.getVehicleWindState(position, {
+                directionX: 0,
+                directionZ: 0,
+                intensity: 0,
+                exposure: 0,
+                windOcclusionSampleValid: false,
+            }).exposure;
+        };
+        const canyonWall = {
+            upwind: exposureAt(-43),
+            lee: exposureAt(-36),
+        };
+        system.state.directionIndex = previousDirectionIndex;
+        return { mapKey: game.arena.currentMapKey, storm, openAir, sheltered, canyonWall };
     }, { directions: MAP_SANDSTORM_DIRECTIONS, mapScale: MAP_SCALE });
 
     expect(result.mapKey).toBe(MAP_KEY);
@@ -128,5 +148,7 @@ test('sandstorm drift is felt in open air and blocked by the canyon walls @rende
     expect(result.openAir.alongWind).toBeGreaterThan(0.3);
     expect(result.sheltered.visualIntensity).toBe(0);
     expect(Math.abs(result.sheltered.alongWind)).toBeLessThan(0.1);
+    expect(result.canyonWall.upwind).toBe(1);
+    expect(result.canyonWall.lee).toBe(0);
     expect(errors).toEqual([]);
 });
