@@ -123,11 +123,13 @@ export const ARCADE_SECTOR_CATALOG = Object.freeze([
             'chrono_spillway',
             'aether_relay',
             'neon_carnival',
+            'skyscraper_site',
         ],
     }),
 ]);
 
 import { createSeededRandom } from '../../shared/utils/ArcadeUtils.js';
+import { ARCADE_DAILY_PARCOURS_MAP_POOL } from '../../shared/contracts/ArcadeDailyRulesContract.js';
 import { resolveArcadeTierAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { applyArcadeScenarioToSectorEntry, resolveArcadeScenarioForSector } from './ArcadeScenarioCatalog.js';
 
@@ -290,7 +292,8 @@ export function buildArcadeSectorPlan(options = {}) {
         const isParcours = !isBoss && sectorNumber % PARCOURS_SECTOR_INTERVAL === 0;
 
         if (isParcours && parcoursTemplate) {
-            const mapKey = pickFromPool(parcoursTemplate.mapPool, randomFn);
+            const mapKey = pickFromPool(options.dailyChallenge === true
+                ? ARCADE_DAILY_PARCOURS_MAP_POOL : parcoursTemplate.mapPool, randomFn);
             const rewardChoices = pickDistinctFromPool(parcoursTemplate.rewardPool, 2, randomFn);
             const scenarioRandomFn = options.dailyChallenge === true
                 ? null
@@ -374,6 +377,7 @@ export function buildArcadeSectorPlan(options = {}) {
         seed: String(options.seed ?? 'arcade-default'),
         difficulty: String(options.difficulty ?? 'normal'),
         sectorCount,
+        ...(options.dailyChallenge === true ? { dailyChallenge: true } : {}),
         sequence,
     };
 }

@@ -179,6 +179,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'rift_bazaar',
         'sky_islands',
         'skyline_siege',
+        'skyscraper_site',
         'spiral_tower',
         'standard',
         'storm_bridge_siege',

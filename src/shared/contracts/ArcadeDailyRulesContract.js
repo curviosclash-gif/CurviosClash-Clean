@@ -3,6 +3,12 @@ import { createDefaultArcadeRunSettings } from './ArcadeRunSettingsContract.js';
 
 export const ARCADE_DAILY_RULES_VERSION = 'arcade-daily.v1';
 export const ARCADE_DAILY_VEHICLE_ID = 'ship5';
+// Versioned daily routes keep their seed choices when the free Arcade catalogue grows.
+export const ARCADE_DAILY_PARCOURS_MAP_POOL = Object.freeze([
+    'parcours_rift', 'parcours_rift_sprint', 'parcours_rift_precision', 'micro_maw',
+    'mirror_docks', 'glass_serpent', 'storm_switchyard', 'wind_cathedral',
+    'chrono_spillway', 'aether_relay', 'neon_carnival',
+]);
 
 // A runtime projection: never write these overrides back to personal settings.
 export function resolveArcadeDailySettings(settings, date = null) {

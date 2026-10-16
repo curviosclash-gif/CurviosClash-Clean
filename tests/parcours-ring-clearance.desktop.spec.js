@@ -8,7 +8,7 @@
 // in the session (aetherion_orrery's single-player scenario, for one, starts a fight match).
 
 import { expect, test } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { openGameSubmenu, waitForLoadedGame } from './helpers.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { resolveGLBColliderMode } from '../src/entities/mapSchema/MapSchemaGlbOps.js';
@@ -35,9 +35,7 @@ function glbColliderParcoursMaps() {
 
 async function startMap(page, mapKey) {
     await waitForLoadedGame(page);
-    await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
-    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    await openGameSubmenu(page);
     const hasMapOption = await page.locator(`#map-select option[value="${mapKey}"]`).count() > 0;
     if (hasMapOption) {
         await page.selectOption('#map-select', mapKey);

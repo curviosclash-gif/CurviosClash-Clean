@@ -89,6 +89,7 @@ const RAW_META = {
     wind_cathedral: entry('parcours', 3, RACE, ['parcours'], 'Windkathedrale: 120 Einheiten hoher Parcours mit 11 Checkpoints.'),
     chrono_spillway: entry('parcours', 4, RACE, ['parcours'], 'Chrono-Abfluss: langer Parcours mit 13 Checkpoints und drei Toren.'),
     aether_relay: entry('parcours', 2, RACE, ['parcours'], 'Aether-Relay: Parcours mit 11 Checkpoints und 19 Modellen, ohne Portale.'),
+    skyscraper_site: entry('parcours', 4, RACE, ['parcours'], 'Wolkenkratzer-Baustelle: 18 Kontrollpunkte und ein Dachziel zwischen Gerüsten, Kränen und Bauaufzug.'),
     neon_carnival: entry('parcours', 4, RACE, ['parcours', 'huge'], 'Neon-Jahrmarkt: 480 Einheiten breit, 13 Checkpoints zwischen zehn bewegten Fahrgeschäften.'),
     sky_ladder_abyss: entry('parcours', 4, RACE, ['parcours'], 'Himmelsleiter I: Parcours mit 14 Checkpoints, verbunden durch eine Portalkette.'),
     sky_ladder_foundry: entry('parcours', 4, RACE, ['parcours'], 'Himmelsleiter II: 220 Einheiten hoher Schacht mit 15 Checkpoints.'),

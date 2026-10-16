@@ -15,6 +15,7 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     reactor_site: 'generate_reactor_site_assets.py',
     orbital_shipyard: 'generate_orbital_shipyard_assets.py',
     cloud_harbor: 'generate_cloud_harbor_assets.py',
+    skyscraper_site: 'generate_skyscraper_site_assets.py',
     giant_forest: 'generate_giant_forest_assets.py',
     hydra_temple: 'generate_hydra_temple_assets.py',
     toybox_titan: 'generate_toybox_titan_assets.py',

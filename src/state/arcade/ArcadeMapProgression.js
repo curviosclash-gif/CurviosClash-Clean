@@ -20,10 +20,12 @@ export const SECTOR_MAP_POOLS = Object.freeze({
         'chrono_spillway',
         'aether_relay',
         'neon_carnival',
+        'skyscraper_site',
     ]),
 });
 
 import { createSeededRandom } from '../../shared/utils/ArcadeUtils.js';
+import { ARCADE_DAILY_PARCOURS_MAP_POOL } from '../../shared/contracts/ArcadeDailyRulesContract.js';
 import { resolveMapDifficultyStage } from '../../shared/contracts/MapPickerMetaContract.js';
 import { getMapPickerMeta } from '../../shared/maps/MapPickerMeta.js';
 
@@ -89,7 +91,9 @@ export function resolveMapSequence(sectorPlan, seed, mapCatalog) {
     for (let i = 0; i < sectorPlan.sequence.length; i += 1) {
         const entry = sectorPlan.sequence[i];
         const templateId = String(entry?.templateId || 'sector_intro');
-        const pool = SECTOR_MAP_POOLS[templateId] || SECTOR_MAP_POOLS.sector_intro;
+        const pool = sectorPlan.dailyChallenge === true && templateId === 'sector_parcours'
+            ? ARCADE_DAILY_PARCOURS_MAP_POOL
+            : SECTOR_MAP_POOLS[templateId] || SECTOR_MAP_POOLS.sector_intro;
 
         const lockedMapKey = resolveLockedMapKey(entry, mapCatalog);
         const isParcours = templateId === 'sector_parcours';

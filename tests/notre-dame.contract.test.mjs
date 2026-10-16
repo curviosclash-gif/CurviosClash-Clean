@@ -185,6 +185,7 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'reactor_site',
         'sky_islands',
         'skyline_siege',
+        'skyscraper_site',
         'spiral_tower',
         'standard',
         'storm_bridge_siege',

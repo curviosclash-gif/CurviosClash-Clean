@@ -20,6 +20,7 @@ GENERATORS = {
     'reactor_site': 'generate_reactor_site_assets',
     'orbital_shipyard': 'generate_orbital_shipyard_assets',
     'cloud_harbor': 'generate_cloud_harbor_assets',
+    'skyscraper_site': 'generate_skyscraper_site_assets',
     'giant_forest': 'generate_giant_forest_assets',
     'hydra_temple': 'generate_hydra_temple_assets',
     'toybox_titan': 'generate_toybox_titan_assets',

@@ -443,6 +443,14 @@
       "referenceFps": 49.4,
       "belowTargetFps": false
     },
+    "skyscraper_site": {
+      "maxCalls": 139,
+      "maxTriangles": 45360,
+      "pointLights": 1,
+      "shadowCasters": 25,
+      "referenceFps": 29.9,
+      "belowTargetFps": true
+    },
     "spiral_tower": {
       "maxCalls": 75,
       "maxTriangles": 20962,
