@@ -7,8 +7,12 @@ import { _electron as electron, expect, test } from '@playwright/test';
 const requireElectron = createRequire(new URL('../electron/package.json', import.meta.url));
 const electronExecutablePath = requireElectron('electron');
 
-test('Settings Studio saves independent pitch and yaw controls', async () => {
-    const profilePath = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-pitch-studio-'));
+test('Settings Studio saves independent pitch and yaw controls', async ({}, testInfo) => {
+    const profilePath = path.join(
+        testInfo.project.outputDir,
+        'profiles',
+        `${testInfo.testId.slice(-12)}-${testInfo.retry}`
+    );
     const appDataPath = path.join(profilePath, 'AppData', 'Roaming');
     const localAppDataPath = path.join(profilePath, 'AppData', 'Local');
     await Promise.all([fs.mkdir(appDataPath, { recursive: true }), fs.mkdir(localAppDataPath, { recursive: true })]);
@@ -43,7 +47,7 @@ test('Settings Studio saves independent pitch and yaw controls', async () => {
         await expect(yaw).toHaveValue('3');
         await expect(pitch).toHaveValue('4.5');
         await pitch.scrollIntoViewIfNeeded();
-        await window.screenshot({ path: path.join(profilePath, 'pitch-yaw-settings.png') });
+        await window.screenshot({ path: testInfo.outputPath('pitch-yaw-settings.png') });
         console.log(`Pitch/yaw desktop evidence: ${profilePath}`);
     } finally {
         await window.evaluate(() => window.settingsStudioApi?.setDirtyState?.(false)).catch(() => {});

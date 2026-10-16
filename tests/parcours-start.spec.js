@@ -1,27 +1,8 @@
 import { test, expect } from './helpers.desktop.js';
-import { loadGame, openCustomSubmenu } from './helpers.js';
+import { startArcadeParcours } from './support/arcade-parcours-start.js';
 
 test('T60e: sichtbarer Parcours-Start-Ring triggert den ersten Checkpoint', async ({ page }) => {
-    await loadGame(page);
-    await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
-    await page.waitForFunction(() => String(window.GAME_INSTANCE?.settings?.localSettings?.modePath || '') === 'arcade', null, { timeout: 5000 });
-    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    await page.selectOption('#map-select', 'parcours_rift');
-    await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.mapKey === 'parcours_rift', null, { timeout: 5000 });
-    await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        if (!game?.settings) return;
-        game.settings.numBots = 0;
-        const botSlider = document.getElementById('bot-count');
-        if (botSlider) botSlider.value = '0';
-        game.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['bots.count'] });
-    });
-    await page.click('#btn-start');
-    await page.waitForFunction(() => {
-        const hud = document.getElementById('hud');
-        return !!(hud && !hud.classList.contains('hidden'));
-    }, null, { timeout: 20000 });
+    await startArcadeParcours(page, 'parcours_rift');
 
     const probe = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
@@ -68,10 +49,6 @@ test('T60e: sichtbarer Parcours-Start-Ring triggert den ersten Checkpoint', asyn
         const afterVisible = system.getPlayerProgressSnapshot(player.index);
 
         system.onPlayerSpawn(player, { reason: 'round_start' });
-        const state = system._playerStates?.get?.(player.index);
-        if (state) {
-            state.insideCheckpointById?.clear?.();
-        }
 
         const routeHit = routePos ? triggerAt(routePos, cp01?.forward, 2000) : null;
         const afterRoute = system.getPlayerProgressSnapshot(player.index);

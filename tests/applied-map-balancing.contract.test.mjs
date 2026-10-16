@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -16,6 +16,7 @@ const { AppliedMapBalancingService, readAppliedMapBalancingSnapshotSync } = requ
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const modes = JSON.parse(readFileSync(path.join(ROOT, 'data/balancing/modes.json'), 'utf8'));
 const target = { mapKey: 'maze', modePath: 'fight' };
+const fixtures = new Set();
 const makeEntry = (overrides = {}, identity = target) => ({
     ...identity, enabled: true,
     values: Object.fromEntries(APPLIED_MAP_BALANCING_FIELDS.map(({ key }) => [key, overrides[key] ?? modes.modes[identity.modePath].values[key]])),
@@ -25,6 +26,7 @@ const json = (file) => JSON.parse(readFileSync(file, 'utf8'));
 
 function fixture() {
     const root = mkdtempSync(path.join(tmpdir(), 'curvios-applied-balancing-'));
+    fixtures.add(root);
     mkdirSync(path.join(root, 'data/balancing'), { recursive: true });
     copyFileSync(path.join(ROOT, 'data/balancing/modes.json'), path.join(root, 'data/balancing/modes.json'));
     const app = { getPath: () => path.join(root, 'userdata') };
@@ -33,6 +35,9 @@ function fixture() {
     return { root, app, drafts, service };
 }
 
+test.after(() => {
+    for (const root of fixtures) rmSync(root, { recursive: true, force: true });
+});
 test.afterEach(() => { setLocalAppliedMapBalancing(null); resetMapBalancingRuntimeState(); });
 
 test('applied documents reject invalid, incomplete, duplicate and unsupported values without partially applying them', () => {

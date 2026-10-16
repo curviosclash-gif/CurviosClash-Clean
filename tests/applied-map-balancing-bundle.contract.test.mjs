@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +8,11 @@ import { createServer } from 'vite';
 import { APPLIED_MAP_BALANCING_FIELDS, validateAppliedMapBalancingDocument } from '../src/shared/contracts/AppliedMapBalancingContract.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const fixtures = new Set();
+
+test.after(() => {
+    for (const fixture of fixtures) rmSync(fixture, { recursive: true, force: true });
+});
 
 test('every versioned approval has a valid complete snapshot and a unique map/mode', () => {
     const folder = path.join(ROOT, 'data/balancing/applied');
@@ -18,6 +23,7 @@ test('every versioned approval has a valid complete snapshot and a unique map/mo
 
 test('a later Vite game build reads versioned approvals, and a local withdrawal overrides the shipped approval', async () => {
     const fixture = mkdtempSync(path.join(tmpdir(), 'curvios-applied-build-'));
+    fixtures.add(fixture);
     mkdirSync(path.join(fixture, 'src/shared/maps'), { recursive: true });
     mkdirSync(path.join(fixture, 'data/balancing/applied'), { recursive: true });
     symlinkSync(path.join(ROOT, 'src/shared/contracts'), path.join(fixture, 'src/shared/contracts'), 'junction');

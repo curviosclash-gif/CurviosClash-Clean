@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.desktop.js';
-import { loadGame, openCustomSubmenu } from './helpers.js';
+import { startArcadeParcours } from './support/arcade-parcours-start.js';
 
 const V130_START_SMOKE_MAPS = [
     { mapKey: 'micro_maw', routeId: 'micro_maw_v1' },
@@ -7,32 +7,7 @@ const V130_START_SMOKE_MAPS = [
     { mapKey: 'chrono_spillway', routeId: 'chrono_spillway_v1' },
 ];
 
-async function startArcadeMap(page, mapKey) {
-    await loadGame(page);
-    await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
-    await page.waitForFunction(() => (
-        String(window.GAME_INSTANCE?.settings?.localSettings?.modePath || '') === 'arcade'
-    ), null, { timeout: 5000 });
-    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    await page.selectOption('#map-select', mapKey);
-    await page.waitForFunction((expectedMapKey) => (
-        window.GAME_INSTANCE?.settings?.mapKey === expectedMapKey
-    ), mapKey, { timeout: 5000 });
-    await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        if (!game?.settings) return;
-        game.settings.numBots = 0;
-        const botSlider = document.getElementById('bot-count');
-        if (botSlider) botSlider.value = '0';
-        game.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['bots.count'] });
-    });
-    await page.click('#btn-start');
-    await page.waitForFunction(() => {
-        const hud = document.getElementById('hud');
-        return !!(hud && !hud.classList.contains('hidden'));
-    }, null, { timeout: 20000 });
-}
+const startArcadeMap = startArcadeParcours;
 
 async function completeAuthoredRoute(page) {
     return page.evaluate(() => {

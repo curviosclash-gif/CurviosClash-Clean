@@ -1939,7 +1939,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         await loadGame(page);
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
-        await page.waitForSelector('#submenu-game:not(.hidden)');
+        await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.localSettings?.modePath === 'arcade');
         await page.evaluate(async () => {
             const game = window.GAME_INSTANCE;
             game.settings.vehicles.PLAYER_1 = 'ship5';

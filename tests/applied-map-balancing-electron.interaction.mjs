@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { _electron as electron, expect, test } from '@playwright/test';
@@ -15,7 +14,12 @@ const closeIsolatedApp = async (app) => {
 
 test('tested map values can be approved, used by an ordinary game start, and withdrawn', async ({}, testInfo) => {
     test.setTimeout(180_000);
-    const fixture = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-applied-desktop-'));
+    const fixture = path.join(
+        testInfo.project.outputDir,
+        'profiles',
+        `${testInfo.testId.slice(-12)}-${testInfo.retry}`
+    );
+    await fs.mkdir(fixture, { recursive: true });
     const project = path.join(fixture, 'project');
     const dataRoot = path.join(fixture, 'profiles');
     await fs.mkdir(path.join(project, 'data/balancing'), { recursive: true });
