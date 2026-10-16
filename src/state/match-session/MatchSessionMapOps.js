@@ -4,7 +4,11 @@ import {
 } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { resolveArenaMapSelection } from '../../entities/CustomMapLoader.js';
 import { createArenaMapFingerprint } from '../../entities/arena/ArenaBuildResourceCache.js';
-import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
+import {
+    DEFAULT_PORTAL_CHAIN_ID,
+    isFivePortalsConfig,
+    normalizePortalChainId,
+} from '../../shared/contracts/PortalChainContract.js';
 import { resolveBreakSceneLoadKey } from '../../entities/arena/MapBreakSceneLoadPolicy.js';
 
 export function toSafeInt(value, fallback) {
@@ -31,6 +35,9 @@ export function buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnable
     const gameplay = runtimeConfig?.gameplay || {};
     const arenaSourceMap = resolveArenaSourceMap(mapResolution, effectiveMapKey);
     const mapFingerprint = createArenaMapFingerprint(arenaSourceMap);
+    const portalChainId = isFivePortalsConfig(runtimeConfig)
+        ? normalizePortalChainId(runtimeConfig?.arcade?.portalChainId)
+        : '';
     return [
         String(effectiveMapKey || 'standard'),
         mapFingerprint,
@@ -38,7 +45,9 @@ export function buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnable
         gameplay.planarMode ? '1' : '0',
         Math.max(0, Math.round(Number(gameplay.portalCount) || 0)),
         Math.max(0, Math.round(Number(gameplay.planarLevelCount) || 0)),
-        isFivePortalsConfig(runtimeConfig) ? 'five_portals' : '',
+        portalChainId
+            ? (portalChainId === DEFAULT_PORTAL_CHAIN_ID ? 'five_portals' : `five_portals:${portalChainId}`)
+            : '',
         String(graphicsStyle || 'modern'),
         resolveBreakSceneLoadKey(arenaSourceMap, runtimeConfig),
     ].join('|');

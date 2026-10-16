@@ -9,7 +9,7 @@ import { MapFireFxController } from './MapFireFxController.js';
 import { MapHazardVisualController } from './MapHazardVisualController.js';
 import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
 import { resolveMapExclusionZone } from '../../shared/contracts/ExclusionZoneContract.js';
-import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
+import { DEFAULT_PORTAL_CHAIN_ID, isFivePortalsConfig, normalizePortalChainId } from '../../shared/contracts/PortalChainContract.js';
 import { resolveGLBColliderMode } from '../mapSchema/MapSchemaGlbOps.js';
 import { ArenaExpansionController } from './ArenaExpansionController.js';
 import { resolveArenaPlayableVolumes } from './ArenaPlayableVolumes.js';
@@ -40,6 +40,9 @@ export class ArenaBuilder {
         const size = this._resolveScaledMapSize(mapResolution.map, mapResolution.fallbackMap, scale);
         this.arena.openFaces = resolveMapExclusionZone(mapResolution.map).openFaces;
         const graphicsStyle = normalizeGraphicsStyle(this.arena.renderer?.getGraphicsStyle?.());
+        const portalChainId = isFivePortalsConfig(this.arena.runtimeConfig)
+            ? normalizePortalChainId(this.arena.runtimeConfig?.arcade?.portalChainId)
+            : '';
         // Passed on every build, including the maps that state no profile: the renderer holds the
         // last one it was given, so leaving it out would carry the previous map's lighting over.
         // Only the maps that scale their authored anchors state their fog heights in that space too.
@@ -77,7 +80,11 @@ export class ArenaBuilder {
             portalCount: config.GAMEPLAY.PORTAL_COUNT,
             planarLevelCount: config.GAMEPLAY.PLANAR_LEVEL_COUNT,
             graphicsStyle,
-            runVariant: isFivePortalsConfig(this.arena.runtimeConfig) ? 'five_portals' : '',
+            // Keep the original default-chain signature stable; other chains need distinct
+            // geometry reuse signatures because a map may author chain-specific checkpoint rings.
+            runVariant: portalChainId
+                ? (portalChainId === DEFAULT_PORTAL_CHAIN_ID ? 'five_portals' : `five_portals:${portalChainId}`)
+                : '',
             breakSceneLoad: resolveBreakSceneLoadKey(mapResolution.map, this.arena.runtimeConfig),
         });
         // Collapse scenes this session's mode can never trigger stay unloaded (reactor clouds, tower falls).

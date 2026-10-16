@@ -175,6 +175,11 @@ export const NEON_CIRCUIT_MAP = {
                 winnerByParcoursComplete: true,
                 animateCheckpoints: true,
             },
+            // K19 clears the north tunnel and the south portal/chicane above their obstacles.
+            // Ordinary runs and the original Five Portals chain retain their authored course.
+            checkpointPositionOverridesByPortalChain: {
+                portal_chain_k19: { CP03: [15, 42.5, -50], CP07: [0, 35, 50] },
+            },
             checkpoints: [
                 { id: 'CP01', type: 'entry',     pos: [-80, 14, -6],    radius: 6.5, forward: [0, 0, -1] },
                 { id: 'CP02', type: 'gate',      pos: [-50, 12, -50],   radius: 5.5, forward: [1, 0, 0] },
@@ -189,5 +194,6 @@ export const NEON_CIRCUIT_MAP = {
             ],
             finish: { id: 'FINISH', type: 'finish', pos: [-70, 14, -35], radius: 7.0, forward: [0, 0, -1] },
         },
+        fivePortalsExit: { pos: [-72, 14, -45], color: 0xffcc44 },
     },
 };

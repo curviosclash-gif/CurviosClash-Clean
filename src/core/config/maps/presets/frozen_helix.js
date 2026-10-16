@@ -167,7 +167,8 @@ export const FROZEN_HELIX_MAP = {
                 params: { duration: 1.2, forwardImpulse: 50, bonusSpeed: 62, cooldown: 0.8 },
             },
         ],
-        playerSpawn: { x: -8, y: 96, z: 38 },
+        // Platform top 95 plus the 1-authored-unit spawn sphere and a 0.5-unit gap.
+        playerSpawn: { x: -8, y: 96.5, z: 38 },
         botSpawns: [
             { x: 8, y: 96, z: 38 },
             { x: -8, y: 96, z: 28 },
@@ -194,6 +195,10 @@ export const FROZEN_HELIX_MAP = {
         parcours: {
             enabled: true,
             routeId: 'frozen_helix_v1',
+            // The chain's crossing ring sits above the tube lip and its platform.
+            checkpointPositionOverridesByPortalChain: {
+                portal_chain_k19: { CP03: [-35, 80, 0], CP04: [-20, 75, 30] },
+            },
             rules: {
                 ordered: true,
                 resetOnDeath: true,
@@ -221,5 +226,6 @@ export const FROZEN_HELIX_MAP = {
             ],
             finish: { id: 'FINISH', type: 'finish', pos: [35, 8, 10], radius: 7.0, forward: [0, 0, -1] },
         },
+        fivePortalsExit: { pos: [35, 8, 0], color: 0xffcc44 },
     },
 };

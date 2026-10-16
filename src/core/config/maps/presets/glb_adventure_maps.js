@@ -264,5 +264,6 @@ export const GLB_ADVENTURE_MAPS = Object.freeze({
             ]),
             finish: Object.freeze({ id: 'FINISH', type: 'finish', pos: [-36, 12, 25], radius: 6.8, forward: [-0.9, -0.1, -0.4] }),
         }),
+        fivePortalsExit: Object.freeze({ pos: [-44, 19, 22], color: 0xffcc44 }),
     }),
 });

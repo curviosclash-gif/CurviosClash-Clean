@@ -1,6 +1,6 @@
 import { isParcoursActiveForGameMode } from '../../shared/contracts/MapModeContract.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
-import { buildRouteFromParcours } from './ParcoursProgressUtils.js';
+import { buildRouteFromParcours, resolveParcoursForPortalChain } from './ParcoursProgressUtils.js';
 
 /**
  * The route is authored on the map, but only the modes built around it run it: the tutorial
@@ -12,7 +12,7 @@ export function resolveActiveParcoursRoute(entityManager) {
     if (!isParcoursActiveForGameMode(mapDefinition, entityManager?.activeGameMode)) return null;
 
     const mapScale = Number(resolveEntityRuntimeConfig(entityManager)?.ARENA?.MAP_SCALE);
-    return buildRouteFromParcours(mapDefinition.parcours, {
+    return buildRouteFromParcours(resolveParcoursForPortalChain(mapDefinition, entityManager?.runtimeConfig), {
         positionScale: Number.isFinite(mapScale) && mapScale > 0 ? mapScale : 1,
     });
 }

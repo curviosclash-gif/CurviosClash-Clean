@@ -84,7 +84,7 @@ export function buildArcadeSurface(level3Body, ui) {
     dailyCard.classList.add('arcade-daily-start-card');
     startGroup.appendChild(dailyCard);
     const alternateModes = createElement('details', 'arcade-start-mode-options');
-    const alternateModesSummary = createElement('summary', 'arcade-start-mode-options-summary', 'Weitere Arcade-Modi (6)');
+    const alternateModesSummary = createElement('summary', 'arcade-start-mode-options-summary', 'Weitere Arcade-Modi (7)');
     alternateModes.appendChild(alternateModesSummary);
     const alternateModesBody = createElement('div', 'arcade-start-mode-options-body');
     const startEndlessButton = createStartOption(alternateModesBody, 'btn-arcade-endless-start-inline', 'Endlosjagd starten',
@@ -95,6 +95,8 @@ export function buildArcadeSurface(level3Body, ui) {
         'Fünf Parcours-Karten auf Zeit; das Ausgangsportal bringt dich jeweils zur nächsten.');
     const startSkyLadderButton = createStartOption(alternateModesBody, 'btn-arcade-sky-ladder-start-inline', 'Himmelsleiter',
         'Vier Stufen vom Meeresgrund zu den Sternen – durchs Portal geht es eine Etage höher.');
+    const startK19PortalChainButton = createStartOption(alternateModesBody, 'btn-arcade-k19-portal-chain-start-inline', 'K19: Portalreise',
+        'Aether-Relay → Neon Circuit → Frozen Helix → Sky Islands → Chrono-Abfluss.');
     const startWeaponRaceButton = createStartOption(alternateModesBody, 'btn-arcade-weapon-race-start-inline', 'Waffenrennen',
         'Fünf Fahrer jagen durch den Angriffsparcours und wechseln ihre Waffe an festen Checkpoints.');
     const startDemolitionButton = createStartOption(alternateModesBody, 'btn-arcade-demolition-start-inline', 'Abrisskommando',
@@ -227,6 +229,7 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeFiveFrontsStartInlineButton = startFiveFrontsButton;
     ui.arcadeFivePortalsStartInlineButton = startFivePortalsButton;
     ui.arcadeSkyLadderStartInlineButton = startSkyLadderButton;
+    ui.arcadeK19PortalChainStartInlineButton = startK19PortalChainButton;
     ui.arcadeWeaponRaceStartInlineButton = startWeaponRaceButton;
     ui.arcadeDemolitionStartInlineButton = startDemolitionButton;
     ui.arcadeSeedRerollButton = rerollSeedButton;
@@ -294,6 +297,7 @@ export function buildArcadeSurface(level3Body, ui) {
         startFiveFrontsButton,
         startFivePortalsButton,
         startSkyLadderButton,
+        startK19PortalChainButton,
         startWeaponRaceButton,
         startDemolitionButton,
         demolitionProfileSelects: arcadePlayerProfileSelects,

@@ -1,3 +1,6 @@
+import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
+import { normalizePortalChainId } from '../../shared/contracts/PortalChainContract.js';
+
 export function toFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -30,6 +33,36 @@ export function normalizeForward(raw) {
     if (lengthSq < 0.000001) return null;
     const invLength = 1 / Math.sqrt(lengthSq);
     return [vec[0] * invLength, vec[1] * invLength, vec[2] * invLength];
+}
+
+/**
+ * Resolve an authored chain-specific checkpoint-position variant without mutating the map.
+ * Both the checkpoint rings and the progress runtime use this function so their targets agree.
+ * @param {unknown} mapDefinition
+ * @param {unknown} runtimeConfig
+ * @returns {unknown}
+ */
+export function resolveParcoursForPortalChain(mapDefinition, runtimeConfig = null) {
+    const parcours = mapDefinition && typeof mapDefinition === 'object'
+        ? /** @type {{parcours?: {checkpoints?: Array<{id?: string}>, checkpointPositionOverridesByPortalChain?: Record<string, Record<string, unknown>>}}} */ (mapDefinition).parcours
+        : null;
+    if (!parcours || typeof parcours !== 'object' || !isFivePortalsConfig(runtimeConfig)) return parcours;
+
+    const chainId = normalizePortalChainId(/** @type {{arcade?: {portalChainId?: unknown}}} */ (runtimeConfig)?.arcade?.portalChainId);
+    const overrides = parcours.checkpointPositionOverridesByPortalChain?.[chainId];
+    if (!overrides || typeof overrides !== 'object') return parcours;
+
+    let changed = false;
+    const checkpoints = Array.isArray(parcours.checkpoints)
+        ? parcours.checkpoints.map((checkpoint) => {
+            const position = overrides[checkpoint?.id];
+            if (!Array.isArray(position) || position.length !== 3
+                || !position.every((value) => typeof value === 'number' && Number.isFinite(value))) return checkpoint;
+            changed = true;
+            return { ...checkpoint, pos: [...position] };
+        })
+        : parcours.checkpoints;
+    return changed ? { ...parcours, checkpoints } : parcours;
 }
 
 function scaleVec3(vec, scale = 1) {

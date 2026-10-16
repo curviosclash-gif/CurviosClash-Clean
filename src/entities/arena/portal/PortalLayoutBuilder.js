@@ -11,7 +11,7 @@ import {
     createFinishRingMesh,
 } from '../CheckpointRingMeshFactory.js';
 import { resolveCheckpointRingVisualRadius } from '../CheckpointRingVisualRadius.js';
-import { buildRouteFromParcours } from '../../systems/ParcoursProgressUtils.js';
+import { buildRouteFromParcours, resolveParcoursForPortalChain } from '../../systems/ParcoursProgressUtils.js';
 import {
     getMapPlanarAnchors,
     getMapPortalSlots3D,
@@ -183,8 +183,7 @@ export class PortalLayoutBuilder {
 
     _buildCheckpointRings(map, scale) {
         this.arena.checkpointRings = [];
-        if (!map?.parcours) return;
-        const route = buildRouteFromParcours(map.parcours);
+        const route = buildRouteFromParcours(resolveParcoursForPortalChain(map, this.arena.runtimeConfig));
         if (!route) return;
         this._checkpointRingSpinEnabled = route.rules.animateCheckpoints !== false;
 

@@ -114,4 +114,5 @@ export const CHRONO_SPILLWAY_MAP = {
         ],
         finish: { id: 'FINISH', type: 'finish', pos: [104, 14, 72], radius: 7.0, forward: [-0.8, 0, 1] },
     },
+    fivePortalsExit: { pos: [98, 14, 76], color: 0xffcc44 },
 };

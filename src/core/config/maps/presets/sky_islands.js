@@ -170,5 +170,6 @@ export const SKY_ISLANDS_MAP = {
             ],
             finish: { id: 'FINISH', type: 'finish', pos: [50, 87, 50], radius: 7.0, forward: [0, 0, 1] },
         },
+        fivePortalsExit: { pos: [50, 97, 50], color: 0xffcc44 },
     },
 };

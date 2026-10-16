@@ -21,8 +21,18 @@ const SKY_LADDER_MAP_KEYS = Object.freeze([
     'sky_ladder_star',
 ]);
 
+const K19_PORTAL_CHAIN_MAP_KEYS = Object.freeze([
+    'aether_relay',
+    'neon_circuit',
+    'frozen_helix',
+    'sky_islands',
+    'chrono_spillway',
+]);
+
 export const SKY_LADDER_RECORD_KEY = 'curviosclash.sky-ladder-records.v1';
 export const SKY_LADDER_RECORD_VERSION = 'sky-ladder-records.v1';
+export const K19_PORTAL_CHAIN_RECORD_KEY = 'curviosclash.portal-chain-k19-records.v1';
+export const K19_PORTAL_CHAIN_RECORD_VERSION = 'portal-chain-k19-records.v1';
 
 export const DEFAULT_PORTAL_CHAIN_ID = 'five_portals';
 
@@ -42,6 +52,14 @@ export const PORTAL_CHAINS = Object.freeze({
         maps: SKY_LADDER_MAP_KEYS,
         recordKey: SKY_LADDER_RECORD_KEY,
         recordVersion: SKY_LADDER_RECORD_VERSION,
+    }),
+    portal_chain_k19: Object.freeze({
+        id: 'portal_chain_k19',
+        label: 'K19: Portalreise',
+        description: 'Aether-Relay → Neon Circuit → Frozen Helix → Sky Islands → Chrono-Abfluss; nach jedem Parcours-Finish geht es durchs Ausgangsportal weiter.',
+        maps: K19_PORTAL_CHAIN_MAP_KEYS,
+        recordKey: K19_PORTAL_CHAIN_RECORD_KEY,
+        recordVersion: K19_PORTAL_CHAIN_RECORD_VERSION,
     }),
 });
 

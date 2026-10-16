@@ -45,7 +45,7 @@ function build() {
 
 const byClass = (parent, name) => parent.children.find((child) => String(child.className).split(' ').includes(name));
 
-test('the main run stays visible while five specialist modes are grouped one level deeper', () => {
+test('the main run stays visible while seven specialist modes are grouped one level deeper', () => {
     const { body } = build();
     const group = body.children[0];
     assert.match(group.className, /\barcade-start-group\b/);
@@ -60,7 +60,7 @@ test('the main run stays visible while five specialist modes are grouped one lev
     assert.equal(profileControls.children.filter((child) => child.tagName === 'LABEL').length, 3);
     const specialistModes = byClass(group, 'arcade-start-mode-options');
     assert.equal(specialistModes.tagName, 'DETAILS');
-    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (6)');
+    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (7)');
     const options = specialistModes.children[1].children
         .filter((option) => option.classList.contains('arcade-start-option'));
     assert.deepEqual(options.map((option) => option.children[0].id), [
@@ -68,6 +68,7 @@ test('the main run stays visible while five specialist modes are grouped one lev
         'btn-arcade-five-fronts-start-inline',
         'btn-arcade-five-portals-start-inline',
         'btn-arcade-sky-ladder-start-inline',
+        'btn-arcade-k19-portal-chain-start-inline',
         'btn-arcade-weapon-race-start-inline',
         'btn-arcade-demolition-start-inline',
     ]);

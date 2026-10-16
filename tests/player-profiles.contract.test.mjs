@@ -55,6 +55,7 @@ const SPECIAL_RECORD_KEYS = [
     'cuviosclash.arcade-journey.v1',
     'curviosclash.five-portals-records.v1',
     'curviosclash.sky-ladder-records.v1',
+    'curviosclash.portal-chain-k19-records.v1',
     'curviosclash.arena-waves-records.v1',
     'curviosclash.endless-parcours-records.v1',
     'curviosclash.endless-parcours-settlements.v1',

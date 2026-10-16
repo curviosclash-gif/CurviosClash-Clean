@@ -10,6 +10,7 @@ export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, ge
     bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: ARENA_WAVES_BOT_CAPACITY }));
     bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }, 'five_portals'));
     bind(refs.startSkyLadderButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: resolvePortalChain('sky_ladder').maps[0], numBots: 0 }, 'sky_ladder'));
+    bind(refs.startK19PortalChainButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: resolvePortalChain('portal_chain_k19').maps[0], numBots: 0 }, 'portal_chain_k19'));
     bind(refs.startWeaponRaceButton, 'click', () => startRunWithOwnMap('weapon_race', { mapKey: 'parcours_assault', numBots: 4 }));
     bind(refs.startDemolitionButton, 'click', () => {
         demolitionProfiles?.refreshForSoloStart?.();

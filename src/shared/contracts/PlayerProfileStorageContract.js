@@ -14,7 +14,7 @@ import { ARCADE_LAB_SHIPS_STORAGE_KEY } from './ArcadeLabStoreContract.js';
 import { ARCADE_LAB_UNLOCK_STORAGE_KEY } from './ArcadeLabUnlockContract.js';
 import { DEMOLITION_MEDAL_RECORD_STORAGE_KEY } from './DemolitionMedalRecordContract.js';
 import { FIVE_PORTALS_RECORD_KEY } from './FivePortalsContract.js';
-import { SKY_LADDER_RECORD_KEY } from './PortalChainContract.js';
+import { K19_PORTAL_CHAIN_RECORD_KEY, SKY_LADDER_RECORD_KEY } from './PortalChainContract.js';
 import { ENDLESS_PARCOURS_RECORDS_STORAGE_KEY } from './EndlessParcoursRecordsContract.js';
 import { ENDLESS_PARCOURS_SETTLEMENT_STORAGE_KEY } from './EndlessParcoursSettlementContract.js';
 import { ARCADE_JOURNEY_STORAGE_KEY } from './ArcadeJourneyContract.js';
@@ -48,6 +48,7 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     ARCADE_DEMOLITION_MEDALS: 'arcadeDemolitionMedals',
     FIVE_PORTALS_RECORDS: 'fivePortalsRecords',
     SKY_LADDER_RECORDS: 'skyLadderRecords',
+    K19_PORTAL_CHAIN_RECORDS: 'k19PortalChainRecords',
     ARENA_WAVES_RECORDS: 'arenaWavesRecords',
     ENDLESS_PARCOURS_RECORDS: 'endlessParcoursRecords',
     ENDLESS_PARCOURS_SETTLEMENTS: 'endlessParcoursSettlements',
@@ -61,6 +62,7 @@ const RECORD_DEFINITIONS = Object.freeze([
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_JOURNEY, legacyKey: ARCADE_JOURNEY_STORAGE_KEY, suffix: 'arcade-journey.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.FIVE_PORTALS_RECORDS, legacyKey: FIVE_PORTALS_RECORD_KEY, suffix: 'five-portals-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.SKY_LADDER_RECORDS, legacyKey: SKY_LADDER_RECORD_KEY, suffix: 'sky-ladder-records.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.K19_PORTAL_CHAIN_RECORDS, legacyKey: K19_PORTAL_CHAIN_RECORD_KEY, suffix: 'portal-chain-k19-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARENA_WAVES_RECORDS, legacyKey: 'curviosclash.arena-waves-records.v1', suffix: 'arena-waves-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ENDLESS_PARCOURS_RECORDS, legacyKey: ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, suffix: 'endless-parcours-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ENDLESS_PARCOURS_SETTLEMENTS, legacyKey: ENDLESS_PARCOURS_SETTLEMENT_STORAGE_KEY, suffix: 'endless-parcours-settlements.v1' },
