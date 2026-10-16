@@ -4,6 +4,7 @@ import {
     loadVehicleProfiles,
     saveVehicleProfiles,
 } from './ArcadeVehicleProfile.js';
+import { loadArcadeVehicleProfileRecord } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 
 export const ARCADE_VEHICLE_XP_RUN_TYPES = Object.freeze([
     'gauntlet',
@@ -12,6 +13,7 @@ export const ARCADE_VEHICLE_XP_RUN_TYPES = Object.freeze([
     'arena_waves',
     'weapon_race',
     'demolition',
+    'hunt_parcours',
 ]);
 
 const ARCADE_VEHICLE_XP_RUN_TYPE_SET = new Set(ARCADE_VEHICLE_XP_RUN_TYPES);
@@ -42,7 +44,11 @@ export function awardBoundArcadeVehicleXp(profiles, binding, amount, nowMs = Dat
 }
 
 export function awardBoundArcadeVehicleXpInStore(store, binding, amount, nowMs = Date.now()) {
-    if (!store?.loadJsonRecord || !store?.saveJsonRecord) return null;
+    if (!store?.loadJsonRecord || !store?.saveJsonRecord || !binding) return null;
+    const record = loadArcadeVehicleProfileRecord(store);
+    // An opaque future/malformed target survives the save merge unchanged. Saving
+    // that record successfully must never be mistaken for persisting new XP.
+    if (!record.canPersist || Object.hasOwn(record.preservedProfiles || {}, binding.vehicleId)) return null;
     const profiles = loadVehicleProfiles(store);
     const result = awardBoundArcadeVehicleXp(profiles, binding, amount, nowMs);
     if (!result) return null;

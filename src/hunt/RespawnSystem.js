@@ -1,3 +1,4 @@
+import { applyHuntParcoursRivalSpawnBonuses } from '../entities/ai/HeuristicHuntParcoursModifierOps.js';
 import { grantShield } from './HealthSystem.js';
 import { resetPlayerFightTracking } from '../entities/player/PlayerCombatResetOps.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
@@ -181,6 +182,7 @@ export class RespawnSystem {
             // loadout bonuses, so they are applied again on top of it.
             strategy?.resetPlayerHealth?.(player);
             strategy?.applySpawnStatBonuses?.(player);
+            applyHuntParcoursRivalSpawnBonuses(player);
             resetPlayerFightTracking(player, (Number(this.runtime?.callbacks?.getSimulationNowMs?.()) || 0) * 0.001);
             this.runtime?.callbacks?.parcours?.onPlayerSpawn?.(player, {
                 reason: parcoursPlan ? 'parcours_respawn' : 'respawn',

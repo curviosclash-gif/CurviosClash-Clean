@@ -10,6 +10,7 @@ import { ArcadeEndlessHudSection } from './ArcadeEndlessHudSection.js';
 import { resolveArcadeComboMeter } from './ArcadeComboMeterOps.js';
 import { resolveArcadeMapLabel } from './postrun/ArcadePostRunBlocks.js';
 import { formatArenaWavesMachineGunLabel } from './ArenaWavesOverlayTexts.js';
+import { renderHuntParcoursHud } from './HuntParcoursHud.js';
 
 const BREAKDOWN_ENTRIES = Object.freeze(Object.entries(ARCADE_SCORE_LABELS)
     .map(([key, label]) => Object.freeze({ key, label, sign: key === 'penalty' ? '−' : '+', hideWhenZero: true })));
@@ -286,6 +287,7 @@ export class ArcadeScoreHUD {
             this.show();
         }
 
+        if (renderHuntParcoursHud(this, hudState)) return;
         const score = hudState.score && typeof hudState.score === 'object' ? hudState.score : {};
         const isEndless = String(hudState.runType || '') === 'endless_parcours';
         const isArenaWaves = String(hudState.runType || '') === 'arena_waves';

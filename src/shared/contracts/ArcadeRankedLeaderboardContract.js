@@ -1,20 +1,29 @@
 import { resolveArcadeLevelRange } from './ArcadeHangarRulesContract.js';
 import { DEFAULT_PORTAL_CHAIN_ID, normalizePortalChainId } from './PortalChainContract.js';
 import { CURRENT_ARCADE_SCORE_MODEL } from './ArcadeRunSettingsContract.js';
+import { resolveHuntParcoursLeaderboardKey } from './HuntParcoursMedalRecordContract.js';
+
+export const HUNT_PARCOURS_SCORE_MODEL = 'hunt-score.v1';
 
 export const ARCADE_RANKED_STORAGE_KEY = 'cuviosclash.arcade-ranked-leaderboard.v1';
 export const ARCADE_RANKED_VERSION = 'arcade-ranked-leaderboard.v1';
-const RUNS = new Set(['gauntlet', 'endless_parcours', 'arena_waves', 'five_portals']);
+const RUNS = new Set(['gauntlet', 'endless_parcours', 'arena_waves', 'five_portals', 'hunt_parcours']);
 const SCORE_RUNS = new Set(['gauntlet', 'endless_parcours', 'arena_waves']);
 
 function scoreModelFromBoardKey(key) {
     const [runType, model] = String(key).split(':');
+    if (runType === 'hunt_parcours' && /^hunt-score\.v\d+$/.test(model || '')) return model;
     return SCORE_RUNS.has(runType) && /^arcade-score\.v\d+$/.test(model || '') ? model : '';
 }
 
 export function resolveArcadeRankKey(context) {
     if (!context?.ranked || !RUNS.has(context.runType)) return '';
     const range = resolveArcadeLevelRange(context.vehicleLevel);
+    if (context.runType === 'hunt_parcours') {
+        const huntKey = resolveHuntParcoursLeaderboardKey({ variantId: context.huntParcoursVariantId, rivalTierGroup: context.rivalTierGroup });
+        return huntKey && context.scoreModel === HUNT_PARCOURS_SCORE_MODEL
+            ? `hunt_parcours:${HUNT_PARCOURS_SCORE_MODEL}:${huntKey.slice('hunt_parcours:'.length)}:${context.tierId}:${range.min}-${range.max}` : '';
+    }
     // Every portal chain rides five_portals; the default chain keeps the key its saved times use.
     const chainId = context.runType === 'five_portals' ? normalizePortalChainId(context.portalChainId) : DEFAULT_PORTAL_CHAIN_ID;
     const chain = chainId === DEFAULT_PORTAL_CHAIN_ID ? '' : `${chainId}:`;
@@ -57,7 +66,7 @@ export function insertArcadeRankedResult(leaderboard, context, result, nowMs = D
     const entry = { runId: context.runId, vehicleId: context.vehicleId, vehicleLevel: context.vehicleLevel,
         tierId: context.tierId, score, completedWaves: Number(result?.lastCompletedWave) || 0,
         completedSectors: Number(result?.completedSectors) || 0, date: new Date(nowMs).toISOString() };
-    if (SCORE_RUNS.has(context.runType)) entry.scoreModel = context.scoreModel;
+    if (SCORE_RUNS.has(context.runType) || context.runType === 'hunt_parcours') entry.scoreModel = context.scoreModel;
     const rows = (current.boards[key] || []).filter((row) => row.runId !== entry.runId);
     rows.push(entry);
     const direction = context.runType === 'five_portals' ? 1 : -1;

@@ -7,6 +7,7 @@ import { isArenaWavesRunType, normalizeArenaWavesCombatProfile } from '../shared
 import { FIVE_PORTALS_COMBAT_PROFILE, isFivePortalsRunType } from '../shared/contracts/FivePortalsContract.js';
 import { WEAPON_RACE_RESPAWN_DELAY_SECONDS, isWeaponRaceRunType } from '../shared/contracts/WeaponRaceContract.js';
 import { DEMOLITION_COMBAT_PROFILE, isDemolitionRunType } from '../shared/contracts/DemolitionContract.js';
+import { isHuntParcoursRunType } from '../shared/contracts/HuntParcoursContract.js';
 
 // A parcours sector on a map without authored respawns forgives three deaths at the last
 // checkpoint; the fourth ends the run. Maps that author their own respawn keep it.
@@ -32,7 +33,7 @@ export const ARCADE_COLLISION_COOLDOWN = Object.freeze({ WALL: 0.6, PLAYER_CRASH
 export function resolveArcadeRunCombatProfile(runType, combatProfile) {
     if (runType === 'hangar_test') return ENDLESS_PARCOURS_COMBAT_PROFILE;
     if (isDemolitionRunType(runType)) return DEMOLITION_COMBAT_PROFILE;
-    if (isWeaponRaceRunType(runType)) return 'hunt';
+    if (isWeaponRaceRunType(runType) || isHuntParcoursRunType(runType)) return 'hunt';
     if (isFivePortalsRunType(runType)) return FIVE_PORTALS_COMBAT_PROFILE;
     if (isArenaWavesRunType(runType)) return normalizeArenaWavesCombatProfile(combatProfile, runType);
     // A scenario sector of a gauntlet run fights with hunt weapons; its runtime profile sets this.
@@ -41,7 +42,7 @@ export function resolveArcadeRunCombatProfile(runType, combatProfile) {
 }
 
 export function resolveArcadeParcoursRespawnFallback(runType, isSectorParcours) {
-    if (isWeaponRaceRunType(runType)) return WEAPON_RACE_RESPAWN_RULES;
+    if (isWeaponRaceRunType(runType) || isHuntParcoursRunType(runType)) return WEAPON_RACE_RESPAWN_RULES;
     if (isFivePortalsRunType(runType)) return FIVE_PORTALS_RESPAWN_RULES;
     return isSectorParcours ? ARCADE_PARCOURS_SECTOR_RULES : null;
 }

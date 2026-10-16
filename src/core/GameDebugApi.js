@@ -1,6 +1,8 @@
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 import { createMapBalancingLiveApi, registerMapBalancingLiveSource } from './balancing/MapBalancingLive.js';
 import { createTelemetryDevApi, registerTelemetryDevSource } from './telemetry/TelemetryDevApi.js';
+import { resolveElectronDeveloperEnvironment } from '../platform/electron/ElectronPlatformBridge.js';
+import { resolveHuntParcoursVariant } from '../shared/contracts/HuntParcoursContract.js';
 
 export function createGameDebugRuntimeAccess(runtime) {
     return createRuntimeAccess(runtime, (game) => {
@@ -14,6 +16,20 @@ export function createGameDebugRuntimeAccess(runtime) {
             getEntityManager: () => game?.entityManager || null,
             getRuntimeFacade: () => game?.runtimeCoordinator?.getRuntimeFacade?.() || null,
             getSettingsManager: () => game?.settingsManager || null,
+            isDevelopmentEnvironment: () => resolveElectronDeveloperEnvironment() || import.meta.env?.DEV === true,
+            async startHuntParcours(variantId) {
+                const variant = resolveHuntParcoursVariant(variantId);
+                if (!game || game.state !== 'MENU' || variant?.id !== 'nemesis') return false;
+                const profileId = game.playerProfileManager?.getActiveProfile?.()?.id;
+                if (typeof profileId !== 'string' || !profileId.trim()) return false;
+                Object.assign(game.settings, { mode: '1p', numHumans: 1, numBots: 1, gameMode: 'ARCADE', mapKey: variant.mapKeys[0], winsNeeded: 15 });
+                Object.assign(game.settings.arcade, { enabled: true, runType: 'hunt_parcours', huntParcoursVariantId: variant.id,
+                    seed: variant.seed, journeyStageId: '', dailyChallenge: false, companionCount: 0,
+                    playerProfileIds: [profileId.trim(), '', ''] });
+                Object.assign(game.settings.localSettings, { sessionType: 'single', modePath: 'arcade', multiplayerTransport: '' });
+                await game._onSettingsChanged?.();
+                return game.runtimeCoordinator?.getRuntimeFacade?.()?.startMatch?.() ?? false;
+            },
             setRecorderFrameCaptureEnabled(enabled) {
                 if (!game) return;
                 game._recorderFrameCaptureEnabled = !!enabled;
@@ -73,6 +89,11 @@ export class GameDebugApi {
 
     setRecorderFrameCaptureEnabled(enabled) {
         this.runtimeAccess.setRecorderFrameCaptureEnabled?.(enabled);
+    }
+
+    startHuntParcours(variantId = 'nemesis') {
+        if (this.runtimeAccess.isDevelopmentEnvironment?.() !== true) return false;
+        return this.runtimeAccess.startHuntParcours?.(variantId) ?? false;
     }
 
     // ---- Match diagnostics for desktop measurements (bot flight safety) ----

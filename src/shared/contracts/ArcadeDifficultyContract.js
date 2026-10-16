@@ -13,7 +13,7 @@ export const ARCADE_DIFFICULTY_TIERS = Object.freeze([
     Object.freeze({ id: 'nightmare', label: 'Albtraum', ai: 'HARD', hp: 1.2, damage: 1.1, intermissionHealFactor: 0.6, aggressionBonus: 0.08 }),
 ]);
 export const ARCADE_HIGHEST_DIFFICULTY_TIER_ID = 'nightmare';
-const BUILD_RUNS = new Set(['gauntlet', 'endless_parcours', 'arena_waves', 'five_portals', 'hangar_test']);
+const BUILD_RUNS = new Set(['gauntlet', 'endless_parcours', 'arena_waves', 'five_portals', 'hangar_test', 'hunt_parcours']);
 
 /** Whether a run flies the pilot's profile build (stones, size, weapons); Daily and factory-size runs never do. */
 export function arcadeRunUsesProfileBuild(runType, { dailyChallenge = false } = {}) {

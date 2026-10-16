@@ -3,6 +3,7 @@ import { resolveParcoursSpawnDirection } from '../systems/ParcoursRespawnOps.js'
 import { resolveWeaponRaceGridSpawn } from '../arcade/WeaponRaceSpawnOps.js';
 import { applyArcadeSpawnHitbox } from '../player/ArcadePartHitboxOps.js';
 import { resetPlayerFightTracking } from '../player/PlayerCombatResetOps.js';
+import { applyHuntParcoursRivalSpawnBonuses } from '../ai/HeuristicHuntParcoursModifierOps.js';
 
 export class EntitySpawnOps {
     constructor(entityManager) {
@@ -73,10 +74,15 @@ export class EntitySpawnOps {
     spawnPlayer(player, spawnContext = null) {
         const owner = this.entityManager;
         if (!owner || !player) return;
-        if (owner.gameModeStrategy?.isWeaponRace?.()) {
+        const huntRace = owner.runtimeConfig?.arcade?.enabled === true && owner.runtimeConfig.arcade.runType === 'hunt_parcours';
+        if (owner.gameModeStrategy?.isWeaponRace?.() || huntRace) {
             const route = owner._parcoursProgressSystem?.getRouteSnapshot?.() || null;
             const grid = resolveWeaponRaceGridSpawn(route, player, owner.players?.indexOf?.(player));
-            if (grid) { this.spawnPlayerAt(player, grid.position, grid.direction); return; }
+            // Duel racers share the course grid. Combat separation would move the rival far
+            // from its first ring; ordinary fight spawns retain their existing safety rules.
+            if (grid && (!huntRace || owner.arena?.checkCollision?.(grid.position, player.hitboxRadius) === false)) {
+                this.spawnPlayerAt(player, grid.position, grid.direction); return;
+            }
         }
         const context = spawnContext || this.createSpawnContext();
         const pos = owner._findSpawnPosition(12, 12, {
@@ -119,6 +125,7 @@ export class EntitySpawnOps {
         }
         // Part hitbox only in normal Arcade runs (not Daily, not weapon race), humans and bots.
         applyArcadeSpawnHitbox(player, strategy?.isNormalArcadeRun?.() === true);
+        applyHuntParcoursRivalSpawnBonuses(player);
         owner._parcoursProgressSystem?.onPlayerSpawn?.(player, { reason: 'spawn_all' });
         owner._exclusionZoneSystem?.resetPlayer?.(player);
         if (owner.recorder) {

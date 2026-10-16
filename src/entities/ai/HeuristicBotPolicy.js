@@ -14,6 +14,7 @@ import { FIGHT_TARGET_LOCK_SECONDS } from '../../hunt/FightTargetSelector.js';
 import { clamp } from '../../shared/utils/MathOps.js';
 import { applyHeuristicClassicBehavior } from './HeuristicClassicTacticsOps.js';
 import { applyHeuristicHuntBehavior } from './HeuristicHuntTacticsOps.js';
+import { applyHeuristicRaceHuntBehavior } from './HeuristicRaceHuntOps.js';
 import { applyArcadeAggressionToHeuristicTuning, HEURISTIC_DIFFICULTIES, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveEffectiveHeuristicProfile, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex } from './HeuristicBotPolicyOps.js';
 import { normalizeArcadeBotAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { findParcoursGuidanceWaypoint, isParcoursGuidanceRequiredAfterBranch, resolveActiveParcoursGuidance } from '../../shared/utils/ParcoursGuidance.js';
@@ -85,6 +86,7 @@ export class HeuristicBotPolicy {
             commitTimer: 0,
             openingTimer: HUNT_OPENING_SECONDS,
         };
+        this._raceHuntState = { combatSeconds: 0, routeSeconds: 0 };
         this._decisionCounters = {
             updates: 0,
             intentChanges: 0,
@@ -273,7 +275,8 @@ export class HeuristicBotPolicy {
         const observation = runtimeContext?.observation || null;
         applyHeuristicObstacleAvoidance(this, input, player, observation);
 
-        const mode = player.isArcadeParcoursCompetitor === true ? 'ARCADE' : resolveMode(runtimeContext, observation);
+        const mode = player.isHuntParcoursCompetitor === true ? 'RACE_HUNT'
+            : player.isArcadeParcoursCompetitor === true ? 'ARCADE' : resolveMode(runtimeContext, observation);
         const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
         let decision = {
             intent: 'avoid',
@@ -283,7 +286,11 @@ export class HeuristicBotPolicy {
             targetPlayerIndex: -1,
             targetReachable: true,
         };
-        if (mode === 'HUNT') {
+        if (mode === 'RACE_HUNT') {
+            decision = applyHeuristicRaceHuntBehavior(this, input, dt, player, runtimeContext, observation, {
+                raceWeight: player.huntParcoursRaceWeight ?? runtimeContext?.runtimeConfig?.arcade?.huntParcoursRaceWeight ?? 0.6,
+            });
+        } else if (mode === 'HUNT') {
             decision = applyHeuristicHuntBehavior(this, input, dt, player, runtimeContext, observation);
         } else if (mode === 'ARCADE') {
             decision = this._applyArcadeBehavior(input, dt, player, runtimeContext, observation);
@@ -292,7 +299,7 @@ export class HeuristicBotPolicy {
         }
         // E79/E14: outside HUNT the held key can only mean the flamethrower, so a bot with a lit
         // tank keeps what its tactics decided. Every other bot stays silent.
-        if (mode !== 'HUNT' && player?.hasFlamethrower !== true && player?.hasRailgun !== true) input.shootMG = false;
+        if (mode !== 'HUNT' && mode !== 'RACE_HUNT' && player?.hasFlamethrower !== true && player?.hasRailgun !== true) input.shootMG = false;
         if (resolveInventoryLength(player) === 0) {
             input.useItem = -1;
         }
@@ -302,7 +309,7 @@ export class HeuristicBotPolicy {
             input.shootItemIndex = -1;
         }
         applyHeuristicSafetyArbiter(this, input, dt, player, runtimeContext, observation, decision);
-        if (mode === 'HUNT' && Number.isInteger(decision.targetPlayerIndex) && decision.targetPlayerIndex >= 0) {
+        if ((mode === 'HUNT' || mode === 'RACE_HUNT') && Number.isInteger(decision.targetPlayerIndex) && decision.targetPlayerIndex >= 0) {
             const safetyVeto = this._safetyState.state === 'evade' || this._safetyState.state === 'recover';
             if (safetyVeto || decision.targetReachable === false) {
                 if (player.fightTargetPlayerIndex === decision.targetPlayerIndex) {
@@ -380,6 +387,8 @@ export class HeuristicBotPolicy {
         this._huntState.movementIntent = 'search';
         this._huntState.commitTimer = 0;
         this._huntState.openingTimer = HUNT_OPENING_SECONDS;
+        this._raceHuntState.combatSeconds = 0;
+        this._raceHuntState.routeSeconds = 0;
     }
 
     reset() {

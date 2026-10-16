@@ -99,7 +99,8 @@ export function shouldBotDefendWithRocket(bot, player) {
     if (!rocketInventory || rocketInventory.length === 0) return false;
     if ((Number(player.shootCooldown) || 0) > SHOOT_READY_EPSILON) return false;
 
-    const awareness = clamp01(bot.profile?.projectileAwareness);
+    const awareness = Math.max(clamp01(bot.profile?.projectileAwareness),
+        player.huntParcoursRival === true ? clamp01(player.huntParcoursRivalModifiers?.interceptChance) : 0);
     if (awareness <= 0) return false;
 
     const index = Number(player.index);

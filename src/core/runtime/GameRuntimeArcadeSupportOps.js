@@ -46,7 +46,7 @@ export function bindLocalArcadeProfilesAndApplyCosmetics(support, runtimeState, 
     const endlessRuntime = kind === ARCADE_RUN_KINDS.ENDLESS_PARCOURS
         ? support._getEndlessRuntime?.(runtimeState)
         : null;
-    const runtimeForKind = kind === ARCADE_RUN_KINDS.FIVE_PORTALS
+    const runtimeForKind = kind === ARCADE_RUN_KINDS.HUNT_PARCOURS ? support.huntParcoursSupport?.runtime : kind === ARCADE_RUN_KINDS.FIVE_PORTALS
         ? support.fivePortalsRuntime
         : kind === ARCADE_RUN_KINDS.ARENA_WAVES
             ? support.arenaWavesRuntime

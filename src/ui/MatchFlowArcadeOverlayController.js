@@ -1,3 +1,4 @@
+import { renderFivePortalsPostRunPanel, renderDemolitionPostRunPanel, renderHuntParcoursPostRunPanel } from './arcade/ArcadeDedicatedPostRunPanels.js';
 import { renderArcadeJourneyResult, requestArcadeJourneyResultAction } from './arcade/ArcadeJourneyResultView.js';
 import {
     ARCADE_RESULT_TEXTS,
@@ -12,7 +13,7 @@ import {
 } from './arcade/postrun/ArcadePostRunBlocks.js';
 import { formatCount } from './postmatch/PostMatchFormat.js';
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
-import { createArenaWavesMapBlocks, createDemolitionMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
+import { createArenaWavesMapBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
 import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
 import { createArcadeOverlayGamepadNav } from './arcade/ArcadeOverlayGamepadNav.js';
@@ -464,31 +465,8 @@ export class MatchFlowArcadeOverlayController {
         panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
     }
 
-    _renderFivePortalsPostRunPanel(runtimeState) {
-        const summary = runtimeState?.postRunSummary;
-        if (runtimeState?.runType !== 'five_portals' || !summary || !Array.isArray(summary.maps)) return false;
-        const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
-        while (panel.firstChild) panel.removeChild(panel.firstChild);
-        const title = document.createElement('h2'); title.textContent = `${runtimeState?.chainLabel || 'Fünf Portale'} abgeschlossen`;
-        const list = createArcadeCardScroller(createFivePortalsBlocks(summary), 'Zeiten', 'Keine Zeiten.');
-        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
-        close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'five_portals_finished' }));
-        panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
-    }
-
-    _renderDemolitionPostRunPanel(runtimeState) {
-        const summary = runtimeState?.postRunSummary;
-        if (runtimeState?.runType !== 'demolition' || !summary || !Array.isArray(summary.maps)) return false;
-        const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
-        while (panel.firstChild) panel.removeChild(panel.firstChild);
-        const title = document.createElement('h2');
-        title.textContent = `Abrisskommando abgeschlossen – ${formatCount(toSafeNumber(summary.total, 0))} Punkte`;
-        const list = createArcadeCardScroller(createDemolitionMapBlocks(summary), 'Karten', 'Keine Kartendaten.');
-        const xp = document.createElement('p'); xp.textContent = `${formatCount(toSafeNumber(summary.xpEarned, 0))} Fahrzeug-XP`;
-        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
-        close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'demolition_finished' }));
-        panel.append(title, list, xp, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
-    }
+    _renderFivePortalsPostRunPanel(state) { return renderFivePortalsPostRunPanel(this, state); }
+    _renderDemolitionPostRunPanel(state) { return renderDemolitionPostRunPanel(this, state); }
 
     syncArcadeOverlayPanel() {
         const game = this.game;
@@ -499,7 +477,7 @@ export class MatchFlowArcadeOverlayController {
         const arenaUpgrade = runtimeState?.runType === 'arena_waves' && runtimeState?.phase === 'upgrade';
         const arenaFinished = runtimeState?.runType === 'arena_waves' && !!runtimeState?.postRunSummary;
         const fivePortalsFinished = runtimeState?.runType === 'five_portals' && !!runtimeState?.postRunSummary;
-        const demolitionFinished = runtimeState?.runType === 'demolition' && !!runtimeState?.postRunSummary;
+        const demolitionFinished = (runtimeState?.runType === 'demolition' || runtimeState?.runType === 'hunt_parcours') && !!runtimeState?.postRunSummary;
         const journeyFinished = !!runtimeState?.journey?.result;
         game?.ui?.messageOverlay?.classList?.toggle?.('has-journey-result', journeyFinished);
         if (arenaUpgrade || arenaFinished || fivePortalsFinished || demolitionFinished || journeyFinished) game?.ui?.messageOverlay?.classList?.remove?.('hidden');
@@ -534,6 +512,7 @@ export class MatchFlowArcadeOverlayController {
         if (runtimeState?.journey?.result && renderArcadeJourneyResult(this._ensureArcadeOverlayPanel(), runtimeState,
             (action, stageId) => requestArcadeJourneyResultAction(this, action, stageId))) return true;
         const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
+        if (renderHuntParcoursPostRunPanel(this, runtimeState)) return true;
         if (this._renderDemolitionPostRunPanel(runtimeState)) return true;
         if (this._renderFivePortalsPostRunPanel(runtimeState)) return true;
         if (this._renderArenaWavesPostRunPanel(runtimeState)) return true;

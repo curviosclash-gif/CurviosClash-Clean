@@ -1,3 +1,5 @@
+import { HUNT_PARCOURS_RIVAL_STORAGE_KEY } from './HuntParcoursRivalContract.js';
+import { HUNT_PARCOURS_MEDAL_RECORD_STORAGE_KEY } from './HuntParcoursMedalRecordContract.js';
 import {
     ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY,
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
@@ -24,6 +26,8 @@ export const PLAYER_PROFILE_MIGRATION_STORAGE_KEY = 'cuviosclash.player-profile-
 export const PLAYER_PROFILE_STORAGE_NAMESPACE = 'cuviosclash.player';
 
 export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
+    HUNT_PARCOURS_RIVAL: 'huntParcoursRival',
+    HUNT_PARCOURS_MEDALS: 'huntParcoursMedals',
     ARCADE_VEHICLE_PROFILE: 'arcadeVehicleProfile',
     LEGACY_ARCADE_VEHICLE_PROFILE: 'legacyArcadeVehicleProfile',
     ARCADE_RUN_PROFILE: 'arcadeRunProfile',
@@ -59,6 +63,8 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
 export { LOBBY_NAME_STORAGE_KEY };
 
 const RECORD_DEFINITIONS = Object.freeze([
+    { kind: PLAYER_PROFILE_RECORD_KINDS.HUNT_PARCOURS_RIVAL, legacyKey: HUNT_PARCOURS_RIVAL_STORAGE_KEY, suffix: 'arcade-hunt-parcours-rival.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.HUNT_PARCOURS_MEDALS, legacyKey: HUNT_PARCOURS_MEDAL_RECORD_STORAGE_KEY, suffix: 'arcade-hunt-parcours-medals.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_JOURNEY, legacyKey: ARCADE_JOURNEY_STORAGE_KEY, suffix: 'arcade-journey.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.FIVE_PORTALS_RECORDS, legacyKey: FIVE_PORTALS_RECORD_KEY, suffix: 'five-portals-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.SKY_LADDER_RECORDS, legacyKey: SKY_LADDER_RECORD_KEY, suffix: 'sky-ladder-records.v1' },

@@ -27,6 +27,7 @@ const CURRENT_RUN_TYPES = Object.freeze([
     'arena_waves',
     'weapon_race',
     'demolition',
+    'hunt_parcours',
 ]);
 
 function createProfiles() {

@@ -1,5 +1,7 @@
+import { GameRuntimeHuntParcoursSupport } from './GameRuntimeHuntParcoursSupport.js';
+import { bindRuntimeParcoursCallbacks } from './GameRuntimeParcoursBindingOps.js';
 import { createArcadeRoundStateController } from '../../state/arcade/ArcadeRoundStateController.js';
-import { completeClassicTutorialJourney, projectArcadeJourneyResult, retryPendingArcadeJourney } from './ArcadeJourneyRuntimeOps.js';
+import { projectArcadeJourneyResult, retryPendingArcadeJourney } from './ArcadeJourneyRuntimeOps.js';
 import { resolveArcadeSectorRuntimeProfile } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { resolveMapSequence } from '../../state/arcade/ArcadeMapProgression.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
@@ -13,7 +15,7 @@ import { isFivePortalsConfig } from '../../shared/contracts/PortalChainContract.
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveArcadeP1RecordStore, resolveArcadeSectorTransition, resolveActiveArcadeVehicleId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities, withArcadeCompanions } from './GameRuntimeArcadeSupportOps.js';
+import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, requestObjectiveRoundEnd, resolveArcadeP1RecordStore, resolveArcadeSectorTransition, resolveActiveArcadeVehicleId, syncArcadeObjectiveIntoEntities, withArcadeCompanions } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 import { resolveDedicatedArcadeMatchStart } from './GameRuntimeArcadeRunDispatch.js';
 import { GameRuntimeDemolitionSupport } from './GameRuntimeDemolitionSupport.js';
@@ -38,7 +40,7 @@ export class GameRuntimeArcadeSupport {
             || this.game?.roundStateController
             || null;
         this._arcadeRoundStateController = null;
-        this._boundGameplayEntityManager = null;
+        this._boundGameplayEntityManager = null; this._boundGameplayEventHandler = null;
         this._arcadeReplayRecorder = new ReplayRecorder();
         this._applySectorRuntimeProfile = typeof applySectorRuntimeProfile === 'function'
             ? applySectorRuntimeProfile
@@ -84,6 +86,7 @@ export class GameRuntimeArcadeSupport {
             getRecordStore: () => this.arcadeRunRuntime._resolveSettingsRecordStore(),
         });
 
+        this.huntParcoursSupport = new GameRuntimeHuntParcoursSupport(this, getPlayerRewardTarget);
         this.demolitionSupport = new GameRuntimeDemolitionSupport({
             getRuntimeConfig: () => this.getRuntimeState()?.runtimeConfig,
             getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
@@ -94,6 +97,7 @@ export class GameRuntimeArcadeSupport {
             requestAdvance: () => this._requestRunAdvance(),
         });
         this._arcadeGameplayEventHandler = (event) => {
+            if (this.huntParcoursSupport.isActive()) return this.huntParcoursSupport.runtime.handleGameplayEvent(event);
             if (this.demolitionSupport.isActive()) return this.demolitionSupport.handleGameplayEvent(event);
             if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.handleGameplayEvent(event);
             if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.handleGameplayEvent(event);
@@ -162,6 +166,12 @@ export class GameRuntimeArcadeSupport {
         if (!runtimeConfig) {
             return;
         }
+        if (this.huntParcoursSupport.isActive(runtimeConfig)) {
+            this._baseRoundStateController ||= this.getRuntimeState()?.roundStateController;
+            this._deactivateRoundController();
+            this.huntParcoursSupport.bindRoundController(this.getRuntimeState(), this._baseRoundStateController);
+            return;
+        }
         if (isFivePortalsConfig(runtimeConfig) || this.demolitionSupport.isActive()) {
             this._deactivateRoundController();
             return;
@@ -185,52 +195,21 @@ export class GameRuntimeArcadeSupport {
         }
         if (!entityManager) return;
         entityManager.gameModeStrategy?.setNowMsSource?.(this._nowMs);
-        entityManager.onArcadeGameplayEvent = this._arcadeGameplayEventHandler;
+        const handle = this.huntParcoursSupport.isActive(runtimeState?.runtimeConfig)
+            ? this.huntParcoursSupport.createGameplayHandler(entityManager) : this._arcadeGameplayEventHandler;
+        this._boundGameplayEventHandler = event => this.getRuntimeState()?.entityManager === entityManager ? handle(event) : null;
+        entityManager.onArcadeGameplayEvent = this._boundGameplayEventHandler;
         this._boundGameplayEntityManager = entityManager;
     }
 
     _unbindGameplayCallback() {
-        if (this._boundGameplayEntityManager?.onArcadeGameplayEvent === this._arcadeGameplayEventHandler) {
+        if (this._boundGameplayEntityManager?.onArcadeGameplayEvent === this._boundGameplayEventHandler) {
             this._boundGameplayEntityManager.onArcadeGameplayEvent = null;
         }
         this._boundGameplayEntityManager = null;
     }
 
-    _bindParcoursCallbacks(runtimeState = this.getRuntimeState()) {
-        const parcoursSystem = runtimeState?.entityManager?._parcoursProgressSystem;
-        const fivePortals = isFivePortalsConfig(runtimeState?.runtimeConfig);
-        const weaponRace = isWeaponRaceConfig(runtimeState?.runtimeConfig);
-        if (parcoursSystem && typeof parcoursSystem.setXpEventCallback === 'function') {
-            parcoursSystem.setXpEventCallback(
-                weaponRace ? (eventType, playerIndex, context) => (eventType === 'checkpoint'
-                    ? this.weaponRaceRuntime.handleCheckpoint({ playerIndex, checkpointId: context?.checkpointId })
-                    : this.weaponRaceRuntime.handleFinish({ playerIndex, finishedAtMs: context?.finishedAtMs }))
-                    : fivePortals ? (eventType, playerIndex) => this.fivePortalsRuntime.handleXpEvent(eventType, playerIndex)
-                    : (eventType, playerIndex) => this.arcadeRunRuntime.applyParcoursXpEvent(eventType, playerIndex, resolveLocalPlayerVehicleId(runtimeState, playerIndex))
-            );
-        }
-        if (parcoursSystem && typeof parcoursSystem.setLeaderboardCallback === 'function') {
-            parcoursSystem.setLeaderboardCallback(
-                weaponRace ? (data) => handleWeaponRaceLeaderboard(this, runtimeState, data)
-                    : fivePortals ? (data) => this.fivePortalsRuntime.handleParcoursEvent(data)
-                    : (data) => {
-                        if (!completeClassicTutorialJourney(this, runtimeState, data)) this.arcadeRunRuntime.applyParcoursLeaderboardEvent(data);
-                    }
-            );
-        }
-        parcoursSystem?.setAttemptResetCallback?.(fivePortals ? () => this.fivePortalsRuntime.handleAttemptReset() : null);
-        parcoursSystem?.setDeathCallback?.(weaponRace ? (data) => this.weaponRaceRuntime.handleDeath(data) : null);
-        parcoursSystem?.setSpawnCallback?.(weaponRace ? (data) => this.weaponRaceRuntime.handleDeath(data) : null);
-        if (parcoursSystem && typeof parcoursSystem.setGhostRecorder === 'function') {
-            parcoursSystem.setGhostRecorder(this.arcadeRunRuntime.getGhostRecorder?.() || null);
-        }
-        if (typeof this.arcadeRunRuntime.setGhostPlaybackHandler === 'function') {
-            const entityManager = runtimeState?.entityManager || null;
-            this.arcadeRunRuntime.setGhostPlaybackHandler(
-                (clip, options) => entityManager?.playLastRoundGhost?.(clip, options)
-            );
-        }
-    }
+    _bindParcoursCallbacks(runtimeState = this.getRuntimeState()) { return bindRuntimeParcoursCallbacks(this, runtimeState); }
 
     prepareMatchStartRuntime() {
         const runtimeState = this.getRuntimeState();
@@ -240,6 +219,8 @@ export class GameRuntimeArcadeSupport {
             this._pendingSectorTransition = null;
             return null;
         }
+        const huntProfile = this.huntParcoursSupport.prepare(runtimeConfig);
+        if (huntProfile) { this._preparedEncounterPlan = null; this._pendingSectorTransition = null; this._applySectorRuntimeProfile?.(huntProfile); return huntProfile; }
         const fivePortalsState = isFivePortalsConfig(runtimeConfig)
             ? this.fivePortalsRuntime.getHudState()
             : null;
@@ -310,6 +291,7 @@ export class GameRuntimeArcadeSupport {
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
         }
+        if (this.huntParcoursSupport.isActive(runtimeConfig)) return this.huntParcoursSupport.start(runtimeState, runtimeConfig);
         const demolitionStart = this.demolitionSupport.startIfActive({
             runtimeState,
             seed: runtimeConfig?.arcade?.seed,
@@ -365,6 +347,7 @@ export class GameRuntimeArcadeSupport {
         // neu aufgebaut wird. Nur ein ausdrueckliches force (Matchende, Rueckkehr ins
         // Menue, abgeschalteter Arcade-Modus) verwirft ihn.
         if (this._sectorRebuildInFlight && options?.force !== true) {
+            if (this.huntParcoursSupport.isActive()) return this.huntParcoursSupport.getState();
             return this.demolitionSupport.isActive()
                 ? this.demolitionSupport.getState()
                 : (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)
@@ -375,6 +358,8 @@ export class GameRuntimeArcadeSupport {
         }
         this._sectorRebuildInFlight = false; clearArcadePlayerProfileBindings(this.arcadeRunRuntime);
         this._preparedEncounterPlan = null; this._pendingSectorTransition = null;
+        const huntReset = this.huntParcoursSupport.resetIfUsed();
+        if (huntReset) return huntReset;
         const demolitionReset = this.demolitionSupport.resetIfUsed(
             () => this.arcadeRunRuntime.resetRunState({ preserveRecords: true })
         );
@@ -406,6 +391,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     getRunState() {
+        if (this.huntParcoursSupport.isActive()) return this.huntParcoursSupport.getState();
         if (this.demolitionSupport.isActive()) return this.demolitionSupport.getState();
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.getHudState();
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
@@ -441,6 +427,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     _getMenuSurfaceStateBase() {
+        if (this.huntParcoursSupport.isActive()) return this.huntParcoursSupport.getState();
         if (this.demolitionSupport.isActive()) return this.demolitionSupport.getState();
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.getHudState();
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
@@ -463,6 +450,7 @@ export class GameRuntimeArcadeSupport {
 
     tickSuddenDeath(dt = 0) {
         this.tickPendingArcadeRewards();
+        if (this.huntParcoursSupport.isActive()) { this.huntParcoursSupport.runtime.update(dt); return null; }
         if (this.demolitionSupport.updateIfActive(dt)) return null;
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) {
             this.weaponRaceRuntime.update(this._nowMs());
@@ -491,6 +479,7 @@ export class GameRuntimeArcadeSupport {
 
     tickPendingArcadeRewards() {
         retryPendingArcadeJourney(this);
+        this.huntParcoursSupport.runtime.maintainPendingSettlements();
         if (!this.weaponRaceRuntime.hasPendingSettlement?.()) return false;
         return this.weaponRaceRuntime.maintainPendingSettlements?.() || false;
     }

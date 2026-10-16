@@ -218,7 +218,7 @@ export class GameRuntimeSessionHandler {
             // multi-map runs must put the next map back on top of it.
             const sectorTransition = options?.arcadeSectorTransition;
             if (sectorTransition?.fivePortals === true || sectorTransition?.arenaWaves === true
-                || sectorTransition?.demolition === true) {
+                || sectorTransition?.demolition === true || sectorTransition?.huntParcours === true) {
                 facade?._applyArcadeSectorRuntimeProfile?.(options.arcadeSectorTransition);
             }
             const sessionContract = resolveRuntimeSessionContract(game?.settings?.localSettings);

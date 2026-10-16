@@ -38,12 +38,19 @@ export function emitArcadeDamageEvent(owner, event) {
 export function emitArcadeEliminationEvents(owner, player, cause, options = {}) {
     const killer = options?.killer || null;
     const companionKill = isArcadeCompanion(killer);
+    if (killer?.isBot === true && player?.isBot !== true && killer !== player
+        && owner?.runtimeConfig?.arcade?.enabled === true && owner.runtimeConfig.arcade.runType === 'hunt_parcours') {
+        owner?.onArcadeGameplayEvent?.({ type: 'bot_kill', playerIndex: killer.index, victimIndex: player?.index, count: 1,
+            projectileType: options?.projectileType || null });
+        return;
+    }
     if (killer && killer !== player && (killer.isBot !== true || companionKill)) {
         emitArcadeGameplayEvent(owner, {
             type: 'kill',
             playerIndex: killer.index,
             victimIndex: player?.index,
             count: 1,
+            ...(options?.projectileType ? { projectileType: options.projectileType } : {}),
             // A companion kill counts for the sector goals at half the score weight.
             ...(companionKill ? { companion: true, scoreFactor: ARCADE_COMPANION_KILL_SCORE_FACTOR } : {}),
             runId: options?.runId || '',

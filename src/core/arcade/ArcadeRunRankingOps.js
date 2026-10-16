@@ -9,6 +9,7 @@ function runFor(support, state, kind) {
     if (kind === ARCADE_RUN_KINDS.ENDLESS_PARCOURS) return support._getEndlessRuntime?.(state);
     if (kind === ARCADE_RUN_KINDS.ARENA_WAVES) return support.arenaWavesRuntime;
     if (kind === ARCADE_RUN_KINDS.FIVE_PORTALS) return support.fivePortalsRuntime;
+    if (kind === ARCADE_RUN_KINDS.HUNT_PARCOURS) return support.huntParcoursSupport?.runtime;
     return support.arcadeRunRuntime;
 }
 

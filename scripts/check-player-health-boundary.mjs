@@ -9,6 +9,7 @@ const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx']);
 // Every existing write is approved by a source-level AST fingerprint, not by file,
 // directory, or a count budget. Updating a policy requires reviewing its exact write.
 const ALLOWED_HEALTH_WRITE_FINGERPRINTS = [
+    ["src/entities/ai/HeuristicHuntParcoursModifierOps.js","applyHuntParcoursRivalSpawnBonuses","player","shieldHP","=","Math.max(0, Number(player.shieldHP) || 0) + mods.shieldBonus","Nemesis learned shield bonus applied once after each ordinary spawn reset"],
     ["src/core/arcade/ArcadeIntermissionEffects.js","restoreArcadeHumanVitals","player","hp","=","Math.max(0, Math.min(maxHp, toSafeNumber(saved.hp, maxHp)))","restore saved Arcade player vitals"],
     ["src/core/arcade/ArcadeIntermissionEffects.js","restoreArcadeHumanVitals","player","shieldHP","=","Math.max(0, Math.min(maxShieldHp, toSafeNumber(saved.shieldHP, 0)))","restore saved Arcade player vitals"],
     ["src/core/arcade/ArenaWavesRuntime.js","_applyHumanUpgrades","player","hp","=","player.maxHp","Arena Waves player upgrade or wave reset"],

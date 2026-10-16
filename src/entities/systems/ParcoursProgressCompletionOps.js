@@ -35,7 +35,14 @@ export function completeParcours(system, player, state, now) {
         `route=${system._route.routeId} timeMs=${Math.round(state.completionTimeMs)} penaltyMs=${penaltyTimeMs}`
     );
     system._playProgressAudio('PARCOURS_FINISH', player, { intensity: 1.15 });
-    if (arcadeRacer) return;
+    if (arcadeRacer) {
+        // A Nemesis rival can win the map by completing the same real course. Other race
+        // bots retain their established behavior and never earn a human's XP or record.
+        if (player.isHuntParcoursCompetitor === true) system._leaderboardCallback?.({
+            type: 'finish', playerIndex: player.index, totalTimeMs: state.completionTimeMs,
+        });
+        return;
+    }
     const finishXpResult = system._xpEventCallback?.('finish', player.index, { finishedAtMs: now });
     if (finishXpResult?.earned > 0) {
         system._notifyPlayer(player, `+${finishXpResult.earned} XP (Parcours)`);

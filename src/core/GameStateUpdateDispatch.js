@@ -1,6 +1,9 @@
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 
 export function dispatchGameStateUpdate(game, dt, hasInteractiveMatchRuntime) {
+    if (game?.state === GAME_STATE_IDS.MENU || game?.state === GAME_STATE_IDS.PAUSED) {
+        game?.runtimeCoordinator?.getRuntimeFacade?.()?.tickPendingArcadeRewards?.();
+    }
     if (game?.state === GAME_STATE_IDS.PLAYING && hasInteractiveMatchRuntime && game.entityManager) {
         game._updatePlayingState(dt);
     } else if (game?.state === GAME_STATE_IDS.PAUSED && hasInteractiveMatchRuntime) {

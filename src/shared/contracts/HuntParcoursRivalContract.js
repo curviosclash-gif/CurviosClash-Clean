@@ -92,6 +92,12 @@ export function createHuntParcoursRivalState(seed = 0) {
     return buildRival(toCount(Math.abs(Number(seed)), 2147483647), 0, []);
 }
 
+/** Unknown record versions are readable as a temporary rival, never writable as this schema. */
+export function isWritableHuntParcoursRivalState(value) {
+    return value == null || (typeof value === 'object' && !Array.isArray(value)
+        && value.version === HUNT_PARCOURS_RIVAL_VERSION);
+}
+
 /**
  * Missing, broken or foreign-version data becomes a fresh rival for `fallbackSeed`.
  * Traits keep the newest occurrence of each id (oldest first), at most three.
