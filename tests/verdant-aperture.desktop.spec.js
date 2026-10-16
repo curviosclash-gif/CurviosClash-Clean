@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { openGameSubmenu, openStartSetupSection, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
 
 const MAP_KEY = 'verdant_aperture';
 const SETPIECE_COUNT = 13;
@@ -16,9 +16,8 @@ const CELL_HALF = 15 * MAP_SCALE;
 
 async function startVerdantAperture(page) {
     await waitForLoadedGame(page);
-    await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
-    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    await openGameSubmenu(page);
+    await openStartSetupSection(page, 'map');
     await page.selectOption('#map-select', MAP_KEY);
     await page.waitForFunction((mapKey) => (
         window.GAME_INSTANCE?.settings?.mapKey === mapKey
@@ -37,6 +36,56 @@ async function startVerdantAperture(page) {
         && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === expected.count
     ), { mapKey: MAP_KEY, count: SETPIECE_COUNT }, { timeout: 30000 });
 }
+
+test('join turrets clear the deck and animated geometry and fire at an approaching human', async ({ page }, testInfo) => {
+    await startVerdantAperture(page);
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING');
+    const initial = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE, arena = game.arena;
+        const turrets = game.entityManager.getStaticTurretSnapshot().filter(turret => turret.weapon === 'mg');
+        const collisions = [];
+        for (let phase = 0; phase < 24; phase += 1) {
+            arena.setGlbAnimationElapsedSeconds(phase * 6 / 24);
+            arena.update(0.001);
+            for (const turret of turrets) {
+                // Five authored units enclose every MG part, including a fully turned barrel.
+                const [x, y, z] = turret.pos;
+                if (arena.checkCollisionFast({ x, y, z }, 5 * 3)) collisions.push({ id: turret.id, phase });
+            }
+        }
+        const player = game.entityManager.humanPlayers[0];
+        player.position.set(0, 96 * 3, 0);
+        player.trail.clear();
+        player.spawnProtectionTimer = 0;
+        player.arenaCollisionGraceTimer = 0;
+        player.setLookAtWorld(0, 96 * 3, 60);
+        player.markRenderDiscontinuity('spawn');
+        return { turrets, collisions, alive: player.alive,
+            humanBlocked: arena.checkCollisionFast(player.position, player.hitboxRadius) };
+    });
+    expect(initial.collisions).toEqual([]);
+    expect(initial.alive).toBe(true);
+    expect(initial.humanBlocked).toBe(false);
+    expect(initial.turrets.map(turret => turret.pos)).toEqual([[-135, 192, -45], [135, 192, 45]]);
+    let final;
+    await expect.poll(async () => {
+        final = await page.evaluate(() => window.GAME_INSTANCE.entityManager.getStaticTurretSnapshot()
+            .filter(turret => turret.weapon === 'mg'));
+        return final.every((turret, index) => turret.shotsFired > initial.turrets[index].shotsFired);
+    }, { timeout: 5000 }).toBe(true);
+    await testInfo.attach('verdant-turret-clearance.json', {
+        body: JSON.stringify({ initial, final, poseSamples: 24, clearanceRadiusWorld: 15 }), contentType: 'application/json',
+    });
+    // Inspection view after the gameplay assertions; this placement is not flight evidence.
+    await page.evaluate(() => {
+        const player = window.GAME_INSTANCE.entityManager.humanPlayers[0];
+        player.position.set(-36 * 3, 71 * 3, -3 * 3);
+        player.setLookAtWorld(-45 * 3, 64 * 3, -15 * 3);
+        player.markRenderDiscontinuity('spawn');
+    });
+    await waitForRenderFrames(page, 2);
+    await page.screenshot({ path: testInfo.outputPath('verdant-turret-native.png') });
+});
 
 test('Verdant Aperture loads all thirteen greenhouse loops on desktop', async ({ page }) => {
     await startVerdantAperture(page);

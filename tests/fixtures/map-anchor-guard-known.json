@@ -1,23 +1,11 @@
 {
-  "count": 3,
+  "count": 1,
   "entries": [
     {
       "map": "skyline_siege",
       "check": "light-reach",
       "point": "lights[skyline_spire_beacon]",
       "reason": "guard approximates the GLB tower as a sphere around its base position (93 vs reach 90); tests/skyline-siege-lights.contract.test.mjs measures the beam against the tower tip and passes"
-    },
-    {
-      "map": "verdant_aperture",
-      "check": "in-solid",
-      "point": "staticTurrets[verdant_turret_west_join]",
-      "reason": "found when the guard started checking static turrets (13.10.2026): pos [-45, 62, -45] lies 4 map units above the bottom face of the static wall block obstacles[219] (pos [-38, 80, -46], size [50, 44, 10], y 58..102); the turret is embedded in the wall. Map fix open: move the turret out of the block (desktop-flows check needed)"
-    },
-    {
-      "map": "verdant_aperture",
-      "check": "in-solid",
-      "point": "staticTurrets[verdant_turret_east_join]",
-      "reason": "mirror of verdant_turret_west_join: pos [45, 62, 45] inside obstacles[222] (pos [38, 80, 46], size [50, 44, 10]); same map fix open"
     }
   ]
 }

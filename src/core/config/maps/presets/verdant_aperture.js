@@ -422,8 +422,11 @@ export const VERDANT_APERTURE_MAP = {
         // Turrets sit where the levels join. They are the only threat that keeps working while
         // nobody is nearby, which is what makes waiting in front of a shut barrier expensive.
         staticTurrets: [
-            { id: 'verdant_turret_west_join', weapon: 'mg', pos: [-45, 62, -45], range: 70, cooldown: 0.85, damage: 4, phase: 0.4 },
-            { id: 'verdant_turret_east_join', weapon: 'mg', pos: [45, 62, 45], range: 70, cooldown: 0.85, damage: 4, phase: 1.1 },
+            // Guard the joins from the hall: the hatch centres lie inside the mill walls.
+            // One deck cell towards the hall clears the shutters; six units above the deck
+            // leaves the complete barrel swing free even when aiming straight down.
+            { id: 'verdant_turret_west_join', weapon: 'mg', pos: [-45, 64, -15], range: 70, cooldown: 0.85, damage: 4, phase: 0.4 },
+            { id: 'verdant_turret_east_join', weapon: 'mg', pos: [45, 64, 15], range: 70, cooldown: 0.85, damage: 4, phase: 1.1 },
             { id: 'verdant_turret_roof', weapon: 'rocket', pos: [0, 126, 0], range: 96, cooldown: 3.6, rocketType: 'ROCKET_MEDIUM', phase: 0.9 },
         ],
         items: [

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import * as THREE from 'three';
 
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
@@ -12,6 +13,8 @@ import {
     resolveMapStaticTurretDefinitions,
 } from '../src/shared/contracts/MapSinglePlayerScenarioContract.js';
 import { normalizeMapAnimationClock } from '../src/shared/contracts/MapAnimationClockContract.js';
+import { StaticTurretSystem } from '../src/entities/systems/StaticTurretSystem.js';
+import { analyzeMapAnchors } from './helpers/map-anchor-guard.mjs';
 
 const map = VERDANT_APERTURE_MAP.verdant_aperture;
 const SETPIECE_PREFIX = 'assets/maps/verdant_aperture/glb/';
@@ -100,6 +103,55 @@ test('Verdant Aperture is laid out for hunt rather than for a route', () => {
         'missions reward fighting, not lap times',
     );
     assert.equal(map.missions.some((mission) => mission.type === 'TIME_TRIAL'), false);
+});
+
+test('join turrets clear the walls with their complete turning geometry', () => {
+    // Five authored units enclose the real MG, including its muzzle flash, for any head
+    // rotation. The openings test uses this same conservative sphere against animated GLBs.
+    const clearanceRadius = 5;
+    const system = new StaticTurretSystem({
+        arena: { currentMapDefinition: map }, gameModeStrategy: { modeType: 'HUNT' },
+        entityRuntimeConfig: { ARENA: { MAP_SCALE: 3 } },
+        renderer: { addToScene() {}, removeFromScene() {} },
+    });
+    try {
+        assert.equal(system.startRound(), 3);
+        for (const turret of system.turrets.filter(entry => entry.weapon === 'mg')) {
+            assert.equal(turret.authoredScale, 3);
+            turret.root.updateMatrixWorld(true);
+            const inverse = turret.root.matrixWorld.clone().invert();
+            const vertex = new THREE.Vector3();
+            let radius = 0;
+            turret.root.traverse(mesh => {
+                if (!mesh.isMesh) return;
+                const vertices = mesh.geometry.getAttribute('position');
+                for (let i = 0; i < vertices.count; i += 1) {
+                    vertex.fromBufferAttribute(vertices, i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inverse);
+                    radius = Math.max(radius, vertex.length());
+                }
+            });
+            assert.ok(radius > 4, 'the barrel and flash participate, not just the hitbox');
+            assert.ok(radius <= clearanceRadius, `${turret.id} fits its all-angle clearance sphere`);
+            const centre = new THREE.Vector3(...turret.pos);
+            for (const obstacle of map.obstacles.filter(entry => entry.pos && entry.size)) {
+                const half = new THREE.Vector3(...obstacle.size).multiplyScalar(0.5);
+                const at = new THREE.Vector3(...obstacle.pos);
+                const box = new THREE.Box3(at.clone().sub(half), at.clone().add(half));
+                assert.ok(box.distanceToPoint(centre) > clearanceRadius, `${turret.id} clears a fixed wall/deck`);
+            }
+        }
+    } finally { system.dispose(); }
+
+    const old = structuredClone(map);
+    old.staticTurrets[0].pos = [-45, 62, -45];
+    old.staticTurrets[1].pos = [45, 62, 45];
+    const embedded = analyzeMapAnchors('verdant_aperture', old, 3)
+        .filter(entry => entry.check === 'in-solid' && entry.point.startsWith('staticTurrets['));
+    assert.deepEqual(embedded.map(entry => entry.point).sort(), [
+        'staticTurrets[verdant_turret_east_join]', 'staticTurrets[verdant_turret_west_join]',
+    ]);
+    assert.equal(analyzeMapAnchors('verdant_aperture', map, 3)
+        .filter(entry => entry.point.startsWith('staticTurrets[')).length, 0);
 });
 
 test('every setpiece states a clip name and a phase on the shared map beat', () => {

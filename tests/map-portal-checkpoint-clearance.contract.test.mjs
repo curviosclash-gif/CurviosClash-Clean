@@ -1814,4 +1814,5 @@ test(`${hasPortalGlbFilters ? 'FILTERED DIAGNOSTIC ONLY — NOT FULL GATE: ' : '
     }
 });
 
-test.todo('runtime portal flight gate: verify every affected pair with a selectable Arcade vehicle and arbitrary 3D aim');
+// Native flight gate: map-portal-flight.desktop.spec.js covers every affected pair in both
+// directions with a selectable Arcade ship, finite 3D aims and the real simulation.

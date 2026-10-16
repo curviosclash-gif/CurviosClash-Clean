@@ -106,7 +106,9 @@ async function placeSetpiece(id) {
         mixer.update(0);
         slot.updateMatrixWorld(true);
     };
-    return { clip, colliders, pose };
+    const meshes = [];
+    scene.traverse(child => { if (child.isMesh) meshes.push(child); });
+    return { clip, colliders, meshes, pose };
 }
 
 // Triangles of the moving colliders in authored units.
@@ -207,8 +209,7 @@ function shipFreeShare(grid) {
     return { share: free / (grid.nu * grid.nv), area: free * STEP * STEP };
 }
 
-async function measure(opening) {
-    const setpiece = await placeSetpiece(opening.id);
+async function measure(opening, setpiece) {
     const shares = [];
     for (let time = 0; time < setpiece.clip.duration - 1e-9; time += SAMPLE_SECONDS) {
         setpiece.pose(time);
@@ -223,12 +224,44 @@ async function measure(opening) {
 }
 
 const results = new Map();
+const placed = new Map();
 
 before(async () => {
-    for (const opening of OPENINGS) results.set(opening.id, await measure(opening));
+    for (const model of map.glbModels.filter(entry => entry.animationClock)) {
+        const id = model.id.replace('verdant-aperture-', '');
+        placed.set(id, await placeSetpiece(id));
+    }
+    for (const opening of OPENINGS) results.set(opening.id, await measure(opening, placed.get(opening.id)));
     for (const [id, { shut, open }] of results) {
         console.log(`[verdant-openings] ${id}: ship-free ${(100 * shut.share).toFixed(1)}% at ${shut.time.toFixed(1)} s, `
             + `${(100 * open.share).toFixed(1)}% at ${open.time.toFixed(1)} s`);
+    }
+});
+
+test('join turrets clear all thirteen visible setpieces at 0.1-second loop samples', () => {
+    assert.equal(placed.size, 13);
+    const centres = map.staticTurrets.filter(entry => entry.weapon === 'mg')
+        .map(entry => ({ id: entry.id, point: new THREE.Vector3(...entry.pos) }));
+    // The companion contract derives the actual MG vertex radius and bounds it by five.
+    // A sphere remains conservative even while the head aims vertically or diagonally.
+    const radius = 5;
+    const triangle = new THREE.Triangle();
+    const nearest = new THREE.Vector3();
+    const box = new THREE.Box3();
+    for (const [id, setpiece] of placed) {
+        for (let time = 0; time <= setpiece.clip.duration + 1e-9; time += SAMPLE_SECONDS) {
+            setpiece.pose(time);
+            for (const vertices of triangles(setpiece.meshes)) {
+                triangle.set(...vertices.map(vertex => new THREE.Vector3(...vertex)));
+                box.setFromPoints([triangle.a, triangle.b, triangle.c]);
+                for (const centre of centres) {
+                    if (box.distanceToPoint(centre.point) > radius) continue;
+                    triangle.closestPointToPoint(centre.point, nearest);
+                    assert.ok(nearest.distanceTo(centre.point) > radius,
+                        `${centre.id} intersects ${id} at ${time.toFixed(1)}s`);
+                }
+            }
+        }
     }
 });
 
