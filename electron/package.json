@@ -70,6 +70,7 @@
           "core/runtime/ActiveRuntimeConfigStore.js",
           "core/settings/BotHeuristicSettingsStudioContract.js",
           "core/settings/SettingsOverrideContract.js",
+          "core/settings/SettingsOverridePresetValidation.js",
           "core/settings/SettingsOverrideMergeOps.js",
           "core/settings/SettingsOverrideRangeContract.js",
           "core/settings/SettingsOverrideRetiredPaths.js",

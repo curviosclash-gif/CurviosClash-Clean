@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { _electron as electron, expect, test } from '@playwright/test';
@@ -9,7 +8,10 @@ import { destroyAllElectronWindows } from './desktop-process-teardown.mjs';
 const requireElectron = createRequire(new URL('../electron/package.json', import.meta.url));
 
 async function openStudio() {
-    const fixture = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-studio-workspace-'));
+    // Keep Chromium's deeply nested profile files below Windows' path limit.
+    const info = test.info();
+    const fixture = path.join(info.project.outputDir, 'studio', info.testId.slice(-12), String(info.retry));
+    await fs.mkdir(fixture, { recursive: true });
     const env = { ...process.env, CURVIOS_USER_DATA_ROOT: fixture,
         CURVIOS_SETTINGS_STUDIO_PROJECT_ROOT: path.join(fixture, 'project'),
         CURVIOS_MAP_BALANCING_ROOT: process.cwd(), CURVIOS_MAP_BALANCING_DATA_ROOT: path.join(fixture, 'project'),
