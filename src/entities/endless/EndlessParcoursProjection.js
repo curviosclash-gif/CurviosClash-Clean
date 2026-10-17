@@ -4,7 +4,7 @@ import {
     resolveEndlessMilestones,
     resolveEndlessThreatLevel,
 } from '../../shared/contracts/EndlessParcoursContract.js';
-import { resolveEndlessStreakMultiplier } from '../../shared/contracts/EndlessParcoursStageContract.js';
+import { ENDLESS_PARCOURS_CHECKPOINT, resolveEndlessStreakMultiplier } from '../../shared/contracts/EndlessParcoursStageContract.js';
 import { ENDLESS_PARCOURS_RULE_VERSION } from '../../shared/contracts/EndlessParcoursWaveContract.js';
 import { countActiveEndlessBotSlots } from './EndlessParcoursRuntimeCounters.js';
 import { resolveEndlessWavePhaseRemaining } from './EndlessParcoursWaveOps.js';
@@ -72,14 +72,15 @@ export function buildEndlessHudState(runtime) {
         bonusScore: runtime.bonusScore,
         checkpointsPassed: runtime.checkpointsPassed,
         shakeoffs: runtime.shakeoffs,
-        reviveArmed: runtime.reviveArmedUntilSeconds > runtime.elapsedCombatSeconds
+        reviveArmed: runtime.reviveCount < ENDLESS_PARCOURS_CHECKPOINT.maxRevives
+            && runtime.reviveArmedUntilSeconds > runtime.elapsedCombatSeconds
             && runtime.reviveUsedAtCheckpointIndex !== runtime.lastCheckpointIndex,
         spawnWarning: runtime.spawnWarning ? { ...runtime.spawnWarning } : null,
         voidWarning: {
             active: runtime.voidWarning?.warning === true,
             remainingMeters: Math.max(0, Number(runtime.voidWarning?.remainingMeters) || 0),
         },
-        recordScore: runtime._records.best.score,
+        recordScore: runtime._records.bestByRuleVersion?.[ENDLESS_PARCOURS_RULE_VERSION]?.score || 0,
         recordDistanceMeters: runtime._records.bestDistance?.distanceMeters || runtime._records.best.distanceMeters,
         isNewRecord: runtime._isNewRecord,
         milestones: runtime._records.milestones,

@@ -22,7 +22,7 @@ import {
     resolveEndlessVoidWarning,
 } from '../../shared/contracts/EndlessParcoursStageContract.js';
 import { normalizeEndlessParcoursRecords } from '../../state/arcade/EndlessParcoursRecords.js';
-import { ENDLESS_COURSE_HALF_WIDTH } from './EndlessParcoursConnectors.js';
+import { EndlessParcoursExclusionZone } from './EndlessParcoursExclusionZone.js';
 import { EndlessParcoursPath } from './EndlessParcoursPath.js';
 import {
     resolveModuleCenterAtZ,
@@ -74,9 +74,6 @@ import {
     updateEndlessStageEffects,
 } from './EndlessParcoursStageOps.js';
 
-const COURSE_VOID_MARGIN = 15;
-const COURSE_MIN_Y = -24;
-const COURSE_MAX_Y = 64;
 const BOT_SPAWN_MIN_DISTANCE_SQ = 18 * 18;
 let endlessRunSequence = 0;
 
@@ -142,6 +139,9 @@ export class EndlessParcoursRuntime {
         this._activePaletteTier = 0;
         applyEndlessStagePalette(this._materials, 0);
         this._syncModules(0, 1);
+        this._previousExclusionZoneSource = this.arena?.exclusionZoneSource;
+        this._exclusionZoneSource = new EndlessParcoursExclusionZone(this);
+        if (this.arena) this.arena.exclusionZoneSource = this._exclusionZoneSource;
     }
 
     setRecordStore(store) {
@@ -373,15 +373,10 @@ export class EndlessParcoursRuntime {
         }
     }
 
-    _isOutsideCourse(player) {
-        const x = Number(player?.position?.x) || 0;
-        const y = Number(player?.position?.y) || 0;
-        const z = Number(player?.position?.z) || 0;
-        const center = this._resolveCenterAtZ(z);
-        return Math.abs(x - center.x) > ENDLESS_COURSE_HALF_WIDTH + COURSE_VOID_MARGIN
-            || y < center.y + COURSE_MIN_Y
-            || y > center.y + COURSE_MAX_Y
-            || this.voidWarning.remainingMeters <= 0;
+    _isOutsideCourse() {
+        // Leaving the shell uses the exclusion grace and salvos. Falling irrecoverably
+        // behind the streamed course retains its independent progress limit.
+        return this.voidWarning.remainingMeters <= 0;
     }
 
     tick(dt = 0) {
@@ -395,7 +390,7 @@ export class EndlessParcoursRuntime {
         if (this._pendingFinalReason) return this.finalize(this._pendingFinalReason);
         if (!human?.alive) return this.finalize(ENDLESS_PARCOURS_END_REASONS.PLAYER_DEATH);
         this._updateWarnings(human, safeDt);
-        if (this._isOutsideCourse(human)) {
+        if (this._isOutsideCourse()) {
             this.entityManager?._killPlayer?.(human, ENDLESS_PARCOURS_END_REASONS.VOID);
             if (!this._pendingFinalReason && human.alive !== true) {
                 return this.finalize(ENDLESS_PARCOURS_END_REASONS.VOID);
@@ -450,6 +445,9 @@ export class EndlessParcoursRuntime {
         this.activeModules.clear();
         this._sideRouteStates.clear();
         this._rewardedSideRoutes.clear();
+        if (this.arena?.exclusionZoneSource === this._exclusionZoneSource) {
+            this.arena.exclusionZoneSource = this._previousExclusionZoneSource;
+        }
         this.arena?.exitStaticStreamingMode?.();
         this._sharedGeometry?.dispose?.();
         for (const material of Object.values(this._materials)) material?.dispose?.();

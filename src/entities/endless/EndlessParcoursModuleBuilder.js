@@ -4,16 +4,17 @@ import {
     ENDLESS_COURSE_SEGMENTS,
     resolveEndlessCourseCenter,
 } from './EndlessParcoursConnectors.js';
+import { ENDLESS_COURSE_SHELL } from './EndlessParcoursShell.js';
 
 /**
  * Die Wand ist absichtlich dick: der Korridor knickt in Stufen, und eine
  * duenne Wand liesse an jedem Knick eine Luecke, durch die man hindurchfliegen
  * koennte. Die Dicke waechst nur nach aussen, die Fahrbahn bleibt gleich breit.
  */
-const WALL_THICKNESS = 8;
-const WALL_HEIGHT = 34;
+const WALL_THICKNESS = ENDLESS_COURSE_SHELL.wallThickness;
+const WALL_HEIGHT = ENDLESS_COURSE_SHELL.wallHeight;
 const FLOOR_WIDTH = ENDLESS_COURSE_HALF_WIDTH * 2 + 6;
-const SEGMENT_OVERLAP = 1.35;
+const SEGMENT_OVERLAP = ENDLESS_COURSE_SHELL.segmentOverlap;
 
 /**
  * Korridormitte an einer Weltposition innerhalb des Bausteins.
@@ -61,10 +62,11 @@ function buildCourseShell({ module, group, geometry, materials, ownerId, collide
         const center = localCenter(module, localZ);
         const worldZ = module.originZ + localZ;
         const spanZ = segmentLength * SEGMENT_OVERLAP;
-        group.add(createMesh(geometry, materials.floor, center.x, center.y - 11, worldZ, FLOOR_WIDTH, 1.2, spanZ));
+        group.add(createMesh(geometry, materials.floor, center.x, center.y + ENDLESS_COURSE_SHELL.floorY, worldZ,
+            FLOOR_WIDTH, ENDLESS_COURSE_SHELL.floorThickness, spanZ));
         for (const side of [-1, 1]) {
             const wallX = center.x + side * ENDLESS_COURSE_HALF_WIDTH;
-            const wallY = center.y + WALL_HEIGHT * 0.5 - 10;
+            const wallY = center.y + WALL_HEIGHT * 0.5 + ENDLESS_COURSE_SHELL.wallBottom;
             group.add(createMesh(geometry, materials.wall, wallX, wallY, worldZ, WALL_THICKNESS, WALL_HEIGHT, spanZ));
             colliders.push({
                 id: `${ownerId}:wall:${segment}:${side}`,

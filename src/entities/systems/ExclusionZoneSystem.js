@@ -62,11 +62,12 @@ function resolveWorstPursuitSeconds(distance, rocketSpeed, ship) {
  * rocket is deleted before it can arrive; it never exceeds the global cap.
  *
  * @param {object|null} config Entity runtime config with PLAYER and PROJECTILE sections.
+ * @param {number|null} [speedOverride] Current runtime cruise speed, before boost.
  */
-export function resolveExclusionZoneRocketTuning(config) {
+export function resolveExclusionZoneRocketTuning(config, speedOverride = null) {
     const defaults = DEFAULT_ENTITY_RUNTIME_CONFIG.PLAYER;
     const playerConfig = config?.PLAYER || defaults;
-    const speed = positiveOr(playerConfig.SPEED, defaults.SPEED);
+    const speed = positiveOr(speedOverride, positiveOr(playerConfig.SPEED, defaults.SPEED));
     const ship = {
         speed,
         boostedSpeed: speed * Math.max(1, positiveOr(playerConfig.BOOST_MULTIPLIER, defaults.BOOST_MULTIPLIER)),
@@ -125,8 +126,8 @@ function stageForTime(elapsedSeconds) {
     return SALVO_STAGES[0];
 }
 
-function nextSalvoTime(time, stage) {
-    return Math.min(stage.until, time + stage.interval);
+function nextSalvoTime(time, stage, offset = 0) {
+    return Math.min(stage.until + offset, time + stage.interval);
 }
 
 export class ExclusionZoneSystem {
@@ -158,14 +159,16 @@ export class ExclusionZoneSystem {
     update(dt) {
         if (this.networkReplica) return;
         const openFaces = this.entityManager?.arena?.openFaces;
-        if (!Array.isArray(openFaces) || openFaces.length === 0) {
+        const candidate = this.entityManager?.arena?.exclusionZoneSource;
+        const source = typeof candidate?.isOutside === 'function' ? candidate : null;
+        if (!source && (!Array.isArray(openFaces) || openFaces.length === 0)) {
             if (this.states.size > 0) this.reset();
             return;
         }
         const safeDt = Math.max(0, Number(dt) || 0);
         const players = this.entityManager?.players || [];
         this._pruneMissingPlayers(players);
-        for (const player of players) this._updatePlayer(player, safeDt, openFaces);
+        for (const player of players) this._updatePlayer(player, safeDt, openFaces, source);
     }
 
     _pruneMissingPlayers(players) {
@@ -183,7 +186,7 @@ export class ExclusionZoneSystem {
         return state;
     }
 
-    _updatePlayer(player, dt, openFaces) {
+    _updatePlayer(player, dt, openFaces, source = null) {
         const state = this._stateFor(player);
         if (!this._restoreFinitePosition(player, state)
             || !player.alive
@@ -195,39 +198,43 @@ export class ExclusionZoneSystem {
         }
 
         // A map room lies outside the arena box on purpose, so its visitor is not a runaway.
-        const inRoom = probeArenaPlayableVolumes(this.entityManager?.arena?.playableVolumes, player.position)
+        const inRoom = !source && probeArenaPlayableVolumes(this.entityManager?.arena?.playableVolumes, player.position)
             === PLAYABLE_VOLUME_INSIDE;
-        const outside = !inRoom && (state.phase === EXCLUSION_ZONE_PHASES.SAFE
-            ? this._isFullyOutside(player, openFaces)
-            : !this._isInsideHysteresis(player, openFaces));
+        const outside = source
+            ? source.isOutside(player, state.phase === EXCLUSION_ZONE_PHASES.SAFE ? 0 : EXCLUSION_ZONE_HYSTERESIS)
+            : !inRoom && (state.phase === EXCLUSION_ZONE_PHASES.SAFE
+                ? this._isFullyOutside(player, openFaces)
+                : !this._isInsideHysteresis(player, openFaces));
         if (!outside) {
             this._setSafe(player, state);
             return;
         }
 
+        const graceSeconds = positiveOr(source?.graceSeconds, EXCLUSION_ZONE_GRACE_SECONDS);
+        const stageOffset = graceSeconds - EXCLUSION_ZONE_GRACE_SECONDS;
         if (state.phase === EXCLUSION_ZONE_PHASES.SAFE) {
             state.phase = EXCLUSION_ZONE_PHASES.GRACE;
             state.elapsedSeconds = dt;
-            state.nextSalvoAt = EXCLUSION_ZONE_GRACE_SECONDS;
+            state.nextSalvoAt = graceSeconds;
         } else {
             state.elapsedSeconds += dt;
         }
 
-        if (state.elapsedSeconds < EXCLUSION_ZONE_GRACE_SECONDS) {
+        if (state.elapsedSeconds < graceSeconds) {
             state.phase = EXCLUSION_ZONE_PHASES.GRACE;
             state.stage = '';
-            state.countdownSeconds = Math.max(0, Math.ceil(EXCLUSION_ZONE_GRACE_SECONDS - state.elapsedSeconds));
+            state.countdownSeconds = Math.max(0, Math.ceil(graceSeconds - state.elapsedSeconds));
             this._publish(player, state);
             return;
         }
 
         state.phase = EXCLUSION_ZONE_PHASES.SALVO;
         state.countdownSeconds = 0;
-        state.stage = stageForTime(state.elapsedSeconds).key;
+        state.stage = stageForTime(state.elapsedSeconds - stageOffset).key;
         while (state.elapsedSeconds + 1e-9 >= state.nextSalvoAt) {
-            const stage = stageForTime(state.nextSalvoAt);
-            this._spawnSalvo(player, state, stage);
-            state.nextSalvoAt = nextSalvoTime(state.nextSalvoAt, stage);
+            const stage = stageForTime(state.nextSalvoAt - stageOffset);
+            this._spawnSalvo(player, state, stage, source);
+            state.nextSalvoAt = nextSalvoTime(state.nextSalvoAt, stage, stageOffset);
         }
         this._publish(player, state);
     }
@@ -278,10 +285,12 @@ export class ExclusionZoneSystem {
         return true;
     }
 
-    _spawnSalvo(player, state, stage) {
+    _spawnSalvo(player, state, stage, source = null) {
         const arena = this.entityManager?.arena;
         if (!this.projectileSystem || !arena) return;
-        const tuning = resolveExclusionZoneRocketTuning(resolveEntityRuntimeConfig(this.entityManager));
+        const tuning = resolveExclusionZoneRocketTuning(
+            resolveEntityRuntimeConfig(this.entityManager), source?.getPlayerSpeed?.(player)
+        );
         const launch = tuning.stages[stage.key];
         const offset = (Number(player.index) * 11 + state.salvoSequence * 7) % DIRECTION_COUNT;
         let spawned = 0;

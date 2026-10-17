@@ -2,6 +2,7 @@ import { resolveArcadeVehicleActiveStats } from './ArcadeVehicleActiveStatsContr
 import { resolveArcadeLevelRange } from './ArcadeHangarRulesContract.js';
 import { hasCustomArcadeScoreSettings } from './ArcadeRunSettingsContract.js';
 import { normalizePortalChainId } from './PortalChainContract.js';
+import { ENDLESS_PARCOURS_RULE_VERSION } from './EndlessParcoursWaveContract.js';
 
 export const ARCADE_DIFFICULTY_STORAGE_KEY = 'cuviosclash.arcade-difficulty-progress.v1';
 export const ARCADE_DIFFICULTY_SCHEMA_VERSION = 'arcade-difficulty-progress.v1';
@@ -87,6 +88,7 @@ export function createArcadeRankContext({ runId, runType, vehicleId, profile, st
         // Preserve the model that the caller actually supplied. Missing/legacy settings must not
         // be silently promoted to the current score model by this rank-context boundary.
         scoreModel: typeof runSettings?.scoreModel === 'string' ? runSettings.scoreModel.trim() : '',
+        ...(runType === 'endless_parcours' ? { endlessRuleVersion: ENDLESS_PARCOURS_RULE_VERSION } : {}),
         tierId: runType === 'five_portals' ? 'any' : tierId,
         portalChainId: runType === 'five_portals' ? normalizePortalChainId(portalChainId) : '',
         strengthScaled,

@@ -2,6 +2,7 @@ import { resolveArcadeLevelRange } from './ArcadeHangarRulesContract.js';
 import { DEFAULT_PORTAL_CHAIN_ID, normalizePortalChainId } from './PortalChainContract.js';
 import { CURRENT_ARCADE_SCORE_MODEL } from './ArcadeRunSettingsContract.js';
 import { resolveHuntParcoursLeaderboardKey } from './HuntParcoursMedalRecordContract.js';
+import { ENDLESS_PARCOURS_RULE_VERSION } from './EndlessParcoursWaveContract.js';
 
 export const HUNT_PARCOURS_SCORE_MODEL = 'hunt-score.v1';
 
@@ -29,7 +30,10 @@ export function resolveArcadeRankKey(context) {
     const chain = chainId === DEFAULT_PORTAL_CHAIN_ID ? '' : `${chainId}:`;
     const scoreModel = SCORE_RUNS.has(context.runType) ? context.scoreModel : '';
     if (SCORE_RUNS.has(context.runType) && scoreModel !== CURRENT_ARCADE_SCORE_MODEL) return '';
-    return `${context.runType}:${scoreModel ? `${scoreModel}:` : ''}${chain}${context.tierId}:${range.min}-${range.max}`;
+    const endless = context.runType === 'endless_parcours';
+    if (endless && context.endlessRuleVersion !== ENDLESS_PARCOURS_RULE_VERSION) return '';
+    const rules = endless ? `${context.endlessRuleVersion}:` : '';
+    return `${context.runType}:${scoreModel ? `${scoreModel}:` : ''}${rules}${chain}${context.tierId}:${range.min}-${range.max}`;
 }
 
 export function resolveArcadeParcoursRankKey(routeId, context) {
@@ -47,9 +51,14 @@ export function normalizeArcadeRankedLeaderboard(value) {
     for (const [key, rows] of Object.entries(input.boards || {})) {
         if (!Array.isArray(rows)) continue;
         const scoreModel = scoreModelFromBoardKey(key);
+        const [runType, , ruleVersion] = key.split(':');
+        const endlessRule = runType === 'endless_parcours' && typeof ruleVersion === 'string'
+            && ruleVersion.startsWith('endless-parcours-rules.')
+            ? ruleVersion : '';
         boards[key] = rows.filter((row) => row && typeof row.runId === 'string' && row.runId
             && Number.isFinite(row.score) && row.score >= 0 && Number.isFinite(row.vehicleLevel) && row.vehicleLevel >= 1)
             .filter((row) => !scoreModel || row.scoreModel === scoreModel)
+            .filter((row) => !endlessRule || row.endlessRuleVersion === endlessRule)
             .slice(0, 10).map((row) => ({ ...row }));
     }
     return { schemaVersion: ARCADE_RANKED_VERSION, boards };
@@ -65,8 +74,9 @@ export function insertArcadeRankedResult(leaderboard, context, result, nowMs = D
     }
     const entry = { runId: context.runId, vehicleId: context.vehicleId, vehicleLevel: context.vehicleLevel,
         tierId: context.tierId, score, completedWaves: Number(result?.lastCompletedWave) || 0,
-        completedSectors: Number(result?.completedSectors) || 0, date: new Date(nowMs).toISOString() };
-    if (SCORE_RUNS.has(context.runType) || context.runType === 'hunt_parcours') entry.scoreModel = context.scoreModel;
+        completedSectors: Number(result?.completedSectors) || 0, date: new Date(nowMs).toISOString(),
+        ...(SCORE_RUNS.has(context.runType) || context.runType === 'hunt_parcours' ? { scoreModel: context.scoreModel } : {}),
+        ...(context.runType === 'endless_parcours' ? { endlessRuleVersion: context.endlessRuleVersion } : {}) };
     const rows = (current.boards[key] || []).filter((row) => row.runId !== entry.runId);
     rows.push(entry);
     const direction = context.runType === 'five_portals' ? 1 : -1;

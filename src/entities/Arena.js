@@ -34,6 +34,8 @@ export class Arena {
         this.runtimeConfig = null;
         this.runtimeMapKey = null;
         this.runtimeMapDefinition = null;
+        /** Optional runtime-owned exclusion volume; ordinary maps use openFaces. */
+        this.exclusionZoneSource = null;
         this.bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 }; this.openFaces = Object.freeze([]);
 
         this.particles = null;

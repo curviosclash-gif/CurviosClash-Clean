@@ -121,7 +121,8 @@ function resolveEndlessCheckpointAnchor(runtime, index) {
 
 /**
  * Rettung nach dem Tor: Wer kurz nach einer Torpassage stirbt, wird einmal am
- * Tor wieder eingesetzt statt den Lauf zu verlieren. Pro Tor genau einmal.
+ * Tor wieder eingesetzt statt den Lauf zu verlieren. Pro Tor genau einmal,
+ * hoechstens drei erfolgreiche Rettungen im gesamten Lauf.
  *
  * @param {any} runtime
  * @param {any} player
@@ -129,11 +130,13 @@ function resolveEndlessCheckpointAnchor(runtime, index) {
  */
 export function tryEndlessRevive(runtime, player) {
     if (!runtime || !player || player.isBot) return false;
+    if (runtime.reviveCount >= ENDLESS_PARCOURS_CHECKPOINT.maxRevives) return false;
     if (runtime.lastCheckpointIndex < 0) return false;
     if (runtime.reviveUsedAtCheckpointIndex === runtime.lastCheckpointIndex) return false;
     if (runtime.reviveArmedUntilSeconds <= runtime.elapsedCombatSeconds) return false;
     const anchor = runtime.lastCheckpointAnchor;
     if (!anchor) return false;
+    if (typeof runtime.entityManager?._spawnOps?.spawnPlayerAt !== 'function') return false;
     const position = new THREE.Vector3(
         anchor.x,
         anchor.y,

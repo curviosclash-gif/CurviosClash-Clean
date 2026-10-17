@@ -221,7 +221,7 @@ export function summarizeEndlessRecordsLine(records) {
         return 'Endlosjagd: noch kein Lauf gewertet';
     }
     const topScores = normalized.top.map((entry) => Math.round(entry.score)).join(' / ');
-    return `Endlosjagd: Bestwert ${Math.round(normalized.best.score)} Punkte`
+    return `Endlosjagd (alle Regelstände): Bestwert ${Math.round(normalized.best.score)} Punkte`
         + ` | weiteste Strecke ${Math.round(normalized.bestDistance.distanceMeters)} m`
         + ` | Top ${normalized.top.length}: ${topScores || '-'}`
         + ` | Meilensteine ${normalized.milestones.length}/${ENDLESS_PARCOURS_MILESTONES.length}`;
