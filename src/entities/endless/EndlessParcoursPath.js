@@ -1,4 +1,5 @@
 import { generateEndlessParcoursModule } from './EndlessParcoursGenerator.js';
+import { EndlessParcoursPathMetric } from './EndlessParcoursPathMetric.js';
 
 /**
  * Haelt den Kettenzustand der Strecke. Weil sich der Korridorversatz aufsummiert
@@ -15,6 +16,7 @@ export class EndlessParcoursPath {
         this.baseSeed = Math.max(1, Number(baseSeed) >>> 0);
         /** @type {{ entranceConnector: string, driftX: number, driftY: number, sinceRecovery: number, tier: number, previousTemplateId: string, previousArea: string }[]} */
         this._chain = [];
+        this._metric = new EndlessParcoursPathMetric();
     }
 
     /**
@@ -32,9 +34,13 @@ export class EndlessParcoursPath {
         return this._chain.length;
     }
 
+    getMetric() { return this._metric; }
+
+    dispose() { this._chain.length = 0; this._metric.clear(); }
+
     _buildAt(index) {
         const state = this._chain[index];
-        return generateEndlessParcoursModule({
+        const module = generateEndlessParcoursModule({
             baseSeed: this.baseSeed,
             moduleIndex: index,
             previousConnector: state.entranceConnector,
@@ -44,6 +50,8 @@ export class EndlessParcoursPath {
             previousTemplateId: state.previousTemplateId,
             previousArea: state.previousArea,
         });
+        if (this._metric.getModuleCount() <= index) this._metric.appendModule(module);
+        return module;
     }
 
     _ensureChain(index, tier) {

@@ -62,19 +62,19 @@ export function isEndlessConnectorAllowed(drift, connector) {
  * @param {{ x: number, y: number }} entryDrift
  * @param {{ x: number, y: number }} exitDrift
  * @param {number} progress
+ * @param {{ x: number, y: number }} [out] Reusable output for geometry/metric sampling.
  * @returns {{ x: number, y: number }}
  */
-export function resolveEndlessCourseCenter(entryDrift, exitDrift, progress) {
+export function resolveEndlessCourseCenter(entryDrift, exitDrift, progress, out = { x: 0, y: 0 }) {
     const clamped = Math.max(0, Math.min(1, Number(progress) || 0));
     const blend = 0.5 - Math.cos(clamped * Math.PI) * 0.5;
     const fromX = Number(entryDrift?.x) || 0;
     const fromY = Number(entryDrift?.y) || 0;
     const toX = Number(exitDrift?.x) || 0;
     const toY = Number(exitDrift?.y) || 0;
-    return {
-        x: fromX + (toX - fromX) * blend,
-        y: fromY + (toY - fromY) * blend,
-    };
+    out.x = fromX + (toX - fromX) * blend;
+    out.y = fromY + (toY - fromY) * blend;
+    return out;
 }
 
 export default {
