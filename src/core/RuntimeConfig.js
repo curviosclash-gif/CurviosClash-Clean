@@ -376,11 +376,8 @@ export function createRuntimeConfigSnapshot(settings, {
             // The map owns its portal count; there is no player setting for it.
             portalCount: resolveMapPortalEntryCount((baseConfig?.MAPS || CONFIG.MAPS || {})[sessionMapKey], { planarMode }),
             planarLevelCount: clampSettingValue(gameplaySource.planarLevelCount, runtimeLimits.gameplay.planarLevelCount, gameplayDefaults.PLANAR_LEVEL_COUNT || 5),
-            nextCheckpointGlowIntensity: clampSettingValue(
-                gameplaySource.nextCheckpointGlowIntensity,
-                runtimeLimits.gameplay.nextCheckpointGlowIntensity,
-                DEFAULT_NEXT_CHECKPOINT_GLOW_INTENSITY
-            ),
+            sandstormWindStrength: clampSettingValue(gameplaySource.sandstormWindStrength, runtimeLimits.gameplay.sandstormWindStrength, 1),
+            nextCheckpointGlowIntensity: clampSettingValue(gameplaySource.nextCheckpointGlowIntensity, runtimeLimits.gameplay.nextCheckpointGlowIntensity, DEFAULT_NEXT_CHECKPOINT_GLOW_INTENSITY),
             portalBeams: false,
             planarAimInputSpeed: toNumber(gameplayDefaults.PLANAR_AIM_INPUT_SPEED, 1.5),
             planarAimReturnSpeed: toNumber(gameplayDefaults.PLANAR_AIM_RETURN_SPEED, 0.6),

@@ -82,6 +82,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     GAMEPLAY_FIGHT_MG_DAMAGE: 'gameplay.fightMgDamage',
     GAMEPLAY_PLANAR_MODE: 'gameplay.planarMode',
     GAMEPLAY_PLANAR_LEVEL_COUNT: 'gameplay.planarLevelCount',
+    GAMEPLAY_SANDSTORM_WIND_STRENGTH: 'gameplay.sandstormWindStrength',
     RECORDING_PROFILE: 'recording.profile',
     RECORDING_HUD_MODE: 'recording.hudMode',
     RECORDING_ORIENTATION: 'recording.orientation',

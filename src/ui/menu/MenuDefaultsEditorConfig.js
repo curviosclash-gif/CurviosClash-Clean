@@ -99,6 +99,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             fightMgDamage: DEFAULT_FIGHT_MG_DAMAGE,
             planarMode: false,
             planarLevelCount: 5,
+            sandstormWindStrength: 1,
             portalBeams: false,
         },
         botBridge: {

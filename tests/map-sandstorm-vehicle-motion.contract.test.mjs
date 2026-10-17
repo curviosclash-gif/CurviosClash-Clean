@@ -77,6 +77,25 @@ test('active side wind gives a small, bounded lateral drift that eases in over t
     assert.equal(player.sandstormVisualIntensity, 1);
 });
 
+test('sandstorm wind strength setting scales vehicle drift and zero disables its vehicle effect', () => {
+    const normal = makePlayer();
+    const stronger = makePlayer();
+    stronger.manager.runtimeConfig = { gameplay: { sandstormWindStrength: 2 } };
+    const disabled = makePlayer();
+    disabled.manager.runtimeConfig = { gameplay: { sandstormWindStrength: 0 } };
+
+    for (let index = 0; index < 120; index += 1) {
+        step(normal.player, normal.manager, 1 / 60);
+        step(stronger.player, stronger.manager, 1 / 60);
+        step(disabled.player, disabled.manager, 1 / 60);
+    }
+
+    assert.ok(stronger.player._sandstormDriftVelocity.length() > normal.player._sandstormDriftVelocity.length());
+    assert.ok(stronger.player._sandstormDriftVelocity.length() <= stronger.player.baseSpeed * 0.11 + 1e-9);
+    assert.equal(disabled.player._sandstormDriftVelocity.lengthSq(), 0);
+    assert.equal(disabled.player.sandstormVisualIntensity, 0);
+});
+
 test('a fully blocked wind leaves no force and quickly damps previously accumulated drift', () => {
     const { player, manager, windState } = makePlayer();
     for (let index = 0; index < 120; index += 1) step(player, manager, 1 / 60);

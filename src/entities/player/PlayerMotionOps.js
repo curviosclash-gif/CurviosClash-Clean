@@ -96,7 +96,12 @@ function applySandstormWind(player, dt, planarMode) {
         ? 0
         : Math.max(0, Math.min(1, Number(wind.intensity) || 0))
             * Math.max(0, Math.min(1, Number(wind.exposure) || 0));
-    player.sandstormVisualIntensity = force;
+    const configuredWindStrength = player.entityManager?.runtimeConfig?.gameplay?.sandstormWindStrength;
+    const windStrength = Math.max(0, Math.min(2, Number.isFinite(Number(configuredWindStrength))
+        ? Number(configuredWindStrength)
+        : 1));
+    const effectiveForce = force * windStrength;
+    player.sandstormVisualIntensity = Math.min(1, effectiveForce);
 
     if (submerged) {
         drift.set(0, 0, 0);
@@ -106,14 +111,14 @@ function applySandstormWind(player, dt, planarMode) {
     const safeDt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
     const directionX = Number(wind.directionX) || 0;
     const directionZ = Number(wind.directionZ) || 0;
-    if (force > 0 && safeDt > 0) {
+    if (effectiveForce > 0 && safeDt > 0) {
         const storm = player.entityManager?._mapSandstormSystem;
         const stormDuration = Math.max(0, Number(storm?.config?.activeSeconds) || 0);
         const stormRemaining = Math.max(0, Number(storm?.state?.remainingSeconds) || 0);
         const stormElapsed = Math.max(0, stormDuration - stormRemaining);
         const eventPhase = Math.max(0, Number(storm?.state?.eventIndex) || 0) * 2.399;
         const gust = 0.82 + (Math.sin(stormElapsed * 1.7 + eventPhase + (Number(player.index) || 0) * 1.91) + 1) * 0.09;
-        const maxDriftSpeed = Math.max(0, Number(player.baseSpeed) || Number(player.speed) || 0) * 0.055;
+        const maxDriftSpeed = Math.max(0, Number(player.baseSpeed) || Number(player.speed) || 0) * 0.055 * windStrength;
         const accelerationStep = maxDriftSpeed * 2.2 * gust * force * safeDt;
         drift.x += directionX * accelerationStep;
         drift.z += directionZ * accelerationStep;
@@ -122,7 +127,7 @@ function applySandstormWind(player, dt, planarMode) {
         if (drift.lengthSq() > maxDriftSq && maxDriftSq > 0) drift.setLength(maxDriftSpeed);
     }
 
-    drift.multiplyScalar(Math.exp(-safeDt * (force > 0 ? 2.2 : 12)));
+    drift.multiplyScalar(Math.exp(-safeDt * (effectiveForce > 0 ? 2.2 : 12)));
     if (planarMode) drift.y = 0;
 }
 

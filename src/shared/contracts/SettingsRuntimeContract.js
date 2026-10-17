@@ -31,6 +31,7 @@ export const SETTINGS_LIMITS = Object.freeze({
         fightPlayerHp: Object.freeze({ min: 80, max: 250, integer: true }),
         fightMgDamage: FIGHT_MG_DAMAGE_LIMITS,
         planarLevelCount: Object.freeze({ min: 2, max: 10, integer: true }),
+        sandstormWindStrength: Object.freeze({ min: 0, max: 2 }),
     }),
     botBridge: Object.freeze({
         timeoutMs: Object.freeze({ min: 20, max: 5000, integer: true }),
