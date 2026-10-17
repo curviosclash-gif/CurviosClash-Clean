@@ -1,13 +1,15 @@
+import { ENDLESS_PARCOURS_RULE_VERSION } from '../src/shared/contracts/EndlessParcoursWaveContract.js';
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, openStartSetupSection, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
+import { collectErrors, selectSessionType, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
 import { installControl, setPaused, step } from '../scripts/playtest/playtest-control.mjs';
 
 async function startEndless(page) {
     await waitForLoadedGame(page);
-    await page.locator('#menu-nav [data-session-type="single"]').click({ force: true });
-    await openStartSetupSection(page, 'arcade');
-    await page.locator('.arcade-start-mode-options > summary').click();
-    await page.locator('#btn-arcade-endless-start-inline').click({ force: true });
+    await selectSessionType(page, 'single');
+    await page.locator('[data-journey-world="flight_school"]').click();
+    await page.locator('[data-journey-node="endless_hunt"]').click();
+    await page.getByLabel('Endlosjagd: Wertung', { exact: true }).selectOption('free');
+    await page.locator('[data-journey-start="endless_hunt"]').click();
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
         && window.GAME_INSTANCE.entityManager?.endlessParcoursRuntime);
     const session = { page };
@@ -75,10 +77,7 @@ test('Endlos P1 native death and spawn paths exhaust three rescues and settle th
         const runtime = manager.endlessParcoursRuntime, human = manager.humanPlayers[0], rescues = [];
         let summary;
         for (let index = 0; index < 4; index++) {
-            const z = 116 + index * 120;
-            const metric = runtime.getPathMetric(), range = metric.getStationRange(index);
-            const center = metric.sampleAtS(range.startS + range.lengthS * (116 / 120)).position;
-            human.position.set(center.x, center.y + 8, z);
+            human.position.copy(runtime.getCoursePoint(index, 0, 8, 116).position);
             human.spawnProtectionTimer = 0;
             human.markRenderDiscontinuity('endless-rescue-acceptance');
             runtime.update(0);
@@ -94,10 +93,10 @@ test('Endlos P1 native death and spawn paths exhaust three rescues and settle th
         [true, true, 1], [true, true, 2], [true, true, 3], [false, false, 3],
     ]);
     expect(result.summary.reason).toBe('ENDLESS_PLAYER_DEATH');
-    expect(result.summary.ruleVersion).toBe('endless-parcours-rules.v2-p1');
+    expect(result.summary.ruleVersion).toBe(ENDLESS_PARCOURS_RULE_VERSION);
     expect(result.rankContext.endlessRuleVersion).toBe(result.summary.ruleVersion);
     expect(result.summary.persistence.ok).toBe(true);
-    expect(result.summary.ranking.key).toContain(':endless-parcours-rules.v2-p1:');
+    expect(result.summary.ranking.key).toContain(`:${ENDLESS_PARCOURS_RULE_VERSION}:`);
     await step(session, 100);
     await waitForRenderFrames(page, 3);
     await testInfo.attach('endless-p1-rescues.json', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });

@@ -24,6 +24,9 @@ import {
 import { normalizeEndlessParcoursRecords } from '../../state/arcade/EndlessParcoursRecords.js';
 import { EndlessParcoursExclusionZone } from './EndlessParcoursExclusionZone.js';
 import { EndlessParcoursPath } from './EndlessParcoursPath.js';
+import { createEndlessPathSample } from './EndlessParcoursPathMetric.js';
+import { resolveEndlessCoursePoint } from './EndlessParcoursCourseSpace.js';
+import { ENDLESS_PARCOURS_RULE_VERSION } from '../../shared/contracts/EndlessParcoursWaveContract.js';
 import {
     resolveModuleCenterAtZ,
 } from './EndlessParcoursModuleBuilder.js';
@@ -115,6 +118,10 @@ export class EndlessParcoursRuntime {
         this._records = normalizeEndlessParcoursRecords();
         this._startSpeed = resolveEndlessStartSpeed(entityManager?.humanPlayers?.[0], 1);
         this._path = new EndlessParcoursPath({ baseSeed: this.baseSeed });
+        this._courseProjection = createEndlessPathSample();
+        this._courseSample = createEndlessPathSample();
+        this._projectionBounds = { minModuleIndex: 0, maxModuleIndex: 0 };
+        this.currentProgressMeters = 0;
         this._sideRouteStates = new Map();
         this._rewardedSideRoutes = new Set();
         this._tmpDirection = new THREE.Vector3();
@@ -162,14 +169,35 @@ export class EndlessParcoursRuntime {
 
     getPathMetric() { return this._path.getMetric(); }
 
+    getRecordDistanceMeters() {
+        return Math.max(0, Number(this._records.bestDistanceByRuleVersion?.[ENDLESS_PARCOURS_RULE_VERSION]?.distanceMeters) || 0);
+    }
+
+    getCoursePoint(moduleIndex, x = 0, y = 0, localZ = 0, out = this._courseSample) {
+        const module = this._path.getModule(moduleIndex, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
+        return resolveEndlessCoursePoint(module, x, y, localZ, out);
+    }
+
+    projectCoursePoint(point, out = this._courseProjection) {
+        if (!Number.isFinite(point?.z)) return null;
+        const index = Math.max(0, Math.floor(point.z / ENDLESS_PARCOURS_MODULE_LENGTH));
+        if (this._path.getMetric().getModuleCount() <= index + 1) {
+            this._path.getModule(index + 1, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
+        }
+        this._projectionBounds.minModuleIndex = Math.max(0, index - 1);
+        this._projectionBounds.maxModuleIndex = index + 1;
+        return this._path.getMetric().projectPoint(point, out, this._projectionBounds);
+    }
+
     getRecordsSnapshot() {
         return normalizeEndlessParcoursRecords(this._records);
     }
 
     getInitialHumanSpawn() {
+        const frame = this.getCoursePoint(0, 0, 8, 8);
         return {
-            position: new THREE.Vector3(0, 8, 8),
-            direction: new THREE.Vector3(0, 0, 1),
+            position: new THREE.Vector3().copy(frame.position),
+            direction: new THREE.Vector3().copy(frame.tangent),
         };
     }
 
@@ -193,14 +221,12 @@ export class EndlessParcoursRuntime {
      * Konstruktor geladen wird, traegt er sich hier fuer schon gebaute Bausteine nach.
      */
     _refreshRecordMarkers() {
-        const record = Math.max(0, Number(
-            this._records?.bestDistance?.distanceMeters ?? this._records?.best?.distanceMeters
-        ) || 0);
+        const record = this.getRecordDistanceMeters();
         if (record <= 0) return;
         for (const [index, instance] of this.activeModules) {
             if (instance.recordMarker) continue;
-            const { originZ, length } = instance.module;
-            if (record < originZ || record >= originZ + length) continue;
+            const range = this._path.getMetric().getStationRange(index);
+            if (record < range.startS || record >= range.endS) continue;
             this._removeModule(instance);
             this.activeModules.set(index, this._instantiateModule(instance.module));
         }
@@ -313,17 +339,22 @@ export class EndlessParcoursRuntime {
     }
 
     _updateProgress(player) {
-        const progress = Math.max(0, Number(player?.position?.z) || 0);
-        this.currentModuleIndex = Math.max(0, Math.floor(progress / ENDLESS_PARCOURS_MODULE_LENGTH));
+        const projected = this.projectCoursePoint(player?.position);
+        if (!projected) return;
+        const progress = projected.s;
+        this.currentProgressMeters = progress;
+        this.currentModuleIndex = projected.moduleIndex;
+        this._syncModules(this.currentModuleIndex, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
+        if (this._exclusionZoneSource.isOutside(player)) return;
         if (progress <= this.maxProgressMeters) return;
         this.maxProgressMeters = progress;
         handleEndlessCheckpointCrossing(this, progress);
-        const completed = Math.max(0, Math.floor(progress / ENDLESS_PARCOURS_MODULE_LENGTH));
+        const completed = this.currentModuleIndex;
         if (completed > this.completedModules) {
             this.completedModules = completed;
             player?.setControlOptions?.({ speed: this._startSpeed * resolveEndlessSpeedMultiplier(completed) });
         }
-        if (!this.combatStarted && progress >= ENDLESS_PARCOURS_MODULE_LENGTH) {
+        if (!this.combatStarted && completed >= 1) {
             this.combatStarted = true;
             this.elapsedCombatSeconds = 0;
             this._lastThreatLevel = 'EASY';
@@ -366,7 +397,7 @@ export class EndlessParcoursRuntime {
             if (this.spawnWarning.remaining <= 0) this.spawnWarning = null;
         }
         const previous = this.voidWarning.warning === true;
-        this.voidWarning = resolveEndlessVoidWarning(Number(human?.position?.z) || 0, this.maxProgressMeters);
+        this.voidWarning = resolveEndlessVoidWarning(this.currentProgressMeters, this.maxProgressMeters);
         if (this.voidWarning.warning && !previous && this.voidWarning.remainingMeters > 0) {
             this.audio?.play?.('PARCOURS_WRONG');
             this.entityManager?._notifyPlayerFeedback?.(human, 'Zurückgefallen - sofort vorwärts');
@@ -386,7 +417,6 @@ export class EndlessParcoursRuntime {
         this.survivalSeconds += safeDt;
         if (this.combatStarted) this._trackHumanEvents(human);
         this._updateProgress(human);
-        this._syncModules(this.currentModuleIndex, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
         if (this._pendingFinalReason) return this.finalize(this._pendingFinalReason);
         if (!human?.alive) return this.finalize(ENDLESS_PARCOURS_END_REASONS.PLAYER_DEATH);
         this._updateWarnings(human, safeDt);

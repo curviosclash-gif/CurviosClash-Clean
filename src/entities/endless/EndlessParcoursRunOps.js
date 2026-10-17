@@ -84,7 +84,15 @@ export function updateEndlessStreak(runtime) {
  */
 export function handleEndlessCheckpointCrossing(runtime, progressZ) {
     if (!runtime) return false;
-    const targetIndex = resolveEndlessCheckpointIndex(progressZ);
+    const metric = runtime.getPathMetric?.();
+    let targetIndex = resolveEndlessCheckpointIndex(progressZ);
+    if (metric?.getModuleCount() > 0) {
+        const frame = metric.sampleAtS(progressZ);
+        const index = frame.moduleIndex;
+        const module = runtime.activeModules.get(index)?.module || runtime._path.getModule(index);
+        const gateS = metric.getStationAtProgress(index, module.localCheckpointZ / module.length);
+        targetIndex = progressZ + 1e-7 >= gateS ? index : index - 1;
+    }
     if (targetIndex < 0 || targetIndex <= runtime.lastCheckpointIndex) return false;
     for (let index = runtime.lastCheckpointIndex + 1; index <= targetIndex; index += 1) {
         runtime.lastCheckpointIndex = index;
@@ -110,6 +118,13 @@ export function handleEndlessCheckpointCrossing(runtime, progressZ) {
 }
 
 function resolveEndlessCheckpointAnchor(runtime, index) {
+    const metric = runtime.getPathMetric?.();
+    if (metric) {
+        const module = runtime.activeModules.get(index)?.module || runtime._path.getModule(index);
+        const station = metric.getStationAtProgress(index, module.localCheckpointZ / module.length);
+        const frame = metric.sampleAtS(station);
+        return { x: frame.position.x, y: frame.position.y, z: frame.position.z, station };
+    }
     const instance = runtime.activeModules?.get?.(index);
     if (!instance?.gateCenter) return null;
     return {
@@ -143,6 +158,11 @@ export function tryEndlessRevive(runtime, player) {
         anchor.z - ENDLESS_PARCOURS_CHECKPOINT.reviveBackOffMeters
     );
     const direction = new THREE.Vector3(0, 0, 1);
+    if (Number.isFinite(anchor.station) && runtime.getPathMetric) {
+        const frame = runtime.getPathMetric().sampleAtS(anchor.station - ENDLESS_PARCOURS_CHECKPOINT.reviveBackOffMeters);
+        position.copy(frame.position);
+        direction.copy(frame.tangent);
+    }
     const spawned = runtime.entityManager?._spawnOps?.spawnPlayerAt?.(player, position, direction);
     if (spawned === false) return false;
     if (player.alive !== true) return false;

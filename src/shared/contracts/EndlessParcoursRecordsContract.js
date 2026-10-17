@@ -129,11 +129,29 @@ export function normalizeEndlessParcoursRecords(value = null) {
             topByRuleVersion[entry.ruleVersion].length = Math.min(topByRuleVersion[entry.ruleVersion].length, ENDLESS_PARCOURS_TOP_RUNS);
         }
     }
+    const bestDistance = normalizeMetrics(/** @type {any} */ (source.bestDistance)?.distanceMeters != null
+        ? source.bestDistance : farthest);
+    // Optional additive v3 field: keep historical all-time values and each rule's full
+    // distance record, even when a low-scoring distance run falls out of its score top five.
+    const bestDistanceByRuleVersion = Object.create(null);
+    const rawDistances = source.bestDistanceByRuleVersion && typeof source.bestDistanceByRuleVersion === 'object'
+        ? source.bestDistanceByRuleVersion : {};
+    for (const [key, entry] of Object.entries(rawDistances)) {
+        if (text(key) && entry && typeof entry === 'object' && !Array.isArray(entry)
+            && (!text(entry.ruleVersion) || text(entry.ruleVersion) === text(key))) {
+            bestDistanceByRuleVersion[text(key)] = normalizeMetrics({ ...entry, ruleVersion: text(key) });
+        }
+    }
+    for (const entry of [best, last, ...top, bestDistance, ...Object.values(bestByRuleVersion), ...Object.values(topByRuleVersion).flat()]) {
+        if (entry.distanceMeters > (bestDistanceByRuleVersion[entry.ruleVersion]?.distanceMeters || 0)) {
+            bestDistanceByRuleVersion[entry.ruleVersion] = { ...entry };
+        }
+    }
     return {
         schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
         best,
-        bestDistance: normalizeMetrics(/** @type {any} */ (source.bestDistance)?.distanceMeters != null
-            ? source.bestDistance : farthest),
+        bestDistance,
+        bestDistanceByRuleVersion,
         last,
         top,
         bestByRuleVersion,
@@ -177,11 +195,15 @@ export function updateEndlessParcoursRecords(records, summary, date = '') {
             .sort(sortByScoreDesc).slice(0, ENDLESS_PARCOURS_TOP_RUNS)
         : (current.topByRuleVersion[last.ruleVersion] || []).slice();
     const isNewDistance = last.distanceMeters > current.bestDistance.distanceMeters;
+    const versionDistance = current.bestDistanceByRuleVersion[last.ruleVersion];
     return {
         records: {
             schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
             best: last.score > current.best.score ? { ...last } : { ...current.best },
             bestDistance: isNewDistance ? { ...last } : { ...current.bestDistance },
+            bestDistanceByRuleVersion: { ...current.bestDistanceByRuleVersion,
+                [last.ruleVersion]: !versionDistance || last.distanceMeters > versionDistance.distanceMeters
+                    ? { ...last } : { ...versionDistance } },
             last,
             top,
             bestByRuleVersion: {

@@ -81,7 +81,7 @@ export function buildEndlessHudState(runtime) {
             remainingMeters: Math.max(0, Number(runtime.voidWarning?.remainingMeters) || 0),
         },
         recordScore: runtime._records.bestByRuleVersion?.[ENDLESS_PARCOURS_RULE_VERSION]?.score || 0,
-        recordDistanceMeters: runtime._records.bestDistance?.distanceMeters || runtime._records.best.distanceMeters,
+        recordDistanceMeters: runtime.getRecordDistanceMeters(),
         isNewRecord: runtime._isNewRecord,
         milestones: runtime._records.milestones,
         newMilestones: runtime._newMilestones,

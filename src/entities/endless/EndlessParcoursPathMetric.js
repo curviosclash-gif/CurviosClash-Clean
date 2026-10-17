@@ -16,7 +16,24 @@ function speed(module, t) {
     return Math.hypot(module.length, module.dx * scale, module.dy * scale);
 }
 
-/** Numerical arc length of the existing cosine centreline; gameplay still uses legacy Z. */
+export function sampleEndlessModuleFrame(module, progress, out) {
+    const t = Math.max(0, Math.min(1, Number(progress) || 0));
+    out.moduleIndex = module.moduleIndex; out.progress = t;
+    resolveEndlessCourseCenter(module.entryDrift, module.exitDrift, t, out.position);
+    out.position.z = module.originZ + module.length * t;
+    const scale = Math.PI * 0.5 * Math.sin(Math.PI * t);
+    const norm = Math.hypot(module.length, (module.exitDrift.x - module.entryDrift.x) * scale, (module.exitDrift.y - module.entryDrift.y) * scale);
+    const tx = (module.exitDrift.x - module.entryDrift.x) * scale / norm, ty = (module.exitDrift.y - module.entryDrift.y) * scale / norm, tz = module.length / norm;
+    out.tangent.x = tx; out.tangent.y = ty; out.tangent.z = tz;
+    // Z is strictly increasing, so world-up cross tangent cannot become singular.
+    const rightLength = Math.hypot(tz, tx);
+    const rx = tz / rightLength, rz = -tx / rightLength;
+    out.right.x = rx; out.right.y = 0; out.right.z = rz;
+    out.up.x = ty * rz; out.up.y = tz * rx - tx * rz; out.up.z = -ty * rx;
+    return out;
+}
+
+/** Shared arc-length stations and frames of the authored cosine centreline. */
 export class EndlessParcoursPathMetric {
     constructor() {
         this._modules = [];
@@ -69,6 +86,21 @@ export class EndlessParcoursPathMetric {
         return out;
     }
 
+    getStationAtProgress(index, progress) {
+        const record = Number.isInteger(index) ? this._modules[index] : null;
+        if (!record) return NaN;
+        const t = Math.max(0, Math.min(1, Number(progress) || 0));
+        if (t === 1) return record.startS + record.stations[STEPS];
+        const cell = Math.floor(t * STEPS);
+        return record.startS + record.stations[cell]
+            + (t * STEPS - cell) * (record.stations[cell + 1] - record.stations[cell]);
+    }
+
+    sampleAtProgress(index, progress, out = this._sample) {
+        const station = this.getStationAtProgress(index, progress);
+        return Number.isFinite(station) ? this.sampleAtS(station, out) : null;
+    }
+
     _moduleAtS(s) {
         let lo = 0, hi = this._modules.length - 1;
         // Shared seams belong to the following module, except the final endpoint.
@@ -94,17 +126,7 @@ export class EndlessParcoursPathMetric {
         const fraction = (localS - record.stations[lo]) / (record.stations[hi] - record.stations[lo]);
         const t = Math.max(0, Math.min(1, (lo + fraction) / STEPS));
         out.s = s; out.moduleIndex = record.moduleIndex; out.progress = t; out.distanceSquared = 0;
-        resolveEndlessCourseCenter(record.entryDrift, record.exitDrift, t, out.position);
-        out.position.z = record.originZ + record.length * t;
-        const scale = Math.PI * 0.5 * Math.sin(Math.PI * t);
-        const norm = speed(record, t);
-        const tx = record.dx * scale / norm, ty = record.dy * scale / norm, tz = record.length / norm;
-        out.tangent.x = tx; out.tangent.y = ty; out.tangent.z = tz;
-        // Z is strictly increasing, so world-up cross tangent cannot become singular.
-        const rightLength = Math.hypot(tz, tx);
-        const rx = tz / rightLength, rz = -tx / rightLength;
-        out.right.x = rx; out.right.y = 0; out.right.z = rz;
-        out.up.x = ty * rz; out.up.y = tz * rx - tx * rz; out.up.z = -ty * rx;
+        sampleEndlessModuleFrame(record, t, out);
         return out;
     }
 
@@ -125,12 +147,17 @@ export class EndlessParcoursPathMetric {
         return dx * dx + dy * dy + dz * dz;
     }
 
-    projectPoint(point, out = this._sample) {
+    projectPoint(point, out = this._sample, bounds = null) {
         if (!this._modules.length || !Number.isFinite(point?.x)
             || !Number.isFinite(point?.y) || !Number.isFinite(point?.z)) return null;
         const px = point.x, py = point.y, pz = point.z;
+        const minIndex = Math.max(0, Math.floor(Number(bounds?.minModuleIndex) || 0));
+        const maxIndex = Math.min(this._modules.length - 1,
+            bounds?.maxModuleIndex == null ? this._modules.length - 1 : Math.floor(Number(bounds.maxModuleIndex)));
+        if (minIndex > maxIndex || !Number.isFinite(maxIndex)) return null;
         let bestRecord = this._modules[0], bestT = 0, bestDistance = Infinity;
-        for (const record of this._modules) {
+        for (let index = minIndex; index <= maxIndex; index++) {
+            const record = this._modules[index];
             if (this._boxDistanceSquared(record, point) > bestDistance) continue;
             let cell = 0, localDistance = Infinity;
             for (let step = 0; step <= STEPS; step++) {

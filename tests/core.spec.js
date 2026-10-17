@@ -167,15 +167,16 @@ test.describe('Desktop Smoke', () => {
         await waitForLoadedGame(page);
         await page.locator('#menu-nav [data-session-type="single"]').click({ force: true });
         await openStartSetupSection(page, 'arcade');
-        await page.locator('.arcade-start-mode-options > summary').click();
         await page.locator('.arcade-advanced-options > summary').click();
-        await expect(page.locator('#btn-arcade-endless-start-inline')).toBeVisible();
         // Ein gesetzter Seed erzeugt dieselbe Strecke erneut, damit sich Laeufe teilen lassen.
         await expect(page.locator('#arcade-endless-records-line')).toContainText('Endlosjagd');
         await page.locator('#input-arcade-seed').fill('4242');
         await page.locator('#btn-arcade-seed-apply').click({ force: true });
         await expect(page.locator('#arcade-seed-line')).toContainText('4242');
-        await page.locator('#btn-arcade-endless-start-inline').click({ force: true });
+        await page.locator('[data-journey-world="flight_school"]').click();
+        await page.locator('[data-journey-node="endless_hunt"]').click();
+        await page.getByLabel('Endlosjagd: Wertung', { exact: true }).selectOption('free');
+        await page.locator('[data-journey-start="endless_hunt"]').click();
         await page.waitForFunction(() => {
             const game = window.GAME_INSTANCE;
             const endless = game?.entityManager?.endlessParcoursRuntime;
@@ -219,7 +220,9 @@ test.describe('Desktop Smoke', () => {
         expect(state.hudText).toContain('Tore');
         await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
-            game.entityManager.humanPlayers[0].position.z = 121;
+            game.entityManager.humanPlayers[0].position.copy(
+                game.entityManager.endlessParcoursRuntime.getCoursePoint(1, 0, 8, 1).position
+            );
             // Desktop-GPU-Last darf die verbindlichen 1,2s Atempause, 1s Warnung
             // und 1,5s Aktivierungsabstand nicht in einen Wallclock-Flake verwandeln.
             for (let step = 0; step < 40; step += 1) {
@@ -277,7 +280,7 @@ test.describe('Desktop Smoke', () => {
             const graceBefore = human.arenaCollisionGraceTimer;
             human.arenaCollisionGraceTimer = 999;
             for (let step = 2; step < 26; step += 1) {
-                human.position.z = step * 120 + 10;
+                human.position.copy(endless.getCoursePoint(step, 0, 0, 10).position);
                 await new Promise((resolve) => requestAnimationFrame(() => resolve()));
                 for (const id of endless.getDebugSnapshot().connectors) seen.add(id);
             }

@@ -1,31 +1,35 @@
 import { ENDLESS_PARCOURS_ACTIVE_WINDOW } from '../../shared/contracts/EndlessParcoursContract.js';
-import { buildEndlessModuleInstance, resolveEndlessActiveColliders, resolveModuleCenterAtZ,
+import { buildEndlessModuleInstance, resolveEndlessActiveColliders,
     syncEndlessCycleColliders } from './EndlessParcoursModuleBuilder.js';
 import { clearEndlessElite } from './EndlessParcoursBotDirectorOps.js';
 import { registerEndlessShakeoff } from './EndlessParcoursRunOps.js';
+import { createEndlessPathSample } from './EndlessParcoursPathMetric.js';
+import { resolveEndlessCoursePoint } from './EndlessParcoursCourseSpace.js';
+
+const PICKUP_FRAME = createEndlessPathSample();
 
 export function instantiateEndlessModule(runtime, module) {
     const instance = buildEndlessModuleInstance({
         module,
         geometry: runtime._sharedGeometry,
         materials: runtime._materials,
-        recordDistanceMeters: runtime._records?.bestDistance?.distanceMeters
-            ?? runtime._records?.best?.distanceMeters
-            ?? 0,
+        metric: runtime._path.getMetric(),
+        baseSeed: runtime.baseSeed,
+        recordDistanceMeters: runtime.getRecordDistanceMeters(),
     });
     syncEndlessCycleColliders(instance, runtime.elapsedCombatSeconds, runtime._materials);
     runtime.renderer?.addToScene?.(instance.group);
     runtime.arena?.registerStaticColliderBatch?.(instance.ownerId, resolveEndlessActiveColliders(instance));
     for (let index = 0; index < module.pickups.length; index += 1) {
         const pickup = module.pickups[index];
-        const center = resolveModuleCenterAtZ(module, module.originZ + pickup.z);
+        const point = resolveEndlessCoursePoint(module, pickup.x, pickup.y - 8, pickup.z, PICKUP_FRAME).position;
         runtime.powerupManager?.spawnAtAnchor?.({
             ownerId: instance.ownerId,
             id: pickup.id,
             type: pickup.type,
-            x: center.x + pickup.x,
-            y: center.y + pickup.y - 8,
-            z: module.originZ + pickup.z,
+            x: point.x,
+            y: point.y,
+            z: point.z,
         });
     }
     return instance;
@@ -39,21 +43,25 @@ export function removeEndlessModule(runtime, instance, options = {}) {
     runtime.entityManager?._projectileSystem?.clearInBounds?.(
         -1000,
         1000,
-        module.originZ,
-        module.originZ + module.length
+        instance.bounds?.min.z ?? module.originZ,
+        instance.bounds?.max.z ?? module.originZ + module.length
     );
     runtime.entityManager?._lockOnCache?.clear?.();
     runtime.arena?.unregisterStaticColliderBatch?.(ownerId);
     runtime.renderer?.removeFromScene?.(group);
+    if (!instance.ownedResourcesDisposed) {
+        for (const geometry of instance.ownedGeometries || []) geometry.dispose();
+        instance.ownedResourcesDisposed = true;
+    }
 }
 
 export function deactivateEndlessBotsInModule(runtime, module, options = {}) {
     let shaken = 0;
     for (let index = 0; index < runtime._botSlots.length; index += 1) {
         const state = runtime._botSlots[index];
-        const z = Number(state.player?.position?.z);
-        if (state.state !== 'active' || !Number.isFinite(z)) continue;
-        if (z < module.originZ || z > module.originZ + module.length) continue;
+        if (state.state !== 'active') continue;
+        const projected = runtime.projectCoursePoint(state.player?.position);
+        if (!projected || projected.moduleIndex !== module.moduleIndex) continue;
         clearEndlessElite(state.player);
         runtime.entityManager?.deactivateBotSlot?.(state.slot, 'module_unloaded');
         state.state = 'idle';
@@ -61,7 +69,7 @@ export function deactivateEndlessBotsInModule(runtime, module, options = {}) {
         state.telegraphedAt = -1;
         state.eligibleAt = 0;
         if (options.awardShakeoff === true
-            && module.originZ + module.length < runtime.maxProgressMeters) shaken += 1;
+            && runtime._path.getMetric().getStationRange(module.moduleIndex).endS < runtime.maxProgressMeters) shaken += 1;
     }
     if (shaken > 0 && runtime.combatStarted) registerEndlessShakeoff(runtime, shaken);
 }

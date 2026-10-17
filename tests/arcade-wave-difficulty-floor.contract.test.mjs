@@ -4,6 +4,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { Vector3 } from 'three';
 
 import { ARENA_WAVES_BOT_CAPACITY } from '../src/shared/contracts/ArenaWavesContract.js';
 import { ArenaWavesRuntime } from '../src/core/arcade/ArenaWavesRuntime.js';
@@ -63,6 +64,8 @@ function endlessRuntime(rankContext, waveNumber) {
         respiteUntilSeconds: 0, wavePhase: ENDLESS_PARCOURS_WAVE_PHASES.ATTACK, currentModuleIndex: 0, _activationSequence: 0,
         activeModules: new Map([[0, { module: { recovery: false, botAnchors: [anchor] } }]]),
         _isSpawnAnchorSafe: () => true,
+        _tmpSpawnDirection: new Vector3(),
+        projectCoursePoint: () => ({ tangent: { x: 0, y: 0, z: 1 } }),
         entityManager: { humanPlayers: [{}], activateBotSlot(request) { difficulty = request.difficulty; return true; } },
     };
     const slotState = { slot: 0, state: 'reserved', reservedWave: waveNumber, telegraphedAt: 0, plannedAnchor: { ...anchor }, plannedElite: false, life: 0, activationGeneration: 0, player };

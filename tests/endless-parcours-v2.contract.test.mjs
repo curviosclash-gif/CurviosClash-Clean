@@ -1,3 +1,5 @@
+import { createEndlessPathSample } from '../src/entities/endless/EndlessParcoursPathMetric.js';
+import { resolveEndlessCoursePoint } from '../src/entities/endless/EndlessParcoursCourseSpace.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -453,6 +455,17 @@ test('one thousand module switches and ten restarts keep runtime and renderer re
         const { runtime, human, batches, sceneObjects } = harness;
         let geometryDisposals = 0;
         let materialDisposals = 0;
+        let ownedCreated = 0, ownedDisposed = 0;
+        const trackOwned = instance => {
+            for (const geometry of instance.ownedGeometries) {
+                ownedCreated++;
+                geometry.addEventListener('dispose', () => { ownedDisposed++; });
+            }
+            return instance;
+        };
+        for (const instance of runtime.activeModules.values()) trackOwned(instance);
+        const instantiate = runtime._instantiateModule.bind(runtime);
+        runtime._instantiateModule = module => trackOwned(instantiate(module));
         const geometryDispose = runtime._sharedGeometry.dispose.bind(runtime._sharedGeometry);
         runtime._sharedGeometry.dispose = () => { geometryDisposals += 1; geometryDispose(); };
         for (const material of Object.values(runtime._materials)) {
@@ -481,6 +494,7 @@ test('one thousand module switches and ten restarts keep runtime and renderer re
         assert.equal(sceneObjects.size, 0);
         assert.equal(runtime.getDebugSnapshot().activeModules, 0);
         assert.equal(geometryDisposals, 1);
+        assert.equal(ownedDisposed, ownedCreated, 'every streamed tube and query volume disposes exactly once');
         assert.equal(materialDisposals, Object.keys(runtime._materials).length);
         assert.equal(runtime._sideRouteStates.size, 0);
     }
@@ -563,6 +577,29 @@ test('hunter entry points follow the corridor centre of a bent module', () => {
     assert.ok(local, 'the selected entry point maps back to an authored anchor');
     const centre = resolveModuleCenterAtZ(module, module.originZ + local.z);
     assert.notEqual(centre.x, 0, 'the bent module really moves the corridor sideways');
-    assert.equal(selected.x, centre.x + local.x, 'the entry point follows the corridor sideways');
-    assert.equal(selected.y, centre.y + local.y, 'the entry point follows the corridor upwards');
+    const point = resolveEndlessCoursePoint(module, local.x, local.y, local.z, createEndlessPathSample()).position;
+    near(selected.x, point.x, 'the entry point follows the curved right axis');
+    near(selected.y, point.y, 'the entry point follows the curved up axis');
+    near(selected.z, point.z, 'the entry point follows the full frame');
+});
+
+test('bot activation receives the curved course tangent with its framed anchor', () => {
+    const { runtime, human } = createRuntime();
+    runtime._syncModules(8, 1);
+    runtime.currentModuleIndex = 8;
+    human.position.copy(runtime.getCoursePoint(8, 0, 0, 110).position);
+    const activations = [], activate = runtime.entityManager.activateBotSlot;
+    runtime.entityManager.activateBotSlot = options => {
+        activations.push({ position: { ...options.position }, direction: options.direction.clone() });
+        return activate(options);
+    };
+    beginEndlessAttackWave(runtime, 1);
+    reconcileEndlessBots(runtime);
+    runtime.elapsedCombatSeconds = 2;
+    reconcileEndlessBots(runtime);
+    assert.equal(activations.length, 1);
+    const frame = runtime.projectCoursePoint(activations[0].position);
+    assert.ok(activations[0].direction.distanceTo(frame.tangent) < 1e-6);
+    assert.ok(Math.abs(frame.tangent.x) + Math.abs(frame.tangent.y) > 0.001);
+    runtime.dispose();
 });

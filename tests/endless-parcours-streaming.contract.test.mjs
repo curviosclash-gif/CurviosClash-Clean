@@ -4,7 +4,7 @@ import { EndlessParcoursRuntime } from '../src/entities/endless/EndlessParcoursR
 
 function harness() {
     const events = [];
-    const bot = { index: 1, position: { z: 20 }, isEndlessElite: true };
+    const bot = { index: 1, position: { x: 0, y: 0, z: 20 }, isEndlessElite: true };
     const runtime = new EndlessParcoursRuntime({
         baseSeed: 4242,
         renderer: { addToScene() {}, removeFromScene() { events.push('scene'); } },
@@ -47,8 +47,11 @@ test('only active bots in unloaded bounds award shakeoffs behind progress during
     assert.equal(runtime.shakeoffs, 0);
     bot.position.z = 120;
     runtime._removeModule(instance, { awardShakeoff: true });
+    assert.equal(slot.state, 'active', 'the canonical seam belongs to the following module');
+    bot.position.z = 119.5;
+    runtime._removeModule(instance, { awardShakeoff: true });
     assert.equal(slot.state, 'idle');
-    assert.equal(runtime.shakeoffs, 1, 'inclusive endpoint and existing award policy');
+    assert.equal(runtime.shakeoffs, 1, 'only a bot in the removed station range is awarded');
     runtime._removeModule(instance, { awardShakeoff: true });
     assert.equal(runtime.shakeoffs, 1, 'removing again cannot award inactive bots');
     runtime.dispose();

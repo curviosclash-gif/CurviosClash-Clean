@@ -80,16 +80,21 @@ export function updateEndlessSideRoute(runtime, human) {
     const route = instance?.module?.sideRoute;
     if (!route || !human?.position || runtime._rewardedSideRoutes.has(instance.module.moduleIndex)) return;
     syncEndlessFlightObjective(runtime, instance.module.moduleIndex, instance.module.area);
-    const localZ = Number(human.position.z) - instance.module.originZ;
+    const projected = runtime.projectCoursePoint(human.position);
+    if (!projected || projected.moduleIndex !== instance.module.moduleIndex) return;
+    const localZ = projected.progress * instance.module.length;
+    const dx = human.position.x - projected.position.x;
+    const dy = human.position.y - projected.position.y;
+    const dz = human.position.z - projected.position.z;
+    const lateral = dx * projected.right.x + dy * projected.right.y + dz * projected.right.z;
     let state = runtime._sideRouteStates.get(instance.module.moduleIndex);
     if (!state) {
         state = { entered: false, lastZ: localZ };
         runtime._sideRouteStates.set(instance.module.moduleIndex, state);
     }
     if (localZ < state.lastZ - 0.01) state.entered = false;
-    const center = resolveModuleCenterAtZ(instance.module, Number(human.position.z));
     if (!state.entered && state.lastZ < route.entryZ && localZ >= route.entryZ
-        && (Number(human.position.x) - center.x) * route.side >= 10) state.entered = true;
+        && lateral * route.side >= 10) state.entered = true;
     if (state.entered && state.lastZ < route.exitZ && localZ >= route.exitZ) {
         runtime._rewardedSideRoutes.add(instance.module.moduleIndex);
         runtime.sideRoutesCompleted += 1;
@@ -100,4 +105,3 @@ export function updateEndlessSideRoute(runtime, human) {
     }
     state.lastZ = localZ;
 }
-import { resolveModuleCenterAtZ } from './EndlessParcoursModuleBuilder.js';

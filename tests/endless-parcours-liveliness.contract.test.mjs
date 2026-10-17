@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { ENDLESS_PARCOURS_RULE_VERSION } from '../src/shared/contracts/EndlessParcoursWaveContract.js';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 
@@ -518,9 +519,10 @@ test('the runtime surfaces the void warning and only then ends the run', () => {
     const harness = createHarness(4321);
     enterCombat(harness);
     const { runtime, human } = harness;
-    human.position.z = 700;
+    human.position.copy(runtime.getCoursePoint(5, 0, 8, 100).position);
     runtime.update(1 / 60);
-    human.position.z = 700 - 200;
+    const farthest = runtime.maxProgressMeters;
+    human.position.copy(runtime.getPathMetric().sampleAtS(farthest - 200).position);
     runtime.update(1 / 60);
     const warned = runtime.getHudState().voidWarning;
     assert.equal(warned.active, true);
@@ -528,7 +530,7 @@ test('the runtime surfaces the void warning and only then ends the run', () => {
     assert.equal(runtime._finalized, false, 'die Warnung allein beendet den Lauf nicht');
     assert.ok(harness.sounds.includes('PARCOURS_WRONG'));
 
-    human.position.z = 700 - 280;
+    human.position.copy(runtime.getPathMetric().sampleAtS(farthest - 280).position);
     runtime.update(1 / 60);
     assert.equal(runtime._finalized, true);
     assert.equal(harness.roundEndRequests.at(-1).reason, 'ENDLESS_VOID');
@@ -630,7 +632,7 @@ test('the record marker is placed into the loaded stretch after the store arrive
         loadJsonRecord: () => ({
             schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
             best: { score: 9000, distanceMeters: 250 },
-            bestDistance: { score: 4000, distanceMeters: 550 },
+            bestDistance: { score: 4000, distanceMeters: 550, ruleVersion: ENDLESS_PARCOURS_RULE_VERSION },
             last: {},
             top: [],
             milestones: [],

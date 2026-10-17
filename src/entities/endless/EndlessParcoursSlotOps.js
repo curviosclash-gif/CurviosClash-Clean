@@ -68,6 +68,8 @@ export function tryActivateEndlessSlot(runtime, slotState) {
     const profile = resolveEndlessWaveProfile(runtime.waveNumber);
     slotState.life += 1;
     slotState.activationGeneration += 1;
+    const frame = runtime.projectCoursePoint(slotState.plannedAnchor);
+    runtime._tmpSpawnDirection.copy(frame.tangent);
     const activated = runtime.entityManager?.activateBotSlot?.({
         slot: slotState.slot,
         position: slotState.plannedAnchor,

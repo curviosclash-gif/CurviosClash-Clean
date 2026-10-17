@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { EndlessParcoursRuntime } from '../src/entities/endless/EndlessParcoursRuntime.js';
 import { tryEndlessRevive } from '../src/entities/endless/EndlessParcoursRunOps.js';
 import { ExclusionZoneSystem, resolveExclusionZoneRocketTuning } from '../src/entities/systems/ExclusionZoneSystem.js';
+import { sphereIntersectsStaticMeshCollider } from '../src/entities/arena/StaticMeshCollider.js';
+import { resolveEndlessTubeRadius } from '../src/entities/endless/EndlessParcoursTube.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { ENDLESS_PARCOURS_RULE_VERSION } from '../src/shared/contracts/EndlessParcoursWaveContract.js';
 import { createArcadeRankContext } from '../src/shared/contracts/ArcadeDifficultyContract.js';
@@ -49,30 +51,22 @@ function harness(previousSource = null) {
     return { human, arena, launches, trims, spawnCalls, manager, runtime, system };
 }
 
-test('Endlos source matches the union of actual stepped shell meshes, including bends and seams', () => {
+test('Endlos source follows the actual tube interior volumes across bends and seams', () => {
     const { runtime, human, arena } = harness();
     runtime._syncModules(7, 5);
-    const boxes = [];
-    for (const { group } of runtime.activeModules.values()) {
-        for (let segment = 0; segment < 6; segment++) {
-            const box = new THREE.Box3();
-            for (const mesh of group.children.slice(segment * 3, segment * 3 + 3)) {
-                box.union(new THREE.Box3().setFromObject(mesh));
-            }
-            boxes.push(box);
-        }
-    }
-    const source = arena.exclusionZoneSource;
-    for (const box of boxes) {
-        const center = box.getCenter(new THREE.Vector3());
-        for (const [axis, boundary] of [['x', box.min.x], ['x', box.max.x], ['y', box.min.y], ['y', box.max.y],
-            ['z', box.min.z], ['z', box.max.z]]) {
-            for (const delta of [-1.01, -0.99, 0.99, 1.01]) {
-                human.position.copy(center); human.position[axis] = boundary + delta;
-                const p = human.position, r = human.hitboxRadius;
-                const expectedInside = boxes.some((b) => p.x + r >= b.min.x && p.x - r <= b.max.x
-                    && p.y + r >= b.min.y && p.y - r <= b.max.y && p.z + r >= b.min.z && p.z - r <= b.max.z);
-                assert.equal(source.isOutside(human), !expectedInside, `${axis}=${human.position[axis]}`);
+    for (const { module } of runtime.activeModules.values()) {
+        for (const t of [0.001, 0.25, 0.5, 0.999]) {
+            const frame = runtime.getCoursePoint(module.moduleIndex, 0, 0, module.length * t);
+            const radius = resolveEndlessTubeRadius(runtime.baseSeed, module.moduleIndex, t);
+            const center = { ...frame.position }, right = { ...frame.right }, up = { ...frame.up };
+            for (const direction of [right, up]) {
+                for (const distance of [0, radius - 2, -radius + 2, radius + 3, -radius - 3]) {
+                    human.position.set(center.x + direction.x * distance, center.y + direction.y * distance, center.z + direction.z * distance);
+                    const inside = [...runtime.activeModules.values()].some(instance =>
+                        sphereIntersectsStaticMeshCollider(instance.volumeCollider, human.position, human.hitboxRadius));
+                    assert.equal(arena.exclusionZoneSource.isOutside(human), !inside);
+                    if (Math.abs(distance) < radius - 1) assert.equal(inside, true);
+                }
             }
         }
     }
@@ -117,11 +111,15 @@ test('all exterior directions use grace instead of immediate death; returning re
         h.human.position.set(0, 8, 10); h.system.update(0);
         assert.equal(h.human.exclusionZoneState.phase, 'SAFE');
     }
-    h.human.position.x = 32.1; h.system.update(3);
+    const frame = h.runtime.getCoursePoint(0, 0, 0, 60);
+    const center = { ...frame.position }, right = { ...frame.right };
+    const radius = resolveEndlessTubeRadius(h.runtime.baseSeed, 0, 0.5);
+    const place = distance => h.human.position.set(center.x + right.x * distance, center.y + right.y * distance, center.z + right.z * distance);
+    place(radius + 1.1); h.system.update(3);
     assert.equal(h.human.exclusionZoneState.phase, 'SALVO');
-    h.human.position.x = 31.9; h.system.update(0);
+    place(radius + 0.9); h.system.update(0);
     assert.equal(h.human.exclusionZoneState.phase, 'SALVO', 'partial edge return remains in hysteresis');
-    h.human.position.x = 31.5; h.system.update(0);
+    place(radius + 0.5); h.system.update(0);
     assert.equal(h.human.exclusionZoneState.phase, 'SAFE');
     h.human.position.x = 100; h.system.update(2.99);
     assert.equal(h.human.exclusionZoneState.phase, 'GRACE', 'fresh full grace after return');
@@ -180,9 +178,38 @@ test('runtime restores only its own source on dispose and ended runs stop publis
 
 function passGate(h, index) {
     h.human.alive = true;
-    h.human.position.set(0, 8, 116 + 120 * index);
+    h.human.position.copy(h.runtime.getCoursePoint(index, 0, 8, 116).position);
     h.runtime.update(0);
 }
+
+test('runtime scores arc length, rejects exterior gate shortcuts and respawns along the curve', () => {
+    const h = harness(), metric = h.runtime.getPathMetric();
+    const index = 8;
+    const point = h.runtime.getCoursePoint(index, 0, 0, 110);
+    h.human.position.copy(point.position);
+    h.runtime.update(0);
+    const station = metric.getStationAtProgress(index, 110 / 120);
+    assert.ok(station > h.human.position.z + 0.1, 'bends add actual distance');
+    assert.ok(Math.abs(h.runtime.maxProgressMeters - station) < 1e-5);
+    assert.equal(h.runtime.currentModuleIndex, index);
+    assert.equal(h.runtime.lastCheckpointIndex, index - 1);
+    h.human.position.copy(h.runtime.getCoursePoint(index, 100, 0, 118).position);
+    h.runtime.update(0);
+    assert.equal(h.runtime.lastCheckpointIndex, index - 1, 'outside traversal grants no gate');
+    assert.ok(Math.abs(h.runtime.maxProgressMeters - station) < 1e-5);
+    passGate(h, index);
+    assert.equal(h.runtime.lastCheckpointIndex, index);
+    h.human.alive = false;
+    h.runtime.handlePlayerDeath(h.human, 'PROJECTILE');
+    const gateS = metric.getStationAtProgress(index, 116 / 120);
+    const expected = metric.sampleAtS(gateS - 14);
+    const spawn = h.spawnCalls.at(-1);
+    assert.ok(spawn.position.distanceTo(expected.position) < 1e-6);
+    assert.ok(spawn.direction.distanceTo(expected.tangent) < 1e-6);
+    assert.ok(Math.abs(spawn.direction.x) + Math.abs(spawn.direction.y) > 0.001);
+    assert.equal(h.arena.exclusionZoneSource.isOutside(h.human), false);
+    h.runtime.dispose();
+});
 
 test('three successful gate rescues exhaust the run budget; a fourth death ends it', () => {
     const h = harness();
@@ -250,7 +277,7 @@ test('P1 personal records and active HUD stay separate from v2 while all-time hi
     assert.equal(h.runtime.getHudState().recordScore, 0);
     h.runtime._records = update.records;
     assert.equal(h.runtime.getHudState().recordScore, 100);
-    assert.equal(h.runtime.getHudState().recordDistanceMeters, 4000, 'distance marker retains documented all-time scope');
+    assert.equal(h.runtime.getHudState().recordDistanceMeters, 120, 'distance marker uses the same station rules as the active run');
     const summary = h.runtime.finalize('ENDLESS_ABORT', { persist: false, requestRoundEnd: false });
     assert.equal(summary.ruleVersion, ENDLESS_PARCOURS_RULE_VERSION);
     h.runtime.dispose();
