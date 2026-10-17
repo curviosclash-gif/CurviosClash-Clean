@@ -12,6 +12,7 @@ const { createSecureWindowWebPreferences } = require('../window-security-options
 
 const WINDOW_SHELL_CONTRACT_VERSION = 'settings-studio.window-shell.v1';
 const DIRTY_STATE_CHANNEL = 'settings-studio:set-dirty-state';
+const CLOSE_REQUEST_CHANNEL = 'settings-studio:close-request';
 const SHARED_USER_DATA_DIR_NAME = 'curviosclash-app';
 const SETTINGS_STUDIO_USER_DATA_DIR_NAME = 'profile-settings-studio';
 const SETTINGS_STUDIO_SESSION_DATA_DIR_NAME = 'session-settings-studio';
@@ -122,29 +123,26 @@ function createWindowShellCapability() {
 
             await mainWindow.loadFile(path.resolve(__dirname, 'ui', 'settings-studio.html'));
             let allowWindowClose = false;
+            let closeRequested = false;
+            const handleCloseResponse = (event, discard) => {
+                if (!isTrustedWindowSender(event, mainWindow) || !closeRequested) return;
+                closeRequested = false;
+                if (discard === true) {
+                    allowWindowClose = true;
+                    mainWindow.close();
+                }
+            };
+            ipcMain.on(CLOSE_REQUEST_CHANNEL, handleCloseResponse);
             mainWindow.on('close', (event) => {
                 if (allowWindowClose || !hasUnsavedChanges) {
                     return;
                 }
-
-                const choice = dialog.showMessageBoxSync(mainWindow, {
-                    type: 'warning',
-                    buttons: ['Verwerfen und schließen', 'Abbrechen'],
-                    defaultId: 1,
-                    cancelId: 1,
-                    noLink: true,
-                    message: 'Es gibt ungespeicherte Änderungen.',
-                    detail: 'Willst du das Settings Studio wirklich schließen?',
-                });
-
-                if (choice !== 0) {
-                    event.preventDefault();
-                    return;
-                }
-
-                allowWindowClose = true;
+                event.preventDefault();
+                closeRequested = true;
+                mainWindow.webContents.send(CLOSE_REQUEST_CHANNEL);
             });
             mainWindow.on('closed', () => {
+                ipcMain.removeListener(CLOSE_REQUEST_CHANNEL, handleCloseResponse);
                 mainWindow = null;
                 hasUnsavedChanges = false;
             });

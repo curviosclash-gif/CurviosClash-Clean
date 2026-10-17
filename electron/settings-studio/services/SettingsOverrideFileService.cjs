@@ -1,3 +1,4 @@
+const { createHash } = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
@@ -64,23 +65,20 @@ class SettingsOverrideFileService {
         await fs.mkdir(dirPath, { recursive: true });
 
         const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
-        await fs.writeFile(tempPath, this.toJsonString(draft), 'utf-8');
+        const content = this.toJsonString(draft);
+        await fs.writeFile(tempPath, content, 'utf-8');
 
         try {
             await fs.rename(tempPath, filePath);
         } catch (error) {
-            if (error && (error.code === 'EEXIST' || error.code === 'EPERM')) {
-                await fs.rm(filePath, { force: true });
-                await fs.rename(tempPath, filePath);
-            } else {
-                await fs.rm(tempPath, { force: true });
-                throw error;
-            }
+            await fs.unlink(tempPath).catch(() => {});
+            throw error;
         }
 
         return {
             path: filePath,
             savedAt: Date.now(),
+            revision: createHash('sha256').update(content).digest('hex'),
         };
     }
 }

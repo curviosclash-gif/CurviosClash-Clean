@@ -1,3 +1,6 @@
+import { createStudioWorkspace } from './settings-studio-workspace.js';
+import { fieldPresentation } from './settings-studio-field-catalog.js';
+import { attachStudioCloseDialog } from './settings-studio-close.js';
 import { createTranslator, normalizeLanguage, SECTIONS } from './settings-studio-i18n.js';
 import {
     renderSectionForm,
@@ -34,7 +37,9 @@ import { createStudioBalancingSection } from './settings-studio-balancing.js';
 
 const mapBalancingSection = createStudioBalancingSection({
     api: window.settingsStudioApi,
-    onDirtyChange: () => publishDirtyState(),
+    onDirtyChange: () => { if (state.draft) { renderSidebar(); updateChangeBadge(); } },
+    onSaved: () => workspace.clearHistory(),
+    getLanguage: () => state.language,
 });
 
 const state = {
@@ -59,32 +64,38 @@ const state = {
     menuPreviewRoot: true,
     menuRangeInputs: {},
     menuRangeErrors: {},
+    revisions: null,
+    exportPending: false,
+    loadProblem: false,
+    saving: false,
 };
 
 const refs = {
-    body: document.querySelector('[data-bind="body"]'),
-    title: document.querySelector('[data-bind="title"]'),
-    languageLabel: document.querySelector('[data-bind="language-label"]'),
-    languageSelect: document.querySelector('[data-bind="language-select"]'),
-    sidebarNav: document.querySelector('[data-bind="sidebar-nav"]'),
-    sectionTitle: document.querySelector('[data-bind="section-title"]'),
-    sectionHint: document.querySelector('[data-bind="section-hint"]'),
-    changeBadge: document.querySelector('[data-bind="change-count"]'),
-    resetSectionBtn: document.querySelector('[data-action="reset-section"]'),
-    resetAllBtn: document.querySelector('[data-action="reset-all"]'),
-    validateBtn: document.querySelector('[data-action="validate"]'),
-    saveBtn: document.querySelector('[data-action="save"]'),
-    formContent: document.querySelector('[data-bind="form-content"]'),
-    status: document.querySelector('[data-bind="status"]'),
-    infoPanel: document.querySelector('[data-bind="info-panel"]'),
-    infoPanelTitle: document.querySelector('[data-bind="info-panel-title"]'),
-    infoPanelBody: document.querySelector('[data-bind="info-panel-body"]'),
-    savePreviewModal: document.querySelector('[data-bind="save-preview-modal"]'),
-    savePreviewTitle: document.querySelector('[data-bind="save-preview-title"]'),
-    savePreviewBody: document.querySelector('[data-bind="save-preview-body"]'),
-    savePreviewCancel: document.querySelector('[data-action="cancel-save"]'),
-    savePreviewConfirm: document.querySelector('[data-action="confirm-save"]'),
+    body: /** @type {HTMLElement} */ (document.querySelector('[data-bind="body"]')),
+    title: /** @type {HTMLElement} */ (document.querySelector('[data-bind="title"]')),
+    languageLabel: /** @type {HTMLElement} */ (document.querySelector('[data-bind="language-label"]')),
+    languageSelect: /** @type {HTMLSelectElement} */ (document.querySelector('[data-bind="language-select"]')),
+    sidebarNav: /** @type {HTMLElement} */ (document.querySelector('[data-bind="sidebar-nav"]')),
+    sectionTitle: /** @type {HTMLElement} */ (document.querySelector('[data-bind="section-title"]')),
+    sectionHint: /** @type {HTMLElement} */ (document.querySelector('[data-bind="section-hint"]')),
+    changeBadge: /** @type {HTMLElement} */ (document.querySelector('[data-bind="change-count"]')),
+    resetSectionBtn: /** @type {HTMLButtonElement} */ (document.querySelector('[data-action="reset-section"]')),
+    resetAllBtn: /** @type {HTMLButtonElement} */ (document.querySelector('[data-action="reset-all"]')),
+    validateBtn: /** @type {HTMLButtonElement} */ (document.querySelector('[data-action="validate"]')),
+    saveBtn: /** @type {HTMLButtonElement} */ (document.querySelector('[data-action="save"]')),
+    formContent: /** @type {HTMLElement} */ (document.querySelector('[data-bind="form-content"]')),
+    status: /** @type {HTMLElement} */ (document.querySelector('[data-bind="status"]')),
+    infoPanel: /** @type {HTMLElement} */ (document.querySelector('[data-bind="info-panel"]')),
+    infoPanelTitle: /** @type {HTMLElement} */ (document.querySelector('[data-bind="info-panel-title"]')),
+    infoPanelBody: /** @type {HTMLElement} */ (document.querySelector('[data-bind="info-panel-body"]')),
+    savePreviewModal: /** @type {HTMLElement} */ (document.querySelector('[data-bind="save-preview-modal"]')),
+    savePreviewTitle: /** @type {HTMLElement} */ (document.querySelector('[data-bind="save-preview-title"]')),
+    savePreviewBody: /** @type {HTMLElement} */ (document.querySelector('[data-bind="save-preview-body"]')),
+    savePreviewCancel: /** @type {HTMLButtonElement} */ (document.querySelector('[data-action="cancel-save"]')),
+    savePreviewConfirm: /** @type {HTMLButtonElement} */ (document.querySelector('[data-action="confirm-save"]')),
 };
+
+const workspace = createStudioWorkspace({ state, refs, maps: mapBalancingSection, t, navigate: onNavSection, render: renderAll, dirtyFields: collectDirtyFields });
 
 let infoPanelReturnFocusEl = null;
 
@@ -115,7 +126,8 @@ function setStatus(msg) {
 }
 
 function publishDirtyState() {
-    window.settingsStudioApi?.setDirtyState?.(isDraftDirty() || mapBalancingSection.isDirty());
+    window.settingsStudioApi?.setDirtyState?.(isDraftDirty() || mapBalancingSection.isDirty() || workspace.rawErrors().length > 0);
+    workspace.refresh();
 }
 
 function deepClone(v) {
@@ -311,26 +323,37 @@ function renderBackupsList(backups, translator) {
     if (!Array.isArray(backups) || !backups.length) {
         return `<div class="field-group"><em>${translator('noBackups')}</em></div>`;
     }
-    const rows = backups.map((b) => {
-        const name = String(b.fileName || '');
-        const date = b.createdAt ? new Date(b.createdAt).toLocaleString() : '';
-        return `<div class="field-row" style="grid-template-columns:1fr auto auto"><span class="field-label" title="${name}">${name}</span><small style="color:var(--muted)">${date}</small><button class="btn btn--ghost" style="font-size:11px;height:24px;" data-action="restore-backup" data-backup-file="${name}">${translator('buttonRestore')}</button></div>`;
+    const typeKeys = { defaults: 'backupDefaults', browserDemo: 'backupBrowser', menuTexts: 'backupTexts', unknown: 'backupUnknown' };
+    const rows = backups.map((backup) => {
+        const name = String(backup.fileName || '');
+        const date = backup.createdAt ? new Date(backup.createdAt).toLocaleString(state.language) : '';
+        return `<div class="backup-row"><div><strong>${esc(translator(typeKeys[backup.documentType] || 'backupUnknown'))}</strong><p>${esc(date)}</p><small>${esc(name)}</small></div><button class="btn" data-action="restore-backup" data-backup-file="${esc(name)}" ${backup.restorable === false ? 'disabled' : ''}>${translator('buttonRestore')}</button></div>`;
     });
     return `<div class="field-group">${rows.join('')}</div>`;
 }
 
 function renderSidebar() {
-    const items = SECTIONS.map((section) => {
-        const label = t(section.labelKey);
-        const active = section.key === state.activeSection ? 'active' : '';
-        const dirtyCount = !section.noDirty && state.draft && state.baseDraft
-            ? countSectionDirty(section.key)
-            : 0;
-        const dirtyDot = dirtyCount > 0 ? '<span class="nav-dirty" aria-hidden="true"></span>' : '';
-        const ariaSelected = section.key === state.activeSection ? 'true' : 'false';
-        return `<li class="nav-item" role="presentation"><button class="nav-btn ${active}" data-nav-section="${section.key}" type="button" role="tab" aria-selected="${ariaSelected}">${label}${dirtyDot}</button></li>`;
-    });
-    refs.sidebarNav.innerHTML = items.join('');
+    /** @type {Array<[string, string[]]>} */
+    const groups = [
+        ['navPlay', ['baseSettings','localSettings','fixedPresets']],
+        ['navContent', ['mapBalancing','gameMenu']],
+        ['navAdvanced', ['limits','browserDemoPolicy','configShare','level3Reset']],
+        ['navSafety', ['backups']],
+    ];
+    // Keep button nodes stable during input/change so a pending pointer click is never lost.
+    if (refs.sidebarNav.dataset.language !== state.language) {
+        refs.sidebarNav.innerHTML = groups.map(([heading, keys]) => `<li class="nav-heading">${t(heading)}</li>${keys.map((key) => `<li class="nav-item"><button class="nav-btn" data-nav-section="${key}" type="button"><span class="nav-caption">${t(SECTIONS.find((entry) => entry.key === key).labelKey)}</span><span class="nav-dirty" hidden></span></button></li>`).join('')}`).join('');
+        refs.sidebarNav.dataset.language = state.language;
+    }
+    for (const button of refs.sidebarNav.querySelectorAll('[data-nav-section]')) {
+        const key = button.dataset.navSection;
+        const active = key === state.activeSection;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-current', active ? 'page' : 'false');
+        button.setAttribute('aria-selected', String(active));
+        const dirtyCount = key === 'mapBalancing' ? mapBalancingSection.getChanges().length : key === 'backups' ? 0 : state.draft ? countSectionDirty(key) : 0;
+        button.querySelector('.nav-dirty').hidden = dirtyCount === 0;
+    }
 }
 
 function renderFormContent() {
@@ -345,6 +368,8 @@ function renderFormContent() {
     const hintKeyBySection = {
         gameMenu: 'sectionHintGameMenu',
         baseSettings: 'sectionHintBaseSettings',
+        localSettings: 'sectionHintLocalSettings',
+        level3Reset: 'sectionHintLevel3Reset',
         configShare: 'sectionHintConfigShare',
         limits: 'sectionHintLimits',
         browserDemoPolicy: 'sectionHintBrowserDemoPolicy',
@@ -362,7 +387,7 @@ function renderFormContent() {
     }
 
     const balancingActive = state.activeSection === 'mapBalancing';
-    refs.resetSectionBtn.hidden = balancingActive;
+    refs.resetSectionBtn.hidden = false;
     refs.validateBtn.disabled = balancingActive;
     refs.saveBtn.disabled = balancingActive;
     if (balancingActive) {
@@ -373,7 +398,7 @@ function renderFormContent() {
     }
 
     const translator = createTranslator(state.language);
-    const validationErrors = state.validation?.errors || [];
+    const validationErrors = [...(state.validation?.errors || []), ...workspace.rawErrors()];
     let html;
     if (state.activeSection === 'gameMenu') {
         html = renderMenuEditor({
@@ -392,7 +417,7 @@ function renderFormContent() {
             t: translator,
         });
     } else if (state.activeSection === 'limits') {
-        html = renderLimitsSection(state.schema, state.draft, state.baseDraft, translator);
+        html = renderLimitsSection(state.schema, state.draft, state.baseDraft, translator, validationErrors);
     } else if (state.activeSection === 'browserDemoPolicy') {
         html = renderBrowserDemoPolicySection(
             state.browserDemoPolicyDraft,
@@ -400,7 +425,7 @@ function renderFormContent() {
             state.browserDemoPolicyValidation
         );
     } else if (state.activeSection === 'fixedPresets') {
-        html = renderPresetsSection(state.draft, state.baseDraft, translator);
+        html = renderPresetsSection(state.draft, state.baseDraft, translator, state.schema, validationErrors);
     } else if (state.activeSection === 'backups') {
         html = renderBackupsList(state.backups, translator);
     } else {
@@ -408,9 +433,11 @@ function renderFormContent() {
     }
 
     refs.formContent.innerHTML = html;
+    workspace.decorate();
     const backupsSectionActive = state.activeSection === 'backups';
     refs.validateBtn.disabled = backupsSectionActive;
-    refs.saveBtn.disabled = backupsSectionActive;
+    refs.resetSectionBtn.disabled = backupsSectionActive;
+    refs.saveBtn.disabled = backupsSectionActive || state.loadProblem;
     updateChangeBadge();
 }
 
@@ -420,7 +447,7 @@ function updateChangeBadge() {
         publishDirtyState();
         return;
     }
-    const count = countSectionDirty(state.activeSection);
+    const count = state.activeSection === 'mapBalancing' ? mapBalancingSection.getChanges().length : countSectionDirty(state.activeSection);
     if (count > 0) {
         refs.changeBadge.textContent = t('changeBadge', count);
         refs.changeBadge.hidden = false;
@@ -434,6 +461,8 @@ function renderAll() {
     renderStaticTexts();
     renderSidebar();
     renderFormContent();
+    workspace.refresh();
+    workspace.renderResults();
 }
 
 // ─── Info Panel ─────────────────────────────────────
@@ -449,10 +478,11 @@ function resolveFieldEntry(path) {
 
 function renderInfoPanelBody(field) {
     const lang = state.language === 'en' ? 'en' : 'de';
-    const helpText = field.help?.[lang] || null;
+    const presentation = fieldPresentation(field, lang);
+    const helpText = presentation.help;
     const impactText = field.impact?.[lang] || null;
     const example = field.example;
-    const unit = field.unit;
+    const unit = presentation.unit;
     const defaultValue = field.defaultValue;
     const riskLevel = field.riskLevel || 'low';
 
@@ -475,10 +505,10 @@ function renderInfoPanelBody(field) {
 
     const metaRows = [];
     if (example != null) {
-        metaRows.push(`<div class="info-panel__section"><p class="info-panel__section-label">${t('infoPanelExample')}</p><p class="info-panel__text"><span class="info-panel__example">${esc(String(example))}</span>${unit ? ` <span style="color:var(--muted)">${esc(unit)}</span>` : ''}</p></div>`);
+        metaRows.push(`<div class="info-panel__section"><p class="info-panel__section-label">${t('infoPanelExample')}</p><p class="info-panel__text"><span class="info-panel__example">${esc(String(example))}</span>${unit ? ` <span class="muted-text">${esc(unit)}</span>` : ''}</p></div>`);
     }
     if (defaultValue != null && defaultValue !== '') {
-        metaRows.push(`<div class="info-panel__section"><p class="info-panel__section-label">${t('infoPanelDefault')}</p><p class="info-panel__text"><span class="info-panel__example">${esc(String(defaultValue))}</span>${unit ? ` <span style="color:var(--muted)">${esc(unit)}</span>` : ''}</p></div>`);
+        metaRows.push(`<div class="info-panel__section"><p class="info-panel__section-label">${t('infoPanelDefault')}</p><p class="info-panel__text"><span class="info-panel__example">${esc(String(defaultValue))}</span>${unit ? ` <span class="muted-text">${esc(unit)}</span>` : ''}</p></div>`);
     }
     if (unit) {
         metaRows.push(`<div class="info-panel__section"><p class="info-panel__section-label">${t('infoPanelUnit')}</p><p class="info-panel__text">${esc(unit)}</p></div>`);
@@ -741,7 +771,7 @@ function renderSavePreviewBody(dirtyFields, paths, options = {}) {
     }
 
     if (includeBackupNote) {
-        const backupNote = `<div class="preview-backup-note">${t('savePreviewBackupNote')}${paths?.backupDirectoryPath ? ` <small style="opacity:0.7">(${esc(paths.backupDirectoryPath)})</small>` : ''}</div>`;
+        const backupNote = `<div class="preview-backup-note">${t('savePreviewBackupNote')}${paths?.backupDirectoryPath ? ` <small class="muted-text">(${esc(paths.backupDirectoryPath)})</small>` : ''}</div>`;
         html += backupNote;
     }
 
@@ -749,12 +779,17 @@ function renderSavePreviewBody(dirtyFields, paths, options = {}) {
 }
 
 function showSavePreview() {
+    if (workspace.invalid() || state.loadProblem) { setStatus(state.loadProblem ? 'loadProblem' : 'rawInvalid'); return; }
     syncRenderedFormDraft();
     if (Object.keys(state.menuRangeErrors).length) {
         setStatus('statusInvalid');
         return;
     }
     const dirtyFields = collectDirtyFields();
+    if (!dirtyFields.length && !state.exportPending) {
+        setStatus(mapBalancingSection.isDirty() ? 'saveMaps' : 'noSave');
+        return;
+    }
     const includeBackupNote = JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
 
     refs.savePreviewTitle.textContent = t('savePreviewTitle');
@@ -766,6 +801,7 @@ function showSavePreview() {
         { includeBackupNote }
     );
 
+    if (mapBalancingSection.isDirty()) refs.savePreviewBody.insertAdjacentHTML('beforeend', `<p class="studio-note">${t('saveMaps')}</p>`);
     refs.savePreviewModal.hidden = false;
     setTimeout(() => refs.savePreviewConfirm?.focus(), 50);
 }
@@ -782,6 +818,11 @@ async function loadState() {
     const response = await window.settingsStudioApi.load();
     state.draft = response?.draft ? deepClone(response.draft) : null;
     state.baseDraft = response?.draft ? deepClone(response.draft) : null;
+    state.revisions = response?.revisions || null;
+    state.exportPending = false;
+    state.loadProblem = !!(response?.fileState?.loadError || response?.browserDemoPolicy?.fileState?.loadError || response?.menuTextLoadError || ['fallback', 'reject'].includes(response?.migration?.status) || ['fallback', 'reject'].includes(response?.browserDemoPolicy?.migration?.status));
+    workspace.discardRaw();
+    workspace.clearHistory();
     state.schema = response?.schema || null;
     state.validation = response?.validation || null;
     state.paths = response?.paths || null;
@@ -803,7 +844,12 @@ async function loadState() {
     state.language = normalizeLanguage(state.draft?.language || state.language);
     refs.languageSelect.value = state.language;
     renderAll();
-    setStatus(state.validation?.valid ? 'statusValid' : 'statusInvalid');
+    setStatus(state.loadProblem ? 'loadProblem' : state.validation?.valid ? 'statusValid' : 'statusInvalid');
+    refs.saveBtn.disabled ||= state.loadProblem;
+    const notice = (/** @type {HTMLElement} */ (document.querySelector('[data-bind="notice"]')));
+    notice.hidden = !state.loadProblem; notice.textContent = state.loadProblem ? t('loadProblem') : '';
+    (/** @type {HTMLButtonElement} */ (document.querySelector('[data-action="reload"]'))).hidden = !state.loadProblem;
+    void mapBalancingSection.prepare().then(() => workspace.renderResults());
 
     if (response?.migration?.status && response.migration.status !== 'current') {
         const diagKey = response.migration.status === 'upgrade' ? 'diagMigrationUpgrade'
@@ -815,6 +861,7 @@ async function loadState() {
 
 async function validateState() {
     if (!state.draft) return;
+    if (workspace.invalid()) { setStatus('rawInvalid'); return; }
     syncRenderedFormDraft();
     if (Object.keys(state.menuRangeErrors).length) {
         setStatus('statusInvalid');
@@ -836,95 +883,57 @@ async function validateState() {
 }
 
 async function saveState() {
-    if (!state.draft) return;
+    if (!state.draft || workspace.invalid() || state.loadProblem) return;
     syncRenderedFormDraft();
-    if (Object.keys(state.menuRangeErrors).length) {
-        setStatus('statusInvalid');
-        return;
-    }
-
-    const mainDraftDirty = JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
-    const browserDemoDirty = JSON.stringify(state.browserDemoPolicyDraft || {}) !== JSON.stringify(state.browserDemoPolicyBaseDraft || {});
-    const menuTextDirty = JSON.stringify(state.menuTextOverrides || {}) !== JSON.stringify(state.menuTextOverridesBase || {});
-    if (!mainDraftDirty && !browserDemoDirty && !menuTextDirty) {
-        setStatus('statusSaved');
-        return;
-    }
-
-    if (!mainDraftDirty && !browserDemoDirty && menuTextDirty) {
-        await persistMenuTextOverrides();
-        renderAll();
-        setStatus('statusSaved');
-        return;
-    }
-
+    if (Object.keys(state.menuRangeErrors).length) { setStatus('statusInvalid'); return; }
+    const documents = [];
+    if (JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft)) documents.push('defaults');
+    if (state.exportPending || JSON.stringify(state.browserDemoPolicyDraft) !== JSON.stringify(state.browserDemoPolicyBaseDraft)) documents.push('browserDemo');
+    if (JSON.stringify(state.menuTextOverrides) !== JSON.stringify(state.menuTextOverridesBase)) documents.push('menuTexts');
+    if (!documents.length) { setStatus('noSave'); return; }
     setStatus('statusLoading');
-    const apiResponse = await window.settingsStudioApi.save(state.draft, state.browserDemoPolicyDraft);
-    if (apiResponse?.ok) {
-        if (menuTextDirty) await persistMenuTextOverrides();
-        const savedDraft = apiResponse?.draft ? deepClone(apiResponse.draft) : deepClone(state.draft);
-        state.draft = deepClone(savedDraft);
-        state.baseDraft = deepClone(savedDraft);
-        state.validation = apiResponse?.validation || state.validation;
-
-        const savedBrowserDemoDraft = apiResponse?.browserDemoPolicy?.draft
-            ? deepClone(apiResponse.browserDemoPolicy.draft)
-            : deepClone(state.browserDemoPolicyDraft || createBrowserDemoPolicySeed());
-        state.browserDemoPolicyDraft = savedBrowserDemoDraft;
-        state.browserDemoPolicyBaseDraft = deepClone(savedBrowserDemoDraft);
-        if (apiResponse?.browserDemoPolicy?.validation) {
-            state.browserDemoPolicyValidation = createBrowserDemoValidationSnapshot(apiResponse.browserDemoPolicy.validation);
+    refs.saveBtn.disabled = true;
+    state.saving = true;
+    (/** @type {HTMLElement} */ (document.querySelector('.layout'))).inert = true;
+    try {
+        const response = await window.settingsStudioApi.save(state.draft, state.browserDemoPolicyDraft, { documents, revisions: state.revisions, menuTextOverrides: state.menuTextOverrides });
+        const saved = response.savedDocuments || [];
+        if (saved.includes('defaults')) { state.draft = deepClone(response.draft); state.baseDraft = deepClone(response.draft); }
+        if (saved.includes('browserDemo')) { state.browserDemoPolicyDraft = deepClone(response.browserDemoPolicy.draft); state.browserDemoPolicyBaseDraft = deepClone(response.browserDemoPolicy.draft); }
+        if (saved.includes('menuTexts')) { state.menuTextOverrides = deepClone(response.menuTextOverrides); state.menuTextOverridesBase = deepClone(response.menuTextOverrides); }
+        state.exportPending = response.pendingDocuments?.includes('browserDemoExport') === true;
+        if (response.revisions) {
+            state.revisions ||= {};
+            for (const key of saved) state.revisions[key] = response.revisions[key];
         }
-
-        publishDirtyState();
-        const listResponse = await window.settingsStudioApi.listBackups({}).catch(() => null);
-        const backupsArr = Array.isArray(listResponse?.backups) ? listResponse.backups
-            : (Array.isArray(listResponse) ? listResponse : null);
-        if (backupsArr) state.backups = backupsArr;
-
+        state.validation = response.validation || state.validation;
+        state.browserDemoPolicyValidation = response.browserDemoPolicy?.validation || state.browserDemoPolicyValidation;
+        const backups = await window.settingsStudioApi.listBackups({});
+        state.backups = backups.backups || [];
         renderAll();
-        const browserDemoOnlySave = browserDemoDirty && !mainDraftDirty;
-        setStatus(browserDemoOnlySave ? 'statusSavedBrowserDemoPolicy' : 'statusSaved');
-        return;
-    }
-
-    if (apiResponse?.draft) {
-        state.draft = deepClone(apiResponse.draft);
-    }
-    state.validation = apiResponse?.validation || state.validation;
-    if (apiResponse?.browserDemoPolicy?.draft) {
-        state.browserDemoPolicyDraft = deepClone(apiResponse.browserDemoPolicy.draft);
-    }
-    if (apiResponse?.browserDemoPolicy?.validation) {
-        state.browserDemoPolicyValidation = createBrowserDemoValidationSnapshot(apiResponse.browserDemoPolicy.validation);
-    }
-    renderAll();
-    setStatus('statusInvalid');
-}
-
-async function persistMenuTextOverrides() {
-    if (!Object.keys(state.menuTextOverrides || {}).length
-        && Object.keys(state.menuTextOverridesBase || {}).length) {
-        await window.settingsStudioApi.resetMenuTextOverrides();
-        state.menuTextOverridesBase = {};
-        return;
-    }
-    const textIds = new Set([
-        ...Object.keys(state.menuTextOverridesBase || {}),
-        ...Object.keys(state.menuTextOverrides || {}),
-    ]);
-    for (const textId of textIds) {
-        const current = String(state.menuTextOverrides?.[textId] || '').trim();
-        const base = String(state.menuTextOverridesBase?.[textId] || '').trim();
-        if (current === base) continue;
-        if (current) {
-            await window.settingsStudioApi.setMenuTextOverride(textId, current);
-        } else {
-            await window.settingsStudioApi.clearMenuTextOverride(textId);
+        if (response.ok) { workspace.clearHistory(); setStatus('saved'); (/** @type {HTMLButtonElement} */ (document.querySelector('[data-action="reload"]'))).hidden = true; (/** @type {HTMLElement} */ (document.querySelector('[data-bind="notice"]'))).hidden = true; }
+        else {
+            const names = { defaults: t('backupDefaults'), browserDemo: t('backupBrowser'), browserDemoExport: 'Browser-Demo-Export', menuTexts: t('backupTexts') };
+            const pending = (response.pendingDocuments || []).map((key) => names[key] || key).join(', ');
+            const errors = (response.errors || []).map((entry) => entry.message).join(' ');
+            setStatus(`${t(saved.length ? 'partial' : 'saveFailed')} ${pending}. ${errors}`);
+            const notice = (/** @type {HTMLElement} */ (document.querySelector('[data-bind="notice"]')));
+            notice.hidden = false; notice.textContent = `${t(saved.length ? 'partial' : 'saveFailed')} ${pending}. ${errors}`;
+            (/** @type {HTMLButtonElement} */ (document.querySelector('[data-action="reload"]'))).hidden = false;
         }
+    } catch (error) {
+        const notice = (/** @type {HTMLElement} */ (document.querySelector('[data-bind="notice"]')));
+        notice.hidden = false; notice.textContent = `${t('saveFailed')} ${error.message}`;
+        setStatus(notice.textContent);
+    } finally {
+        state.saving = false;
+        (/** @type {HTMLElement} */ (document.querySelector('.layout'))).inert = false;
+        refs.saveBtn.disabled = state.loadProblem;
+        refs.saveBtn.focus();
+        publishDirtyState();
     }
-    state.menuTextOverridesBase = deepClone(state.menuTextOverrides);
 }
+
 
 function onFieldChange(eventOrTarget, options = {}) {
     const { updateUi = true } = options;
@@ -1106,7 +1115,7 @@ function onBrowserDemoPolicyChange(eventOrTarget, options = {}) {
     );
 
     const modePathSet = new Set(modePathSelection.selectedValues);
-    const curatedTargets = Array.from(refs.formContent.querySelectorAll('[data-browser-demo-group="curatedMapKeysByModePath"][data-browser-demo-mode-path]'));
+    const curatedTargets = Array.from(refs.formContent.querySelectorAll('input[data-browser-demo-group="curatedMapKeysByModePath"][data-browser-demo-mode-path]'));
     const modePaths = Array.from(new Set(curatedTargets
         .map((entry) => String(entry.dataset.browserDemoModePath || '').trim().toLowerCase())
         .filter(Boolean)));
@@ -1129,7 +1138,7 @@ function onBrowserDemoPolicyChange(eventOrTarget, options = {}) {
     }
 
     const capabilityFlags = {};
-    const capabilityTargets = Array.from(refs.formContent.querySelectorAll('[data-browser-demo-capability]'));
+    const capabilityTargets = Array.from(refs.formContent.querySelectorAll('input[data-browser-demo-capability]'));
     capabilityTargets.forEach((entry) => {
         const capabilityId = String(entry.dataset.browserDemoCapability || '').trim().toLowerCase();
         if (!capabilityId) return;
@@ -1279,6 +1288,8 @@ function resetWholeMenuEditor() {
 }
 
 function onResetField(target) {
+    delete state.rawInputs[target.dataset?.path];
+    state.validation = null;
     const path = target.dataset?.path;
     if (!path || !state.draft || !state.baseDraft) return;
 
@@ -1287,7 +1298,10 @@ function onResetField(target) {
 
     const row = target.closest('.field-row');
     if (row) {
-        row.classList.remove('dirty');
+        row.classList.remove('dirty', 'has-error');
+        row.querySelector('[data-raw-error]')?.remove();
+        row.querySelector('.field-error')?.remove();
+        row.querySelector('[data-path]')?.setAttribute('aria-invalid', 'false');
         target.removeAttribute('data-dirty');
         const input = row.querySelector('[data-path]');
         if (input) {
@@ -1303,12 +1317,16 @@ function onResetField(target) {
 }
 
 function onResetSection() {
+    state.validation = null;
+    for (const path of Object.keys(state.rawInputs)) if (path.startsWith(`${state.activeSection}.`)) delete state.rawInputs[path];
     if (!state.draft || !state.baseDraft) return;
     const sectionKey = state.activeSection;
 
     if (sectionKey === 'gameMenu') {
         resetWholeMenuEditor();
         return;
+    } else if (sectionKey === 'mapBalancing') {
+        mapBalancingSection.discardAll();
     } else if (sectionKey === 'limits') {
         state.draft.limitOverrides = deepClone(state.baseDraft.limitOverrides || {});
     } else if (sectionKey === 'browserDemoPolicy') {
@@ -1327,7 +1345,10 @@ function onResetSection() {
 }
 
 function onResetAll() {
+    state.validation = null;
     if (!state.baseDraft) return;
+    workspace.discardRaw();
+    mapBalancingSection.discardAll();
     state.draft = deepClone(state.baseDraft);
     state.browserDemoPolicyDraft = deepClone(state.browserDemoPolicyBaseDraft || createBrowserDemoPolicySeed());
     state.browserDemoPolicyValidation = null;
@@ -1337,9 +1358,11 @@ function onResetAll() {
 }
 
 function onNavSection(sectionKey) {
+    workspace.navigating();
     state.activeSection = sectionKey;
     renderSidebar();
     renderFormContent();
+    workspace.refresh();
 }
 
 async function onLanguageChange(event) {
@@ -1363,7 +1386,7 @@ function onPresetFieldChange(eventOrTarget, options = {}) {
         target,
         target.type === 'checkbox'
             ? 'boolean'
-            : (target.type === 'number' ? 'number' : 'string')
+            : (target.dataset.type || (target.type === 'number' ? 'number' : 'string'))
     );
     if (value === undefined) return;
 
@@ -1371,7 +1394,12 @@ function onPresetFieldChange(eventOrTarget, options = {}) {
     const idx = parseInt(parts[1], 10);
     const key = parts[2];
     if (!isNaN(idx) && key && Array.isArray(state.draft.fixedPresets)) {
-        state.draft.fixedPresets[idx][key] = value;
+        if (target.dataset.presetLockKey) {
+            const keys = new Set(state.draft.fixedPresets[idx].lockedFields || []);
+            if (target.checked) keys.add(target.dataset.presetLockKey); else keys.delete(target.dataset.presetLockKey);
+            state.draft.fixedPresets[idx].lockedFields = [...keys];
+        } else if (key === 'values') state.draft.fixedPresets[idx].values[parts.slice(3).join('.')] = value;
+        else state.draft.fixedPresets[idx][key] = value;
         if (updateUi) {
             updateChangeBadge();
             renderSidebar();
@@ -1382,7 +1410,7 @@ function onPresetFieldChange(eventOrTarget, options = {}) {
 function syncRenderedFormDraft() {
     if (!state.draft) return;
     const fieldTargets = refs.formContent.querySelectorAll('input[data-path], textarea[data-path], select[data-path]');
-    for (const target of fieldTargets) {
+    for (const target of Array.from(fieldTargets)) {
         if (target.closest('.preset-body')) {
             onPresetFieldChange(target, { updateUi: false });
             continue;
@@ -1393,30 +1421,45 @@ function syncRenderedFormDraft() {
 
 async function onRestoreBackup(backupFileName) {
     if (!backupFileName) return;
-    if (!window.confirm(t('restoreConfirm'))) return;
+    const backup = state.backups.find((entry) => entry.fileName === backupFileName);
+    const typeLabel = t(backup?.documentType === 'browserDemo' ? 'backupBrowser' : backup?.documentType === 'menuTexts' ? 'backupTexts' : 'backupDefaults');
+    if (!window.confirm(`${t('restoreConfirm')}\n${typeLabel}\n${backupFileName}`)) return;
+    const kept = { draft: deepClone(state.draft), base: deepClone(state.baseDraft), policy: deepClone(state.browserDemoPolicyDraft), policyBase: deepClone(state.browserDemoPolicyBaseDraft), texts: deepClone(state.menuTextOverrides), textBase: deepClone(state.menuTextOverridesBase), raw: deepClone(state.rawInputs), ranges: deepClone(state.menuRangeInputs), rangeErrors: deepClone(state.menuRangeErrors), exportPending: state.exportPending, revisions: deepClone(state.revisions) };
     setStatus('statusLoading');
-    const response = await window.settingsStudioApi.restoreBackup(backupFileName);
-    if (response?.ok && response.draft) {
-        state.draft = deepClone(response.draft);
-        state.baseDraft = deepClone(response.draft);
-        state.validation = response?.validation || null;
-        const listResponse = await window.settingsStudioApi.listBackups({}).catch(() => null);
-        const backupsArr = Array.isArray(listResponse?.backups) ? listResponse.backups
-            : (Array.isArray(listResponse) ? listResponse : null);
-        if (backupsArr) state.backups = backupsArr;
+    const response = await window.settingsStudioApi.restoreBackup(backupFileName, { revisions: state.revisions });
+    if (response?.ok) {
+        await loadState();
+        if (backup?.documentType !== 'defaults') { state.draft = kept.draft; state.baseDraft = kept.base; state.rawInputs = kept.raw; state.menuRangeInputs = kept.ranges; state.menuRangeErrors = kept.rangeErrors; }
+        if (backup?.documentType !== 'browserDemo') { state.browserDemoPolicyDraft = kept.policy; state.browserDemoPolicyBaseDraft = kept.policyBase; state.exportPending = kept.exportPending; }
+        if (backup?.documentType !== 'menuTexts') { state.menuTextOverrides = kept.texts; state.menuTextOverridesBase = kept.textBase; }
+        for (const [key, revision] of Object.entries(kept.revisions || {})) {
+            if (!(response.savedDocuments || []).includes(key)) state.revisions[key] = revision;
+        }
         renderAll();
-        setStatus('statusSaved');
+        setStatus('saved');
     } else {
+        if (response?.savedDocuments?.includes('browserDemo')) {
+            state.browserDemoPolicyDraft = deepClone(response.browserDemoPolicy.draft);
+            state.browserDemoPolicyBaseDraft = deepClone(response.browserDemoPolicy.draft);
+            state.revisions.browserDemo = response.revisions.browserDemo;
+            state.exportPending = response.pendingDocuments.includes('browserDemoExport');
+            renderAll();
+        }
         state.validation = response?.validation || state.validation;
-        setStatus('statusInvalid');
+        const detail = response?.errors?.map((entry) => `${entry.document}: ${entry.message}`).join(' ') || t('statusInvalid');
+        const notice = (/** @type {HTMLElement} */ (document.querySelector('[data-bind="notice"]')));
+        notice.hidden = false; notice.textContent = `${t(response?.savedDocuments?.length ? 'partial' : 'saveFailed')} ${detail}`;
+        setStatus(notice.textContent);
     }
 }
 
 function bindEvents() {
+    workspace.attach();
+    (/** @type {HTMLButtonElement} */ (document.querySelector('[data-action="reload"]'))).addEventListener('click', () => { if (window.confirm(t('reloadConfirm'))) { mapBalancingSection.discardAll(); void loadState(); } });
     const handleFormMutation = (event) => {
         if (event.target.closest?.('.map-balancing')) return;
-        if (event.type === 'input' && event.target.dataset?.menuSettingPath
-            && event.target.matches?.('input[type="number"]')) return;
+        if (event.type === 'change' && event.target.dataset?.menuRangeEdit && state.menuRangeInputs[event.target.dataset.menuRangeEdit] === event.target.value) return;
+        if (event.type === 'change' && event.target.dataset?.menuSettingPath && String(readPath(state.draft, event.target.dataset.menuSettingPath)) === event.target.value) return;
         if (event.target.dataset?.menuTextId || event.target.dataset?.menuSettingPath
             || event.target.dataset?.menuRangePath) {
             onMenuEditorMutation(event.target);
@@ -1495,6 +1538,14 @@ function bindEvents() {
             return;
         }
 
+        const duplicate = event.target.closest('[data-action="duplicate-preset"]');
+        if (duplicate) {
+            const preset = deepClone(state.draft.fixedPresets[Number(duplicate.dataset.presetIndex)]);
+            let suffix = 1;
+            while (state.draft.fixedPresets.some((entry) => entry.id === `${preset.id}-copy-${suffix}`)) suffix++;
+            preset.id = `${preset.id}-copy-${suffix}`; preset.name += state.language === 'de' ? ' (Kopie)' : ' (Copy)';
+            state.draft.fixedPresets.push(preset); renderAll(); return;
+        }
         const resetBtn = event.target.closest('[data-action="reset-field"]');
         if (resetBtn) { onResetField(resetBtn); return; }
 
@@ -1530,6 +1581,7 @@ function bindEvents() {
     });
 
     refs.sidebarNav.addEventListener('click', (event) => {
+        if (!(event.target instanceof Element)) return;
         const btn = event.target.closest('[data-nav-section]');
         if (btn) onNavSection(btn.dataset.navSection);
     });
@@ -1578,13 +1630,14 @@ function bindEvents() {
 
 function isDraftDirty() {
     if (!state.draft || !state.baseDraft) return false;
-    const mainDraftDirty = JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
+    const mainDraftDirty = workspace.rawErrors().length > 0 || state.exportPending || JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
     const browserDemoDirty = JSON.stringify(state.browserDemoPolicyDraft || {}) !== JSON.stringify(state.browserDemoPolicyBaseDraft || {});
     const menuTextDirty = JSON.stringify(state.menuTextOverrides || {}) !== JSON.stringify(state.menuTextOverridesBase || {});
     return mainDraftDirty || browserDemoDirty || menuTextDirty;
 }
 
 function bootstrap() {
+    attachStudioCloseDialog({ api: window.settingsStudioApi, language: () => state.language, changes: () => workspace.changed().length, exportPending: () => state.exportPending, saving: () => state.saving });
     renderStaticTexts();
     setStatus('statusReady');
     bindEvents();

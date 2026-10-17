@@ -484,7 +484,8 @@ test('V98.5.2 settings studio keeps browser-demo section and save-preview risk h
     assert.equal(appSource.includes('renderBrowserDemoPreviewHints'), true);
     assert.equal(appSource.includes('browserDemoRiskHintTitle'), true);
     assert.equal(appSource.includes("sectionKey === 'browserDemoPolicy'"), true);
-    assert.equal(appSource.includes('statusSavedBrowserDemoPolicy'), true);
+    assert.equal(appSource.includes('response.pendingDocuments'), true);
+    assert.equal(appSource.includes('response.savedDocuments'), true);
 });
 
 test('V98.5.2 settings studio load exposes browser-demo policy draft plus dedicated override and export paths', async (t) => {
@@ -609,4 +610,129 @@ test('V98.5.2 restore hygiene keeps browser-demo override untouched while restor
     const exportArtifact = JSON.parse(exportRaw);
     assert.equal(exportArtifact.contractVersion, BROWSER_DEMO_POLICY_EXPORT_CONTRACT_VERSION);
     assert.deepEqual(exportArtifact.draft, secondSave.browserDemoPolicy.draft);
+});
+
+test('Studio rejects blank numeric fields and invalid nested preset values', () => {
+    for (const value of ['', null]) {
+        const draft = createSettingsOverrideDraft();
+        draft.baseSettings.gameplay.speed = value;
+        assert.equal(validateSettingsOverrideDraft(draft).valid, false);
+    }
+    const draft = createSettingsOverrideDraft();
+    draft.fixedPresets[0].values['gameplay.speed'] = 'fast';
+    assert(validateSettingsOverrideDraft(draft).errors.some((error) => error.path === 'fixedPresets.0.values.gameplay.speed'));
+    draft.fixedPresets[0].values['gameplay.speed'] = 25;
+    draft.fixedPresets[1].id = draft.fixedPresets[0].id;
+    assert.equal(validateSettingsOverrideDraft(draft).valid, false);
+});
+
+test('Studio selective save preserves unrelated files and rejects stale revisions', async (t) => {
+    const harness = await createSettingsStudioTestHarness(t);
+    const loaded = await harness.invoke(SETTINGS_STUDIO_CHANNELS.load);
+    loaded.draft.baseSettings.gameplay.speed = 31;
+    const result = await harness.invoke(SETTINGS_STUDIO_CHANNELS.save, loaded.draft, loaded.browserDemoPolicy.draft, { documents: ['defaults'], revisions: loaded.revisions });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.savedDocuments, ['defaults']);
+    await assert.rejects(fs.access(loaded.paths.browserDemoPolicyOverrideFilePath), { code: 'ENOENT' });
+    const external = JSON.stringify({ ...result.draft, language: 'en' });
+    await fs.writeFile(loaded.paths.overrideFilePath, external);
+    loaded.draft.baseSettings.gameplay.speed = 32;
+    const conflict = await harness.invoke(SETTINGS_STUDIO_CHANNELS.save, loaded.draft, loaded.browserDemoPolicy.draft, { documents: ['defaults'], revisions: result.revisions });
+    assert.equal(conflict.ok, false);
+    assert.equal(conflict.errors[0].code, 'EXTERNAL_CHANGE');
+    assert.equal(await fs.readFile(loaded.paths.overrideFilePath, 'utf8'), external);
+});
+
+test('Studio reports partial save when the browser export destination fails', async (t) => {
+    const harness = await createSettingsStudioTestHarness(t);
+    const loaded = await harness.invoke(SETTINGS_STUDIO_CHANNELS.load);
+    await fs.writeFile(path.join(harness.userDataPath, 'data'), 'blocked export directory');
+    loaded.draft.baseSettings.gameplay.speed = 31;
+    const result = await harness.invoke(SETTINGS_STUDIO_CHANNELS.save, loaded.draft, loaded.browserDemoPolicy.draft, { revisions: loaded.revisions });
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.savedDocuments, ['defaults', 'browserDemo']);
+    assert.deepEqual(result.pendingDocuments, ['browserDemoExport']);
+    assert.equal(result.errors[0].document, 'browserDemoExport');
+    assert.equal(JSON.parse(await fs.readFile(loaded.paths.overrideFilePath, 'utf8')).baseSettings.gameplay.speed, 31);
+});
+
+test('Studio restores browser and menu text backups only to their own document type', async (t) => {
+    const harness = await createSettingsStudioTestHarness(t);
+    const loaded = await harness.invoke(SETTINGS_STUDIO_CHANNELS.load);
+    const textId = loaded.menuEditorModel.items.find((item) => item.kind === 'text' && item.editable).textId;
+    const save = await harness.invoke(SETTINGS_STUDIO_CHANNELS.save, loaded.draft, loaded.browserDemoPolicy.draft, { documents: ['menuTexts', 'browserDemo'], menuTextOverrides: { [textId]: 'Studio regression' }, revisions: loaded.revisions });
+    assert.equal(save.ok, true);
+    const defaultsBefore = await fs.readFile(loaded.paths.overrideFilePath, 'utf8').catch(() => 'missing');
+    const { backups } = await harness.invoke(SETTINGS_STUDIO_CHANNELS.listBackups);
+    for (const type of ['browserDemo', 'menuTexts']) {
+        const backup = backups.find((entry) => entry.documentType === type);
+        assert(backup, `Missing backup type ${type}: ${JSON.stringify(backups)}`);
+        const result = await harness.invoke(SETTINGS_STUDIO_CHANNELS.restoreBackup, backup.fileName);
+        assert.equal(result.ok, true);
+        assert.equal(await fs.readFile(loaded.paths.overrideFilePath, 'utf8').catch(() => 'missing'), defaultsBefore);
+    }
+});
+
+test('Studio local defaults and authored preset values reach SettingsManager', () => {
+    const draft = createSettingsOverrideDraft();
+    draft.localSettings.audio.masterVolume = 0.42;
+    const preset = draft.fixedPresets.find((entry) => entry.id === 'fight_standard') || draft.fixedPresets[0];
+    preset.values['gameplay.speed'] = 23;
+    const runtimeGlobal = { settingsDefaultsContract: { getOverrideSnapshot: () => ({ draft }) } };
+    // The public facade also works with the plain runtime contract used by embedders.
+    const defaults = createDefaultSettingsSnapshotWithOverride(draft);
+    assert.equal(defaults.localSettings.audio.masterVolume, 0.42);
+    assert.equal(defaults.__overrideSkipped, undefined);
+    const manager = new SettingsManager({ runtimeGlobal, storagePlatform: createMemoryStoragePlatform() });
+    assert.equal(manager.listMenuPresets().find((entry) => entry.id === preset.id).values['gameplay.speed'], 23);
+    const settings = manager.createDefaultSettings();
+    const applied = manager.applyMenuPreset(settings, preset.id);
+    assert.equal(applied.success, true);
+    assert.equal(settings.gameplay.speed, 23);
+});
+
+test('current Studio schema applies runtime limits and start-reset defaults', () => {
+    const draft = createSettingsOverrideDraft();
+    draft.limitOverrides['baseSettings.hunt.deathmatchKillLimit'] = { max: 40 };
+    draft.level3Reset.mapKey = 'maze';
+    draft.level3Reset.vehicles.PLAYER_1 = 'ship2';
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform(),
+        runtimeGlobal: { settingsDefaultsContract: { getOverrideSnapshot: () => ({ draft }) } } });
+    assert.equal(manager.sanitizeSettings({ ...manager.createDefaultSettings(), hunt: { deathmatchKillLimit: 39 } }).hunt.deathmatchKillLimit, 39);
+    assert.equal(manager.createStartResetDefaults().mapKey, 'maze');
+    assert.equal(manager.createStartResetDefaults().vehicles.PLAYER_1, 'ship2');
+    const independent = manager.createStartResetDefaults(); independent.mapKey = 'standard';
+    assert.equal(manager.createStartResetDefaults().mapKey, 'maze');
+});
+
+test('Electron defaults bridge feeds defaults, limits and authored presets through the same port', () => {
+    const draft = createSettingsOverrideDraft();
+    draft.baseSettings.gameplay.speed = 31;
+    draft.localSettings.audio.masterVolume = 0.42;
+    draft.limitOverrides['baseSettings.gameplay.speed'] = { max: 40 };
+    const runtimeGlobal = { curviosApp: { isApp: true, settingsDefaults: { getOverrideSnapshot: () => ({ draft }) } } };
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform(), runtimeGlobal });
+    assert.equal(manager.createDefaultSettings().gameplay.speed, 31);
+    assert.equal(manager.createDefaultSettings().localSettings.audio.masterVolume, 0.42);
+    assert.equal(manager.sanitizeSettings({ ...manager.createDefaultSettings(), gameplay: { speed: 49 } }).gameplay.speed, 40);
+});
+
+test('Studio detects an external edit made while its pre-save backup is prepared', async (t) => {
+    const harness = await createSettingsStudioTestHarness(t);
+    const loaded = await harness.invoke(SETTINGS_STUDIO_CHANNELS.load);
+    const { SettingsBackupService } = require('../electron/settings-studio/services/SettingsBackupService.cjs');
+    const original = SettingsBackupService.prototype.createBackup;
+    const external = JSON.stringify({ ...loaded.draft, language: 'en' });
+    SettingsBackupService.prototype.createBackup = async function (options) {
+        const backup = await original.call(this, options);
+        await fs.writeFile(loaded.paths.overrideFilePath, external);
+        return backup;
+    };
+    try {
+        loaded.draft.baseSettings.gameplay.speed = 31;
+        const result = await harness.invoke(SETTINGS_STUDIO_CHANNELS.save, loaded.draft, loaded.browserDemoPolicy.draft, { documents: ['defaults'], revisions: loaded.revisions });
+        assert.equal(result.ok, false);
+        assert.equal(result.errors[0].code, 'EXTERNAL_CHANGE');
+        assert.equal(await fs.readFile(loaded.paths.overrideFilePath, 'utf8'), external);
+    } finally { SettingsBackupService.prototype.createBackup = original; }
 });

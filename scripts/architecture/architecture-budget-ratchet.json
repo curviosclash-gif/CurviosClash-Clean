@@ -1,5 +1,6 @@
 {
-  "updatedAt": "2026-09-23",
+  "updatedAt": "2026-10-17",
+  "notes": "Settings Studio close request adds one bidirectional trusted channel (subscribe, unsubscribe, response) for the accessible unsaved-changes dialog.",
   "budgets": {
     "constructorGameFiles": 0,
     "domAccessFiles": 11,
@@ -24,7 +25,7 @@
     "legacySurface_curviosApp_totalFiles": 3,
     "legacySurface_ActiveRuntimeConfigStore_totalFiles": 3,
     "electronPreloadExposures": 9,
-    "electronIpcRendererChannels": 16,
+    "electronIpcRendererChannels": 18,
     "electronIpcMainChannels": 29
   }
 }

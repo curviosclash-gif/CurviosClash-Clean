@@ -1,3 +1,4 @@
+import { validateOverridePresets } from './SettingsOverridePresetValidation.js';
 import {
     MENU_DEFAULT_EDITOR_SCHEMA_VERSION,
     createMenuDefaultsEditorConfigSnapshot,
@@ -11,11 +12,7 @@ import {
     isPlainObject, readPathValue, writePathValue,
 } from './SettingsOverrideMergeOps.js';
 import { dropRetiredOverridePaths } from './SettingsOverrideRetiredPaths.js';
-import {
-    normalizeLimitOverrides,
-    resolveEffectiveLimits,
-    validateLimitRule,
-} from './SettingsOverrideRangeContract.js';
+import { normalizeLimitOverrides, resolveEffectiveLimits, validateLimitRule } from './SettingsOverrideRangeContract.js';
 
 export const SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v4';
 export const LEGACY_SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v1';
@@ -58,7 +55,7 @@ const FIELD_HELP_METADATA = Object.freeze({
     'baseSettings.gameplay.gapSize': Object.freeze({ riskLevel: 'medium', unit: null, example: '0.5', help: { de: 'Größe der Lücken in der Flugspur.', en: 'Size of gaps in the flight trail.' }, impact: { de: 'Größere Lücken erlauben Durchschlüpfen durch die eigene Spur.', en: 'Larger gaps allow passing through own trail.' } }),
     'baseSettings.gameplay.gapFrequency': Object.freeze({ riskLevel: 'low', unit: null, example: '0.05', help: { de: 'Häufigkeit der Lücken in der Flugspur.', en: 'Frequency of gaps in the flight trail.' }, impact: { de: 'Höhere Werte erzeugen mehr Lücken pro Zeiteinheit.', en: 'Higher values produce more gaps per time unit.' } }),
     'baseSettings.gameplay.itemAmount': Object.freeze({ riskLevel: 'low', unit: null, example: '3', help: { de: 'Item-Dichte relativ zur Standard-Arena: 10 füllt sie mit 100 Items, 5 mit 50. Anzahl und Nachfüllrate skalieren mit der Map-Größe (3D: Volumen, 2D: Grundfläche), bis maximal 100 Items; größere Karten erreichen die Obergrenze schon bei kleineren Werten.', en: 'Item density relative to the standard arena: 10 fills it with 100 items, 5 with 50. Count and refill rate scale with map size (3D: volume, 2D: floor area), up to 100 items; larger maps reach that cap at smaller values.' }, impact: { de: 'Mehr Items = häufigere Power-up-Gelegenheiten.', en: 'More items = more frequent power-up opportunities.' } }),
-    'baseSettings.gameplay.fireRate': Object.freeze({ riskLevel: 'medium', unit: null, example: '0.15', help: { de: 'Schussrate der Bordkanone (Schüsse/s).', en: 'Machine gun fire rate (shots/s).' }, impact: { de: 'Höhere Werte ermöglichen schnelleres Schießen; beeinflusst Kampfbalance.', en: 'Higher values allow faster shooting; affects combat balance.' } }),
+    'baseSettings.gameplay.fireRate': Object.freeze({ riskLevel: 'medium', unit: 's', example: '0.45', help: { de: 'Wartezeit zwischen abgefeuerten Projektilen beziehungsweise schießbaren Items in Sekunden.', en: 'Delay between fired projectiles or shootable items, in seconds.' }, impact: { de: 'Höhere Werte verlängern die Schusspause. Die MG-Schussfolge wird separat geregelt.', en: 'Higher values increase the delay. The machine gun cadence is controlled separately.' } }),
     'baseSettings.gameplay.lockOnAngle': Object.freeze({ riskLevel: 'low', unit: '°', example: '30', help: { de: 'Winkelbereich für automatisches Zielen.', en: 'Angle range for automatic lock-on targeting.' }, impact: { de: 'Größerer Winkel erleichtert das Zielen erheblich.', en: 'Larger angle makes aiming significantly easier.' } }),
     'baseSettings.gameplay.nextCheckpointGlowIntensity': Object.freeze({ riskLevel: 'low', unit: null, example: '1.35', help: { de: 'Leuchtstärke für den nächsten Parcours-Checkpoint-Ring.', en: 'Glow strength for the next parcours checkpoint ring.' }, impact: { de: 'Höhere Werte machen den nächsten Ring deutlicher sichtbar.', en: 'Higher values make the next ring more visually prominent.' } }),
     'baseSettings.gameplay.mgTrailAimRadius': Object.freeze({ riskLevel: 'low', unit: null, example: '0.15', help: { de: 'Trefferradius der Bordkanone auf der Spur.', en: 'Machine gun hit radius on the trail.' }, impact: { de: 'Größerer Radius = treffsicherer, aber ggf. weniger präzises Gefühl.', en: 'Larger radius = more accurate, but potentially less precise feel.' } }),
@@ -357,7 +354,7 @@ export function validateSettingsOverrideDraft(candidateDraft) {
         }
 
         if (field.type === 'number') {
-            const asNumber = toFiniteNumber(value, null);
+            const asNumber = value === null || (typeof value === 'string' && !value.trim()) ? NaN : toFiniteNumber(value, null);
             if (!Number.isFinite(asNumber)) {
                 errors.push(createError(field.path, 'FIELD_NUMBER_INVALID', `Zahl erwartet für ${field.path}.`));
                 continue;
@@ -443,6 +440,8 @@ export function validateSettingsOverrideDraft(candidateDraft) {
         errors.push(createError('fixedPresets', 'FIELD_PRESETS_INVALID', 'fixedPresets muss ein Array sein.'));
         normalizedDraft.fixedPresets = deepCloneJson(createSettingsOverrideDraft().fixedPresets);
     }
+
+    errors.push(...validateOverridePresets(normalizedDraft.fixedPresets, FIELD_REGISTRY_BY_PATH));
 
     return {
         valid: errors.length === 0,

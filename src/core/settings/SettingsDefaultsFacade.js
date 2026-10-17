@@ -2,6 +2,7 @@ import { createGamepadControlsSnapshot } from '../../shared/contracts/GamepadCon
 import { CONFIG } from '../Config.js';
 import {
     createMenuSettingsDefaults,
+    createMenuDefaultsEditorConfigSnapshot,
     ensureMenuContractState,
 } from '../../composition/core-ui/CoreSettingsPorts.js';
 import {
@@ -33,7 +34,6 @@ import {
 import {
     createSettingsDefaultsRuntimePort,
     readSettingsOverrideDraftFromPort,
-    readSettingsOverrideDraftFromRuntime,
 } from './SettingsRuntimeLimits.js';
 import { resolveElectronRuntimeSnapshot } from '../../platform/electron/ElectronPlatformBridge.js';
 
@@ -67,6 +67,7 @@ export function applySettingsOverrideToDefaults(baseSettings, validatedOverrideD
         return baseSettings;
     }
     const merged = deepMergeKnownShape(baseSettings, validatedOverrideDraft.baseSettings);
+    if (isPlainObject(validatedOverrideDraft.localSettings)) merged.localSettings = deepMergeKnownShape(baseSettings.localSettings || {}, validatedOverrideDraft.localSettings);
     // A draft saved before a settings migration must not pull the version back, or the
     // migration would run again on every load.
     merged.settingsVersion = Math.max(Number(merged.settingsVersion) || 0, Number(baseSettings.settingsVersion) || 0);
@@ -111,15 +112,23 @@ export function createSettingsDefaultsPortForRuntime(runtimeGlobal = globalThis)
 }
 
 export function createDefaultSettingsSnapshotForRuntime(runtimeGlobal = globalThis) {
-    return createDefaultSettingsSnapshotWithOverride(
-        readSettingsOverrideDraftFromRuntime(runtimeGlobal)
-    );
+    return createDefaultSettingsSnapshotFromPort(createSettingsDefaultsPortForRuntime(runtimeGlobal));
 }
 
 export function createDefaultSettingsSnapshotFromPort(settingsDefaultsPort = null) {
     return createDefaultSettingsSnapshotWithOverride(
         readSettingsOverrideDraftFromPort(settingsDefaultsPort)
     );
+}
+
+export function createStartResetDefaultsFromPort(settingsDefaultsPort = null) {
+    const fallback = createMenuDefaultsEditorConfigSnapshot().level3Reset;
+    const draft = readSettingsOverrideDraftFromPort(settingsDefaultsPort);
+    if (!isPlainObject(draft)) return fallback;
+    const migration = classifyOverrideDraftMigration(draft);
+    if (!['current', 'upgrade'].includes(migration.status)) return fallback;
+    const validation = validateSettingsOverrideDraft(migrateOverrideDraft(draft, migration));
+    return validation.valid ? deepMergeKnownShape(fallback, validation.normalizedDraft.level3Reset) : fallback;
 }
 
 export function rebaseSettingsSnapshotWithRuntimeDefaults(

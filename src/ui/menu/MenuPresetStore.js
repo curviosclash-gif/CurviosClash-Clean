@@ -1,4 +1,4 @@
-import { findFixedMenuPresetById, getFixedMenuPresetCatalog } from './MenuPresetCatalog.js';
+import { getFixedMenuPresetCatalog } from './MenuPresetCatalog.js';
 import { createPresetMetadata, normalizePresetValues } from './MenuPresetApplyOps.js';
 import {
     LEGACY_STORAGE_KEYS,
@@ -126,7 +126,7 @@ export class MenuPresetStore extends PersistentStore {
         const normalizedPresetId = normalizeString(presetId);
         if (!normalizedPresetId) return null;
 
-        const fixedPreset = findFixedMenuPresetById(normalizedPresetId);
+        const fixedPreset = this.fixedCatalogById.get(normalizedPresetId);
         if (fixedPreset) {
             return ensurePresetMetadataContract(fixedPreset);
         }

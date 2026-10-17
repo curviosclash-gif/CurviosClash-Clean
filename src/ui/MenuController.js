@@ -134,6 +134,7 @@ export class MenuController {
             ui: this.ui,
             game: this.game,
             configSource: this.game?.config || null,
+            settingsDefaultsPort: this.game?.settingsManager?.getSettingsDefaultsPort?.(),
             settings: this.settings,
             featureFlags: resolveRuntimeMenuFeatureFlags(this.settings?.menuFeatureFlags),
             runtimeAccess: this.runtimeAccess,

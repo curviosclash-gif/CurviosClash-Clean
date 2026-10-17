@@ -28,8 +28,8 @@ test('Settings Studio saves independent pitch and yaw controls', async ({}, test
         await window.locator('[data-nav-section="baseSettings"]').click();
         const yaw = window.locator('input[data-path="baseSettings.gameplay.turnSensitivity"]');
         const pitch = window.locator('input[data-path="baseSettings.gameplay.pitchSensitivity"]');
-        await expect(yaw.locator('..')).toContainText('Lenkung Links/Rechts (Yaw)');
-        await expect(pitch.locator('..')).toContainText('Lenkung Hoch/Runter (Pitch)');
+        await expect(yaw.locator('xpath=ancestor::div[contains(@class,"field-row")][1]')).toContainText('Lenkung Links/Rechts (Yaw)');
+        await expect(pitch.locator('xpath=ancestor::div[contains(@class,"field-row")][1]')).toContainText('Lenkung Hoch/Runter (Pitch)');
         await yaw.fill('3');
         await pitch.fill('4.5');
         await expect(yaw).toHaveValue('3');
@@ -37,7 +37,7 @@ test('Settings Studio saves independent pitch and yaw controls', async ({}, test
         await expect(window.locator('[data-bind="save-preview-modal"]')).toBeVisible();
         await expect(window.locator('[data-bind="save-preview-body"]')).toContainText('Lenkung Hoch/Runter (Pitch)');
         await window.locator('[data-action="confirm-save"]').click();
-        await expect(window.locator('[data-bind="status"]')).toContainText('Gespeichert');
+        await expect(window.locator('[data-bind="status"]')).toContainText(/gespeichert/iu);
         const persisted = await window.evaluate(async () => window.settingsStudioApi.load());
         expect(persisted.draft.baseSettings.gameplay.turnSensitivity).toBe(3);
         expect(persisted.draft.baseSettings.gameplay.pitchSensitivity).toBe(4.5);
@@ -55,7 +55,7 @@ test('Settings Studio saves independent pitch and yaw controls', async ({}, test
     }
 });
 
-test('Settings Studio edits a numeric default and interval without losing focus', async () => {
+test('Settings Studio edits a numeric default and interval without losing focus', async ({}, testInfo) => {
     const profilePath = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-settings-studio-e2e-'));
     const appDataPath = path.join(profilePath, 'AppData', 'Roaming');
     const localAppDataPath = path.join(profilePath, 'AppData', 'Local');
@@ -120,10 +120,11 @@ test('Settings Studio edits a numeric default and interval without losing focus'
         await expect(window.locator('[data-bind="save-preview-modal"]')).toBeVisible();
         await expect(window.locator('[data-bind="save-preview-body"]')).toContainText(/step/iu);
         await window.locator('[data-action="confirm-save"]').click();
-        await expect(window.locator('[data-bind="status"]')).toContainText('Gespeichert');
+        await expect(window.locator('[data-bind="status"]')).toContainText(/gespeichert/iu);
 
         const persisted = await window.evaluate(async () => window.settingsStudioApi.load());
         expect(persisted.draft.baseSettings.botBridge.timeoutMs).toBe(120);
+        await window.screenshot({ path: testInfo.outputPath('menu-numeric-properties.png') });
         expect(persisted.draft.limitOverrides['baseSettings.botBridge.timeoutMs']).toEqual({
             step: 10,
         });

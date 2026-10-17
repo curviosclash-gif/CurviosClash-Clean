@@ -5,6 +5,7 @@ const SETTINGS_OVERRIDE_SCHEMA_VERSIONS = new Set([
     'menu-defaults-override.v1',
     'menu-defaults-override.v2',
     'menu-defaults-override.v3',
+    'menu-defaults-override.v4',
 ]);
 
 function isPlainObject(value) {
@@ -160,6 +161,7 @@ export function createRuntimeSettingsLimitsWithOverride(rawOverrideDraft) {
     return runtimeLimits;
 }
 
+/** @param {object} [runtimeSource] */
 export function createRuntimeSettingsLimitsForRuntime(runtimeSource = globalThis) {
     return createRuntimeSettingsLimitsWithOverride(
         readSettingsOverrideDraftFromPort(

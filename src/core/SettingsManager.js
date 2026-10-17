@@ -21,6 +21,8 @@ import {
     cloneDefaultControlsSnapshot,
     createSettingsDefaultsPortForRuntime,
     createDefaultSettingsSnapshotForRuntime,
+    createDefaultSettingsSnapshotWithOverride,
+    createStartResetDefaultsFromPort,
     rebaseSettingsSnapshotWithRuntimeDefaults,
 } from './settings/SettingsDefaultsFacade.js';
 import { sanitizeSettingsSnapshot } from './settings/SettingsSanitizerOps.js';
@@ -89,7 +91,7 @@ export class SettingsManager {
         });
         this.#menuPresetStore = new MenuPresetStore({
             ...storeOptions,
-            fixedCatalog: getFixedMenuPresetCatalog(),
+            fixedCatalog: this.#resolveStudioPresets(settingsDefaultsSnapshot?.draft),
         });
         this.#menuDraftStore = new MenuDraftStore(storeOptions);
         this.#menuTextOverrideStore = new MenuTextOverrideStore({
@@ -105,6 +107,19 @@ export class SettingsManager {
         });
         this.#authoringTelemetryStore = new AuthoringTelemetryStore(storeOptions);
         this.#telemetryHistoryStore = options.telemetryHistoryStore || new TelemetryHistoryStore();
+    }
+
+    #resolveStudioPresets(draft) {
+        const catalog = getFixedMenuPresetCatalog();
+        if (!draft || !Array.isArray(draft.fixedPresets)) return catalog;
+        // The shared defaults facade validates the document before it is admitted to runtime.
+        const defaults = createDefaultSettingsSnapshotWithOverride(draft);
+        if (defaults.__overrideSkipped) return catalog;
+        return draft.fixedPresets.map((preset) => {
+            const base = catalog.find((entry) => entry.id === preset.id) || catalog[0];
+            return { ...base, id: preset.id, name: preset.name, description: preset.description,
+                values: { ...preset.values }, metadata: { ...base.metadata, id: preset.id, lockedFields: [...preset.lockedFields] } };
+        });
     }
 
     #initializeFacades() {
@@ -187,6 +202,10 @@ export class SettingsManager {
         return createDefaultSettingsSnapshotForRuntime(this.runtimeGlobal);
     }
 
+    createStartResetDefaults() {
+        return createStartResetDefaultsFromPort(this.settingsDefaultsPort);
+    }
+
     cloneDefaultControls() {
         return cloneDefaultControlsSnapshot();
     }
@@ -195,7 +214,7 @@ export class SettingsManager {
         const sanitizedSettings = sanitizeSettingsSnapshot(
             saved,
             () => this.createDefaultSettings(),
-            this.runtimeGlobal,
+            this.settingsDefaultsPort,
             { resolveStylePresetValues: (modePath) => this.#resolveStylePresetValues(modePath) }
         );
         return rebaseSettingsSnapshotWithRuntimeDefaults(sanitizedSettings, this.runtimeGlobal);

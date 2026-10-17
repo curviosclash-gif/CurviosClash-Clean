@@ -1,3 +1,4 @@
+const { createHash } = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -64,14 +65,10 @@ class SettingsBrowserDemoPolicyService {
         try {
             await fs.rename(tempPath, filePath);
         } catch (error) {
-            if (error && (error.code === 'EEXIST' || error.code === 'EPERM')) {
-                await fs.rm(filePath, { force: true });
-                await fs.rename(tempPath, filePath);
-                return;
-            }
-            await fs.rm(tempPath, { force: true });
+            await fs.unlink(tempPath).catch(() => {});
             throw error;
         }
+        return createHash('sha256').update(String(content || '')).digest('hex');
     }
 
     async createDraft() {
@@ -136,11 +133,12 @@ class SettingsBrowserDemoPolicyService {
 
     async saveDraft(draft) {
         const filePath = this.getOverrideFilePath();
-        await this.writeFileAtomically(filePath, this.toJsonString(draft));
+        const revision = await this.writeFileAtomically(filePath, this.toJsonString(draft));
 
         return {
             path: filePath,
             savedAt: Date.now(),
+            revision,
         };
     }
 
@@ -159,11 +157,12 @@ class SettingsBrowserDemoPolicyService {
     async saveExportArtifact(draft) {
         const filePath = this.getExportFilePath();
         const exportArtifact = this.createExportArtifact(draft);
-        await this.writeFileAtomically(filePath, this.toJsonString(exportArtifact));
+        const revision = await this.writeFileAtomically(filePath, this.toJsonString(exportArtifact));
 
         return {
             path: filePath,
             savedAt: Date.now(),
+            revision,
             contractVersion: BROWSER_DEMO_POLICY_EXPORT_CONTRACT_VERSION,
         };
     }

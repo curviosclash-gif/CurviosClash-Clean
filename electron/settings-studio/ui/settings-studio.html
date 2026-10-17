@@ -11,7 +11,7 @@
     <div class="layout">
         <header class="header">
             <span class="header__title" data-bind="title"></span>
-            <div class="header__controls">
+            <label class="global-search"><span class="sr-only" data-bind="search-label"></span><input type="search" data-global-search aria-label="Alle Einstellungen durchsuchen"><kbd>Ctrl K</kbd></label><div class="header__controls">
                 <label data-bind="language-label" for="language-select"></label>
                 <select id="language-select" data-bind="language-select">
                     <option value="de">Deutsch</option>
@@ -22,7 +22,7 @@
 
         <div class="body" data-bind="body">
             <nav class="sidebar">
-                <ul class="nav-list" data-bind="sidebar-nav" role="tablist"></ul>
+                <ul class="nav-list" data-bind="sidebar-nav" aria-label="Einstellungsbereiche"></ul>
             </nav>
 
             <main class="form-area" id="main-form-area">
@@ -36,7 +36,7 @@
                         <button class="btn btn--ghost" data-action="reset-section" type="button" data-bind="reset-section-label"></button>
                     </div>
                 </div>
-                <div class="form-content" data-bind="form-content" role="region" aria-labelledby="section-heading"></div>
+                <div class="form-tools"><select data-global-filter aria-label="Ansicht filtern"><option value="all"></option><option value="changed"></option><option value="errors"></option></select><button class="btn" type="button" data-action="review-changes"></button><span data-bind="scope"></span></div><div class="studio-notice" data-bind="notice" role="alert" hidden></div><div class="form-content" data-bind="form-content" role="region" aria-labelledby="section-heading"></div>
             </main>
 
             <aside class="info-panel" data-bind="info-panel" hidden aria-label="Feldinformation" aria-live="polite">
@@ -50,7 +50,7 @@
 
         <footer class="toolbar">
             <div class="status" data-bind="status" role="status" aria-live="polite"></div>
-            <div class="toolbar__actions">
+            <div class="toolbar__actions"><button class="btn" data-action="undo" type="button" disabled></button><button class="btn" data-action="redo" type="button" disabled></button><button class="btn" data-action="reload" type="button" hidden></button>
                 <button class="btn btn--ghost" data-action="reset-all" type="button" data-bind="reset-all-label"></button>
                 <button class="btn" data-action="validate" type="button" data-bind="validate-label"></button>
                 <button class="btn btn--primary" data-action="save" type="button" data-bind="save-label"></button>

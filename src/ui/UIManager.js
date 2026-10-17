@@ -118,7 +118,7 @@ export class UIManager {
         ));
         this._developerPanel = document.getElementById('submenu-developer');
         this._debugHintNodes = Array.isArray(this.ui.debugHints) ? this.ui.debugHints : [];
-        this._runtimeSettingLimits = createRuntimeSettingsLimitsForRuntime();
+        this._runtimeSettingLimits = createRuntimeSettingsLimitsForRuntime(this.settingsManager?.getSettingsDefaultsPort?.());
         this._getGameplayConfig = () => resolveGameplayConfig(game);
         this._readMenuMultiplayerSessionState = () => normalizeMultiplayerSessionStateSnapshot(
             game?.menuMultiplayerBridge?.getSessionState?.()

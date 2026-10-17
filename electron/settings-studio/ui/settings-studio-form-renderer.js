@@ -1,4 +1,5 @@
-import { fieldLabel, categoryLabel, translateValidationError } from './settings-studio-i18n.js';
+import { fieldPresentation, groupLabel } from './settings-studio-field-catalog.js';
+import { categoryLabel, translateValidationError } from './settings-studio-i18n.js';
 import {
     PLATFORM_CAPABILITY_REGISTRY,
     PLATFORM_PRODUCT_SURFACE_IDS,
@@ -223,7 +224,7 @@ function renderFieldInput(field, value, dirty, resolvedLimits = null) {
         return `<input class="field-input field-input--check" type="checkbox" data-path="${esc(path)}" data-type="boolean" ${checked} ${dirtyAttr} />`;
     }
 
-    if (type === 'number') {
+    if (type === 'number' && !field.options?.length) {
         const min = limits?.min != null ? `min="${esc(limits.min)}"` : '';
         const max = limits?.max != null ? `max="${esc(limits.max)}"` : '';
         const step = limits?.step != null ? `step="${esc(limits.step)}"` : 'step="any"';
@@ -231,6 +232,11 @@ function renderFieldInput(field, value, dirty, resolvedLimits = null) {
             return `<span class="field-range"><input class="field-input field-input--range" type="range" data-path="${esc(path)}" data-type="number" value="${esc(value ?? '')}" ${min} ${max} ${step} ${dirtyAttr} /><output data-range-output="${esc(path)}">${esc(value ?? '')}</output></span>`;
         }
         return `<input class="field-input" type="number" data-path="${esc(path)}" data-type="number" value="${esc(value ?? '')}" ${min} ${max} ${step} ${dirtyAttr} />`;
+    }
+
+    if (Array.isArray(field.options) && field.options.length) {
+        const options = field.options.includes(value) ? field.options : [value, ...field.options];
+        return `<select class="field-input" data-path="${esc(path)}" data-type="${esc(type)}">${options.map((option) => `<option value="${esc(option)}" ${option === value ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select>`;
     }
 
     if (type === 'string') {
@@ -255,19 +261,23 @@ function renderFieldRow(field, draft, baseDraft, t, validationErrors) {
         ? validationErrors.filter((e) => e.path === field.path)
         : [];
     const hasError = fieldErrors.length > 0;
-    const label = field.label?.[t.language] || fieldLabel(field.path);
-    const input = renderFieldInput(field, value, dirty, resolvedLimits);
+    const presentation = fieldPresentation(field, t.language);
+    const label = presentation.label;
+    const inputId = `studio-${encodeURIComponent(field.path)}`;
+    const errorId = `${inputId}-error`;
+    const helpId = `${inputId}-help`;
+    const input = renderFieldInput(field, value, dirty, resolvedLimits).replace(/<(input|select|textarea)\b/, `$& id="${inputId}" aria-describedby="${helpId} ${errorId}" aria-invalid="${hasError}"`);
     const riskClass = field.riskLevel === 'high' ? ' field-row--risk-high' : '';
     const classes = ['field-row', dirty ? 'dirty' : '', hasError ? 'has-error' : ''].filter(Boolean).join(' ') + riskClass;
     const resetBtn = `<button class="field-reset-btn" data-action="reset-field" data-path="${esc(field.path)}" ${dirty ? 'data-dirty="true"' : ''} aria-label="${esc(label)} zurücksetzen">${t('buttonResetField')}</button>`;
     const infoBtn = `<button class="field-info-btn" data-action="show-info" data-path="${esc(field.path)}" type="button" aria-label="${esc(label)} - Informationen anzeigen" tabindex="0">${t('buttonInfo')}</button>`;
     const errorHtml = renderFieldError(fieldErrors, t);
-    return `<div class="${classes}"><label class="field-label" title="${esc(field.path)}">${esc(label)}</label>${input}${resetBtn}${infoBtn}${errorHtml}</div>`;
+    return `<div class="${classes}" data-field-category="${esc(presentation.category)}"><div class="field-description"><label class="field-label" for="${inputId}">${esc(label)}</label><p id="${helpId}" class="field-help">${esc(presentation.help)}</p><details class="field-source"><summary>${t('fieldCompare')}</summary><small>${t('fieldProduct')}: ${esc(JSON.stringify(field.defaultValue))} · ${t('fieldSaved')}: ${esc(JSON.stringify(readPath(baseDraft, field.path)))}<br>${esc(field.path)}</small></details></div><div class="field-control">${input}${presentation.unit ? `<span class="field-unit">${esc(presentation.unit)}</span>` : ''}${resolvedLimits ? `<small class="field-bounds">${esc(resolvedLimits.min ?? '–')} … ${esc(resolvedLimits.max ?? '–')} · ${t('limitsColStep')}: ${esc(resolvedLimits.step ?? '–')}</small>` : ''}</div>${resetBtn}${infoBtn}<div id="${errorId}" class="field-feedback">${errorHtml}</div></div>`;
 }
 
 function renderFieldGroup(category, fields, draft, baseDraft, t, validationErrors) {
     const rows = fields.map((f) => renderFieldRow(f, draft, baseDraft, t, validationErrors)).join('');
-    const title = categoryLabel(category, t);
+    const title = groupLabel(category, t.language, categoryLabel(category, t));
     return `<div class="field-group"><h3 class="field-group__title">${esc(title)}</h3>${rows}</div>`;
 }
 
@@ -282,64 +292,43 @@ export function renderSectionForm(sectionKey, schema, draft, baseDraft, t, valid
             const jsonStr = JSON.stringify(sectionValue, null, 2);
             const dirty = isDirty(draft, baseDraft, sectionKey);
             const dirtyAttr = dirty ? 'data-dirty="true"' : '';
-            return `<div class="field-group"><textarea class="field-input field-input--textarea" style="width:100%;height:300px;" data-path="${esc(sectionKey)}" data-type="json" ${dirtyAttr}>${esc(jsonStr)}</textarea></div>`;
+            return `<div class="field-group"><textarea class="field-input field-input--textarea"  data-path="${esc(sectionKey)}" data-type="json" ${dirtyAttr}>${esc(jsonStr)}</textarea></div>`;
         }
         return `<div class="field-group"><em>${esc(t('noFields'))}</em></div>`;
     }
 
     const groups = new Map();
     for (const field of fields) {
-        const cat = field.category || sectionKey;
+        const cat = fieldPresentation(field, t.language).category || sectionKey;
         if (!groups.has(cat)) groups.set(cat, []);
         groups.get(cat).push(field);
     }
 
-    return [...groups.entries()]
+    return [...groups.entries()].sort(([a], [b]) => { const order = ['match','flight','weapons','trails','players','botBridge','botHeuristicTuning','cameraPerspective','graphics','audio','hud','controls','hunt','arcade','recording','technical']; return order.indexOf(a) - order.indexOf(b); })
         .map(([cat, catFields]) => renderFieldGroup(cat, catFields, draft, baseDraft, t, validationErrors))
         .join('');
 }
 
-export function renderPresetsSection(draft, baseDraft, t) {
+export function renderPresetsSection(draft, baseDraft, t, schema = null, validationErrors = []) {
     const presets = Array.isArray(draft?.fixedPresets) ? draft.fixedPresets : [];
-    const basePresets = Array.isArray(baseDraft?.fixedPresets) ? baseDraft.fixedPresets : [];
-
-    if (!presets.length) {
-        return `<div class="field-group"><em>${esc(t('noPresets'))}</em></div>`;
-    }
-
-    const items = presets.map((preset, idx) => {
-        const basePreset = basePresets[idx] || {};
-        const presetDirty = JSON.stringify(preset) !== JSON.stringify(basePreset);
-        const itemClass = presetDirty ? 'preset-item dirty' : 'preset-item';
-
-        const fields = typeof preset === 'object' && preset !== null
-            ? Object.entries(preset).filter(([, v]) => typeof v !== 'object')
-            : [];
-
-        const rows = fields.map(([key, value]) => {
-            const path = `fixedPresets.${idx}.${key}`;
-            const baseValue = basePreset[key];
-            const fieldDirty = JSON.stringify(value) !== JSON.stringify(baseValue);
-            const inputType = typeof value === 'boolean' ? 'checkbox'
-                : typeof value === 'number' ? 'number' : 'text';
-            const dirtyAttr = fieldDirty ? 'data-dirty="true"' : '';
-            let input;
-            if (inputType === 'checkbox') {
-                input = `<input type="checkbox" data-path="${esc(path)}" data-type="boolean" ${value ? 'checked' : ''} ${dirtyAttr} />`;
-            } else {
-                input = `<input class="field-input" type="${inputType}" data-path="${esc(path)}" data-type="${inputType === 'number' ? 'number' : 'string'}" value="${esc(value)}" ${dirtyAttr} />`;
-            }
-            return `<div class="preset-field-row"><span class="field-label">${esc(key)}</span>${input}</div>`;
+    const basePresets = baseDraft?.fixedPresets || [];
+    return `<div class="preset-list">${presets.map((preset, idx) => {
+        const title = preset.name || preset.id;
+        const properties = ['id', 'name', 'description'].map((key) => `<label class="preset-property">${t(`preset${key}`)}<input class="field-input" data-path="fixedPresets.${idx}.${key}" data-type="string" value="${esc(preset[key] || '')}"></label>`).join('');
+        const values = Object.entries(preset.values || {}).map(([key, value]) => {
+            const descriptor = schema?.fields?.find((field) => field.path === (key.startsWith('localSettings.') ? key : `baseSettings.${key}`));
+            const field = { ...(descriptor || {}), path: `fixedPresets.${idx}.values.${key}`, type: descriptor?.type || typeof value, defaultValue: basePresets[idx]?.values?.[key] ?? value };
+            const meta = fieldPresentation({ ...field, path: descriptor?.path || key }, t.language);
+            const label = meta.label;
+            const errors = validationErrors.filter((error) => error.path === field.path);
+            const input = renderFieldInput(field, value, false, descriptor?.limits).replace(/<(input|select|textarea)\b/, `$& aria-invalid="${errors.length > 0}"`);
+            return `<div class="preset-field-row"><label class="field-label" for="preset-${idx}-${esc(key)}">${esc(label)}<small>${esc(key)}</small></label>${input.replace(/<(input|select|textarea)\b/, `$& id="preset-${idx}-${esc(key)}"`)}<label class="preset-lock"><input type="checkbox" data-path="fixedPresets.${idx}.lockedFields" data-preset-lock-key="${esc(key)}" ${(preset.lockedFields || []).includes(key) ? 'checked' : ''}>${t('presetLocked')}</label>${renderFieldError(errors, t)}</div>`;
         }).join('');
-
-        const id = esc(preset?.id || `preset-${idx}`);
-        return `<div class="${itemClass}" data-preset-idx="${idx}"><div class="preset-header">${id}${presetDirty ? ' <span class="nav-dirty"></span>' : ''}</div><div class="preset-body">${rows}</div></div>`;
-    });
-
-    return `<div class="preset-list">${items.join('')}</div>`;
+        return `<section class="preset-item ${JSON.stringify(preset) !== JSON.stringify(basePresets[idx]) ? 'dirty' : ''}"><header class="preset-header"><h3>${esc(title)}</h3><button class="btn" type="button" data-action="duplicate-preset" data-preset-index="${idx}">${t('presetDuplicate')}</button></header><div class="preset-body">${renderFieldError(validationErrors.filter((error) => error.path === `fixedPresets.${idx}` || error.path === `fixedPresets.${idx}.lockedFields`), t)}${properties}<h4>${t('presetRules')}</h4>${values}</div></section>`;
+    }).join('')}</div>`;
 }
 
-export function renderLimitsSection(schema, draft, baseDraft, t) {
+export function renderLimitsSection(schema, draft, baseDraft, t, validationErrors = []) {
     const fields = Array.isArray(schema?.fields)
         ? schema.fields.filter((f) => f.type === 'number')
         : [];
@@ -359,14 +348,15 @@ export function renderLimitsSection(schema, draft, baseDraft, t) {
         const activeStep = override.step != null ? override.step : (def.step ?? '');
 
         const dirty = JSON.stringify(override) !== JSON.stringify(baseOverride);
-        const rowClass = dirty ? 'dirty' : '';
+        const errors = validationErrors.filter((entry) => entry.path === field.path || entry.path.startsWith(`${field.path}.`));
+        const rowClass = `${dirty ? 'dirty' : ''} ${errors.length ? 'has-error' : ''}`;
 
-        const minInput = `<input class="limits-input" type="number" step="any" data-limit-path="${esc(field.path)}" data-limit-key="min" value="${esc(activeMin)}" />`;
-        const maxInput = `<input class="limits-input" type="number" step="any" data-limit-path="${esc(field.path)}" data-limit-key="max" value="${esc(activeMax)}" />`;
-        const stepInput = `<input class="limits-input" type="number" step="any" min="0" data-limit-path="${esc(field.path)}" data-limit-key="step" value="${esc(activeStep)}" />`;
+        const minInput = `<input class="limits-input" type="number" step="any" data-limit-path="${esc(field.path)}" aria-label="${esc(fieldPresentation(field, t.language).label)} – min" aria-invalid="${errors.length > 0}" data-limit-key="min" value="${esc(activeMin)}" />`;
+        const maxInput = `<input class="limits-input" type="number" step="any" data-limit-path="${esc(field.path)}" aria-label="${esc(fieldPresentation(field, t.language).label)} – max" aria-invalid="${errors.length > 0}" data-limit-key="max" value="${esc(activeMax)}" />`;
+        const stepInput = `<input class="limits-input" type="number" step="any" min="0" data-limit-path="${esc(field.path)}" aria-label="${esc(fieldPresentation(field, t.language).label)} – step" aria-invalid="${errors.length > 0}" data-limit-key="step" value="${esc(activeStep)}" />`;
 
         const defStr = `${def.min ?? '?'} / ${def.max ?? '?'} / ${def.step ?? '?'}`;
-        return `<tr class="${rowClass}"><td title="${esc(field.path)}">${esc(field.label?.[t.language] || fieldLabel(field.path))}</td><td><small style="color:var(--muted)">${esc(defStr)}</small></td><td>${minInput}</td><td>${maxInput}</td><td>${stepInput}</td></tr>`;
+        return `<tr class="${rowClass}"><td title="${esc(field.path)}">${esc(fieldPresentation(field, t.language).label)}</td><td><small class="muted-text">${esc(defStr)}</small></td><td>${minInput}</td><td>${maxInput}</td><td>${stepInput}</td></tr>`;
     });
 
     return `<table class="limits-table"><thead><tr><th>${t('limitsColField')}</th><th>${t('limitsColDefault')}</th><th>${t('limitsColMin')}</th><th>${t('limitsColMax')}</th><th>${t('limitsColStep')}</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;

@@ -149,7 +149,7 @@ export function handleLevel3ResetAction(ctx) {
     const { game, onSettingsChanged } = ctx;
     const sessionType = String(game?.settings?.localSettings?.sessionType || 'single').toLowerCase();
     const modePath = String(game?.settings?.localSettings?.modePath || 'normal').toLowerCase();
-    const defaults = createMenuLevel3ResetDefaults();
+    const defaults = game.settingsManager?.createStartResetDefaults?.() || createMenuLevel3ResetDefaults();
     writeHangarMapSelection(game.settings, defaults.mapKey, defaults.mapKey, { modePath });
     writeHangarVehicleSelection(
         game.settings,

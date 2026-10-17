@@ -139,7 +139,7 @@ test('menu editor localizes its chrome and renders safe hierarchical navigation'
         t: createTranslator('en'),
     });
 
-    assert.match(html, />Game Menu</u);
+    assert.match(html, />Menu design</u);
     assert.match(html, /aria-label="Menu navigation"/u);
     assert.match(html, /aria-label="Properties editor"/u);
     assert.match(html, /data-menu-preview-root/u);

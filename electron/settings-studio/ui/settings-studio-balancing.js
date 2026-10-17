@@ -1,3 +1,5 @@
+import { MAP_BALANCING_FIELDS } from '../../../src/shared/contracts/MapBalancingContract.js';
+import { fieldPresentation } from './settings-studio-field-catalog.js';
 // Settings Studio section "Karten-Balancing": map list, the balancing values of one map with
 // their origin (Modus/Karte), reset to the inherited value, validation and saving to
 // data/balancing/maps/<map>.json with a backup. Edits stay a draft until "Für Karte speichern".
@@ -11,7 +13,7 @@ const MODES = Object.freeze([
 const ORIGIN_LABELS = Object.freeze({ mode: 'Modus', map: 'Karte', stage: 'Etappe' });
 const GROUP_TITLES = Object.freeze({ map: 'Kartenwerte', bots: 'Bot-Anzahl', arcadeStage: 'Arcade-Etappe (noch ohne Wirkung)' });
 
-function el(tagName, className = '', text = '') {
+function createElement(tagName, className = '', text = '') {
     const node = document.createElement(tagName);
     if (className) node.className = className;
     if (text !== '') node.textContent = text;
@@ -30,10 +32,28 @@ function sameValues(a, b) {
 
 /**
  * Unsaved drafts are kept per map, so switching maps never needs a confirmation dialog.
- * @param {{ api: any, onDirtyChange?: () => void }} options
+ * @param {{ api: any, onDirtyChange?: () => void, onSaved?: () => void, getLanguage?: () => string }} options
  */
-export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) {
-    /** @type {Map<string, { savedValues: Record<string, unknown>, draftValues: Record<string, unknown> }>} */
+export function createStudioBalancingSection({ api, onDirtyChange = () => {}, onSaved = () => {}, getLanguage = () => 'de' }) {
+    const en = () => getLanguage() === 'en';
+    const words = {
+        'Klassisch': 'Classic', 'Kampf': 'Fight', 'Modus': 'Mode', 'Karte': 'Map', 'Etappe': 'Stage',
+        'Kartenwerte': 'Map values', 'Bot-Anzahl': 'Bot count', 'Arcade-Etappe (noch ohne Wirkung)': 'Arcade stage (not active yet)',
+        'Prüfen': 'Validate', 'Für Karte speichern': 'Save this map', 'Verwerfen': 'Discard',
+        'Für normales Spiel übernehmen': 'Apply to regular games', 'Übernahme zurücknehmen': 'Retract approval',
+        'ungespeichert': 'unsaved', '↺ geerbt': '↺ inherit', 'Wert': 'Setting', 'Einstellung': 'Value', 'Grenzen': 'Range', 'Herkunft': 'Source', 'geerbt': 'Inherited',
+        'an': 'on', 'aus': 'off', ' nur Karten mit Abweichung': ' only maps with overrides',
+        'Noch keine Kartendatei: alle Werte sind geerbt.': 'No map file yet: all values are inherited.',
+        'Karte links auswählen. Jede Karte erbt die Grundwerte ihres Modus und hält nur Abweichungen fest.': 'Choose a map. Each map inherits its mode defaults and only stores overrides.',
+        'Übernommen. Ab dem nächsten Spielstart gelten diese Kartenwerte in lokalen Spielen. Die Projektdatei ist für Commit und Push nach GitHub bereit.': 'Approved. These map values take effect in local games on the next game start. The release snapshot is also saved in the project.',
+        'Übernahme zurückgenommen. Ab dem nächsten Spielstart gelten wieder die Spieleinstellungen.': 'Approval retracted. Game settings take effect again on the next game start.',
+        'Neu laden': 'Reload',
+    };
+    const makeElement = createElement;
+    const localize = (text) => en() ? words[text] || text : text;
+    const el = (tag, className = '', text = '') => makeElement(tag, className, localize(text));
+
+    /** @type {Map<string, { savedValues: Record<string, unknown>, draftValues: Record<string, unknown>, rawValues?: Record<string, string>, savedRevision?: string }>} */
     const drafts = new Map();
     const state = {
         status: null,
@@ -44,17 +64,21 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         mapKey: '',
         savedValues: {},
         draftValues: {},
+        rawValues: {},
         description: null,
         message: '',
         errors: [],
         busy: false,
         loading: false,
+        savedRevision: undefined,
     };
     let root = null;
     let selectionGeneration = 0;
 
     async function call(op, payload = {}) {
-        const response = await api.mapBalancing(op, { ...payload, op });
+        let response;
+        try { response = await api.mapBalancing(op, { ...payload, op }); }
+        catch (error) { state.message = error.message; return null; }
         state.status = response?.status || state.status;
         if (!response || response.ok !== true) {
             state.message = response?.detail || response?.status?.message || `Fehler: ${response?.reason || 'unbekannt'}`;
@@ -63,7 +87,7 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         return response;
     }
 
-    const isDirty = () => !sameValues(state.savedValues, state.draftValues);
+    const isDirty = () => Object.keys(state.rawValues).length > 0 || !sameValues(state.savedValues, state.draftValues);
 
     async function describe() {
         if (!state.mapKey) return;
@@ -81,7 +105,7 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
 
     function rememberDraft() {
         if (!state.mapKey) return;
-        if (isDirty()) drafts.set(state.mapKey, { savedValues: state.savedValues, draftValues: state.draftValues });
+        if (isDirty()) drafts.set(state.mapKey, { savedValues: state.savedValues, draftValues: state.draftValues, rawValues: state.rawValues, savedRevision: state.savedRevision });
         else drafts.delete(state.mapKey);
     }
 
@@ -100,7 +124,9 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
             // The open map's draft lives in state; the list only holds the other maps.
             drafts.delete(mapKey);
             state.savedValues = kept.savedValues;
+            state.savedRevision = kept.savedRevision;
             state.draftValues = kept.draftValues;
+            state.rawValues = kept.rawValues || {};
             await describe();
             if (selection === selectionGeneration) { state.loading = false; render(); }
             return;
@@ -110,53 +136,87 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         state.loading = false;
         if (!response) { render(); return; }
         state.description = response.description;
+        state.savedRevision = response.description.revision;
         const fileValues = {};
         for (const row of response.description.fields) if (row.mapValue !== null) fileValues[row.key] = row.mapValue;
         state.savedValues = fileValues;
         state.draftValues = { ...fileValues };
+        state.rawValues = {};
         render();
     }
 
-    function setDraftValue(key, value) {
+    function setDraftValue(key, value, control) {
         if (state.busy) return;
         state.draftValues = { ...state.draftValues, [key]: value };
+        delete state.rawValues[key];
         state.errors = [];
-        void describe();
+        const row = control?.closest?.('tr');
+        const reset = row?.querySelector('.map-balancing__reset');
+        if (reset) reset.disabled = false;
+        const origin = row?.querySelector('.map-balancing__origin');
+        if (origin) { origin.textContent = localize('Karte'); origin.className = 'map-balancing__origin origin-map'; }
+        updateDraftControls();
+    }
+
+    function updateDraftControls() {
+        onDirtyChange();
+        renderMapList();
+        if (!root) return;
+        const dirtyLabel = root.querySelector('.map-balancing__dirty');
+        if (dirtyLabel) dirtyLabel.textContent = isDirty() ? localize('ungespeichert') : '';
+        const saveButton = root.querySelector('[data-map-action="save"]');
+        const discardButton = root.querySelector('[data-map-action="discard"]');
+        if (saveButton) saveButton.disabled = state.busy || !isDirty();
+        if (discardButton) discardButton.disabled = state.busy || !isDirty();
+        for (const button of root.querySelectorAll('[data-map-action="apply"],[data-map-action="retract"]')) button.disabled = state.busy || isDirty() || (button.dataset.mapAction === 'apply' ? state.description?.appliedState?.matches === true : state.description?.appliedState?.enabled !== true);
     }
 
     function resetDraftValue(key) {
         if (state.busy) return;
         const next = { ...state.draftValues };
         delete next[key];
+        delete state.rawValues[key];
         state.draftValues = next;
         state.errors = [];
         void describe();
     }
 
     async function validate() {
+        if (Object.keys(state.rawValues).length) {
+            state.errors = [en() ? 'Enter a finite number in every marked field.' : 'In jedem markierten Feld eine gültige Zahl eingeben.'];
+            state.message = en() ? 'Validation failed.' : 'Prüfung fehlgeschlagen.';
+            render();
+            return false;
+        }
         const response = await call('validate', { mapKey: state.mapKey, layer: { values: state.draftValues } });
         if (response) {
             state.errors = response.validation.errors;
-            state.message = response.validation.ok ? 'Prüfung bestanden.' : 'Prüfung fehlgeschlagen.';
+            state.message = response.validation.ok ? (en() ? 'Validation passed.' : 'Prüfung bestanden.') : (en() ? 'Validation failed.' : 'Prüfung fehlgeschlagen.');
         }
         render();
         return response?.validation?.ok === true;
     }
 
     async function save() {
+        if (state.busy) return;
+        state.busy = true;
+        try {
         if (!(await validate())) return;
-        const response = await call('save', { mapKey: state.mapKey, layer: { values: state.draftValues } });
+        const response = await call('save', { mapKey: state.mapKey, layer: { values: state.draftValues }, expectedRevision: state.savedRevision });
         if (response) {
             const { saved } = response;
+            state.savedRevision = saved.revision;
             state.savedValues = { ...saved.layer.values };
             state.draftValues = { ...saved.layer.values };
             state.message = saved.removed
-                ? 'Keine Abweichung mehr: Kartendatei entfernt.'
-                : `Gespeichert: ${saved.path}${saved.backupPath ? ` (Sicherung: ${saved.backupPath})` : ''}`;
+                ? (en() ? 'No overrides remain: map file removed.' : 'Keine Abweichung mehr: Kartendatei entfernt.')
+                : `${en() ? 'Saved' : 'Gespeichert'}: ${saved.path}${saved.backupPath ? ` (Sicherung: ${saved.backupPath})` : ''}`;
             const list = await call('list-maps');
             if (list) state.maps = list.maps;
+            onSaved();
         }
         await describe();
+        } finally { state.busy = false; render(); }
     }
 
     async function applyToGame(op) {
@@ -184,10 +244,12 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         const bar = el('div', 'map-balancing__bar');
         const search = el('input', 'map-balancing__search');
         search.type = 'search';
-        search.placeholder = 'Karte suchen …';
+        search.placeholder = en() ? 'Search maps …' : 'Karte suchen …';
+        search.ariaLabel = search.placeholder;
         search.value = state.filter;
         search.addEventListener('input', () => { state.filter = search.value; renderMapList(); });
         const mode = el('select', 'map-balancing__mode');
+        mode.ariaLabel = en() ? 'Map mode' : 'Kartenmodus';
         mode.disabled = state.busy || state.loading;
         for (const [value, label] of MODES) {
             const option = el('option', '', label);
@@ -201,7 +263,7 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         checkbox.type = 'checkbox';
         checkbox.checked = state.onlyChanged;
         checkbox.addEventListener('change', () => { state.onlyChanged = checkbox.checked; renderMapList(); });
-        onlyChanged.append(checkbox, ' nur Karten mit Abweichung');
+        onlyChanged.append(checkbox, localize(' nur Karten mit Abweichung'));
         bar.append(search, mode, onlyChanged);
         return bar;
     }
@@ -221,7 +283,7 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
                 const unsaved = entry.mapKey === state.mapKey ? isDirty() : drafts.has(entry.mapKey);
                 if (unsaved) button.append(el('span', 'map-balancing__dot is-unsaved', '✎'));
                 else if (entry.hasMapFile) button.append(el('span', 'map-balancing__dot', '●'));
-                button.title = unsaved ? 'ungespeicherter Entwurf' : (entry.hasMapFile ? 'hat Abweichungen' : 'alle Werte geerbt');
+                button.title = unsaved ? (en() ? 'unsaved draft' : 'ungespeicherter Entwurf') : (entry.hasMapFile ? (en() ? 'has overrides' : 'hat Abweichungen') : (en() ? 'all values inherited' : 'alle Werte geerbt'));
                 button.addEventListener('click', () => void selectMap(entry.mapKey));
                 const item = el('li');
                 item.append(button);
@@ -232,38 +294,48 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
 
     function renderControl(row) {
         const draftValue = Object.hasOwn(state.draftValues, row.key) ? state.draftValues[row.key] : row.value;
+        const label = en() ? MAP_BALANCING_FIELDS.find((field) => field.key === row.key)?.label?.en || row.key : row.label;
         if (row.type === 'boolean') {
             const toggle = el('input');
             toggle.type = 'checkbox';
+            toggle.ariaLabel = label;
             toggle.disabled = state.busy;
             toggle.checked = draftValue === true;
-            toggle.addEventListener('change', () => setDraftValue(row.key, toggle.checked));
+            toggle.addEventListener('change', () => setDraftValue(row.key, toggle.checked, toggle));
             return toggle;
         }
         const input = el('input', 'map-balancing__number');
         input.type = 'number';
+        input.ariaLabel = label;
         input.disabled = state.busy;
         input.min = String(row.min);
         input.max = String(row.max);
         input.step = String(row.step);
-        input.value = String(draftValue ?? '');
-        input.addEventListener('change', () => {
+        input.dataset.mapField = row.key;
+        input.value = state.rawValues[row.key] ?? String(draftValue ?? '');
+        input.setAttribute('aria-invalid', String(Object.hasOwn(state.rawValues, row.key)));
+        input.addEventListener('input', () => {
             const parsed = Number(input.value);
-            if (Number.isFinite(parsed)) setDraftValue(row.key, parsed);
+            const valid = input.value.trim() !== '' && Number.isFinite(parsed);
+            if (valid) setDraftValue(row.key, parsed, input);
+            else { state.rawValues[row.key] = input.value; updateDraftControls(); }
+            input.setAttribute('aria-invalid', String(!valid));
+            const reset = input.closest?.('tr')?.querySelector('.map-balancing__reset');
+            if (reset) reset.disabled = state.busy || (!Object.hasOwn(state.draftValues, row.key) && !Object.hasOwn(state.rawValues, row.key));
         });
         return input;
     }
 
     function renderRow(row) {
         const tr = el('tr', row.origin === 'map' ? 'is-map' : '');
-        const label = el('td', 'map-balancing__label', row.label);
-        label.title = row.help;
+        const label = el('td', 'map-balancing__label', en() ? MAP_BALANCING_FIELDS.find((field) => field.key === row.key)?.label?.en || fieldPresentation({ path: row.key }, 'en').label : row.label);
+        label.title = en() ? fieldPresentation({ path: row.key }, 'en').help : row.help;
         const range = row.type === 'boolean' ? '' : `${row.min}–${row.max}`;
         const origin = el('span', `map-balancing__origin origin-${row.origin || 'none'}`, ORIGIN_LABELS[row.origin] || '–');
         const reset = el('button', 'btn btn--ghost map-balancing__reset', '↺ geerbt');
         reset.type = 'button';
-        reset.disabled = state.busy || !Object.hasOwn(state.draftValues, row.key);
-        reset.title = `Zurück auf den geerbten Wert ${formatValue(row, row.inherited)}`;
+        reset.disabled = state.busy || (!Object.hasOwn(state.draftValues, row.key) && !Object.hasOwn(state.rawValues, row.key));
+        reset.title = `${en() ? 'Use inherited value' : 'Zurück auf den geerbten Wert'} ${formatValue(row, row.inherited)}`;
         reset.addEventListener('click', () => resetDraftValue(row.key));
         const cells = [label, el('td'), el('td', 'map-balancing__range', range), el('td'), el('td', 'map-balancing__inherited', formatValue(row, row.inherited)), el('td')];
         cells[1].append(renderControl(row));
@@ -282,13 +354,13 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         }
         const mapEntry = state.maps.find((entry) => entry.mapKey === state.mapKey);
         detail.append(el('h3', 'map-balancing__title', `${mapEntry?.name || state.mapKey} (${state.mapKey})`));
-        const modeName = MODES.find(([id]) => id === state.modePath)?.[1] || state.modePath;
+        const modeName = localize(MODES.find(([id]) => id === state.modePath)?.[1] || state.modePath);
         const applied = description.appliedState;
         detail.append(el('p', 'map-balancing__hint', applied?.enabled
-            ? `Für ${modeName} übernommen.${applied.matches ? '' : ' Die aktuellen Änderungen sind noch nicht übernommen.'}`
-            : `Für ${modeName} noch nicht übernommen. Erst nach dem Test übernehmen; wirksam in lokalen Spielen ab dem nächsten Spielstart.`));
+            ? (en() ? `Approved for ${modeName}.${applied.matches ? '' : ' Current edits are not approved yet.'}` : `Für ${modeName} übernommen.${applied.matches ? '' : ' Die aktuellen Änderungen sind noch nicht übernommen.'}`)
+            : (en() ? `Not yet approved for ${modeName}. Test first; approval takes effect on the next local game start.` : `Für ${modeName} noch nicht übernommen. Erst nach dem Test übernehmen; wirksam in lokalen Spielen ab dem nächsten Spielstart.`)));
         detail.append(el('p', 'map-balancing__hint', description.hasMapFile
-            ? `Datei: ${description.path}`
+            ? `${en() ? 'File' : 'Datei'}: ${description.path}`
             : 'Noch keine Kartendatei: alle Werte sind geerbt.'));
         const table = el('table', 'map-balancing__table');
         const head = el('tr');
@@ -308,24 +380,29 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         const validateButton = el('button', 'btn', 'Prüfen');
         const saveButton = el('button', 'btn btn--primary', 'Für Karte speichern');
         const discardButton = el('button', 'btn btn--ghost', 'Verwerfen');
+        saveButton.dataset.mapAction = 'save'; discardButton.dataset.mapAction = 'discard';
         for (const button of [validateButton, saveButton, discardButton]) button.type = 'button';
         saveButton.disabled = state.busy || !isDirty();
         discardButton.disabled = state.busy || !isDirty();
         validateButton.disabled = state.busy;
         validateButton.addEventListener('click', () => void validate());
         saveButton.addEventListener('click', () => void save());
-        discardButton.addEventListener('click', () => { state.draftValues = { ...state.savedValues }; state.errors = []; void describe(); });
-        actions.append(validateButton, saveButton, discardButton);
+        discardButton.addEventListener('click', () => { state.draftValues = { ...state.savedValues }; state.rawValues = {}; state.errors = []; void describe(); });
+        const reloadButton = el('button', 'btn btn--ghost', 'Neu laden');
+        reloadButton.type = 'button';
+        reloadButton.addEventListener('click', () => { if (!isDirty() || reloadButton.dataset.confirm === 'yes') { drafts.delete(state.mapKey); state.draftValues = { ...state.savedValues }; state.rawValues = {}; void selectMap(state.mapKey); } else { reloadButton.dataset.confirm = 'yes'; reloadButton.textContent = en() ? 'Discard draft and reload?' : 'Entwurf verwerfen und neu laden?'; } });
+        actions.append(validateButton, saveButton, discardButton, reloadButton);
         const applyButton = el('button', 'btn btn--primary', 'Für normales Spiel übernehmen');
         const retractButton = el('button', 'btn btn--ghost', 'Übernahme zurücknehmen');
         applyButton.type = retractButton.type = 'button';
+        applyButton.dataset.mapAction = 'apply'; retractButton.dataset.mapAction = 'retract';
         const ready = description.mapKey === state.mapKey && description.modePath === state.modePath;
         applyButton.disabled = state.busy || isDirty() || !ready || applied?.matches === true;
         retractButton.disabled = state.busy || isDirty() || !ready || applied?.enabled !== true;
         applyButton.addEventListener('click', () => void applyToGame('apply'));
         retractButton.addEventListener('click', () => void applyToGame('retract'));
         actions.append(applyButton, retractButton);
-        if (isDirty()) actions.append(el('span', 'map-balancing__dirty', 'ungespeichert'));
+        actions.append(el('span', 'map-balancing__dirty', isDirty() ? 'ungespeichert' : ''));
         detail.append(actions);
         if (state.errors.length > 0) {
             const errors = el('ul', 'map-balancing__errors');
@@ -348,7 +425,24 @@ export function createStudioBalancingSection({ api, onDirtyChange = () => {} }) 
         renderMapList();
     }
 
+    function getChanges() {
+        const all = new Map(drafts);
+        if (state.mapKey && isDirty()) all.set(state.mapKey, { savedValues: state.savedValues, draftValues: { ...state.draftValues, ...state.rawValues } });
+        return [...all].flatMap(([mapKey, entry]) => [...new Set([...Object.keys(entry.savedValues), ...Object.keys(entry.draftValues)])].filter((key) => JSON.stringify(entry.savedValues[key]) !== JSON.stringify(entry.draftValues[key])).map((key) => ({
+            id: `map:${mapKey}:${key}`, path: key, section: 'mapBalancing', mapKey,
+            label: `${state.maps.find((map) => map.mapKey === mapKey)?.name || mapKey}: ${fieldPresentation({ path: key }, getLanguage()).label}`,
+            base: entry.savedValues[key] ?? (en() ? 'inherited' : 'geerbt'), value: entry.draftValues[key] ?? (en() ? 'inherited' : 'geerbt'),
+        })));
+    }
     return {
+        getChanges,
+        getErrors: () => state.errors.map((message, index) => ({ id: `map-error:${index}`, path: state.mapKey, mapKey: state.mapKey, section: 'mapBalancing', label: state.mapKey, help: message })),
+        getSearchItems: () => state.maps.map((map) => ({ id: `map:${map.mapKey}`, path: map.mapKey, mapKey: map.mapKey, section: 'mapBalancing', label: map.name, help: en() ? 'Map balancing' : 'Karten-Balancing' })),
+        snapshotDrafts: () => JSON.parse(JSON.stringify({ entries: [...drafts], mapKey: state.mapKey, modePath: state.modePath, savedValues: state.savedValues, draftValues: state.draftValues, rawValues: state.rawValues, savedRevision: state.savedRevision })),
+        async restoreDrafts(snapshot) { drafts.clear(); for (const [key, value] of snapshot.entries) drafts.set(key, value); Object.assign(state, { mapKey: snapshot.mapKey, modePath: snapshot.modePath, savedValues: snapshot.savedValues, draftValues: snapshot.draftValues, rawValues: snapshot.rawValues || {}, savedRevision: snapshot.savedRevision }); if (state.mapKey) await describe(); else render(); },
+        discardAll() { drafts.clear(); state.draftValues = { ...state.savedValues }; state.rawValues = {}; state.errors = []; if (root) void describe(); onDirtyChange(); },
+        async prepare() { if (!state.maps.length) { const response = await call('list-maps'); if (response) state.maps = response.maps; } },
+        selectMap,
         isDirty: () => isDirty() || drafts.size > 0 || state.busy,
         /** Called whenever the section becomes visible; the first call loads the map list. */
         async mount(container) {

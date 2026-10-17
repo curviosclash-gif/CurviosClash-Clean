@@ -242,6 +242,7 @@ function finalizeSanitizedSettings({ merged, migratedSessionType }) {
     return merged;
 }
 
+/** @param {object} [runtimeGlobal] Runtime global or the injected defaults read port. */
 export function sanitizeSettingsSnapshot(saved, createDefaultSettings, runtimeGlobal = globalThis, migrationContext = {}) {
     const defaults = createDefaultSettings();
     const runtimeLimits = createRuntimeSettingsLimitsForRuntime(runtimeGlobal);

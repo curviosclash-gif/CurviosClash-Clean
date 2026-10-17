@@ -8,6 +8,8 @@ const { assertTrustedWindowSender } = require('../../ipc-sender-guard.cjs');
 const { createMapBalancingStore, resolveMapBalancingStoreRoot } = require('../../map-balancing-store.cjs');
 const { AppliedMapBalancingService } = require('../services/AppliedMapBalancingService.cjs');
 
+const { SettingsStudioSaveService } = require('../services/SettingsStudioSaveService.cjs');
+
 const CHANNELS = Object.freeze({
     load: 'settings-studio:load',
     validate: 'settings-studio:validate',
@@ -49,12 +51,13 @@ function registerSettingsStudioIpc({
     const fileService = new SettingsOverrideFileService({ app });
     const backupService = new SettingsBackupService({ app });
     const prefsService = new SettingsPrefsService({ app });
-    const appliedMapBalancing = new AppliedMapBalancingService({ app, projectRoot: mapBalancingStore.root });
+    const appliedMapBalancing = new AppliedMapBalancingService({ app, projectRoot: mapBalancingStore.dataRoot || mapBalancingStore.root });
     const browserDemoPolicyService = new SettingsBrowserDemoPolicyService({
         app,
         projectRootPath: browserDemoProjectRootPath,
     });
     const menuTextOverrideService = new SettingsMenuTextOverrideService({ app });
+    const saveService = new SettingsStudioSaveService({ fileService, browserDemoPolicyService, menuTextOverrideService, backupService, schemaService });
     const registerTrustedHandler = (channel, handler) => {
         ipcMain.handle(channel, (event, ...args) => {
             assertTrustedWindowSender(event, getWindow?.());
@@ -63,6 +66,9 @@ function registerSettingsStudioIpc({
     };
 
     registerTrustedHandler(CHANNELS.load, async () => {
+        // Capture before reading drafts: a concurrent edit during load must cause a
+        // conservative conflict, never bless newer bytes alongside an older draft.
+        const revisions = await saveService.snapshot();
         const prefs = prefsService.loadPrefs();
         const schema = await schemaService.getSchemaDescriptor();
         const fallbackDraft = await schemaService.createDraft();
@@ -84,14 +90,18 @@ function registerSettingsStudioIpc({
             ? browserDemoFallbackDraft
             : browserDemoMigration.migrated;
         const browserDemoValidation = await browserDemoPolicyService.validateDraft(browserDemoDraftToValidate);
-        const menuTextOverrides = await menuTextOverrideService.listOverrides();
+        let menuTextOverrides = {}, menuTextLoadError = null;
+        try { menuTextOverrides = await menuTextOverrideService.listOverrides(); }
+        catch (error) { menuTextLoadError = error.message; }
         const menuEditorModel = await schemaService.createMenuEditorModel(
             validation.normalizedDraft,
             menuTextOverrides
         );
 
+        saveService.baseline = revisions;
         return {
             ok: true,
+            revisions,
             draft: validation.normalizedDraft,
             validation: createValidationSnapshot(validation),
             schema,
@@ -125,6 +135,7 @@ function registerSettingsStudioIpc({
                 },
             },
             menuTextOverrides,
+            menuTextLoadError,
             menuEditorModel,
             backups,
         };
@@ -139,86 +150,7 @@ function registerSettingsStudioIpc({
         };
     });
 
-    registerTrustedHandler(CHANNELS.save, async (draft, browserDemoPolicyDraft = null) => {
-        const validation = await schemaService.validateDraft(draft);
-        const validationSnapshot = createValidationSnapshot(validation);
-        const browserDemoFallbackDraft = await browserDemoPolicyService.createDraft();
-        const browserDemoInputDraft = browserDemoPolicyDraft == null ? browserDemoFallbackDraft : browserDemoPolicyDraft;
-        const browserDemoMigration = await browserDemoPolicyService.classifyMigration(browserDemoInputDraft);
-        const browserDemoDraftToValidate = browserDemoMigration.status === 'fallback'
-            ? browserDemoFallbackDraft
-            : browserDemoMigration.migrated;
-        const browserDemoValidation = await browserDemoPolicyService.validateDraft(browserDemoDraftToValidate);
-        const browserDemoValidationSnapshot = createValidationSnapshot(browserDemoValidation);
-
-        if (!validationSnapshot.valid || !browserDemoValidationSnapshot.valid) {
-            return {
-                ok: false,
-                draft: validation.normalizedDraft,
-                validation: validationSnapshot,
-                browserDemoPolicy: {
-                    draft: browserDemoValidation.normalizedDraft,
-                    validation: browserDemoValidationSnapshot,
-                    migration: {
-                        status: browserDemoMigration.status,
-                        code: browserDemoMigration.code,
-                        reason: browserDemoMigration.reason || null,
-                    },
-                },
-            };
-        }
-
-        const existingRaw = await fileService.readRawFile();
-        const backupPayload = existingRaw || fileService.toJsonString(validation.normalizedDraft);
-        const backup = await backupService.createBackup({
-            content: backupPayload,
-            reason: 'pre-save',
-        });
-        const existingBrowserDemoRaw = await browserDemoPolicyService.readRawFile();
-        const browserDemoBackupPayload = existingBrowserDemoRaw
-            || browserDemoPolicyService.toJsonString(browserDemoValidation.normalizedDraft);
-        const browserDemoBackup = await backupService.createBackup({
-            content: browserDemoBackupPayload,
-            reason: 'pre-save-browser-demo-policy',
-        });
-
-        const saveState = await fileService.saveDraft(validation.normalizedDraft);
-        const browserDemoSaveState = await browserDemoPolicyService.saveDraft(browserDemoValidation.normalizedDraft);
-        let browserDemoExportState = null;
-        try {
-            browserDemoExportState = await browserDemoPolicyService.saveExportArtifact(
-                browserDemoValidation.normalizedDraft
-            );
-        } catch (error) {
-            browserDemoExportState = {
-                path: browserDemoPolicyService.getExportFilePath(),
-                savedAt: null,
-                contractVersion: null,
-                error: error instanceof Error
-                    ? error.message
-                    : String(error || 'browser_demo_policy_export_failed'),
-            };
-        }
-        return {
-            ok: true,
-            draft: validation.normalizedDraft,
-            validation: validationSnapshot,
-            saveState,
-            backup,
-            browserDemoPolicy: {
-                draft: browserDemoValidation.normalizedDraft,
-                validation: browserDemoValidationSnapshot,
-                migration: {
-                    status: browserDemoMigration.status,
-                    code: browserDemoMigration.code,
-                    reason: browserDemoMigration.reason || null,
-                },
-                saveState: browserDemoSaveState,
-                exportState: browserDemoExportState,
-                backup: browserDemoBackup,
-            },
-        };
-    });
+    registerTrustedHandler(CHANNELS.save, (draft, browserDemoPolicyDraft = null, options = {}) => saveService.save(draft, browserDemoPolicyDraft, options));
 
     registerTrustedHandler(CHANNELS.listBackups, async (options = {}) => {
         const result = await backupService.listBackups({
@@ -233,34 +165,21 @@ function registerSettingsStudioIpc({
         };
     });
 
-    registerTrustedHandler(CHANNELS.restoreBackup, async (backupFileName) => {
-        const backupContent = await backupService.readBackupFile(backupFileName);
-        const parsed = JSON.parse(backupContent);
-        const validation = await schemaService.validateDraft(parsed);
-        const validationSnapshot = createValidationSnapshot(validation);
-        if (!validationSnapshot.valid) {
-            return {
-                ok: false,
-                draft: validation.normalizedDraft,
-                validation: validationSnapshot,
-            };
+    registerTrustedHandler(CHANNELS.restoreBackup, async (backupFileName, options = {}) => {
+        const parsed = JSON.parse(await backupService.readBackupFile(backupFileName));
+        const fallbackDraft = await schemaService.createDraft();
+        const current = await fileService.loadDraft({ fallbackDraft });
+        const browserFallback = await browserDemoPolicyService.createDraft();
+        const browser = await browserDemoPolicyService.loadDraft({ fallbackDraft: browserFallback });
+        const baseOptions = { revisions: options.revisions || saveService.baseline, reason: 'pre-restore' };
+        if (parsed.schemaVersion === 'menu-text-overrides.v1') {
+            return saveService.save(current.draft, browser.draft, { ...baseOptions, documents: ['menuTexts'], menuTextOverrides: parsed.overrides });
         }
-
-        const existingRaw = await fileService.readRawFile();
-        if (existingRaw) {
-            await backupService.createBackup({
-                content: existingRaw,
-                reason: 'pre-restore',
-            });
+        if (parsed.policy && parsed.capabilityFlags) {
+            return saveService.save(current.draft, parsed, { ...baseOptions, documents: ['browserDemo'] });
         }
-
-        const saveState = await fileService.saveDraft(validation.normalizedDraft);
-        return {
-            ok: true,
-            draft: validation.normalizedDraft,
-            validation: validationSnapshot,
-            saveState,
-        };
+        if (!parsed.baseSettings || typeof parsed.schemaVersion !== 'string') throw new Error('Diese Sicherung enthält keine bekannten Studio-Daten.');
+        return saveService.save(parsed, browser.draft, { ...baseOptions, documents: ['defaults'] });
     });
 
     registerTrustedHandler(CHANNELS.getSchema, async () => {
@@ -317,7 +236,7 @@ function registerSettingsStudioIpc({
                     return { ok: true, status, description };
                 }
                 case 'validate': return { ok: true, status, validation: await store.validateMapLayer(mapKey, layer) };
-                case 'save': return { ok: true, status, saved: await store.saveMapLayer(mapKey, layer) };
+                case 'save': return { ok: true, status, saved: await store.saveMapLayer(mapKey, layer, request.expectedRevision) };
                 case 'apply':
                 case 'retract': {
                     const known = await store.listMaps();

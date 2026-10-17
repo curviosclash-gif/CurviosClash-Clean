@@ -5,7 +5,7 @@ const outputDir = process.env.PW_OUTPUT_DIR || path.join('test-results', 'settin
 
 export default defineConfig({
     testDir: './tests',
-    testMatch: ['settings-studio-electron.interaction.mjs', 'applied-map-balancing-electron.interaction.mjs'],
+    testMatch: ['settings-studio-workspace.interaction.mjs', 'settings-studio-electron.interaction.mjs', 'applied-map-balancing-electron.interaction.mjs'],
     timeout: 60_000,
     fullyParallel: false,
     workers: 1,

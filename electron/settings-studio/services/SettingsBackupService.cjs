@@ -119,7 +119,15 @@ class SettingsBackupService {
             });
 
         const totalCount = allBackups.length;
-        const backups = allBackups.slice(0, Math.max(1, Number(limit) || 20));
+        const backups = await Promise.all(allBackups.slice(0, Math.max(1, Number(limit) || 20)).map(async (entry) => {
+            try {
+                const content = JSON.parse(await fs.readFile(entry.path, 'utf8'));
+                const documentType = content.schemaVersion === 'menu-text-overrides.v1' ? 'menuTexts'
+                    : content.policy && content.capabilityFlags ? 'browserDemo'
+                        : content.baseSettings && content.schemaVersion ? 'defaults' : 'unknown';
+                return { ...entry, documentType, restorable: documentType !== 'unknown' };
+            } catch { return { ...entry, documentType: 'unknown', restorable: false }; }
+        }));
 
         return {
             backups,

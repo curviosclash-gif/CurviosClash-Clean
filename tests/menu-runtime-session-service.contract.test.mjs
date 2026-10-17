@@ -335,3 +335,18 @@ test('handleLevel4ResetAction resets only the tab named in the event', () => {
     assert.deepEqual(game.settings.localSettings.audio, defaults.localSettings.audio);
     assert.deepEqual(game.settings.localSettings.hud, { scale: 1.2 });
 });
+
+test('Studio start-reset template is used by the actual reset action', async () => {
+    const { handleLevel3ResetAction } = await import('../src/core/runtime/MenuRuntimeSessionService.js');
+    const { createSettingsOverrideDraft } = await import('../src/core/settings/SettingsOverrideContract.js');
+    const { SettingsManager } = await import('../src/core/SettingsManager.js');
+    const { createMemoryStoragePlatform } = await import('./helpers/settings-manager-contract-test-utils.mjs');
+    const draft = createSettingsOverrideDraft();
+    draft.level3Reset.mapKey = 'maze'; draft.level3Reset.vehicles.PLAYER_1 = 'ship2';
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform(), runtimeGlobal: { settingsDefaultsContract: { getOverrideSnapshot: () => ({ draft }) } } });
+    const game = { settings: manager.createDefaultSettings(), settingsManager: manager, _showStatusToast() {} };
+    game.settings.localSettings.modePath = 'normal';
+    handleLevel3ResetAction({ game, onSettingsChanged() {} });
+    assert.equal(game.settings.mapKey, 'maze');
+    assert.equal(game.settings.vehicles.PLAYER_1, 'ship2');
+});

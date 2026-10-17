@@ -35,7 +35,7 @@ export function setupMenuGameplayBindings(ctx) {
     const bind = ctx.bind;
     const gameplayConfig = resolveGameplayConfig({ config: ctx.configSource || null });
     const huntFeatureEnabled = gameplayConfig.HUNT?.ENABLED !== false;
-    const runtimeLimits = createRuntimeSettingsLimitsForRuntime();
+    const runtimeLimits = createRuntimeSettingsLimitsForRuntime(ctx.settingsDefaultsPort);
     const sessionLimits = runtimeLimits.session;
     const hangarWindow = createHangarWindowMenuPort(globalThis);
     settings.cockpitCamera = { ...(settings.cockpitCamera && typeof settings.cockpitCamera === 'object' ? settings.cockpitCamera : {}), PLAYER_1: GAMEPLAY_COCKPIT_CAMERA_ENABLED, PLAYER_2: GAMEPLAY_COCKPIT_CAMERA_ENABLED };

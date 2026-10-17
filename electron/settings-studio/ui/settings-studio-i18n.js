@@ -394,11 +394,50 @@ export function normalizeLanguage(language) {
     return normalized === 'en' ? 'en' : 'de';
 }
 
+const STUDIO_COPY = {
+    de: {
+        sectionBaseSettings: 'Spielregeln & Balance', sectionLocalSettings: 'Darstellung & Bedienung', sectionFixedPresets: 'Voreinstellungen', sectionGameMenu: 'Menügestaltung', sectionLevel3Reset: 'Startaufbau zurücksetzen', sectionConfigShare: 'Übertragungs-Vorgaben', sectionLimits: 'Zulässige Wertebereiche', sectionBackups: 'Sicherungen',
+        buttonResetField: 'Verwerfen', buttonResetSection: 'Bereich verwerfen', buttonResetAll: 'Alle Entwürfe verwerfen', buttonValidate: 'Änderungen prüfen', buttonSave: 'Speichern …',
+        sectionHintBaseSettings: 'Globale Spielvorgaben. Bestehende Spielerprofile und ausgewählte Presets können andere Werte enthalten. Gespeicherte Vorgaben werden beim nächsten Spielstart geladen.',
+        sectionHintLocalSettings: 'Vorgaben für Darstellung, Eingabegeräte und Menü. Bereits gespeicherte Spielerwerte werden nicht automatisch ersetzt.',
+        sectionHintConfigShare: 'Gespeicherte Authoring-Vorlage für Konfigurationsübertragungen. Der aktuelle Spielablauf liest diese Vorlage nicht automatisch; aktive Spielregeln stehen unter Spielregeln & Balance.',
+        sectionHintLevel3Reset: 'Vorlage für das Zurücksetzen des Startaufbaus. Dies verändert keinen laufenden Match.',
+        sectionHintLimits: 'Erlaubte Werte und Schrittweiten. Zugeordnete Grenzen werden auch von der Laufzeitvalidierung verwendet; sie ändern den Spielwert nicht direkt.',
+        sectionHintBrowserDemoPolicy: 'Legt fest, welche Spielarten und Funktionen die Browser-Demo anbieten darf. Hier können die Produktvorgaben ausschließlich eingeschränkt werden.',
+        fieldCompare: 'Standard, gespeicherter Wert & Kennung', fieldProduct: 'Produktstandard', fieldSaved: 'Gespeichert',
+        presetid: 'Kennung', presetname: 'Name', presetdescription: 'Beschreibung', presetDuplicate: 'Duplizieren', presetLocked: 'Im Spiel gesperrt', presetRules: 'Spielwerte',
+        undo: 'Rückgängig', redo: 'Wiederholen', globalSearch: 'Einstellung, Menütext oder Kennung suchen …', searchLabel: 'Alle Einstellungen durchsuchen', searchResults: 'Suchergebnisse', noResults: 'Keine passenden Einstellungen.',
+        filterAll: 'Alle Werte', filterChanged: 'Nur geändert', filterErrors: 'Nur Fehler', changes: 'Änderungen', reviewChanges: 'Änderungsübersicht', scope: 'Du bearbeitest', rawInvalid: 'Eingabe korrigieren: eine gültige Zahl beziehungsweise gültiges JSON ist erforderlich.',
+        noSave: 'Keine Änderungen zu speichern. Es wurde keine Sicherung angelegt.', saved: 'Alle ausgewählten Dokumente gespeichert.', partial: 'Teilweise gespeichert. Noch offene Dokumente:', saveFailed: 'Nicht gespeichert.', compareReload: 'Dateien neu laden …', loadProblem: 'Die gespeicherte Datei konnte nicht vollständig gelesen werden. Die angezeigten Ersatzwerte wurden nicht automatisch gespeichert.',
+        saveMaps: 'Kartenentwürfe besitzen eigene Speichertasten und werden hier nicht mitgespeichert.', backupDefaults: 'Spielvorgaben', backupBrowser: 'Browser-Demo', backupTexts: 'Menübeschriftungen', backupUnknown: 'Unbekannter oder beschädigter Inhalt',
+        navPlay: 'Spiel gestalten', navContent: 'Karten & Menü', navAdvanced: 'Erweiterte Vorgaben', navSafety: 'Sicherung & Wiederherstellung',
+        reloadConfirm: 'Ungespeicherte Entwürfe verwerfen und die aktuellen Dateien neu laden? Nicht gespeicherte Änderungen gehen dabei verloren.',
+        errorFIELD_NUMBER_INVALID: 'Eine gültige Zahl eingeben. Das Feld darf nicht leer sein.',
+    },
+    en: {
+        sectionBaseSettings: 'Rules & balancing', sectionLocalSettings: 'Appearance & controls', sectionFixedPresets: 'Presets', sectionGameMenu: 'Menu design', sectionLevel3Reset: 'Start reset defaults', sectionConfigShare: 'Transfer defaults', sectionLimits: 'Allowed value ranges', sectionBackups: 'Backups',
+        buttonResetField: 'Discard', buttonResetSection: 'Discard section', buttonResetAll: 'Discard all drafts', buttonValidate: 'Check changes', buttonSave: 'Save …',
+        sectionHintBaseSettings: 'Global game defaults. Existing player profiles and selected presets may contain other values. Saved defaults are loaded on the next game start.',
+        sectionHintLocalSettings: 'Defaults for appearance, devices and menus. Existing saved player preferences are not automatically replaced.',
+        sectionHintConfigShare: 'Saved authoring template for configuration transfers. The current game flow does not read this template automatically; active rules belong to Rules & balancing.', sectionHintLevel3Reset: 'Template for resetting the start setup. Does not change a running match.',
+        sectionHintLimits: 'Allowed values and steps. Mapped ranges are also used by runtime validation; they do not directly change the game value.',
+        sectionHintBrowserDemoPolicy: 'Choose which game paths and features the browser demo may offer. Product limits can only be restricted.',
+        fieldCompare: 'Product, saved value & identity', fieldProduct: 'Product default', fieldSaved: 'Saved',
+        presetid: 'ID', presetname: 'Name', presetdescription: 'Description', presetDuplicate: 'Duplicate', presetLocked: 'Locked in game', presetRules: 'Game values',
+        undo: 'Undo', redo: 'Redo', globalSearch: 'Search settings, menu text or identity …', searchLabel: 'Search all settings', searchResults: 'Search results', noResults: 'No matching settings.',
+        filterAll: 'All values', filterChanged: 'Changed only', filterErrors: 'Errors only', changes: 'Changes', reviewChanges: 'Review changes', scope: 'Editing', rawInvalid: 'Correct this input: a valid number or valid JSON is required.',
+        noSave: 'No changes to save. No backup was created.', saved: 'All selected documents saved.', partial: 'Partially saved. Documents still pending:', saveFailed: 'Not saved.', compareReload: 'Reload files …', loadProblem: 'The saved file could not be fully read. Displayed fallback values were not automatically saved.',
+        saveMaps: 'Map drafts have their own save actions and are not saved here.', backupDefaults: 'Game defaults', backupBrowser: 'Browser demo', backupTexts: 'Menu captions', backupUnknown: 'Unknown or damaged content',
+        navPlay: 'Game design', navContent: 'Maps & menu', navAdvanced: 'Advanced defaults', navSafety: 'Backup & restore',
+        reloadConfirm: 'Discard unsaved drafts and reload the current files? Unsaved changes will be lost.', errorFIELD_NUMBER_INVALID: 'Enter a valid number. This field cannot be empty.',
+    },
+};
+
 export function createTranslator(language) {
     const lang = normalizeLanguage(language);
     const table = DICTIONARY[lang];
     const translator = (key, ...args) => {
-        const entry = table[key] ?? DICTIONARY.de[key] ?? key;
+        const entry = STUDIO_COPY[lang][key] ?? table[key] ?? DICTIONARY.de[key] ?? key;
         return typeof entry === 'function' ? entry(...args) : entry;
     };
     translator.language = lang;

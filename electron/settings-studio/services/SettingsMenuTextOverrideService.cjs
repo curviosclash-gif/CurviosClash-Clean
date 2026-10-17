@@ -1,3 +1,4 @@
+const { createHash } = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -44,9 +45,10 @@ class SettingsMenuTextOverrideService {
         try {
             const raw = await fs.readFile(this.getFilePath(), 'utf8');
             const parsed = JSON.parse(raw);
-            return parsed && parsed.schemaVersion === MENU_TEXT_OVERRIDE_SCHEMA_VERSION
-                ? parsed
-                : { schemaVersion: MENU_TEXT_OVERRIDE_SCHEMA_VERSION, overrides: {} };
+            if (!parsed || parsed.schemaVersion !== MENU_TEXT_OVERRIDE_SCHEMA_VERSION || !parsed.overrides || typeof parsed.overrides !== 'object' || Array.isArray(parsed.overrides)) {
+                throw new Error('Unbekannte oder beschädigte Menübeschriftungsdatei.');
+            }
+            return parsed;
         } catch (error) {
             if (error?.code === 'ENOENT') {
                 return { schemaVersion: MENU_TEXT_OVERRIDE_SCHEMA_VERSION, overrides: {} };
@@ -86,19 +88,15 @@ class SettingsMenuTextOverrideService {
             if (error?.code !== 'ENOENT') throw error;
         }
         const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
-        await fs.writeFile(tempPath, this.toJsonString(overrides), 'utf8');
+        const content = this.toJsonString(overrides);
+        await fs.writeFile(tempPath, content, 'utf8');
         try {
             await fs.rename(tempPath, filePath);
         } catch (error) {
-            if (error?.code === 'EEXIST' || error?.code === 'EPERM') {
-                await fs.rm(filePath, { force: true });
-                await fs.rename(tempPath, filePath);
-            } else {
-                await fs.rm(tempPath, { force: true }).catch(() => null);
-                throw error;
-            }
+            await fs.unlink(tempPath).catch(() => {});
+            throw error;
         }
-        return { path: filePath, savedAt: Date.now() };
+        return { path: filePath, savedAt: Date.now(), revision: createHash('sha256').update(content).digest('hex') };
     }
 
     async setOverride(textId, value) {

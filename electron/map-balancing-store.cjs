@@ -6,6 +6,7 @@
 const fs = require('node:fs/promises');
 const { existsSync } = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 
 const CONTRACT_RELATIVE_PATH = ['src', 'shared', 'contracts', 'MapBalancingContract.js'];
@@ -36,13 +37,8 @@ async function writeFileAtomic(filePath, text) {
     try {
         await fs.rename(tempPath, filePath);
     } catch (error) {
-        if (error && (error.code === 'EEXIST' || error.code === 'EPERM')) {
-            await fs.rm(filePath, { force: true });
-            await fs.rename(tempPath, filePath);
-        } else {
-            await fs.rm(tempPath, { force: true });
-            throw error;
-        }
+        await fs.unlink(tempPath).catch(() => {});
+        throw error;
     }
 }
 
@@ -67,7 +63,7 @@ function storeError(reason, message) {
  * @param {{ root: string, writable: boolean, dataRoot?: string, reason?: string, message?: string,
  *   backupDir?: string, now?: () => number }} options
  */
-function createMapBalancingStore({ root, writable, dataRoot = '', reason = '', message = '', backupDir = '', now = () => Date.now() }) {
+function createMapBalancingStore({ root, writable, dataRoot = process.env.CURVIOS_MAP_BALANCING_DATA_ROOT || '', reason = '', message = '', backupDir = '', now = () => Date.now() }) {
     const balancingDir = path.join(dataRoot || root || '', ...BALANCING_RELATIVE_DIR);
     const mapsDir = path.join(balancingDir, 'maps');
     const backupRoot = backupDir || path.join(dataRoot || root || '', 'tmp', 'balancing-backups');
@@ -109,15 +105,21 @@ function createMapBalancingStore({ root, writable, dataRoot = '', reason = '', m
         return { contract, catalog: contract.createMapBalancingCatalog({ modesDocument, mapDocuments }) };
     }
 
+    async function fileRevision(filePath) {
+        try { return createHash('sha256').update(await fs.readFile(filePath)).digest('hex'); }
+        catch (error) { if (error.code === 'ENOENT') return 'missing'; throw error; }
+    }
+
     /**
      * `layer` previews an unsaved draft for this map instead of the file.
      * @param {{mapKey?: string, modePath?: string, layer?: unknown}} [options]
      */
     async function describe({ mapKey, modePath, layer = null } = {}) {
-        const { contract, catalog } = await readCatalog();
         const filePath = await getMapFilePath(String(mapKey || ''));
+        const revision = await fileRevision(filePath);
+        const { contract, catalog } = await readCatalog();
         if (layer) catalog.maps[mapKey] = contract.normalizeMapBalancingLayer(layer);
-        return { ...contract.describeMapBalancing(catalog, { mapKey, modePath }), path: filePath, hasMapFile: existsSync(filePath) };
+        return { ...contract.describeMapBalancing(catalog, { mapKey, modePath }), path: filePath, hasMapFile: existsSync(filePath), revision };
     }
 
     async function validateMapLayer(mapKey, layer) {
@@ -135,7 +137,7 @@ function createMapBalancingStore({ root, writable, dataRoot = '', reason = '', m
     }
 
     /** Validates first; an invalid layer never reaches the disk. An empty layer removes the file. */
-    async function saveMapLayer(mapKey, layer) {
+    async function saveMapLayer(mapKey, layer, expectedRevision = undefined) {
         const contract = await loadContract();
         const filePath = await getMapFilePath(String(mapKey || ''));
         const known = await listMaps();
@@ -143,14 +145,17 @@ function createMapBalancingStore({ root, writable, dataRoot = '', reason = '', m
         const raw = { version: contract.MAP_BALANCING_CONTRACT_VERSION, mapKey, values: layer?.values };
         const validation = await validateMapLayer(mapKey, layer);
         if (!validation.ok) throw storeError('invalid_layer', validation.errors.join('; '));
+        if (expectedRevision !== undefined && await fileRevision(filePath) !== expectedRevision) throw storeError('external_change', 'Kartendatei wurde inzwischen geändert. Vor dem Speichern neu laden und Änderungen vergleichen.');
         const backupPath = await backupFile(filePath, mapKey);
         const normalized = contract.normalizeMapBalancingLayer(raw);
+        if (expectedRevision !== undefined && await fileRevision(filePath) !== expectedRevision) throw storeError('external_change', 'Kartendatei wurde während der Vorbereitung geändert. Neu laden und vergleichen.');
         if (Object.keys(normalized.values).length === 0) {
             await fs.rm(filePath, { force: true });
-            return { path: filePath, backupPath, removed: true, layer: normalized };
+            return { path: filePath, backupPath, removed: true, layer: normalized, revision: 'missing' };
         }
-        await writeFileAtomic(filePath, contract.serializeMapBalancingMapDocument(mapKey, normalized));
-        return { path: filePath, backupPath, removed: false, layer: normalized };
+        const content = contract.serializeMapBalancingMapDocument(mapKey, normalized);
+        await writeFileAtomic(filePath, content);
+        return { path: filePath, backupPath, removed: false, layer: normalized, revision: createHash('sha256').update(content).digest('hex') };
     }
 
     async function readMapLayer(mapKey) {
@@ -172,6 +177,7 @@ function createMapBalancingStore({ root, writable, dataRoot = '', reason = '', m
     return Object.freeze({
         writable,
         root,
+        dataRoot: dataRoot || root,
         reason,
         message,
         listMaps,

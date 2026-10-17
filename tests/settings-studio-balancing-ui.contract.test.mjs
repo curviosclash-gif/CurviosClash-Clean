@@ -13,15 +13,19 @@ class FakeElement {
         this.value = '';
         this.checked = false;
         this.disabled = false;
+        this.dataset = {};
+        this.attributes = {};
     }
     append(...nodes) {
         for (const node of nodes) this.children.push(typeof node === 'string' ? Object.assign(new FakeElement('#text'), { textContent: node }) : node);
     }
+    setAttribute(key, value) { this.attributes[key] = String(value); }
+    querySelectorAll(selector) { return this.findAll((node) => selector.split(',').some((part) => { const match = part.match(/^\[data-map-action="([^"]+)"\]$/); return match && node.dataset.mapAction === match[1]; })); }
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
     addEventListener(type, listener) { this.listeners.set(type, listener); }
     dispatch(type) { return this.listeners.get(type)?.({ target: this }); }
     *walk() { yield this; for (const child of this.children) yield* child.walk(); }
-    querySelector(selector) { return this.findAll((node) => node.className.split(' ').includes(selector.slice(1)))[0] || null; }
+    querySelector(selector) { if (selector.startsWith('[data-map-action')) return this.querySelectorAll(selector)[0] || null; return this.findAll((node) => node.className.split(' ').includes(selector.slice(1)))[0] || null; }
     findAll(predicate) { return [...this.walk()].filter(predicate); }
     get text() { return [...this.walk()].map((node) => node.textContent).join(' '); }
 }
@@ -103,7 +107,7 @@ test('applied values require a saved draft, survive new edits and can be withdra
     mapButton(container, 'maze').dispatch('click');
     await flush();
     numberInput(container).value = '26';
-    numberInput(container).dispatch('change');
+    numberInput(container).dispatch('input');
     await flush();
     assert.equal(button(container, 'Für normales Spiel übernehmen').disabled, true);
     button(container, 'Für normales Spiel übernehmen').dispatch('click');
@@ -117,7 +121,7 @@ test('applied values require a saved draft, survive new edits and can be withdra
     assert.match(container.text, /nächsten Spielstart/);
     assert.equal(button(container, 'Für normales Spiel übernehmen').disabled, true);
     numberInput(container).value = '30';
-    numberInput(container).dispatch('change');
+    numberInput(container).dispatch('input');
     await flush();
     assert.equal(applied['fight:maze'].speed, 26);
     button(container, 'Verwerfen').dispatch('click');
@@ -148,7 +152,7 @@ test('B3 UI: drafts survive a map switch without any confirmation dialog', async
     await flush();
     assert.equal(numberInput(container).value, '24');
     numberInput(container).value = '26';
-    numberInput(container).dispatch('change');
+    numberInput(container).dispatch('input');
     await flush();
     assert.equal(section.isDirty(), true);
     assert.match(container.text, /ungespeichert/);
@@ -180,7 +184,7 @@ test('B3 UI: invalid drafts are shown and never saved; read-only stores explain 
     mapButton(container, 'maze').dispatch('click');
     await flush();
     numberInput(container).value = '50';
-    numberInput(container).dispatch('change');
+    numberInput(container).dispatch('input');
     await flush();
     button(container, 'Für Karte speichern').dispatch('click');
     await flush();

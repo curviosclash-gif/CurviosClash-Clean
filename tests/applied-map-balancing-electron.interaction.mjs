@@ -27,7 +27,7 @@ test('tested map values can be approved, used by an ordinary game start, and wit
     await fs.copyFile('data/balancing/modes.json', path.join(project, 'data/balancing/modes.json'));
     const env = { ...process.env, CURVIOS_USER_DATA_ROOT: dataRoot,
         CURVIOS_MAP_BALANCING_ROOT: project, CURVIOS_SETTINGS_STUDIO_PROJECT_ROOT: project,
-        CURVIOS_ELECTRON_SHOW_WINDOW: '0', CURVIOS_E2E_RENDERER: '1' };
+        CURVIOS_ELECTRON_SHOW_WINDOW: '1', CURVIOS_E2E_RENDERER: '1' };
     delete env.ELECTRON_RUN_AS_NODE;
     const launchStudio = () => electron.launch({ executablePath, args: [path.resolve('electron/settings-studio/main.cjs')], env });
     const openMap = async (window) => {
