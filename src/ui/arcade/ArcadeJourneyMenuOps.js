@@ -2,6 +2,7 @@ import { loadArcadeJourneyProgress } from '../../shared/contracts/ArcadeJourneyP
 import { ARCADE_JOURNEY_STAGES, getArcadeJourneyStage, resolveArcadeJourneyAccess } from '../../shared/contracts/ArcadeJourneyContract.js';
 import { loadArcadeDifficultyProgress, resolveArcadeRunTier } from '../../shared/contracts/ArcadeDifficultyContract.js';
 import { resolveDemolitionLocalPlayerCount } from './ArcadeDemolitionProfileSelection.js';
+import { PORTAL_CHAINS } from '../../shared/contracts/PortalChainContract.js';
 
 export function syncArcadeJourneyMenu(view, runtimeAccess, settings, profile, records, seed = settings.arcade?.seed) {
     const store = runtimeAccess?.getSettingsStore?.();
@@ -15,7 +16,12 @@ export function syncArcadeJourneyMenu(view, runtimeAccess, settings, profile, re
     const legacyAccess = Number(records?.runsPlayed) > 0
         || Number(store?.loadJsonRecord?.('curviosclash.five-portals-records.v1', null)?.bestTotalMs) > 0;
     const briefing = runtimeAccess?.getArcadeJourneyBriefing?.(seed, tiers.first_run);
-    view.render({ briefings: briefing ? { first_run: briefing } : {}, progress: loaded.progress, available: loaded.status !== 'unavailable', legacyAccess, tiers,
+    const freeRecords = Object.fromEntries(Object.values(PORTAL_CHAINS).map(chain => {
+        const record = store?.loadJsonRecord?.(chain.recordKey, null);
+        return [chain.id, Number.isFinite(record?.bestTotalMs) && record.bestTotalMs > 0
+            ? `Bisheriger freier Tourrekord: ${(record.bestTotalMs / 1000).toFixed(2)} s · eigene Rekordwertung, keine Reisemedaille` : 'Noch keine gespeicherte freie Tourbestzeit'];
+    }));
+    view.render({ briefings: briefing ? { first_run: briefing } : {}, progress: loaded.progress, available: loaded.status !== 'unavailable', legacyAccess, tiers, freeRecords,
         playerCount: resolveDemolitionLocalPlayerCount(settings), profileId: profile?.id || '', profileName: profile?.displayName || '' });
 }
 

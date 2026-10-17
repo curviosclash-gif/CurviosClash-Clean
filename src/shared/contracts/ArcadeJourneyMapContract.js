@@ -1,9 +1,9 @@
-import { getArcadeJourneyStage } from './ArcadeJourneyContract.js';
+import { getArcadeJourneyStage, ARCADE_JOURNEY_STAGES } from './ArcadeJourneyContract.js';
 
 export const ARCADE_JOURNEY_MAP_WIDTH = 900;
-export const ARCADE_JOURNEY_MAP_HEIGHT = 470;
+export const ARCADE_JOURNEY_MAP_HEIGHT = 1170;
 
-export const ARCADE_JOURNEY_MAP_WORLDS = Object.freeze([
+const referenceWorlds = [
     Object.freeze({
         id: 'flight_school', label: 'Flugschule', x: 22, y: 132, w: 228, h: 300,
         copy: 'Der Startpunkt der Reise und die erste Abzweigung.',
@@ -28,11 +28,14 @@ export const ARCADE_JOURNEY_MAP_WORLDS = Object.freeze([
         id: 'orbit', label: 'Orbit', x: 745, y: 60, w: 130, h: 340,
         copy: 'Der Orbit-Pfad ist noch offen.',
     }),
-]);
+];
+export const ARCADE_JOURNEY_MAP_WORLDS = Object.freeze(referenceWorlds.map((world, index) => Object.freeze({
+    ...world, x: index % 2 * 450, y: Math.floor(index / 2) * 390, w: 450, h: 390,
+})));
 
 // Empty stageId marks reference content whose dedicated playable stage is not implemented yet.
 // Its goal describes the intended stop and labels that content as open rather than startable.
-export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([
+const referenceNodes = [
     Object.freeze({ id: 'first_flight', worldId: 'flight_school', label: 'Erster Flug', goal: 'Durchfliege alle sechs Ringe und den Zielring der Flugschule.', x: 72, y: 196, stageId: 'flight_school', maxPlayers: 1 }),
     Object.freeze({ id: 'gaps_lesson', worldId: 'flight_school', label: 'Lücken', goal: 'Noch offen: Eigene Lückenroute durch Spurlücken der Flugschule.', x: 150, y: 268, stageId: '', maxPlayers: 1 }),
     Object.freeze({ id: 'first_route', worldId: 'flight_school', label: 'Erster Lauf', goal: 'Meistere drei Sektoren auf Parcours Rift. Sektor 2 ist ohne Waffen.', x: 214, y: 200, stageId: 'first_run', maxPlayers: 3 }),
@@ -51,7 +54,7 @@ export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([
     Object.freeze({ id: 'reactor', worldId: 'exclusion_zone', label: 'Reaktor', goal: 'Noch offen: Sektoren durch die Sperrzone.', x: 330, y: 288, stageId: '', maxPlayers: 3 }),
     Object.freeze({ id: 'clockwork', worldId: 'exclusion_zone', label: 'Uhrwerk-Schlucht', goal: 'Noch offen: Spuren ausweichen, Letzter gewinnt (ohne Waffen).', x: 445, y: 278, stageId: '', maxPlayers: 3 }),
     Object.freeze({ id: 'worm_hunt', worldId: 'exclusion_zone', label: 'Wurmjagd', goal: 'Den Riesenwurm innerhalb von zwei Minuten zerstören.', x: 560, y: 292, stageId: 'worm_hunt', boss: true, maxPlayers: 3 }),
-    Object.freeze({ id: 'weapon_mastery', worldId: 'exclusion_zone', label: 'Waffenrennen', goal: 'Noch offen: Mit jeder Waffe einen Abschuss erzielen.', x: 675, y: 278, stageId: '', optional: true, maxPlayers: 1 }),
+    Object.freeze({ id: 'weapon_mastery', worldId: 'exclusion_zone', label: 'Waffenmeisterschaft', goal: 'Noch offen: Mit jeder Waffe einen Abschuss erzielen.', x: 675, y: 278, stageId: '', optional: true, maxPlayers: 1 }),
 
     Object.freeze({ id: 'giant_forest', worldId: 'giant_forest', label: 'Riesenwald', goal: 'Noch offen: Sektoren zwischen Riesenbäumen.', x: 330, y: 394, stageId: '', maxPlayers: 3 }),
     Object.freeze({ id: 'dandelion', worldId: 'giant_forest', label: 'Pusteblume', goal: 'Noch offen: Spuren ausweichen, Letzter gewinnt (ohne Waffen).', x: 445, y: 384, stageId: '', maxPlayers: 3 }),
@@ -60,13 +63,30 @@ export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([
 
     Object.freeze({ id: 'orbital_shipyard', worldId: 'orbit', label: 'Orbitalwerft', goal: 'Die gesamte Orbitalwerft unter Beschuss von Bots, Raketenwerfern und MG-Geschützen durchqueren.', x: 810, y: 170, stageId: 'orbital_shipyard', maxPlayers: 3 }),
     Object.freeze({ id: 'sky_ladder', worldId: 'orbit', label: 'Himmelsleiter', goal: 'Reise durch alle vier Höhenstufen bis zum letzten Portal.', x: 810, y: 300, stageId: 'sky_ladder', maxPlayers: 3 }),
-]);
+];
 
-export const ARCADE_JOURNEY_MAP_LINKS = Object.freeze([
+const freeActions = { endless_hunt: 'endless', five_fronts: 'fiveFronts', five_portals: 'fivePortals', sky_ladder: 'skyLadder', weapon_race: 'weaponRace', demolition: 'demolition', portal_chain_k19: 'k19PortalChain' };
+const additionalNodes = [
+    { id: 'weapon_race', stageId: 'weapon_race', worldId: 'flight_school', label: 'Waffenrennen', maxPlayers: 1, x: 170, y: 350 },
+    { id: 'five_portals', stageId: 'five_portals', worldId: 'flight_school', label: 'Fünf Portale', portalChainId: 'five_portals', maxPlayers: 3, x: 210, y: 400 },
+    { id: 'demolition', stageId: 'demolition', worldId: 'tower_city', label: 'Abrisskommando', maxPlayers: 3, x: 615, y: 100 },
+    { id: 'portal_chain_k19', stageId: '', worldId: 'orbit', label: 'Portalreise', portalChainId: 'portal_chain_k19', goal: 'Fünf ungewöhnliche Parcours, verbunden durch ihre Ausgangsportale. Freie Tour ohne Reisesternwertung.', maxPlayers: 3, x: 810, y: 380 },
+];
+export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([...referenceNodes, ...additionalNodes].map(node => {
+    const stage = getArcadeJourneyStage(node.stageId);
+    const portalChainId = ('portalChainId' in node && node.portalChainId) || stage?.portalChainId || '';
+    const worldIndex = ARCADE_JOURNEY_MAP_WORLDS.findIndex(world => world.id === node.worldId);
+    const memberIndex = [...referenceNodes, ...additionalNodes].filter(member => member.worldId === node.worldId).indexOf(node);
+    return Object.freeze({ ...node, goal: node.goal || stage?.goal, portalChainId,
+        x: worldIndex % 2 * 450 + ((memberIndex % 3 + .5) / 3) * 450,
+        y: Math.floor(worldIndex / 2) * 390 + 125 + Math.floor(memberIndex / 3) * 145,
+        development: !stage && !freeActions[node.id], freeAction: freeActions[node.id] || '',
+        kind: portalChainId ? 'tour' : 'boss' in node && node.boss ? 'boss' : ['five_fronts', 'endless_hunt', 'demolition', 'weapon_race'].includes(node.id) ? 'combat' : 'stage' });
+}));
+
+export const ARCADE_JOURNEY_MAP_PLANNED_LINKS = Object.freeze([
     ['first_flight', 'gaps_lesson'],
     ['gaps_lesson', 'first_route'],
-    ['gaps_lesson', 'endless_hunt'],
-    ['first_route', 'notre_dame'],
     ['first_route', 'storm_bridge'],
     ['first_route', 'reactor'],
     ['first_route', 'giant_forest'],
@@ -82,11 +102,16 @@ export const ARCADE_JOURNEY_MAP_LINKS = Object.freeze([
     ['giant_forest', 'dandelion'],
     ['dandelion', 'sunflower'],
     ['sunflower', 'hydra'],
-    ['eiffel_siege', 'orbital_shipyard'],
-    ['storm_flood', 'orbital_shipyard'],
-    ['worm_hunt', 'sky_ladder'],
-    ['hydra', 'sky_ladder'],
 ].map((link) => Object.freeze(link)));
+
+// Only the access contract defines effective Bronze dependencies. Decorative future roads
+// never substitute for these edges or for the separate total-star thresholds.
+export const ARCADE_JOURNEY_MAP_LINKS = Object.freeze([
+    ...ARCADE_JOURNEY_STAGES.filter(stage => stage.predecessorId).map(stage => Object.freeze([
+        ARCADE_JOURNEY_MAP_NODES.find(node => node.stageId === stage.predecessorId).id,
+        ARCADE_JOURNEY_MAP_NODES.find(node => node.stageId === stage.id).id,
+    ])), ...ARCADE_JOURNEY_MAP_PLANNED_LINKS,
+]);
 
 const EXPECTED_RUNTIME_STAGE_IDS = new Set([
     'flight_school',
@@ -97,6 +122,9 @@ const EXPECTED_RUNTIME_STAGE_IDS = new Set([
     'five_fronts',
     'sky_ladder',
     'worm_hunt',
+    'weapon_race',
+    'five_portals',
+    'demolition',
 ]);
 
 for (const node of ARCADE_JOURNEY_MAP_NODES) {

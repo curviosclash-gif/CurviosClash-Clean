@@ -60,7 +60,7 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeJourneyMoveFocus = journey.moveFocus;
     ui.arcadeJourneyActivateFocused = journey.activateFocused;
     const freePlayEntry = document.getElementById?.('btn-free-play')?.parentElement;
-    if (freePlayEntry) journey.element.querySelector('.journey-detail')?.appendChild(freePlayEntry);
+    if (freePlayEntry) journey.hubActions.appendChild(freePlayEntry);
     const runLine = createElement('p', 'menu-hint arcade-run-line');
     runLine.id = 'arcade-run-line';
     startGroup.appendChild(runLine);
@@ -178,6 +178,7 @@ export function buildArcadeSurface(level3Body, ui) {
     advanced.appendChild(advancedSummary);
     const advancedBody = createElement('div', 'arcade-surface-grid arcade-advanced-options-grid');
     advancedBody.appendChild(seedCard);
+    body.appendChild(arcadePlayerProfileControls);
 
     const postRunCard = createElement('section', 'arcade-surface-card');
     postRunCard.appendChild(createElement('h3', 'arcade-surface-card-title', 'Replay'));
@@ -255,7 +256,7 @@ export function buildArcadeSurface(level3Body, ui) {
             journey.element.classList.toggle('hidden', open);
             journeyOptions.classList.toggle('hidden', open);
             dailyEntry.setAttribute('aria-expanded', String(open));
-            (open ? dailyButton : dailyEntry).focus();
+            (open ? closeDaily : dailyEntry).focus();
         };
         dailyEntry.addEventListener('click', () => showDaily(true));
         closeDaily.addEventListener('click', () => showDaily(false));
@@ -263,7 +264,23 @@ export function buildArcadeSurface(level3Body, ui) {
             if (dailyCard.classList.contains('hidden')) return false;
             showDaily(false); return true;
         };
-        hubActions.prepend(dailyEntry, openHangarButton);
+        const customEntry = createElement('button', 'secondary-btn', 'Eigener Sektorenlauf');
+        customEntry.type = 'button'; customEntry.id = 'btn-arcade-custom-open';
+        customEntry.setAttribute('aria-expanded', 'false'); customEntry.setAttribute('aria-controls', 'arcade-inline-surface');
+        const closeCustom = createElement('button', 'secondary-btn', '← Zur Karte'); closeCustom.type = 'button'; body.prepend(closeCustom);
+        const showCustom = open => { details.open = open; details.classList.toggle('journey-custom-active', open); journey.element.classList.toggle('hidden', open); journeyOptions.classList.remove('hidden'); customEntry.setAttribute('aria-expanded', String(open)); (open ? startRunButton : customEntry).focus(); };
+        const configureRun = createElement('button', 'secondary-btn', 'Karte, Schiff und Lauf einstellen'); configureRun.type = 'button'; configureRun.id = 'btn-arcade-custom-configure'; startRunButton.parentElement.appendChild(configureRun);
+        customEntry.addEventListener('click', () => showCustom(true)); closeCustom.addEventListener('click', () => showCustom(false));
+        const closeDailyPanel = ui.arcadeDailyClose;
+        ui.arcadeDailyClose = () => { if (closeDailyPanel()) return true; if (details.classList.contains('journey-custom-active')) { showCustom(false); return true; } if (details.open) { details.open = false; recordsEntry.focus(); return true; } return false; };
+        journey.hubActions.prepend(dailyEntry, customEntry);
+        hubActions.prepend(openHangarButton);
+        const recordsEntry = createElement('button', 'secondary-btn', 'Rekorde'); recordsEntry.type = 'button'; recordsEntry.id = 'btn-arcade-records-open';
+        recordsEntry.addEventListener('click', () => { ui.arcadeDailyClose?.(); details.open = true; summary.focus(); details.scrollIntoView?.({ block: 'nearest' }); }); hubActions.appendChild(recordsEntry);
+        // Keep the proven action controls mounted as private adapters, never duplicate visible modes.
+        alternateModes.classList.add('hidden'); details.classList.add('journey-run-options');
+        summaryTitle.textContent = 'Rekorde und weitere Optionen'; summaryCopy.textContent = 'Seed, Replay und Fahrzeugfortschritt';
+        delete summary.dataset.modePath;
         journeyMount.appendChild(dailyCard);
         dailyCard.classList.add('hidden');
         hangarLaunchCard.classList.add('hidden');
@@ -310,6 +327,9 @@ export function buildArcadeSurface(level3Body, ui) {
         dailyButton,
         hangarLaunchCard,
         openHangarButton,
+        dailyEntry: document.getElementById?.('btn-arcade-daily-open'),
+        customEntry: document.getElementById?.('btn-arcade-custom-open'),
+        configureRun: document.getElementById?.('btn-arcade-custom-configure'),
         nightmareInput: runOptions.nightmareInput,
         companionInput: runOptions.companionInput,
     };

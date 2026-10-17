@@ -22,7 +22,7 @@ import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCat
 import { renderArcadeLeaderboardMenu } from './ArcadeLeaderboardMenuView.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
 import { bindArcadeRunOptionToggles, syncArcadeRunOptionToggles } from './ArcadeRunOptionToggles.js';
-import { bindValidatedArcadeStartCapture, shouldShowArcadePlayerProfileControls, setupArcadePlayerProfileSelection, validateLocalArcadeProfileStart } from './ArcadeDemolitionProfileSelection.js';
+import { bindValidatedArcadeStartCapture, shouldShowArcadePlayerProfileControls, setupArcadePlayerProfileSelection, validateLocalArcadeProfileStart, resolveDemolitionLocalPlayerCount } from './ArcadeDemolitionProfileSelection.js';
 import { bindArcadeSpecialStartButtons } from './ArcadeMenuSpecialStartOps.js';
 import { loadArcadeDifficultyProgress, resolveArcadeRunTier, ARCADE_DIFFICULTY_TIERS } from '../../shared/contracts/ArcadeDifficultyContract.js';
 import { resolveArcadeParcoursRankKey } from '../../shared/contracts/ArcadeRankedLeaderboardContract.js';
@@ -160,7 +160,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
         existing.parentElement.removeChild(existing);
     }
 
+    ui.arcadeSurfaceDispose?.();
     const refs = buildArcadeSurface(level3Body, ui);
+    refs.journey.setFreeStarts(Object.fromEntries(['endless','fiveFronts','fivePortals','skyLadder','k19PortalChain','weaponRace','demolition'].map(key => [key, () => refs['start'+key[0].toUpperCase()+key.slice(1)+'Button'].click()])));
     const arcadeProfiles = setupArcadePlayerProfileSelection(refs, runtimeAccess, settings, bind);
     refs.hangarLaunchCard.classList.toggle('hidden', !hangarWindow.isAvailable());
     const primaryProfile = () => runtimeAccess.getArcadePrimaryPlayerProfile
@@ -203,7 +205,6 @@ export function setupArcadeMenuSurface(ctx = {}) {
             lastRunSnapshot = loadLastRunSnapshot(runtimeAccess?.getSettingsStore?.());
         }
         const isArcade = shouldShowArcade(settings);
-        syncArcadeJourneyMenu(refs.journey, runtimeAccess, settings, primaryProfile(), runtimeAccess.getArcadePrimaryProfileRecords?.()?.records, activeSeed);
         const journeyHub = Boolean(document.getElementById('journey-hub-mount'));
         refs.details.classList.toggle('hidden', !isArcade && !journeyHub);
         if (!isArcade && !journeyHub) {
@@ -272,6 +273,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
         refs.rankedLine.textContent = formatArcadeMenuRankedLine(rankContext, store, { tierLabel: difficultyLabel, formatInteger });
         refs.seedLine.textContent = `${t('menu.arcade.seed.current.label', 'Run-Seed')}: ${activeSeed} | ${t('menu.arcade.seed.daily.label', 'Daily')}: ${dailySeed}`;
         renderArcadeDailyMenuState(refs.dailyLine, daily, dailySeed);
+        refs.dailyButton.disabled = resolveDemolitionLocalPlayerCount(settings) !== 1;
+        if (refs.dailyEntry) refs.dailyEntry.textContent = 'Tageslauf · ' + (refs.dailyButton.disabled ? 'Nur allein' : daily?.playedToday ? 'Heute gespielt' : 'Heute noch nicht gespielt');
         renderArcadeLeaderboardMenu(leaderboardRefs, {
             entries: leaderboardEntries,
             routeId: leaderboardRouteId,
@@ -341,6 +344,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     bind(refs.startRunButton, 'click', () => {
         if (!validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess)) return;
+        emit(eventTypes.MODE_PATH_CHANGE, { modePath: 'arcade', stayOnPanel: true });
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         settings.arcade.runType = 'gauntlet';
         settings.arcade.journeyStageId = '';
@@ -354,6 +358,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
     // These runs play on their own map and bot count. Both only ride along with the start
     // (borrowedSettings), so the menu keeps the player's map and bots afterwards.
     const startRunWithOwnMap = (runType, borrowedSettings, portalChainId) => {
+        if (runType === 'weapon_race' && resolveDemolitionLocalPlayerCount(settings) !== 1) {
+            showToast(runtimeAccess, 'Waffenrennen ist solo. Bitte wähle bewusst Allein in der Startzentrale.', 'warning'); return;
+        }
         const playerCount = runType === 'weapon_race' ? 1 : null;
         if (runType !== 'demolition' && !validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount })) return;
         applySeedToSettings(activeSeed, { dailyChallenge: false });
@@ -483,7 +490,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     });
 
     bindValidatedArcadeStartCapture(bind, refs.dailyButton, () => true,
-        () => validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount: 1 }), () => {
+        () => resolveDemolitionLocalPlayerCount(settings) === 1 && validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount: 1 }), () => {
             emit(eventTypes.START_MATCH, { borrowedSettings: { dailyChallenge: true } });
         });
 
@@ -531,6 +538,15 @@ export function setupArcadeMenuSurface(ctx = {}) {
     });
 
     bindArcadeRunOptionToggles(refs, settings, bind, sync);
+    if (refs.configureRun) bind(refs.configureRun, 'click', () => emit(eventTypes.MODE_PATH_CHANGE, { modePath: 'arcade' }));
+    if (refs.customEntry) bind(refs.customEntry, 'click', () => { emit(eventTypes.MODE_PATH_CHANGE, { modePath: 'arcade', stayOnPanel: true }); sync(); });
+    if (refs.dailyEntry) bind(refs.dailyEntry, 'click', sync);
+    bind(globalThis, 'focus', syncOnInteraction);
+    bind(document, 'visibilitychange', syncOnInteraction);
+    // Refresh an open Daily over midnight too; the run resolver validates the date again on start.
+    const dailyRefresh = setInterval(() => { if (refs.dailyEntry?.getAttribute('aria-expanded') === 'true') sync(); }, 30_000);
+    dailyRefresh.unref?.();
+    ui.arcadeSurfaceDispose = () => { clearInterval(dailyRefresh); refs.journey.dispose(); refs.journey.element.remove?.(); refs.dailyLine.closest?.('.journey-daily-panel')?.remove(); };
     ui.arcadeJourneyOpenStage = (stageId) => {
         sync(); refs.journey.openStage(stageId);
     };

@@ -6,6 +6,7 @@ import {
     ARCADE_JOURNEY_MAP_NODES,
     ARCADE_JOURNEY_MAP_WIDTH,
     ARCADE_JOURNEY_MAP_WORLDS,
+    ARCADE_JOURNEY_MAP_PLANNED_LINKS,
 } from '../src/shared/contracts/ArcadeJourneyMapContract.js';
 import {
     ARCADE_JOURNEY_SCHEMA,
@@ -20,6 +21,7 @@ const EXPECTED_NODE_IDS = [
     'reactor', 'clockwork', 'worm_hunt', 'weapon_mastery',
     'giant_forest', 'dandelion', 'sunflower', 'hydra',
     'orbital_shipyard', 'sky_ladder',
+    'weapon_race', 'five_portals', 'demolition', 'portal_chain_k19',
 ];
 
 const EXPECTED_LEGACY_STAGE_IDS = [
@@ -27,13 +29,13 @@ const EXPECTED_LEGACY_STAGE_IDS = [
     'sky_ladder', 'five_fronts', 'demolition', 'endless_hunt',
 ];
 
-test('journey map catalog contains the 6 reference worlds and 22 positioned nodes', () => {
+test('journey map catalog contains the 6 reference worlds and all 26 positioned nodes', () => {
     assert.deepEqual(ARCADE_JOURNEY_MAP_WORLDS.map(({ id }) => id), [
         'flight_school', 'tower_city', 'storm_coast', 'exclusion_zone', 'giant_forest', 'orbit',
     ]);
     assert.deepEqual(ARCADE_JOURNEY_MAP_NODES.map(({ id }) => id), EXPECTED_NODE_IDS);
     assert.equal(new Set(ARCADE_JOURNEY_MAP_WORLDS.map(({ id }) => id)).size, 6);
-    assert.equal(new Set(ARCADE_JOURNEY_MAP_NODES.map(({ id }) => id)).size, 22);
+    assert.equal(new Set(ARCADE_JOURNEY_MAP_NODES.map(({ id }) => id)).size, 26);
 
     const worldIds = new Set(ARCADE_JOURNEY_MAP_WORLDS.map(({ id }) => id));
     for (const world of ARCADE_JOURNEY_MAP_WORLDS) {
@@ -98,6 +100,7 @@ test('only existing playable stage IDs are referenced and legacy IDs remain inta
         ['five_fronts', 'five_fronts'],
         ['sky_ladder', 'sky_ladder'],
         ['worm_hunt', 'worm_hunt'],
+        ['weapon_race', 'weapon_race'], ['five_portals', 'five_portals'], ['demolition', 'demolition'],
     ]);
     for (const node of ARCADE_JOURNEY_MAP_NODES) {
         assert.equal(node.stageId, expectedBindings.get(node.id) || '', node.id + ' binding must stay explicit');
@@ -105,8 +108,19 @@ test('only existing playable stage IDs are referenced and legacy IDs remain inta
             const stage = getArcadeJourneyStage(node.stageId);
             assert.ok(stage, node.id + ' must point to a current runtime stage');
             assert.ok(node.maxPlayers <= stage.maxPlayers, node.id + ' cannot exceed its stage player limit');
-        } else {
+        } else if (node.development) {
             assert.match(node.goal, /^Noch offen:/, node.id + ' must not imply a playable stage');
+        } else {
+            assert.equal(node.id, 'portal_chain_k19'); assert.ok(node.freeAction);
         }
     }
+});
+
+test('effective map arrows are exactly the access-contract predecessors, future roads touch development', () => {
+    const nodeForStage = id => ARCADE_JOURNEY_MAP_NODES.find(node => node.stageId === id);
+    const planned = new Set(ARCADE_JOURNEY_MAP_PLANNED_LINKS.map(edge => edge.join('>')));
+    assert.deepEqual(ARCADE_JOURNEY_MAP_LINKS.filter(edge => !planned.has(edge.join('>'))).map(edge => edge.join('>')).sort(),
+        ARCADE_JOURNEY_STAGES.filter(stage => stage.predecessorId).map(stage => nodeForStage(stage.predecessorId).id + '>' + nodeForStage(stage.id).id).sort());
+    for (const edge of ARCADE_JOURNEY_MAP_PLANNED_LINKS) assert.ok(edge.some(id => ARCADE_JOURNEY_MAP_NODES.find(node => node.id === id).development));
+    assert.equal(ARCADE_JOURNEY_MAP_NODES.filter(node => node.portalChainId).length, 3);
 });

@@ -17,9 +17,11 @@ async function readJourney(page) {
 }
 
 async function openExtraStage(page, stageId) {
-    const group = page.locator('.journey-extra-runs');
-    if (!await group.evaluate(element => element.open)) await group.locator('summary').click();
-    await group.locator(`[data-journey-extra="extra_${stageId}"]`).click();
+    const back = page.locator('[data-journey-back]');
+    if (await back.isVisible()) await back.click();
+    await page.getByLabel('Kartenziele anzeigen', { exact: true }).selectOption('all');
+    await page.locator('[data-journey-world="flight_school"]').click();
+    await page.locator(`[data-journey-node="${stageId}"]`).click();
 }
 
 test('journey overview, world focus, party boards and native Hangar return keep the selected stage', async ({ page, electronApp }, testInfo) => {
@@ -41,7 +43,7 @@ test('journey overview, world focus, party boards and native Hangar return keep 
     const hangar = await opening;
     await expect(hangar.locator('#arcade-vehicle-manager')).toBeVisible();
     await hangar.locator('#hangar-window-close').click();
-    await expect(root.locator('[data-journey-world-panel="extras"]')).toBeVisible();
+    await expect(root.locator('[data-journey-stage="five_portals"]')).toBeVisible();
     await expect(page.locator('#arcade-difficulty-tier')).toBeEnabled();
     await expect(page.locator('#btn-arcade-daily')).toBeEnabled();
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FakeElement, bind, fakeDocument } from './helpers/fake-hangar-dom.mjs';
+import { FakeElement, bind, fakeDocument, createEvent } from './helpers/fake-hangar-dom.mjs';
 import { createArcadeJourneyMenuView } from '../src/ui/arcade/ArcadeJourneyMenuView.js';
 import { MenuNavigationRuntime } from '../src/ui/menu/MenuNavigationRuntime.js';
 import { ARCADE_JOURNEY_SCHEMA, ARCADE_JOURNEY_STAGES } from '../src/shared/contracts/ArcadeJourneyContract.js';
@@ -27,6 +27,56 @@ test('adding Notre-Dame keeps the previously earned departure badge visible', ()
     assert.match(rewards.textContent, /Aufbruch-Abzeichen/);
     assert.equal(rewards.classList.contains('hidden'), false);
     assert.equal(stages.notre_dame, undefined);
+});
+
+test('locked journey keeps its explicit free start, and recommendation restores the Journey valuation', () => {
+    const { view, find, starts } = setup({ playerCount: 1 });
+    const free = []; view.setFreeStarts({ fivePortals: () => free.push('five_portals') });
+    find('[data-journey-node="five_portals"]').click();
+    const card = find('[data-journey-stage="five_portals"]'), mode = card.querySelectorAll('select')[0], start = view.startButtons.five_portals;
+    assert.equal(start.disabled, true); assert.match(card.querySelectorAll('.menu-hint').find(p => /insgesamt/.test(p.textContent)).textContent, /1 Reisestern/);
+    mode.value = 'free'; mode.dispatchEvent(createEvent('change')); assert.equal(start.disabled, false); start.click();
+    assert.deepEqual(starts, []); assert.deepEqual(free, ['five_portals']);
+    find('[data-journey-world="orbit"]').click();
+    const filter = find('[aria-label="Kartenziele anzeigen"]'); filter.value = 'tour'; filter.dispatchEvent(createEvent('change'));
+    find('.journey-next').click();
+    assert.equal(filter.value, 'all'); assert.equal(find('[data-journey-node="first_route"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(view.back.classList.contains('hidden'), true); assert.deepEqual(starts, []);
+});
+
+test('unreadable progress never renders zero medals or recommendations; free tours remain available', () => {
+    const { view, state, find } = setup({ playerCount: 1 });
+    view.render({ ...state, available: false });
+    assert.equal(find('.journey-next').disabled, true);
+    view.openStage('five_portals'); const card = find('[data-journey-stage="five_portals"]');
+    assert.match(card.querySelectorAll('.arcade-journey-medal')[0].textContent, /nicht lesbar/);
+    assert.equal(card.querySelectorAll('.journey-medal-target')[0].textContent, '');
+    const mode = card.querySelectorAll('select')[0]; mode.value = 'free'; mode.dispatchEvent(createEvent('change'));
+    assert.equal(view.startButtons.five_portals.disabled, false);
+    assert.equal(find('[data-journey-start="portal_chain_k19"]').disabled, false);
+});
+
+test('empty world filters show an explanation and returning to overview restores a valid selection', () => {
+    const { view, find } = setup({playerCount:1});
+    find('[data-journey-world="storm_coast"]').click();
+    const filter=find('[aria-label="Kartenziele anzeigen"]'); filter.value='tour'; filter.dispatchEvent(createEvent('change'));
+    assert.equal(find('[role="status"]').classList.contains('hidden'),false);
+    assert.equal(view.element.querySelectorAll('.arcade-journey-stage').some(card=>!card.classList.contains('hidden')),false);
+    view.back.click(); assert.equal(find('[role="status"]').classList.contains('hidden'),true);
+    assert.equal(find('[data-journey-node="sky_ladder"]').classList.contains('hidden'),false);
+});
+
+test('medal gap uses the current party board and not the browsed leaderboard or earlier rules', () => {
+    const { view, state, find } = setup({ playerCount: 1 });
+    const progress = { ...state.progress, stages: { notre_dame: { medals: { normal: { medal: 2 } } } }, boards: {
+        'notre_dame:normal:1': [{ value: 198000, playerCount: 1, medal: 2, runId: 'nd' }],
+    } };
+    view.render({ ...state, progress }); view.openStage('notre_dame');
+    const target = find('[data-journey-stage="notre_dame"]').querySelectorAll('.journey-medal-target')[0];
+    assert.match(target.textContent, /18\.00 s schneller/);
+    view.render({ ...state, progress, playerCount: 2 });
+    assert.doesNotMatch(target.textContent, /18\.00/);
+    find('[data-journey-players="1"]').click(); assert.doesNotMatch(target.textContent, /18\.00/);
 });
 
 test('the three-sector list and earlier scores are displayed separately for the selected party and tier', () => {
@@ -60,6 +110,9 @@ test('world zoom focuses a map node; controller back returns one level and resto
     node.click();
     assert.deepEqual(starts, [], 'mouse selection never starts a run');
     assert.equal(view.activateFocused(node), true);
+    assert.deepEqual(starts, [], 'controller A opens details, never launches the selected map node');
+    assert.equal(fakeDocument.activeElement, find('[data-journey-start="first_run"]'));
+    find('[data-journey-start="first_run"]').click();
     assert.deepEqual(starts, ['first_run']);
 
     const drawer = new FakeElement('div'); drawer.classList.add('hidden');
@@ -112,7 +165,7 @@ test('a profile switch clears another profile’s unlocked journey access', () =
 test('unreadable journey data disables every start without pretending saved progression was reset', () => {
     const { view, state } = setup({ legacyAccess: true });
     view.render({ ...state, available: false });
-    for (const button of view.element.querySelectorAll('[data-journey-start]')) assert.equal(button.disabled, true);
+    for (const [stageId, button] of Object.entries(view.startButtons)) assert.equal(button.disabled, true, stageId);
     assert.match(view.element.children[1].textContent, /nicht sicher gelesen/);
 });
 
@@ -126,7 +179,7 @@ test('rank tabs display ten stored rows and preserve independent human-party boa
     } } });
     view.openStage('first_run');
     const card = find('[data-journey-stage="first_run"]');
-    const board = card.querySelectorAll('ol')[0];
+    const board = card.querySelectorAll('.arcade-journey-board')[0];
     assert.equal(board.children.length, 10);
     assert.equal(find('[data-journey-players="2"]').getAttribute('aria-pressed'), 'true');
     find('[data-journey-players="1"]').click();
@@ -154,7 +207,7 @@ test('single player exposes only its own board and no two- or three-player contr
 
 test('overview contains the whole reference route and selection updates details without zooming or starting', () => {
     const { view, find, starts } = setup({ playerCount: 1 });
-    assert.equal(view.element.querySelectorAll('[data-journey-node]').filter(button => !button.classList.contains('hidden')).length, 22);
+    assert.equal(view.element.querySelectorAll('[data-journey-node]').filter(button => !button.classList.contains('hidden')).length, 26);
     const hydra = find('[data-journey-node="hydra"]');
     hydra.click();
     assert.equal(find('[data-journey-stage="hydra"]').classList.contains('hidden'), false);
@@ -184,22 +237,22 @@ test('boss previews stay readable and planned nodes do not earn premature world 
 test('world and detail counts include only reachable stars and distinguish unimplemented stages', () => {
     const { view, state, find } = setup({ playerCount: 1 });
     const world = find('[data-journey-world="flight_school"]');
-    assert.equal(world.querySelectorAll('.journey-map-progress')[0].textContent, '0/7 ★');
-    assert.match(world.getAttribute('aria-label'), /0 von 7 Sternen, weitere Etappen offen/);
+    assert.equal(world.querySelectorAll('.journey-map-progress')[0].textContent, '0/13 ★');
+    assert.match(world.getAttribute('aria-label'), /0 von 13 Sternen, weitere Etappen offen/);
     const emptyWorld = find('[data-journey-world="storm_coast"]');
     assert.equal(emptyWorld.querySelectorAll('.journey-map-progress')[0].textContent, 'Etappen folgen');
     assert.match(emptyWorld.getAttribute('aria-label'), /Noch keine spielbaren Etappen/);
     view.openStage('flight_school');
     assert.equal(find('[data-journey-stage="flight_school"]').querySelectorAll('.arcade-journey-medal')[0].textContent, '☆ 0/1 Sterne');
     find('[data-journey-node="gaps_lesson"]').click();
-    assert.equal(find('[data-journey-stage="gaps_lesson"]').querySelectorAll('.arcade-journey-medal')[0].textContent, 'Noch offen');
+    assert.equal(find('[data-journey-stage="gaps_lesson"]').querySelectorAll('.arcade-journey-medal')[0].textContent, 'In Entwicklung');
     const progress = { ...state.progress, stages: {
         flight_school: { medals: { normal: { medal: 1 } } },
         first_run: { medals: { normal: { medal: 3 } } },
         endless_hunt: { medals: { normal: { medal: 3 } } },
     } };
     view.render({ ...state, progress });
-    assert.equal(world.querySelectorAll('.journey-map-progress')[0].textContent, '7/7 ★');
+    assert.equal(world.querySelectorAll('.journey-map-progress')[0].textContent, '7/13 ★');
     assert.match(world.querySelectorAll('.journey-map-reward')[0].textContent, /weitere Etappen offen/);
     assert.doesNotMatch(world.querySelectorAll('.journey-map-reward')[0].textContent, /verdient/);
 });
@@ -212,6 +265,6 @@ test('historical medals remain visible without impossible fractions or changes t
     const { view, find } = setup({ playerCount: 1, progress });
     view.openStage('flight_school');
     assert.equal(find('[data-journey-stage="flight_school"]').querySelectorAll('.arcade-journey-medal')[0].textContent, '★★★ 3/3 Sterne');
-    assert.equal(find('[data-journey-world="flight_school"]').querySelectorAll('.journey-map-progress')[0].textContent, '3/9 ★');
+    assert.equal(find('[data-journey-world="flight_school"]').querySelectorAll('.journey-map-progress')[0].textContent, '3/15 ★');
     assert.deepEqual(progress, before);
 });
