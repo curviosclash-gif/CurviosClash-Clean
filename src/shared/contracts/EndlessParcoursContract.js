@@ -52,30 +52,6 @@ export function sampleEndlessSeed(seed) {
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 }
 
-export function resolveEndlessDifficultyTier(elapsedCombatSeconds) {
-    const elapsed = Math.max(0, Number(elapsedCombatSeconds) || 0);
-    if (elapsed >= 450) return 4;
-    if (elapsed >= 240) return 3;
-    if (elapsed >= 90) return 2;
-    return 1;
-}
-
-export function resolveEndlessThreatLevel(elapsedCombatSeconds) {
-    const tier = resolveEndlessDifficultyTier(elapsedCombatSeconds);
-    return ['INTRO', 'EASY', 'NORMAL', 'HARD', 'ONSLAUGHT'][tier] || 'EASY';
-}
-
-export function resolveEndlessDesiredBotCount(elapsedCombatSeconds) {
-    return Math.min(
-        ENDLESS_PARCOURS_BOT_CAPACITY,
-        2 + Math.floor(Math.max(0, Number(elapsedCombatSeconds) || 0) / 45)
-    );
-}
-
-export function resolveEndlessReinforcementDelay(elapsedCombatSeconds) {
-    return Math.max(4, 10 - Math.floor(Math.max(0, Number(elapsedCombatSeconds) || 0) / 90));
-}
-
 /**
  * `bonusScore` sammelt alles, was ein Lauf zusaetzlich verdient: Torbelohnung,
  * Serienzuschlag, abgeschuettelte Verfolger und Anfuehrer-Abschuesse. Ohne

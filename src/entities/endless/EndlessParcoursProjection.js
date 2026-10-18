@@ -44,6 +44,11 @@ export function buildEndlessSummary(runtime, reason) {
         unlocks: runtime.runUnlocks.slice(),
         seed: runtime.baseSeed,
         isNewRecord: false,
+        recordScore: runtime.getRecordScore(),
+        recordDistanceMeters: runtime.getRecordDistanceMeters(),
+        activeBots: countActiveEndlessBotSlots(runtime._botSlots),
+        threatLevel: runtime.combatStarted ? resolveEndlessAreaThreat(runtime.pacingAreaBlock) : 'INTRO',
+        biomeId: runtime.activeModules.get(runtime.currentModuleIndex)?.biomeId || 'industrial',
     };
 }
 
@@ -75,6 +80,10 @@ export function buildEndlessHudState(runtime) {
         bonusScore: runtime.bonusScore,
         checkpointsPassed: runtime.checkpointsPassed,
         shakeoffs: runtime.shakeoffs,
+        revives: runtime.reviveCount,
+        maxRevives: ENDLESS_PARCOURS_CHECKPOINT.maxRevives,
+        submerged: runtime.entityManager?.humanPlayers?.[0]?.waterSubmerged === true,
+        biomeId: runtime.activeModules.get(runtime.currentModuleIndex)?.biomeId || 'industrial',
         reviveArmed: runtime.reviveCount < ENDLESS_PARCOURS_CHECKPOINT.maxRevives
             && runtime.reviveArmedUntilSeconds > runtime.elapsedCombatSeconds
             && runtime.reviveUsedAtCheckpointIndex !== runtime.lastCheckpointIndex,

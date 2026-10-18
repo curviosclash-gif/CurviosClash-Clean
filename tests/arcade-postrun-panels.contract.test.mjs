@@ -496,3 +496,19 @@ test('intermission panel puts route, reward and confirm before the score review'
         }
     });
 });
+
+test('endless result panel uses the real run cards and retains replay and earned XP', () => {
+    withDocument(() => {
+        const {controller}=makeController();let earnedXp;
+        controller._animateArcadeXpCounter=(_node,value)=>{earnedXp=value;};
+        controller._renderArcadePostRunPanel({runType:'endless_parcours',postRunSummary:{score:900,distanceMeters:1234,
+            survivalSeconds:95,revives:3,botKills:2,biomeId:'deepsea',xp:42},replay:{payloadAvailable:true}});
+        const panel=controller._arcadeOverlayPanel;
+        assert.ok(textOf(panel).includes('Endlosjagd beendet'));
+        assert.ok(rowKeys(panel).includes('distance'));assert.ok(rowKeys(panel).includes('revives'));assert.ok(rowKeys(panel).includes('kills'));
+        assert.ok(!textOf(panel).includes('Missions-Rate'));assert.ok(!textOf(panel).includes('Keine Sektordaten.'));
+        assert.equal(earnedXp,42);
+        assert.equal(findFirst(panel,n=>n.id==='btn-arcade-overlay-replay').disabled,false);
+        assert.equal(findFirst(panel,n=>n.id==='btn-arcade-overlay-replay-export').disabled,false);
+    });
+});

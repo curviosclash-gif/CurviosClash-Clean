@@ -1,6 +1,8 @@
+import { ENDLESS_BIOMES } from '../../shared/contracts/EndlessParcoursBiomeContract.js';
+
 /**
- * Endlosjagd-Teil des Arcade-HUD: Serie mit Verfallsbalken, Rekordwerte, Tore,
- * Rettungsanzeige sowie die Randwarnungen fuer anrueckende Jaeger und fuer den
+ * Endlosjagd-Teil des Arcade-HUD: Distanz, Serie, Welle, Zone, Wasser und
+ * Rettungszaehler sowie die Randwarnungen fuer anrueckende Jaeger und fuer den
  * Rueckfall in die Tiefe. Bewusst eine eigene Datei, damit der Gauntlet-HUD
  * unberuehrt bleibt.
  */
@@ -15,17 +17,10 @@ const SIDE_LABELS = Object.freeze({
 });
 
 const METRICS = Object.freeze([
-    ['distance', 'Distanz'],
-    ['time', 'Zeit'],
-    ['kills', 'Kills'],
-    ['bots', 'Jäger'],
-    ['threat', 'Gefahr'],
-    ['gates', 'Tore'],
-    ['best', 'Bestwert'],
-    ['record', 'Rekord m'],
-    ['wave', 'Welle'],
-    ['area', 'Gebiet'],
+    ['distance', 'Distanz'], ['wave', 'Welle'], ['rescues', 'Rettungen'],
+    ['area', 'Zone'], ['water', 'Wasser'],
 ]);
+const WAVE_LABELS = Object.freeze({intro:'Start',attack:'Angriff',retreat:'Rückzug',rest:'Pause',resupply:'Nachschub',finished:'Beendet'});
 
 function createElement(tag, className, textContent = '') {
     const el = document.createElement(tag);
@@ -48,12 +43,6 @@ function formatRounded(value) {
     return `${Math.round(Math.max(0, toSafeNumber(value, 0)))}`;
 }
 
-function formatTimer(seconds) {
-    const total = Math.max(0, Math.floor(toSafeNumber(seconds, 0)));
-    const mins = String(Math.floor(total / 60)).padStart(2, '0');
-    const secs = String(total % 60).padStart(2, '0');
-    return `${mins}:${secs}`;
-}
 
 export class ArcadeEndlessHudSection {
     constructor() {
@@ -66,7 +55,6 @@ export class ArcadeEndlessHudSection {
         this._overlay = null;
         this._spawnWarning = null;
         this._voidWarning = null;
-        this._milestoneBanner = null;
         this._buildPanel();
         this._buildOverlay();
     }
@@ -128,13 +116,7 @@ export class ArcadeEndlessHudSection {
         ].join(';');
         this._wrap.appendChild(this._reviveBadge);
 
-        this._milestoneBanner = createElement('div', 'arcade-endless-milestone', '');
-        this._milestoneBanner.style.cssText = [
-            'display:none', 'padding:4px 6px', 'border-radius:5px',
-            'font-size:11px', 'background:rgba(150,200,255,0.16)',
-            'border:1px solid rgba(150,200,255,0.4)',
-        ].join(';');
-        this._wrap.appendChild(this._milestoneBanner);
+
     }
 
     _buildOverlay() {
@@ -212,42 +194,19 @@ export class ArcadeEndlessHudSection {
 
     _updateMetrics(hudState) {
         setText(this._values.distance, `${formatRounded(hudState.maxProgressMeters)} m`);
-        setText(this._values.time, formatTimer(hudState.survivalSeconds));
-        const elites = Math.max(0, toSafeNumber(hudState.eliteKills, 0));
-        setText(
-            this._values.kills,
-            elites > 0
-                ? `${formatRounded(hudState.botKills)} (${formatRounded(elites)}A)`
-                : formatRounded(hudState.botKills)
-        );
-        setText(this._values.bots, `${formatRounded(hudState.activeBots)}/${formatRounded(hudState.botCapacity)}`);
-        setText(this._values.threat, String(hudState.threatLevel || 'INTRO'));
-        setText(this._values.gates, formatRounded(hudState.checkpointsPassed));
-        setText(this._values.best, formatRounded(hudState.recordScore));
-        setText(this._values.record, `${formatRounded(hudState.recordDistanceMeters)} m`);
         const wave = hudState.wave || {};
-        setText(this._values.wave, `${formatRounded(wave.number)} · ${String(wave.phase || 'intro')} · ${formatRounded(wave.remainingSeconds)}s`);
+        setText(this._values.wave, `${formatRounded(wave.number)} · ${WAVE_LABELS[wave.phase] || 'Start'} · ${formatRounded(wave.remainingSeconds)} s`);
+        setText(this._values.rescues, `${formatRounded(hudState.revives)} / ${formatRounded(hudState.maxRevives)}`);
+        const zone = ENDLESS_BIOMES[hudState.biomeId]?.label || 'Industrie';
         const objective = hudState.flightObjective;
-        setText(
-            this._values.area,
-            objective
-                ? `${String(hudState.area || '-')} · ${formatRounded(objective.progress)}/${formatRounded(objective.target)}`
-                : String(hudState.area || '-')
-        );
+        setText(this._values.area, objective ? `${zone} · ${formatRounded(objective.progress)}/${formatRounded(objective.target)}` : zone);
+        setText(this._values.water, hudState.submerged === true ? 'Unter Wasser' : 'Trocken');
     }
 
     _updateBadges(hudState) {
         if (this._reviveBadge) {
             this._reviveBadge.style.display = hudState.reviveArmed === true ? 'block' : 'none';
         }
-        if (!this._milestoneBanner) return;
-        const fresh = Array.isArray(hudState.newMilestones) ? hudState.newMilestones : [];
-        if (fresh.length === 0) {
-            this._milestoneBanner.style.display = 'none';
-            return;
-        }
-        setText(this._milestoneBanner, `Meilenstein: ${fresh.length}x neu`);
-        this._milestoneBanner.style.display = 'block';
     }
 
     _updateOverlay(hudState) {
