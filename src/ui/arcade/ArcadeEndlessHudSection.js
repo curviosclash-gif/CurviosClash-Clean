@@ -257,7 +257,7 @@ export class ArcadeEndlessHudSection {
                 const side = String(warning.side);
                 setText(
                     this._spawnWarning,
-                    warning.elite === true ? 'Anführer!' : (SIDE_LABELS[side] || SIDE_LABELS.behind)
+                    warning.ambush === true ? `Hinterhalt: ${warning.count} Jäger` : (warning.elite === true ? 'Anführer!' : (SIDE_LABELS[side] || SIDE_LABELS.behind))
                 );
                 this._spawnWarning.style.display = 'block';
                 this._spawnWarning.style.left = side === 'right' ? 'auto' : '18px';

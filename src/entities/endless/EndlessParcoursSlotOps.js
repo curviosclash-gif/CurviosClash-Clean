@@ -1,3 +1,4 @@
+import { isEndlessAmbushAnchorLoaded, prepareEndlessAmbush, isEndlessAmbushReady } from './EndlessParcoursAmbushOps.js';
 import { ENDLESS_PARCOURS_BOT_CAPACITY } from '../../shared/contracts/EndlessParcoursContract.js';
 import { ENDLESS_PARCOURS_WAVE_PHASES, resolveEndlessWaveProfile } from '../../shared/contracts/EndlessParcoursWaveContract.js';
 import {
@@ -27,6 +28,7 @@ function sameAnchor(left, right) {
 
 function isAnchorLoaded(runtime, anchor) {
     if (!anchor) return false;
+    if (isEndlessAmbushAnchorLoaded(runtime, anchor)) return true;
     for (const instance of runtime.activeModules.values()) {
         if (instance.sidePort?.id === anchor.id) return true;
         for (const candidate of instance.module.botAnchors) {
@@ -131,6 +133,8 @@ export function tryActivateEndlessSlot(runtime, slotState) {
     slotState.plannedElite = false;
     slotState.telegraphedAt = -1;
     runtime.lastBotActivationAtSeconds = runtime.elapsedCombatSeconds;
+    runtime.lastBotActivationAmbushId = slotState.ambushId || '';
+    slotState.ambushId = '';
     runtime.spawnWarning = null;
     return true;
 }
@@ -144,6 +148,20 @@ export function reconcileEndlessBots(runtime) {
         .filter((slot) => slot.state === 'reserved' && slot.reservedWave === runtime.waveNumber)
         .sort((left, right) => left.slot - right.slot);
     if (reserved.length === 0) return;
+    const ambush = reserved.filter(slot => slot.ambushId && slot.ambushId === runtime._ambushId);
+    if (ambush.length) {
+        if (!prepareEndlessAmbush(runtime, ambush)) {
+            const ordinary = reserved.find(slot => !slot.ambushId);
+            if (ordinary) { prepareEndlessSlot(runtime, ordinary); tryActivateEndlessSlot(runtime, ordinary); }
+            return;
+        }
+        if (!isEndlessAmbushReady(runtime, ambush)
+            || ambush.some(slot => !canActivateEndlessSlot(runtime, slot))) return;
+        for (const slot of ambush) {
+            if (!tryActivateEndlessSlot(runtime, slot)) break;
+        }
+        return;
+    }
     prepareEndlessSlot(runtime, reserved[0]);
     tryActivateEndlessSlot(runtime, reserved[0]);
 }

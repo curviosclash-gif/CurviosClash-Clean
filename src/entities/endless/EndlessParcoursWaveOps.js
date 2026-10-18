@@ -1,3 +1,4 @@
+import { assignEndlessAmbush } from './EndlessParcoursAmbushOps.js';
 import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import {
     ENDLESS_PARCOURS_WAVE_PHASES,
@@ -12,6 +13,7 @@ function resetReservation(slot) {
     slot.eligibleAt = 0;
     slot.telegraphedAt = -1;
     slot.plannedAnchor = null;
+    slot.ambushId = '';
     slot.plannedElite = false;
     slot.reservedWave = 0;
 }
@@ -32,9 +34,11 @@ export function canActivateEndlessSlot(runtime, slot) {
     if (!runtime || !slot || slot.state !== 'reserved') return false;
     if (runtime.wavePhase !== ENDLESS_PARCOURS_WAVE_PHASES.ATTACK) return false;
     if (slot.reservedWave !== runtime.waveNumber) return false;
-    if (runtime.respiteUntilSeconds > runtime.elapsedCombatSeconds) return false;
+    if (runtime.respiteUntilSeconds > runtime.elapsedCombatSeconds || slot.eligibleAt > runtime.elapsedCombatSeconds) return false;
     if (isEndlessRecoveryActivationBlocked(runtime)) return false;
-    if (runtime.elapsedCombatSeconds - runtime.lastBotActivationAtSeconds
+    const sameAmbushTick = Boolean(slot.ambushId && slot.ambushId === runtime.lastBotActivationAmbushId
+        && runtime.elapsedCombatSeconds === runtime.lastBotActivationAtSeconds);
+    if (!sameAmbushTick && runtime.elapsedCombatSeconds - runtime.lastBotActivationAtSeconds
         < ENDLESS_PARCOURS_WAVE_TIMING.activationIntervalSeconds) return false;
     if (slot.telegraphedAt < 0 || runtime.elapsedCombatSeconds - slot.telegraphedAt
         < ENDLESS_PARCOURS_WAVE_TIMING.telegraphSeconds) return false;
@@ -45,10 +49,11 @@ function reserveSlot(runtime, slot, elite = false) {
     if (!slot || slot.state !== 'idle') return false;
     if (countEndlessOccupiedSlots(runtime._botSlots) >= runtime._botSlots.length) return false;
     slot.state = 'reserved';
-    slot.eligibleAt = runtime.elapsedCombatSeconds;
+    slot.eligibleAt = Math.max(Number(slot.eligibleAt) || 0, runtime.elapsedCombatSeconds);
     slot.telegraphedAt = -1;
     slot.plannedAnchor = null;
     slot.plannedElite = elite === true;
+    slot.ambushId = '';
     slot.reservedWave = runtime.waveNumber;
     return true;
 }
@@ -63,7 +68,7 @@ export function reserveEndlessWaveSlots(runtime) {
         if (slot.state === 'reserved' && slot.plannedElite === true) elitePresent = true;
     }
 
-    if (profile.elite && !elitePresent && !runtime._eliteExchangeSlot) {
+    if (profile.elite && runtime._eliteWaveSpawned !== runtime.waveNumber && !elitePresent && !runtime._eliteExchangeSlot) {
         const free = runtime._botSlots.find((slot) => slot.state === 'idle');
         if (free && occupied < profile.capacity) {
             reserveSlot(runtime, free, true);
@@ -92,6 +97,7 @@ export function reserveEndlessWaveSlots(runtime) {
         if (!free || !reserveSlot(runtime, free, false)) break;
         occupied += 1;
     }
+    assignEndlessAmbush(runtime);
 }
 
 export function onEndlessExchangeSlotFreed(runtime, slot) {
@@ -149,6 +155,7 @@ export function beginEndlessAttackWave(runtime, waveNumber = runtime.waveNumber 
     runtime.wavePhase = ENDLESS_PARCOURS_WAVE_PHASES.ATTACK;
     runtime.wavePhaseElapsedSeconds = 0;
     runtime._eliteExchangeSlot = null;
+    runtime._ambushId = '';
     reserveEndlessWaveSlots(runtime);
 }
 

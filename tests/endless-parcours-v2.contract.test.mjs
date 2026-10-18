@@ -278,6 +278,8 @@ test('wave 11 full occupancy selects one deterministic exchange without exceedin
     runtime.update(0);
     runtime.update(1);
     runtime.update(0.2);
+    assert.equal(bots.filter((entry) => entry.player.isEndlessElite).length, 0, 'a killed exchange slot also waits three seconds');
+    runtime.update(1.8);
     assert.equal(bots.filter((entry) => entry.player.isEndlessElite).length, 1);
     assert.ok(runtime.getDebugSnapshot().occupiedBots <= 12);
     runtime.dispose();

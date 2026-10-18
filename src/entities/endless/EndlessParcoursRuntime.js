@@ -29,7 +29,7 @@ import { getEndlessHunterRoute, syncEndlessHunterSpeeds } from './EndlessParcour
 import { EndlessParcoursPath } from './EndlessParcoursPath.js';
 import { createEndlessPathSample } from './EndlessParcoursPathMetric.js';
 import { resolveEndlessCoursePoint } from './EndlessParcoursCourseSpace.js';
-import { ENDLESS_PARCOURS_RULE_VERSION } from '../../shared/contracts/EndlessParcoursWaveContract.js';
+import { ENDLESS_PARCOURS_RULE_VERSION, ENDLESS_PARCOURS_WAVE_TIMING } from '../../shared/contracts/EndlessParcoursWaveContract.js';
 import {
     resolveModuleCenterAtZ,
 } from './EndlessParcoursModuleBuilder.js';
@@ -58,6 +58,7 @@ import { reconcileEndlessBots } from './EndlessParcoursSlotOps.js';
 import {
     advanceEndlessWave,
     beginEndlessAttackWave,
+    reserveEndlessWaveSlots,
     onEndlessExchangeSlotFreed,
 } from './EndlessParcoursWaveOps.js';
 import {
@@ -270,10 +271,12 @@ export class EndlessParcoursRuntime {
         slotState.plannedAnchor = null;
         slotState.plannedElite = false;
         slotState.telegraphedAt = -1;
-        slotState.eligibleAt = 0;
+        slotState.eligibleAt = this.elapsedCombatSeconds + ENDLESS_PARCOURS_WAVE_TIMING.reinforcementSeconds;
+        slotState.ambushId = '';
         player.endlessForcedRetreat = false;
         player.endlessRetreatReason = '';
         if (wasExchange) onEndlessExchangeSlotFreed(this, slotState);
+        reserveEndlessWaveSlots(this);
         if (!options?.killer || options.killer.isBot === true) return;
         this.botKills += 1;
         this.collectRunXp('kill', 1);

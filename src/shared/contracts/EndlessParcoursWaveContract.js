@@ -1,4 +1,4 @@
-export const ENDLESS_PARCOURS_RULE_VERSION = 'endless-parcours-rules.v2-p5';
+export const ENDLESS_PARCOURS_RULE_VERSION = 'endless-parcours-rules.v2-p5c';
 
 export const ENDLESS_PARCOURS_WAVE_PHASES = Object.freeze({
     INTRO: 'intro',
@@ -16,6 +16,7 @@ export const ENDLESS_PARCOURS_WAVE_TIMING = Object.freeze({
     resupplySeconds: 10,
     telegraphSeconds: 1,
     activationIntervalSeconds: 1.5,
+    reinforcementSeconds: 3,
 });
 
 const WAVE_PROFILES = Object.freeze([

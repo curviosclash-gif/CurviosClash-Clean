@@ -50,7 +50,15 @@ export function getEndlessHunterRoute(runtime, playerIndex) {
     const metric = runtime.getPathMetric();
     const minS = metric.getStationRange(minIndex).startS + 2;
     const maxS = metric.getStationRange(maxIndex).endS - 2;
-    const targetS = Math.max(minS, Math.min(maxS, botS + (botS > runtime.currentProgressMeters + 40 ? -32 : 32)));
+    // A counter-flow interceptor continues through the encounter. Reversing its
+    // waypoint as soon as the human passes would demand a U-turn into the wall.
+    let travelSign = botS > runtime.currentProgressMeters + 40 ? -1 : 1;
+    if (typeof player.getDirection === 'function') {
+        player.getDirection(runtime._tmpDirection);
+        const alignment = runtime._tmpDirection.dot(projected.tangent);
+        if (Math.abs(alignment) > 0.2) travelSign = alignment < 0 ? -1 : 1;
+    }
+    const targetS = Math.max(minS, Math.min(maxS, botS + travelSign * 32));
     let route = runtime._hunterRoutes.get(playerIndex);
     if (!route) {
         route = { enabled: true, kind: 'endless_hunter', runId: runtime.runId, totalCheckpoints: 1,

@@ -81,6 +81,20 @@ test('optional bot route lookup leaves the normal UI and authored parcours snaps
     assert.equal(EntityManager.prototype.getParcoursRouteSnapshot.call(manager,1),legacy);
 });
 
+test('counter-flow hunters continue along their heading after passing the human instead of turning into the wall', () => {
+    const {runtime,player}=runtimeFixture();
+    const metric=runtime.getPathMetric(), projected=runtime.projectCoursePoint(player.position);
+    const station=projected.s, tangent=new THREE.Vector3().copy(projected.tangent);
+    player.getDirection=out=>out.copy(tangent).negate();
+    runtime.currentProgressMeters=station+80;
+    const route=runtime.getBotRouteSnapshot(player.index);
+    assert.ok(route.checkpoints[0].pos.distanceTo(metric.sampleAtS(station-32).position)<1e-6);
+    player.getDirection=out=>out.copy(tangent);
+    runtime.currentProgressMeters=station-80;
+    assert.ok(runtime.getBotRouteSnapshot(player.index).checkpoints[0].pos.distanceTo(metric.sampleAtS(station+32).position)<1e-6);
+    runtime.dispose();
+});
+
 test('a reserved ahead hunter enters facing back along its curved course frame', () => {
     const {runtime,manager}=runtimeFixture();
     const instance=[...runtime.activeModules.values()].find(i=>i.module.moduleIndex>0&&!i.module.recovery);
