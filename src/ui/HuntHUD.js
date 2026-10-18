@@ -10,6 +10,7 @@ import { createRocketWarningCache, hideRocketWarning, updateRocketWarning } from
 import { MatchHudAnnouncement } from './MatchHudAnnouncement.js';
 import { HuntInterceptAnnouncer } from './HuntInterceptAnnouncer.js';
 import { SecretRoomAnnouncer } from './SecretRoomAnnouncer.js';
+import { syncHuntParcoursStatus } from './arcade/HuntParcoursHud.js';
 import { resolveLocalHudHumans } from './LocalHudPlayers.js';
 import { formatFlagObjectiveSummary, formatHuntClock, formatHuntScoreboard, getHuntScoreValue, rankHuntScoreboardRows, resolveHuntObjectiveText, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
@@ -409,6 +410,7 @@ export class HuntHUD {
     }
 
     _updateMatchStatus(huntProjection = null, localPlayerIndices = []) {
+        if (syncHuntParcoursStatus(this)) return;
         if (syncHuntEscortStatus(this, huntProjection, localPlayerIndices)) return;
         const flagMode = huntProjection?.teamObjective === 'FLAGS';
         const respawnEnabled = huntProjection?.respawnEnabled === true;

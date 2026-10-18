@@ -35,6 +35,7 @@ export function renderHuntParcoursPostRunPanel(controller, state) {
     if (state?.runType !== 'hunt_parcours' || !summary) return false;
     const panel = controller._ensureArcadeOverlayPanel();
     if (!panel) return false;
+    if (state.variantId === 'thunderflight') return renderThunderflightPostRunPanel(controller, state, panel);
     panel.replaceChildren();
     const title = document.createElement('h2');
     title.textContent = state.mapWins.human >= 2 ? 'Nemesis besiegt' : 'Nemesis gewinnt';
@@ -52,4 +53,27 @@ export function renderHuntParcoursPostRunPanel(controller, state) {
     const close = document.createElement('button');close.type='button';close.className='arcade-overlay-action-btn';close.textContent='Zum Menü';
     close.addEventListener('click',()=>controller.runtimePort?.returnToMenu?.({reason:'hunt_parcours_finished'}));
     panel.append(title,list,close);panel.classList.remove('hidden');close.focus({preventScroll:true});return true;
+}
+
+function renderThunderflightPostRunPanel(controller, state, panel) {
+    const summary = state.postRunSummary;
+    panel.replaceChildren();
+    const title = document.createElement('h2');
+    title.textContent = summary.runWinnerSide === 'human' ? 'Gewitterflug gewonnen'
+        : summary.runWinnerSide === 'draw' ? 'Gewitterflug unentschieden' : 'Gewitterflug: Rennbot gewinnt';
+    const cards = [createArcadeRankingBlock(summary.ranking), createArcadeBlock('thunderflight-result', 'Gesamtergebnis', [
+        countRow('score', 'Ringpunkte', summary.score),
+        textRow('medal', 'Medaille', ({ bronze: 'Bronze', silver: 'Silber', gold: 'Gold' })[summary.medal] || 'Keine'),
+        ...Object.entries(summary.pointsByPlayer).map(([index, points]) => countRow(`player-${index}`, Number(index) === 0 ? 'Spieler' : `Rennbot ${index}`, points)),
+        textRow('save', 'Profil', summary.saveFailures.length ? 'Speichern fehlgeschlagen' : 'Ergebnis ausgewertet'),
+        textRow('xp', 'Fahrzeug-XP', summary.pendingRewardCount > 0 ? `${summary.vehicleXpEarned} gespeichert; weitere XP warten auf Speicherung` : `${summary.vehicleXpEarned} gespeichert`),
+    ]), ...summary.maps.map((map, index) => createArcadeBlock(`thunderflight-map-${index}`, resolveArcadeMapLabel(map.mapKey), [
+        countRow('points', 'Eigene Ringpunkte', map.pointsByPlayer?.[0] || 0),
+        textRow('finisher', 'Zuerst im Ziel', map.finisherIndex === 0 ? 'Spieler' : `Rennbot ${map.finisherIndex}`),
+        durationRow('time', 'Zeit', map.totalTimeMs / 1000),
+    ]))].filter(Boolean);
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
+    close.addEventListener('click', () => controller.runtimePort?.returnToMenu?.({ reason: 'hunt_parcours_finished' }));
+    panel.append(title, createArcadeCardScroller(cards, 'Gewitterflug-Ergebnisse', 'Keine Kartendaten.'), close);
+    panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
 }

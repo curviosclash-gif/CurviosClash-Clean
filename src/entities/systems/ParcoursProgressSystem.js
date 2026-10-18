@@ -320,7 +320,12 @@ export class ParcoursProgressSystem {
         const splitMs = state.startedAtMs > 0 ? Math.max(0, now - state.startedAtMs) : 0;
         state.segmentSplitsMs.push(splitMs);
         const checkpointIndex = state.segmentSplitsMs.length - 1;
-        if (player?.isArcadeParcoursCompetitor === true) return;
+        if (player?.isArcadeParcoursCompetitor === true) {
+            if (player.isHuntParcoursCompetitor === true) this._leaderboardCallback?.({
+                type: 'checkpoint', playerIndex: player.index, routeId: this._route.routeId, checkpointIndex, currentSplitMs: splitMs,
+            });
+            return;
+        }
 
         const cpXpResult = this._xpEventCallback?.('checkpoint', player.index, { checkpointId: entry.id, atMs: now });
         if (cpXpResult?.earned > 0) {

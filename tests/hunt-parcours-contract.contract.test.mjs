@@ -14,9 +14,9 @@ import {
 } from '../src/shared/contracts/HuntParcoursContract.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 
-const EXPECTED_IDS = ['nemesis', 'fox_hunt', 'trail_scent', 'herd_drive', 'fire_front', 'beacon_hold', 'guided_breach'];
+const EXPECTED_IDS = ['nemesis', 'thunderflight', 'fox_hunt', 'trail_scent', 'herd_drive', 'fire_front', 'beacon_hold', 'guided_breach'];
 
-test('hunt parcours lists the seven variants of the Jagdgruende world in a stable order', () => {
+test('hunt parcours keeps Jagdgruende variants and adds the first Grenzland run in build order', () => {
     assert.deepEqual(listHuntParcoursVariants().map((variant) => variant.id), EXPECTED_IDS);
 });
 
