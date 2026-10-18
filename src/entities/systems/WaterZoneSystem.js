@@ -144,11 +144,14 @@ export class WaterZoneSystem {
         return this.zone;
     }
 
-    getEffects() {
+    getEffects(position = null) {
+        const source = this.entityManager?.arena?.waterZoneSource;
+        if (position && source?.isPositionUnderwater?.(position) === true) return source.getEffects();
         return this.zone?.effects || this.permanentZones[0]?.effects || null;
     }
 
     isPositionUnderwater(position) {
+        if (this.entityManager?.arena?.waterZoneSource?.isPositionUnderwater?.(position) === true) return true;
         if (isPointUnderwater(this.zone, this.state, position)) return true;
         for (const zone of this.permanentZones) {
             if (isPointInPermanentWaterZone(zone, position)) return true;

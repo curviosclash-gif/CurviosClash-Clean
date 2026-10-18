@@ -7,6 +7,7 @@ import { createStaticMeshCollider, createDynamicMeshCollider, refreshDynamicMesh
 import { placeEndlessCourseMesh, resolveEndlessCoursePoint } from './EndlessParcoursCourseSpace.js';
 import { createEndlessPathSample } from './EndlessParcoursPathMetric.js';
 import { buildEndlessTube } from './EndlessParcoursTube.js';
+import { buildEndlessWaterVisual, isEndlessWaterModule } from './EndlessParcoursWater.js';
 
 /**
  * Korridormitte an einer Weltposition innerhalb des Bausteins.
@@ -152,6 +153,9 @@ export function buildEndlessModuleInstance({ module, geometry, materials, record
     group.userData.endlessModuleIndex = module.moduleIndex;
     const tube = buildEndlessTube({ module, baseSeed, material: materials.wall, ownerId });
     group.add(tube.mesh);
+    const underwater = isEndlessWaterModule(module, baseSeed);
+    const waterMesh = underwater ? buildEndlessWaterVisual(tube, module, materials.water) : null;
+    if (waterMesh) group.add(waterMesh);
     const setpiece = setpieceBank?.create(module, baseSeed, elapsedSeconds);
     if (setpiece) group.add(setpiece.root);
     const obstacles = setpiece ? { statics: setpiece.colliders, cycles: [] }
@@ -162,6 +166,8 @@ export function buildEndlessModuleInstance({ module, geometry, materials, record
     return {
         ownerId,
         setpiece,
+        underwater,
+        waterMesh,
         module,
         group,
         gateMesh: gate.gate,

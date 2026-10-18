@@ -50,6 +50,11 @@ export function createEndlessMaterials() {
         canyon: markShared(new THREE.MeshStandardMaterial({ color: 0x7fc6a4, emissive: 0x174a38, emissiveIntensity: 0.45 })),
         energy: markShared(new THREE.MeshStandardMaterial({ color: 0x5ee7ff, emissive: 0x126b86, emissiveIntensity: 0.85 })),
         routeRisk: markShared(new THREE.MeshStandardMaterial({ color: 0xffcf55, emissive: 0x8b5500, emissiveIntensity: 0.9 })),
+        water: markShared(new THREE.MeshPhysicalMaterial({
+            color: 0x17668a, emissive: 0x082a3b, emissiveIntensity: 0.35,
+            transparent: true, opacity: 0.2, roughness: 0.18, metalness: 0.05,
+            depthWrite: false, side: THREE.DoubleSide,
+        })),
     };
 }
 

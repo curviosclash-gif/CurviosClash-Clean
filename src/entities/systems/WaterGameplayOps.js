@@ -8,7 +8,7 @@ function positiveMultiplier(value) {
 export function resolveWaterAdjustedDelta(waterZoneSystem, position, deltaSeconds) {
     const seconds = Math.max(0, Number(deltaSeconds) || 0);
     if (waterZoneSystem?.isPositionUnderwater?.(position) !== true) return seconds;
-    return seconds * positiveMultiplier(waterZoneSystem?.getEffects?.()?.projectileSpeedMultiplier);
+    return seconds * positiveMultiplier(waterZoneSystem?.getEffects?.(position)?.projectileSpeedMultiplier);
 }
 
 export function resolveWaterWeaponCooldown(player, cooldownSeconds) {
@@ -20,7 +20,7 @@ export function resolveWaterWeaponCooldown(player, cooldownSeconds) {
 export function applyWaterGameplayState(player, waterZoneSystem, deltaSeconds = 0) {
     if (!player) return false;
     const submerged = waterZoneSystem?.isPositionUnderwater?.(player.position) === true;
-    const effects = submerged ? waterZoneSystem?.getEffects?.() : null;
+    const effects = submerged ? waterZoneSystem?.getEffects?.(player.position) : null;
 
     player.waterSubmerged = submerged;
     player.waterSpeedMultiplier = submerged ? positiveMultiplier(effects?.speedMultiplier) : 1;

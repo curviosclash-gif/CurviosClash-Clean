@@ -24,6 +24,7 @@ import {
 } from '../../shared/contracts/EndlessParcoursStageContract.js';
 import { normalizeEndlessParcoursRecords } from '../../state/arcade/EndlessParcoursRecords.js';
 import { EndlessParcoursExclusionZone } from './EndlessParcoursExclusionZone.js';
+import { EndlessParcoursWaterSource } from './EndlessParcoursWater.js';
 import { EndlessParcoursPath } from './EndlessParcoursPath.js';
 import { createEndlessPathSample } from './EndlessParcoursPathMetric.js';
 import { resolveEndlessCoursePoint } from './EndlessParcoursCourseSpace.js';
@@ -152,6 +153,9 @@ export class EndlessParcoursRuntime {
         this._previousExclusionZoneSource = this.arena?.exclusionZoneSource;
         this._exclusionZoneSource = new EndlessParcoursExclusionZone(this);
         if (this.arena) this.arena.exclusionZoneSource = this._exclusionZoneSource;
+        this._previousWaterZoneSource = this.arena?.waterZoneSource;
+        this._waterZoneSource = new EndlessParcoursWaterSource(this);
+        if (this.arena) this.arena.waterZoneSource = this._waterZoneSource;
     }
 
     setRecordStore(store) {
@@ -484,6 +488,9 @@ export class EndlessParcoursRuntime {
         this._rewardedSideRoutes.clear();
         if (this.arena?.exclusionZoneSource === this._exclusionZoneSource) {
             this.arena.exclusionZoneSource = this._previousExclusionZoneSource;
+        }
+        if (this.arena?.waterZoneSource === this._waterZoneSource) {
+            this.arena.waterZoneSource = this._previousWaterZoneSource;
         }
         this.arena?.exitStaticStreamingMode?.();
         this._sharedGeometry?.dispose?.();

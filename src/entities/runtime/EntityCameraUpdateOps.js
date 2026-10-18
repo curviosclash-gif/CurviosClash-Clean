@@ -71,7 +71,7 @@ function updateProjectedPlayerCameras(manager, projectedPlayers, dt) {
         const underwater = manager._waterZoneSystem?.isPositionUnderwater?.(projectedPlayer?.position) === true;
         manager.renderer.setCameraWaterVisibility?.(
             playerIndex,
-            underwater ? manager._waterZoneSystem?.getEffects?.()?.visibilityMultiplier : 1
+            underwater ? manager._waterZoneSystem?.getEffects?.(projectedPlayer?.position)?.visibilityMultiplier : 1
         );
     }
 }
