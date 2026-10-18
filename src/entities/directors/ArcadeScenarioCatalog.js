@@ -1,6 +1,25 @@
 import { normalizeArcadeScenario } from '../../shared/contracts/ArcadeScenarioContract.js';
 import { BLOOM_CORE_FINAL_OPEN_SECONDS } from '../../shared/contracts/BloomCoreTimingContract.js';
 
+const WORM_HUNT_WORM_COUNT = 100;
+const WORM_HUNT_WORMS = Array.from({ length: WORM_HUNT_WORM_COUNT }, (_, index) => {
+    const column = index % 10;
+    const row = Math.floor(index / 10);
+    const x = -31.5 + column * 7;
+    const z = -31.5 + row * 7;
+    return {
+        id: `worm_hunt_creature_${index + 1}`,
+        kind: 'creature',
+        path: [[x, 0, z], [x + 3, 0, z]],
+        loop: true,
+        speed: 8,
+        maxHp: 6,
+        hitboxRadius: 3,
+        respawnSeconds: 0,
+        allowedModes: ['ARCADE'],
+    };
+});
+
 // Arcade scenarios ("Einsätze"): sectors that bring content the template pools never reach -
 // map units, hunt weapons, water. `slot: 'sector'` scenarios replace a regular sector inside
 // their sector range, `slot: 'finale'` scenarios can take the boss sector.
@@ -13,7 +32,9 @@ const RAW_ARCADE_SCENARIOS = [
         mapKey: 'standard',
         combatProfile: 'hunt',
         squadId: 'scout_duo',
-        objective: { id: 'destroy_units', label: 'Wurmjagd', unitKind: 'creature', count: 1, durationSec: 120, scoreWeight: 1.4 },
+        objective: { id: 'destroy_units', label: 'Wurmjagd', unitKind: 'creature', count: WORM_HUNT_WORM_COUNT, durationSec: 120, scoreWeight: 1.4 },
+        mapUnitsMode: 'replace',
+        mapUnits: WORM_HUNT_WORMS,
         minSector: 3,
         maxSector: 6,
     },

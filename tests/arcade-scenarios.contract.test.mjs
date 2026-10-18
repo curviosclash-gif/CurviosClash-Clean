@@ -208,12 +208,30 @@ test('the finale is sometimes a boss scenario, decided by the seed alone', () =>
 test('a scenario sector flies with hunt weapons and its own bot count', () => {
     const worm = scenarioById('worm_hunt');
     const profile = resolveArcadeSectorRuntimeProfile(
-        { sectorNumber: 3, templateId: 'sector_pressure', scenarioId: 'worm_hunt', squadId: worm.squadId, combatProfile: worm.combatProfile, botCount: worm.botCount, pressure: 0.5 },
+        { sectorNumber: 3, templateId: 'sector_pressure', scenarioId: 'worm_hunt', squadId: worm.squadId, combatProfile: worm.combatProfile, botCount: worm.botCount, pressure: 0.5, mapUnits: worm.mapUnits, mapUnitsMode: worm.mapUnitsMode },
         { mapKey: worm.mapKey, fallbackBotCount: 7 },
     );
     assert.equal(profile.combatProfile, 'hunt');
     assert.equal(profile.scenarioId, 'worm_hunt');
     assert.equal(profile.botCount, worm.botCount ?? 2);
+    assert.equal(worm.objective.count, 100);
+    assert.equal(profile.mapUnitsMode, 'replace');
+    assert.equal(profile.mapUnits.length, 100);
+    assert.ok(profile.mapUnits.every((unit) => unit.kind === 'creature' && unit.maxHp === 6));
+
+    const manager = {
+        runtimeConfig: { arcade: { scenarioMapUnits: profile.mapUnits, scenarioMapUnitsMode: profile.mapUnitsMode } },
+        gameModeStrategy: { modeType: 'ARCADE', getPickupModeType: () => 'HUNT' },
+        arena: { bounds: { min: { y: 0 } }, currentMapDefinition: MAP_PRESET_CATALOG.standard },
+        players: [],
+    };
+    const system = new MapUnitSystem(manager);
+    try {
+        assert.equal(system.startRound(), 100);
+        assert.ok(system.units.every((unit) => unit.kind === 'creature' && unit.maxHp === 6 && unit.hp === 6));
+    } finally {
+        system.dispose();
+    }
 
     const plain = resolveArcadeSectorRuntimeProfile({ sectorNumber: 2, squadId: 'scout_duo' }, { mapKey: 'standard' });
     assert.equal(plain.combatProfile, '', 'normal sectors keep the arcade weapons');

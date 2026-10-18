@@ -390,11 +390,11 @@ function wormState(page) {
     });
 }
 
-test('Wurmjagd: real creature destruction settles a timed mission and retry creates a fresh worm', async ({ page }, testInfo) => {
+test('Wurmjagd: destroying all 100 creatures settles the mission and retry creates a fresh pack', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await startWormJourney(page);
     await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', stageId: 'worm_hunt', sectorCount: 1,
-        scenarioId: 'worm_hunt', objective: 'active', creatures: 1 });
+        scenarioId: 'worm_hunt', objective: 'active', creatures: 100 });
     // Controlled clock/damage fixture: exercise the real unit/objective/result chain, not a flight proof.
     await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
@@ -403,13 +403,13 @@ test('Wurmjagd: real creature destruction settles a timed mission and retry crea
         for (const bot of game.entityManager.players.filter(player => player.isBot)) { bot.alive = false; bot.hp = 0; }
         game.runtimeFacade.arcadeRunRuntime.tickGameplay(61);
     });
-    await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', objective: 'active', creatures: 1 });
+    await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', objective: 'active', creatures: 100 });
     expect((await readJourney(page)).value.stages.worm_hunt).toBeUndefined();
     await page.screenshot({ path: testInfo.outputPath('worm-journey-active.png') });
     await page.evaluate(() => {
         const manager = window.GAME_INSTANCE.entityManager;
-        const worm = manager.runtimePorts.combat.mapUnitSystem.getTargets().find(unit => unit.kind === 'creature' && unit.alive);
-        worm.takeDamage(worm.hp + 1, { sourcePlayer: manager.humanPlayers[0] });
+        const worms = manager.runtimePorts.combat.mapUnitSystem.getTargets().filter(unit => unit.kind === 'creature' && unit.alive);
+        for (const worm of worms) worm.takeDamage(worm.hp + 1, { sourcePlayer: manager.humanPlayers[0] });
     });
     await expect(page.locator('[data-journey-action="retry"]')).toBeVisible();
     const saved = (await readJourney(page)).value;
@@ -419,7 +419,7 @@ test('Wurmjagd: real creature destruction settles a timed mission and retry crea
     await expect(page.locator('.arcade-journey-result-time')).toHaveText(`Zeit: ${(saved.boards['worm_hunt:normal:1'][0].value / 1000).toFixed(2)} s`);
     await page.screenshot({ path: testInfo.outputPath('worm-journey-result.png') });
     await page.locator('[data-journey-action="retry"]').click();
-    await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', objective: 'active', creatures: 1 });
+    await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', objective: 'active', creatures: 100 });
     expect((await wormState(page)).gameplayTimeMs).toBeLessThan(10000);
     expect((await readJourney(page)).value.boards['worm_hunt:normal:1']).toHaveLength(1);
 });

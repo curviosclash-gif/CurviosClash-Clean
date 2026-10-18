@@ -16,6 +16,7 @@ export const MAP_UNIT_CONTRACT_VERSION = 'map-unit.v1';
 
 export const MAP_UNIT_LIMITS = Object.freeze({
     maxUnits: 16,
+    maxScenarioUnits: 100,
     minPathPoints: 2,
     maxPathPoints: 64,
 });
@@ -314,13 +315,17 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
 /**
  * Normalizes a whole `mapUnits` block. Duplicate ids keep the first unit.
  * @param {unknown} rawUnits
- * @param {{ warnings?: string[], preserveSpatial?: boolean }} [options]
+ * @param {{ warnings?: string[], preserveSpatial?: boolean, maxUnits?: number }} [options]
  */
 export function normalizeMapUnits(rawUnits, options = {}) {
-    const entries = Array.isArray(rawUnits) ? rawUnits.slice(0, MAP_UNIT_LIMITS.maxUnits) : [];
+    const requestedLimit = Number(options?.maxUnits);
+    const maxUnits = Number.isFinite(requestedLimit)
+        ? Math.max(1, Math.min(MAP_UNIT_LIMITS.maxScenarioUnits, Math.trunc(requestedLimit)))
+        : MAP_UNIT_LIMITS.maxUnits;
+    const entries = Array.isArray(rawUnits) ? rawUnits.slice(0, maxUnits) : [];
     const warnings = Array.isArray(options?.warnings) ? options.warnings : undefined;
-    if (Array.isArray(rawUnits) && rawUnits.length > MAP_UNIT_LIMITS.maxUnits) {
-        warnings?.push(`Only the first ${MAP_UNIT_LIMITS.maxUnits} map units are kept.`);
+    if (Array.isArray(rawUnits) && rawUnits.length > maxUnits) {
+        warnings?.push(`Only the first ${maxUnits} map units are kept.`);
     }
     const ids = new Set();
     /** @type {ReturnType<typeof normalizeMapUnit>[]} */

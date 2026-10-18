@@ -20,7 +20,7 @@ test('Wurmjagd always starts the authored worm objective in exactly one locked s
         assert.equal(entry.mapKey, 'standard');
         assert.equal(entry.mapKeyLocked, true);
         assert.equal(entry.objectiveId, 'destroy_units');
-        assert.deepEqual([entry.objective.unitKind, entry.objective.count, entry.objective.durationSec], ['creature', 1, 120]);
+        assert.deepEqual([entry.objective.unitKind, entry.objective.count, entry.objective.durationSec], ['creature', 100, 120]);
         assert.equal(entry.combatProfile, 'hunt');
         assert.equal(entry.parcoursEnabled, false);
     }
@@ -74,7 +74,9 @@ test('the live worm goal finalizes the mission directly, with no bonus-sector co
     run.configure({ arcade });
     run.startRun({ encounterPlan: buildArcadeEncounterPlan({ arcade }) });
     run.tickGameplay(61);
-    run.applyGameplayEvent({ type: 'unit_destroyed', unitKind: 'creature' });
+    for (let index = 0; index < 100; index += 1) {
+        run.applyGameplayEvent({ type: 'unit_destroyed', unitKind: 'creature' });
+    }
     assert.equal(run.getStateSnapshot().objectiveState.status, 'completed');
     const outcome = run.deriveRoundEndPlan({ players: [{ index: 0, isBot: false, alive: true, hp: 100 }],
         inputs: { reason: 'ARCADE_OBJECTIVE' }, baseController: new RoundStateController() });

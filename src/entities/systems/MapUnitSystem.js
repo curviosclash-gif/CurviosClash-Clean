@@ -124,13 +124,13 @@ export class MapUnitSystem {
         // Same rule as static turrets: maps authored in map units get the map scale applied.
         const scale = resolveAuthoredAnchorScale(mapDefinition, owner);
         const mapDefinitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
-        const scenarioDefinitions = normalizeMapUnits(owner.runtimeConfig?.arcade?.scenarioMapUnits, { preserveSpatial: true });
+        const scenarioDefinitions = normalizeMapUnits(owner.runtimeConfig?.arcade?.scenarioMapUnits, { preserveSpatial: true, maxUnits: MAP_UNIT_LIMITS.maxScenarioUnits });
         const scenarioUnitIds = new Set(scenarioDefinitions.map((definition) => definition.id));
         const scenarioMapUnitsMode = owner.runtimeConfig?.arcade?.scenarioMapUnitsMode === 'replace' ? 'replace' : 'overlay';
         const sourceDefinitions = scenarioMapUnitsMode === 'replace'
             ? scenarioDefinitions
             : [...scenarioDefinitions, ...mapDefinitions.filter((definition) => !scenarioUnitIds.has(definition.id))];
-        const definitions = sourceDefinitions.slice(0, MAP_UNIT_LIMITS.maxUnits);
+        const definitions = sourceDefinitions.slice(0, Math.max(MAP_UNIT_LIMITS.maxUnits, scenarioDefinitions.length));
         for (const definition of definitions) {
             if (definition.escortObjective) continue;
             if (!isMapUnitCombatActive(owner.gameModeStrategy, [...definition.allowedModes], mapDefinition)) continue;
