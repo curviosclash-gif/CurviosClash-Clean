@@ -1,3 +1,4 @@
+import { ENDLESS_RING, createEndlessRingState, prepareEndlessRingSegment, finishEndlessRingSegment } from './EndlessParcoursRingOps.js';
 import {
     instantiateEndlessModule,
     removeEndlessModule,
@@ -10,6 +11,7 @@ import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgres
 import * as THREE from 'three';
 import {
     calculateEndlessScore,
+    ENDLESS_PARCOURS_SCORE,
     ENDLESS_PARCOURS_END_REASONS,
     ENDLESS_PARCOURS_MODULE_LENGTH,
     resolveEndlessDesiredBotCount,
@@ -96,6 +98,7 @@ export class EndlessParcoursRuntime {
     /** @type {number} */ botKills;
     /** @type {number} */ eliteKills;
     /** @type {number} */ bonusScore;
+    /** @type {number} */ combatBonusScore;
 
     constructor({
         baseSeed = 1,
@@ -121,6 +124,7 @@ export class EndlessParcoursRuntime {
         this.activeModules = new Map();
         this._setpieceBank = null;
         this._setpieceElapsedSeconds = 0;
+        this._ringState = createEndlessRingState(entityManager?.humanPlayers?.[0]);
         this._hunterRoutes = new Map();
         this._hunterFrame = createEndlessPathSample();
         this._hunterSpeedOptions = { speed: 1 };
@@ -139,6 +143,8 @@ export class EndlessParcoursRuntime {
         this._tmpSpawnDirection = new THREE.Vector3(0, 0, 1);
         this._candidateSpawnAnchor = { id: '', x: 0, y: 0, z: 0, ahead: false, portId: '', side: '' };
         this._selectedSpawnAnchor = { id: '', x: 0, y: 0, z: 0, ahead: false, portId: '', side: '' };
+        this._ringGeometry = new THREE.TorusGeometry(ENDLESS_RING.radius, ENDLESS_RING.thickness, ENDLESS_RING.radialSegments, ENDLESS_RING.tubularSegments);
+        this._ringGeometry.userData.__sharedNoDispose = true;
         this._sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
         this._sharedGeometry.userData = { __sharedNoDispose: true };
         this._materials = createEndlessMaterials();
@@ -279,14 +285,17 @@ export class EndlessParcoursRuntime {
         reserveEndlessWaveSlots(this);
         if (!options?.killer || options.killer.isBot === true) return;
         this.botKills += 1;
+        const combatBonusBefore = this.bonusScore;
         this.collectRunXp('kill', 1);
         registerEndlessStreakEvent(this, 'kill', ENDLESS_PARCOURS_STREAK.killBaseScore);
+        this.combatBonusScore += this.bonusScore - combatBonusBefore;
         if (!wasElite) return;
         this.eliteKills += 1;
         this.bonusScore += Math.max(
             0,
-            ENDLESS_PARCOURS_ELITE.killScore - ENDLESS_PARCOURS_STREAK.killBaseScore
+            ENDLESS_PARCOURS_ELITE.killScore - ENDLESS_PARCOURS_SCORE.kill
         );
+        this.combatBonusScore += Math.max(0, ENDLESS_PARCOURS_ELITE.killScore - ENDLESS_PARCOURS_SCORE.kill);
         this.audio?.play?.('FIGHT_LEAD');
         this.entityManager?._notifyPlayerFeedback?.(options.killer, 'Anführer bezwungen');
     }
@@ -364,9 +373,9 @@ export class EndlessParcoursRuntime {
         this.currentModuleIndex = projected.moduleIndex;
         this._syncModules(this.currentModuleIndex, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
         if (this._exclusionZoneSource.isOutside(player)) return;
+        handleEndlessCheckpointCrossing(this, progress);
         if (progress <= this.maxProgressMeters) return;
         this.maxProgressMeters = progress;
-        handleEndlessCheckpointCrossing(this, progress);
         const completed = this.currentModuleIndex;
         if (completed > this.completedModules) {
             this.completedModules = completed;
@@ -434,7 +443,9 @@ export class EndlessParcoursRuntime {
         const human = this.entityManager?.humanPlayers?.[0] || null;
         this.survivalSeconds += safeDt;
         if (this.combatStarted) this._trackHumanEvents(human);
+        prepareEndlessRingSegment(this, human);
         this._updateProgress(human);
+        finishEndlessRingSegment(this, human);
         if (this._pendingFinalReason) return this.finalize(this._pendingFinalReason);
         if (!human?.alive) return this.finalize(ENDLESS_PARCOURS_END_REASONS.PLAYER_DEATH);
         this._updateWarnings(human, safeDt);
@@ -502,6 +513,7 @@ export class EndlessParcoursRuntime {
             this.arena.waterZoneSource = this._previousWaterZoneSource;
         }
         this.arena?.exitStaticStreamingMode?.();
+        this._ringGeometry?.dispose?.();
         this._sharedGeometry?.dispose?.();
         for (const material of Object.values(this._materials)) material?.dispose?.();
         if (this.entityManager?.endlessParcoursRuntime === this) this.entityManager.endlessParcoursRuntime = null;

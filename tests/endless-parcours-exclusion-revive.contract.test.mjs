@@ -178,8 +178,10 @@ test('runtime restores only its own source on dispose and ended runs stop publis
 
 function passGate(h, index) {
     h.human.alive = true;
-    h.human.position.copy(h.runtime.getCoursePoint(index, 0, 8, 116).position);
+    h.human.position.copy(h.runtime.getCoursePoint(index, 0, 8, 110).position);
     h.runtime.update(0);
+    h.human.position.copy(h.runtime.getCoursePoint(index, 0, 8, 119).position);
+    h.runtime.update(1 / 60);
 }
 
 test('runtime scores arc length, rejects exterior gate shortcuts and respawns along the curve', () => {
@@ -192,10 +194,10 @@ test('runtime scores arc length, rejects exterior gate shortcuts and respawns al
     assert.ok(station > h.human.position.z + 0.1, 'bends add actual distance');
     assert.ok(Math.abs(h.runtime.maxProgressMeters - station) < 1e-5);
     assert.equal(h.runtime.currentModuleIndex, index);
-    assert.equal(h.runtime.lastCheckpointIndex, index - 1);
+    assert.equal(h.runtime.lastCheckpointIndex, -1, 'jumping to this module cannot award earlier rings');
     h.human.position.copy(h.runtime.getCoursePoint(index, 100, 0, 118).position);
     h.runtime.update(0);
-    assert.equal(h.runtime.lastCheckpointIndex, index - 1, 'outside traversal grants no gate');
+    assert.equal(h.runtime.lastCheckpointIndex, -1, 'outside traversal grants no ring');
     assert.ok(Math.abs(h.runtime.maxProgressMeters - station) < 1e-5);
     passGate(h, index);
     assert.equal(h.runtime.lastCheckpointIndex, index);

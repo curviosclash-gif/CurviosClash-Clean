@@ -364,20 +364,20 @@ test('the streak decays once its window has passed', () => {
     runtime.dispose();
 });
 
-test('score counts the bonus pot without changing the original formula', () => {
+test('v3 score counts the bonus pot with stronger combat and reduced distance rewards', () => {
     assert.equal(calculateEndlessScore({
         maxProgressMeters: 123.9,
         survivalSeconds: 61.9,
         botKills: 2,
         completedModules: 3,
-    }), 2348);
+    }), 3856);
     assert.equal(calculateEndlessScore({
         maxProgressMeters: 123.9,
         survivalSeconds: 61.9,
         botKills: 2,
         completedModules: 3,
         bonusScore: 1000,
-    }), 3348);
+    }), 4856);
 });
 
 test('stage palette answers every tier and darkens toward onslaught', () => {
@@ -446,7 +446,7 @@ test('an elite hunter enters the run, carries more health and pays more on death
     runtime.handlePlayerDeath(elite.player, 'ROCKET', { killer: human });
     assert.equal(runtime.eliteKills, 1);
     assert.ok(
-        runtime.bonusScore - bonusBefore >= ENDLESS_PARCOURS_ELITE.killScore - ENDLESS_PARCOURS_STREAK.killBaseScore,
+        runtime.bonusScore - bonusBefore >= ENDLESS_PARCOURS_ELITE.killScore - 1500,
         'der Anfuehrer bringt deutlich mehr Punkte'
     );
     runtime.dispose();

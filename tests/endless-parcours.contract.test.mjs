@@ -138,7 +138,7 @@ test('difficulty, bot count, reinforcement delay and score use the specified thr
         survivalSeconds: 61.9,
         botKills: 2,
         completedModules: 3,
-    }), 2348);
+    }), 3856);
 });
 
 test('runtime keeps streaming resources bounded and activates stable slots after the intro', () => {

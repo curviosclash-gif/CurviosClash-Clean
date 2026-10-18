@@ -10,7 +10,7 @@ export const ENDLESS_PARCOURS_TELEGRAPH_SECONDS = 1;
 
 export const ENDLESS_PARCOURS_CHECKPOINT = Object.freeze({
     maxRevives: 3,
-    bonusScore: 400,
+    bonusScore: 200,
     // Kurz gehalten: Tore kommen alle 120 m, eine lange Pause wuerde die
     // Eskalation ueber die Haelfte der Laufzeit aussetzen.
     respiteSeconds: 1.2,
@@ -32,7 +32,7 @@ export const ENDLESS_PARCOURS_SHAKEOFF_SCORE = 120;
 
 export const ENDLESS_PARCOURS_ELITE = Object.freeze({
     healthMultiplier: 2.4,
-    killScore: 900,
+    killScore: 4000,
 });
 
 export const ENDLESS_PARCOURS_VOID_WARNING = Object.freeze({

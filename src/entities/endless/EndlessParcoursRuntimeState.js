@@ -24,6 +24,7 @@ export function createEndlessRuntimeState() {
         eliteKills: 0,
         score: 0,
         bonusScore: 0,
+        combatBonusScore: 0,
         runXp: 0,
         rewardBinding: null,
         startVehicleId: '',

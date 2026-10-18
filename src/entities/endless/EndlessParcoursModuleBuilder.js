@@ -1,3 +1,4 @@
+import { ENDLESS_RING } from './EndlessParcoursRingOps.js';
 import * as THREE from 'three';
 import {
     ENDLESS_COURSE_HALF_WIDTH,
@@ -71,28 +72,12 @@ function buildObstacles({ module, group, geometry, materials, ownerId }) {
     return { statics, cycles };
 }
 
-function buildGate({ module, group, geometry, materials, ownerId }) {
-    const center = resolveEndlessCoursePoint(module, 0, 0, module.localCheckpointZ, createEndlessPathSample()).position;
-    const gate = createMesh(
-        geometry,
-        materials.gate,
-        0, 1, module.localCheckpointZ,
-        ENDLESS_COURSE_HALF_WIDTH * 1.7, 0.6, 0.8, module
-    );
-    gate.name = `${ownerId}:checkpoint`;
+function buildGate({ module, group, ringGeometry, materials, ownerId }) {
+    const frame = resolveEndlessCoursePoint(module, 0, 0, module.localCheckpointZ, createEndlessPathSample());
+    const gate = createMesh(ringGeometry, materials.gate, 0, 0, module.localCheckpointZ, 1, 1, 1, module);
+    gate.name = `${ownerId}:checkpoint-ring`;
     group.add(gate);
-    const posts = [];
-    for (const side of [-1, 1]) {
-        const post = createMesh(
-            geometry,
-            materials.gate,
-            side * (ENDLESS_COURSE_HALF_WIDTH - 3), 3, module.localCheckpointZ,
-            1.4, 14, 0.8, module
-        );
-        group.add(post);
-        posts.push(post);
-    }
-    return { gate, posts, center };
+    return { gate, posts: [], center: frame.position };
 }
 
 function buildRecordMarker({ module, group, geometry, materials, recordDistanceMeters, metric }) {
@@ -144,9 +129,9 @@ function buildAreaCues({ module, group, geometry, materials }) {
  * Baut einen Baustein als eine Szenen-Gruppe samt Kollisionskoerpern. Alles, was
  * spaeter animiert oder umgeschaltet wird, kommt als Referenz zurueck.
  *
- * @param {{ module: any, geometry: THREE.BufferGeometry, materials: Record<string, THREE.Material>, recordDistanceMeters?: number, metric?: any, baseSeed?: number, setpieceBank?: any, elapsedSeconds?: number }} options
+ * @param {{ module: any, geometry: THREE.BufferGeometry, ringGeometry?: THREE.BufferGeometry, materials: Record<string, THREE.Material>, recordDistanceMeters?: number, metric?: any, baseSeed?: number, setpieceBank?: any, elapsedSeconds?: number }} options
  */
-export function buildEndlessModuleInstance({ module, geometry, materials, recordDistanceMeters = 0, metric = null, baseSeed = 1, setpieceBank = null, elapsedSeconds = 0 }) {
+export function buildEndlessModuleInstance({ module, geometry, ringGeometry = null, materials, recordDistanceMeters = 0, metric = null, baseSeed = 1, setpieceBank = null, elapsedSeconds = 0 }) {
     const ownerId = `endless-module:${module.moduleIndex}`;
     const group = new THREE.Group();
     group.name = ownerId;
@@ -160,7 +145,10 @@ export function buildEndlessModuleInstance({ module, geometry, materials, record
     if (setpiece) group.add(setpiece.root);
     const obstacles = setpiece ? { statics: setpiece.colliders, cycles: [] }
         : buildObstacles({ module, group, geometry, materials, ownerId });
-    const gate = buildGate({ module, group, geometry, materials, ownerId });
+    // Standalone builders own their ring; the runtime supplies one shared geometry.
+    const ownedRing = ringGeometry || new THREE.TorusGeometry(ENDLESS_RING.radius, ENDLESS_RING.thickness, ENDLESS_RING.radialSegments, ENDLESS_RING.tubularSegments);
+    ownedRing.userData.__sharedNoDispose = true;
+    const gate = buildGate({ module, group, ringGeometry: ownedRing, materials, ownerId });
     const recordMarker = buildRecordMarker({ module, group, geometry, materials, recordDistanceMeters, metric });
     buildAreaCues({ module, group, geometry, materials });
     return {
@@ -178,7 +166,7 @@ export function buildEndlessModuleInstance({ module, geometry, materials, record
         volumeCollider: tube.volumeCollider,
         sidePort: tube.port,
         bounds: tube.box,
-        ownedGeometries: tube.geometries,
+        ownedGeometries: ringGeometry ? tube.geometries : [...tube.geometries, ownedRing],
         cycleColliders: obstacles.cycles,
         cycleSignature: '',
     };

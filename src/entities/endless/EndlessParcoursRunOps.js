@@ -1,3 +1,4 @@
+import { crossesEndlessRing } from './EndlessParcoursRingOps.js';
 import * as THREE from 'three';
 import { ENDLESS_PARCOURS_MODULE_LENGTH } from '../../shared/contracts/EndlessParcoursContract.js';
 import {
@@ -94,7 +95,15 @@ export function handleEndlessCheckpointCrossing(runtime, progressZ) {
         targetIndex = progressZ + 1e-7 >= gateS ? index : index - 1;
     }
     if (targetIndex < 0 || targetIndex <= runtime.lastCheckpointIndex) return false;
-    for (let index = runtime.lastCheckpointIndex + 1; index <= targetIndex; index += 1) {
+    let crossed = false;
+    const human = runtime.entityManager?.humanPlayers?.[0];
+    let first = Infinity, last = -Infinity;
+    for (const index of runtime.activeModules.keys()) { first = Math.min(first, index); last = Math.max(last, index); }
+    for (let index = first; index <= Math.min(last, targetIndex); index++) {
+        const instance = runtime.activeModules.get(index);
+        if (!instance) continue;
+        if (index <= runtime.lastCheckpointIndex || index > targetIndex || !crossesEndlessRing(runtime, instance, human)) continue;
+        crossed = true;
         runtime.lastCheckpointIndex = index;
         runtime.checkpointsPassed += 1;
         runtime.lastCheckpointAtSeconds = runtime.elapsedCombatSeconds;
@@ -114,7 +123,7 @@ export function handleEndlessCheckpointCrossing(runtime, progressZ) {
             `Tor ${index + 1} - Serie x${multiplier.toFixed(1)}`
         );
     }
-    return true;
+    return crossed;
 }
 
 function resolveEndlessCheckpointAnchor(runtime, index) {

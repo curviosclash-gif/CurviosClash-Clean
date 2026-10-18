@@ -77,10 +77,12 @@ test('Endlos P1 native death and spawn paths exhaust three rescues and settle th
         const runtime = manager.endlessParcoursRuntime, human = manager.humanPlayers[0], rescues = [];
         let summary;
         for (let index = 0; index < 4; index++) {
-            human.position.copy(runtime.getCoursePoint(index, 0, 8, 116).position);
+            human.position.copy(runtime.getCoursePoint(index, 0, 8, 110).position);
             human.spawnProtectionTimer = 0;
             human.markRenderDiscontinuity('endless-rescue-acceptance');
             runtime.update(0);
+            human.position.copy(runtime.getCoursePoint(index, 0, 8, 119).position);
+            runtime.update(1 / 60);
             const armed = runtime.getHudState().reviveArmed;
             manager.getRuntimeContext().callbacks.lifecycle.killPlayer(human, 'PROJECTILE', { projectileType: 'ROCKET_WEAK' });
             summary = runtime.update(0);

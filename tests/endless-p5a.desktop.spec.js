@@ -61,6 +61,9 @@ test('Endlos P5a hunters follow the course at the current player pace and retain
             p.quaternion.premultiply(p.quaternion.clone().setFromUnitVectors(p.getDirection().normalize(),p.position.clone().copy(f.tangent)));
             p.markRenderDiscontinuity('hunter-attack-fixture');
         }
+        // A fixture teleport must also discard the avoidance/recovery memory of its old pose.
+        // Weapon heat keeps cooling normally; neither the AI action nor the hit is forced.
+        m.bots.find(entry=>entry.player===b).ai.reset();
         h.spawnProtectionTimer=0;h.arenaCollisionGraceTimer=0;h.shieldHP=0;b.shootCooldown=0;r.update(0);
         return {hp:h.hp,rescues:r.reviveCount};
     },index);

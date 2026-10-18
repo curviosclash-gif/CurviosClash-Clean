@@ -12,6 +12,7 @@ export function instantiateEndlessModule(runtime, module) {
     const instance = buildEndlessModuleInstance({
         module,
         geometry: runtime._sharedGeometry,
+        ringGeometry: runtime._ringGeometry,
         materials: runtime._materials,
         metric: runtime._path.getMetric(),
         baseSeed: runtime.baseSeed,

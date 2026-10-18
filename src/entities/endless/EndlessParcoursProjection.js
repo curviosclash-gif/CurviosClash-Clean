@@ -1,5 +1,6 @@
 import {
     calculateEndlessScore,
+    ENDLESS_PARCOURS_SCORE,
     ENDLESS_PARCOURS_BOT_CAPACITY,
     resolveEndlessMilestones,
     resolveEndlessThreatLevel,
@@ -30,6 +31,7 @@ export function buildEndlessSummary(runtime, reason) {
         botKills: runtime.botKills,
         eliteKills: runtime.eliteKills,
         bonusScore: runtime.bonusScore,
+        combatScore: runtime.botKills * ENDLESS_PARCOURS_SCORE.kill + runtime.combatBonusScore,
         bestStreak: runtime.bestStreak,
         checkpointsPassed: runtime.checkpointsPassed,
         shakeoffs: runtime.shakeoffs,

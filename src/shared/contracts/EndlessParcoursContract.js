@@ -3,6 +3,7 @@ export const ENDLESS_PARCOURS_COMBAT_PROFILE = 'hunt';
 export const ENDLESS_PARCOURS_MODULE_LENGTH = 120;
 export const ENDLESS_PARCOURS_BOT_CAPACITY = 12;
 export const ENDLESS_PARCOURS_INITIAL_ACTIVE_BOTS = 0;
+export const ENDLESS_PARCOURS_SCORE = Object.freeze({ distancePerMeter: 2, survivalPerSecond: 5, kill: 1500, completedModule: 100 });
 export const ENDLESS_PARCOURS_ACTIVE_WINDOW = Object.freeze({ behind: 2, ahead: 4 });
 
 export const ENDLESS_PARCOURS_END_REASONS = Object.freeze({
@@ -78,7 +79,7 @@ export function resolveEndlessReinforcementDelay(elapsedCombatSeconds) {
 /**
  * `bonusScore` sammelt alles, was ein Lauf zusaetzlich verdient: Torbelohnung,
  * Serienzuschlag, abgeschuettelte Verfolger und Anfuehrer-Abschuesse. Ohne
- * dieses Feld bleibt die Formel wortgleich zur ersten Fassung.
+ * dieses Feld besteht die Wertung aus den Grundwerten der aktuellen Regelversion.
  *
  * @param {{ maxProgressMeters?: unknown, survivalSeconds?: unknown, botKills?: unknown, completedModules?: unknown, bonusScore?: unknown }} [source]
  * @returns {number}
@@ -90,10 +91,10 @@ export function calculateEndlessScore({
     completedModules = 0,
     bonusScore = 0,
 } = {}) {
-    return Math.floor(Math.max(0, Number(maxProgressMeters) || 0) * 10)
-        + Math.floor(Math.max(0, Number(survivalSeconds) || 0) * 5)
-        + Math.max(0, Math.floor(Number(botKills) || 0)) * 250
-        + Math.max(0, Math.floor(Number(completedModules) || 0)) * 100
+    return Math.floor(Math.max(0, Number(maxProgressMeters) || 0) * ENDLESS_PARCOURS_SCORE.distancePerMeter)
+        + Math.floor(Math.max(0, Number(survivalSeconds) || 0) * ENDLESS_PARCOURS_SCORE.survivalPerSecond)
+        + Math.max(0, Math.floor(Number(botKills) || 0)) * ENDLESS_PARCOURS_SCORE.kill
+        + Math.max(0, Math.floor(Number(completedModules) || 0)) * ENDLESS_PARCOURS_SCORE.completedModule
         + Math.max(0, Math.floor(Number(bonusScore) || 0));
 }
 
