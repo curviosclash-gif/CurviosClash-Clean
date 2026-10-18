@@ -143,21 +143,25 @@ function buildAreaCues({ module, group, geometry, materials }) {
  * Baut einen Baustein als eine Szenen-Gruppe samt Kollisionskoerpern. Alles, was
  * spaeter animiert oder umgeschaltet wird, kommt als Referenz zurueck.
  *
- * @param {{ module: any, geometry: THREE.BufferGeometry, materials: Record<string, THREE.Material>, recordDistanceMeters?: number, metric?: any, baseSeed?: number }} options
+ * @param {{ module: any, geometry: THREE.BufferGeometry, materials: Record<string, THREE.Material>, recordDistanceMeters?: number, metric?: any, baseSeed?: number, setpieceBank?: any, elapsedSeconds?: number }} options
  */
-export function buildEndlessModuleInstance({ module, geometry, materials, recordDistanceMeters = 0, metric = null, baseSeed = 1 }) {
+export function buildEndlessModuleInstance({ module, geometry, materials, recordDistanceMeters = 0, metric = null, baseSeed = 1, setpieceBank = null, elapsedSeconds = 0 }) {
     const ownerId = `endless-module:${module.moduleIndex}`;
     const group = new THREE.Group();
     group.name = ownerId;
     group.userData.endlessModuleIndex = module.moduleIndex;
     const tube = buildEndlessTube({ module, baseSeed, material: materials.wall, ownerId });
     group.add(tube.mesh);
-    const obstacles = buildObstacles({ module, group, geometry, materials, ownerId });
+    const setpiece = setpieceBank?.create(module, baseSeed, elapsedSeconds);
+    if (setpiece) group.add(setpiece.root);
+    const obstacles = setpiece ? { statics: setpiece.colliders, cycles: [] }
+        : buildObstacles({ module, group, geometry, materials, ownerId });
     const gate = buildGate({ module, group, geometry, materials, ownerId });
     const recordMarker = buildRecordMarker({ module, group, geometry, materials, recordDistanceMeters, metric });
     buildAreaCues({ module, group, geometry, materials });
     return {
         ownerId,
+        setpiece,
         module,
         group,
         gateMesh: gate.gate,

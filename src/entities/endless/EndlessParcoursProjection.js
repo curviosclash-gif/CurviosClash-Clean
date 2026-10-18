@@ -109,6 +109,8 @@ export function buildEndlessDebugSnapshot(runtime) {
     const instances = Array.from(runtime.activeModules.values());
     return {
         activeModules: runtime.activeModules.size,
+        setpieceTemplates: runtime._setpieceBank?.templates.size || 0,
+        setpieceInstances: runtime._setpieceBank?.instanceCount || 0,
         colliderBatches: runtime.arena?.getStaticColliderBatchCount?.() || 0,
         pickups: Array.isArray(runtime.powerupManager?.items) ? runtime.powerupManager.items.length : 0,
         spawnAnchors: instances.reduce((total, entry) => total + entry.module.botAnchors.length, 0),

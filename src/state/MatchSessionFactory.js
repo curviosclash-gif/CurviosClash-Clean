@@ -278,6 +278,9 @@ export function createMatchSession({
             }
 
             const playerViewsReady = waitForPlayerViewsReady(createdSession.entityManager);
+            if (createdSession.endlessParcoursRuntime) {
+                return Promise.all([playerViewsReady, createdSession.endlessParcoursRuntime.prepareSetpieces()]).then(() => createdSession);
+            }
             if (isPromiseLike(playerViewsReady)) {
                 return Promise.resolve(playerViewsReady).then(() => createdSession);
             }

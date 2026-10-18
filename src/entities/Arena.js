@@ -422,6 +422,7 @@ export class Arena {
     }
 
     getCollisionInfo(position, radius) { return this._collision.getCollisionInfo(position, radius); }
+    invalidateDynamicColliders() { this._collision.invalidateDynamicObstacles(); }
     raycast(origin, direction, maxDistance) { return this._collision.raycast(origin, direction, maxDistance); }
     raycastDandelionSeed(origin, direction, maxDistance, padding = 0) { return plants.raycastShootablePlant(this, origin, direction, maxDistance, padding); }
     releaseDandelionSeed(name, hitDirection = null) { return plants.releaseShootablePlant(this, name, hitDirection); }

@@ -5,6 +5,7 @@ import {
     syncEndlessModules,
     syncEndlessCycleCollidersForRuntime,
 } from './EndlessParcoursStreamingOps.js';
+import { prepareEndlessSetpieces, updateEndlessSetpieces } from './EndlessParcoursSetpieceOps.js';
 import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import * as THREE from 'three';
 import {
@@ -115,6 +116,8 @@ export class EndlessParcoursRuntime {
         const runTimePart = Number.isFinite(runTimestamp) ? runTimestamp.toString(36) : 'unknown';
         this.runId = `endless-${this.baseSeed.toString(36)}-${runTimePart}-${endlessRunSequence.toString(36)}`;
         this.activeModules = new Map();
+        this._setpieceBank = null;
+        this._setpieceElapsedSeconds = 0;
         this._records = normalizeEndlessParcoursRecords();
         this._startSpeed = resolveEndlessStartSpeed(entityManager?.humanPlayers?.[0], 1);
         this._path = new EndlessParcoursPath({ baseSeed: this.baseSeed });
@@ -168,6 +171,9 @@ export class EndlessParcoursRuntime {
     }
 
     getPathMetric() { return this._path.getMetric(); }
+
+    prepareSetpieces(options = {}) { return prepareEndlessSetpieces(this, options); }
+    updateGeometry(dt) { updateEndlessSetpieces(this, dt); }
 
     getRecordDistanceMeters() {
         return Math.max(0, Number(this._records.bestDistanceByRuleVersion?.[ENDLESS_PARCOURS_RULE_VERSION]?.distanceMeters) || 0);
@@ -473,6 +479,7 @@ export class EndlessParcoursRuntime {
         }
         for (const instance of this.activeModules.values()) this._removeModule(instance);
         this.activeModules.clear();
+        this._setpieceBank?.dispose();
         this._sideRouteStates.clear();
         this._rewardedSideRoutes.clear();
         if (this.arena?.exclusionZoneSource === this._exclusionZoneSource) {

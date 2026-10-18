@@ -15,6 +15,8 @@ export function instantiateEndlessModule(runtime, module) {
         materials: runtime._materials,
         metric: runtime._path.getMetric(),
         baseSeed: runtime.baseSeed,
+        setpieceBank: runtime._setpieceBank,
+        elapsedSeconds: runtime._setpieceElapsedSeconds,
         recordDistanceMeters: runtime.getRecordDistanceMeters(),
     });
     syncEndlessCycleColliders(instance, runtime.elapsedCombatSeconds, runtime._materials);
@@ -48,6 +50,7 @@ export function removeEndlessModule(runtime, instance, options = {}) {
     );
     runtime.entityManager?._lockOnCache?.clear?.();
     runtime.arena?.unregisterStaticColliderBatch?.(ownerId);
+    instance.setpiece?.dispose();
     runtime.renderer?.removeFromScene?.(group);
     if (!instance.ownedResourcesDisposed) {
         for (const geometry of instance.ownedGeometries || []) geometry.dispose();

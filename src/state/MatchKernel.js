@@ -242,6 +242,7 @@ export class MatchKernel {
         const { entityManager, endlessParcoursRuntime, powerupManager, particles, arena } = this._simPorts;
 
         // Moving map poses and their colliders must agree before player collision runs.
+        endlessParcoursRuntime?.updateGeometry?.(dt);
         if (arena) arena.update(dt);
         if (entityManager) entityManager.update(dt, inputAdapter, frameId);
         if (endlessParcoursRuntime) endlessParcoursRuntime.update(dt);
