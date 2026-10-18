@@ -65,7 +65,7 @@ test('duplicate profile IDs bind and receive one write only', () => {
     ] }));
     assert.ok(binding);
     assert.deepEqual(binding.participants.map(({ profileId }) => profileId), ['profile-a', 'profile-b']);
-    const result = settleArcadeJourneyRun(binding, { succeeded: true, value: 4000 });
+    const result = settleArcadeJourneyRun(binding, { succeeded: true, value: 90000 });
     assert.equal(result.medal, 2);
     assert.deepEqual([a.saves.length, b.saves.length], [1, 1]);
 });
@@ -77,7 +77,7 @@ test('a pending store retries the captured result without resaving successful pa
     const binding = createArcadeJourneyRunBinding(descriptor({ participants: [
         { profileId: 'profile-a', store: a }, { profileId: 'profile-b', store: b }, { profileId: 'profile-c', store: c },
     ] }));
-    const first = settleArcadeJourneyRun(binding, { succeeded: true, value: 4000 });
+    const first = settleArcadeJourneyRun(binding, { succeeded: true, value: 90000 });
     assert.equal(first.status, 'pending');
     assert.equal(first.medal, 2);
     assert.deepEqual(first.recipients.map(({ status }) => status), ['saved', 'pending', 'saved']);
@@ -85,7 +85,7 @@ test('a pending store retries the captured result without resaving successful pa
     const retry = settleArcadeJourneyRun(binding, { succeeded: true, value: 30000 });
     assert.equal(retry.status, 'finished');
     assert.equal(retry.medal, 2);
-    assert.equal(retry.result.value, 4000);
+    assert.equal(retry.result.value, 90000);
     assert.deepEqual([a.saves.length, b.saves.length, c.saves.length], [1, 2, 1]);
     assert.equal(b.readValue().stages.first_run.medals.normal.medal, 2);
 });
@@ -105,6 +105,19 @@ test('aborted and medal-zero results finish without writing', () => {
         assert.equal(store.saves.length, 0);
         assert.equal(result.recipients[0].status, 'not_awarded');
     }
+});
+
+test('successful finite arena completion persists even below its optional bronze points target', () => {
+    const store = createStore();
+    const binding = createArcadeJourneyRunBinding(descriptor({ stageId: 'five_fronts', runType: 'arena_waves',
+        participants: [{ profileId: 'p', store }] }));
+    const result = settleArcadeJourneyRun(binding, { succeeded: true, value: 1000 });
+    assert.equal(result.medal, 0);
+    assert.equal(result.pending, false);
+    assert.equal(store.readValue().stages.five_fronts.completed, true);
+    assert.equal(store.readValue().stages.five_fronts.medals, undefined);
+    settleArcadeJourneyRun(binding);
+    assert.equal(store.saves.length, 1);
 });
 
 test('portal chain and tier are validated exactly, with portal any normalized to normal', () => {

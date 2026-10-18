@@ -59,13 +59,13 @@ function setup(surfaceState) {
     return { controller, ui, calls, restore: () => { globalThis.document = previousDocument; } };
 }
 
-test('the upgrade choice after a death names the next map instead of a round winner', () => {
+test('the upgrade choice after an arena clear names the next map instead of a round winner', () => {
     const { ui, controller, restore } = setup({
         runType: 'arena_waves', phase: 'upgrade', mapIndex: 1, mapCount: 5,
         choices: ['mg_tuning', 'speed', 'machine_gun:bastion_h3', 'supply:health'],
     });
     try {
-        assert.equal(ui.messageText.textContent, 'Abgeschossen');
+        assert.equal(ui.messageText.textContent, 'Arena geschafft');
         assert.equal(ui.messageSub.textContent, 'Wähle einen Vorteil für Karte 2/5.');
         const labels = findButtons(controller._arcadeOverlayPanel).map((button) => button.textContent);
         assert.equal(labels.length, 4);
@@ -78,14 +78,14 @@ test('the upgrade choice after a death names the next map instead of a round win
     }
 });
 
-test('a survived wave offers an upgrade without claiming the player was shot down', () => {
+test('an arena clear offers an upgrade for the next map', () => {
     const { ui, restore } = setup({
         runType: 'arena_waves', phase: 'upgrade', choiceReason: 'wave', mapIndex: 0, mapCount: 5,
         choices: ['speed'],
     });
     try {
-        assert.equal(ui.messageText.textContent, 'Welle geschafft');
-        assert.equal(ui.messageSub.textContent, 'Wähle einen Vorteil für die nächste Welle.');
+        assert.equal(ui.messageText.textContent, 'Arena geschafft');
+        assert.equal(ui.messageSub.textContent, 'Wähle einen Vorteil für Karte 1/5.');
     } finally {
         restore();
     }

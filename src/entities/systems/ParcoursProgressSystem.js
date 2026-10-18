@@ -459,7 +459,7 @@ export class ParcoursProgressSystem {
 
     getRoundOutcome() {
         const modeOutcome = this._leaderboardCallback?.({ type: 'round_outcome', now: this.nowProvider() });
-        if (modeOutcome?.shouldEnd === true || modeOutcome?.settling === true) return modeOutcome;
+        if (modeOutcome?.shouldEnd === true || modeOutcome?.settling === true || modeOutcome?.holdRoundEnd === true) return modeOutcome;
         if (!this._route || this._route.rules.winnerByParcoursComplete !== true) return null;
         const completion = this._completionOrder[0];
         if (!completion) return null;

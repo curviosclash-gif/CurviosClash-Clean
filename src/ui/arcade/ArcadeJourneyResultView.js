@@ -10,8 +10,13 @@ export function renderArcadeJourneyResult(panel, state, onAction) {
     if (!panel || !stage || !journey?.result) return false;
     panel.replaceChildren();
     panel.appendChild(element('h2', stage.label));
+    if (journey.mainJourneyCompleted === true && journey.result.succeeded === true) {
+        panel.appendChild(element('p', 'Reise abgeschlossen: Das Portalnetz verbindet wieder alle Regionen.', 'arcade-journey-complete'));
+    }
     const medal = Math.max(0, Math.min(3, journey.medal || 0));
-    panel.appendChild(element('p', medal ? `${'★'.repeat(medal)} ${['', 'Bronze', 'Silber', 'Gold'][medal]}` : 'Ziel noch nicht erreicht', 'arcade-journey-result-medal'));
+    panel.appendChild(element('p', medal ? `${'★'.repeat(medal)} ${['', 'Bronze', 'Silber', 'Gold'][medal]}`
+        : journey.result.succeeded === true ? 'Etappe abgeschlossen' : 'Ziel noch nicht erreicht', 'arcade-journey-result-medal'));
+    if (journey.result.succeeded === true && stage.consequence) panel.appendChild(element('p', stage.consequence, 'arcade-journey-consequence'));
     if (stage.metric === 'time' && Number.isFinite(journey.result.value) && journey.result.value > 0) {
         panel.appendChild(element('p', `Zeit: ${(journey.result.value / 1000).toFixed(2)} s`, 'arcade-journey-result-time'));
     }
@@ -21,7 +26,8 @@ export function renderArcadeJourneyResult(panel, state, onAction) {
     if (primary?.rank) panel.appendChild(element('p', `Platz ${primary.rank} von ${primary.count} in deiner Etappen-Bestenliste`));
     const saved = journey.recipients?.filter(recipient => ['saved', 'unchanged'].includes(recipient.status)).length || 0;
     const status = element('p', journey.pending ? 'Speicherung ausstehend. Der nächste Start wartet auf deine gespeicherten Medaillen.'
-        : medal ? `Medaille für ${saved} Spielerprofile gesichert` : 'Versuche die Etappe noch einmal.');
+        : medal ? `Medaille für ${saved} Spielerprofile gesichert`
+            : journey.result.succeeded === true ? 'Etappe abgeschlossen und Fortschritt gesichert.' : 'Versuche die Etappe noch einmal.');
     panel.appendChild(status);
     const buttons = [];
     let busy = false;

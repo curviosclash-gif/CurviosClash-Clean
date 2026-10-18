@@ -16,9 +16,9 @@ test('Arcade difficulty unlocks sequentially, requires completed milestones and 
     assert.equal(resolveArcadeRunTier('hard', hard, { runType: 'five_portals' }), 'any');
     assert.equal(resolveArcadeRunTier('hard', hard, { runType: 'weapon_race' }), 'normal');
     const arena = { ...context, runType: 'arena_waves', tierId: 'hard' };
-    assert.deepEqual(evaluateArcadeDifficultyUnlock(hard, arena, { completedWaves: 7 }), hard);
-    assert.deepEqual(evaluateArcadeDifficultyUnlock(hard, arena, { completedWaves: 8 }, 1).unlockedTierIds, ['normal', 'hard', 'nightmare']);
-    assert.deepEqual(evaluateArcadeDifficultyUnlock(hard, { ...arena, ranked: false }, { completedWaves: 99 }), hard);
+    assert.deepEqual(evaluateArcadeDifficultyUnlock(hard, arena, { completedWaveCount: 7 }), hard);
+    assert.deepEqual(evaluateArcadeDifficultyUnlock(hard, arena, { completedWaveCount: 8 }, 1).unlockedTierIds, ['normal', 'hard', 'nightmare']);
+    assert.deepEqual(evaluateArcadeDifficultyUnlock(hard, { ...arena, ranked: false }, { completedWaveCount: 10 }), hard);
 });
 
 test('Arcade combat value sees actual build values rather than vehicle level', () => {

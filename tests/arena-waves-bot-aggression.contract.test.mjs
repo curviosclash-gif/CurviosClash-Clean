@@ -40,12 +40,6 @@ function fixture(createPolicy) {
     return { bots, manager };
 }
 
-function runToWave(runtime, wave) {
-    runtime.update(5); runtime.update(1);
-    for (let next = 2; next <= wave; next += 1) { runtime.update(59); runtime.update(1); }
-    assert.equal(runtime.wave, wave);
-}
-
 const POLICIES = [
     ['hunt bridge', () => new HuntBridgePolicy({ autoLoadCheckpoint: false, difficulty: 'NORMAL' })],
     ['classic bridge', () => new ClassicBridgePolicy({ autoLoadCheckpoint: false, difficulty: 'NORMAL' })],
@@ -56,14 +50,24 @@ for (const [label, createPolicy] of POLICIES) {
         const f = fixture(createPolicy);
         const runtime = new ArenaWavesRuntime();
         runtime.start({ entityManager: f.manager });
-        runToWave(runtime, 3);
-
+        runtime.update(5); runtime.update(1);
         const firstWave = ruleBasedCore(f.bots[0].ai).getArcadeAggressivenessSnapshot();
-        const thirdWave = ruleBasedCore(f.bots[5].ai).getArcadeAggressivenessSnapshot();
-        assert.equal(runtime._slotWave.get(5), 3, 'slot 5 belongs to the third wave');
-        const expected = (slot, wave) => resolveArcadeRoleAggressiveness(resolveArenaWavesAggression(0, wave), f.bots[slot].player.scenarioRole);
-        assert.ok(Math.abs(firstWave.authored - expected(0, 1)) < 1e-9, 'first-wave bots carry the first-wave aggressiveness');
-        assert.ok(Math.abs(thirdWave.authored - expected(5, 3)) < 1e-9, 'third-wave bots carry the third-wave aggressiveness');
+        const firstExpected = resolveArcadeRoleAggressiveness(resolveArenaWavesAggression(0, 1), f.bots[0].player.scenarioRole);
+        assert.ok(Math.abs(firstWave.authored - firstExpected) < 1e-9);
+        for (let wave = 1; wave <= 2; wave++) {
+            for (const slot of [...runtime._activeSlots]) runtime.handleGameplayEvent({ type: 'kill', playerIndex: 0,
+                victimIndex: f.bots[slot].player.index });
+            runtime.update(5);
+        }
+        runtime.selectChoice(runtime.getHudState().choices[0]);
+        runtime.start({ entityManager: f.manager });
+        runtime.update(5); runtime.update(1);
+        assert.equal(runtime.mapIndex, 1);
+        const thirdSlot = [...runtime._activeSlots][0];
+        const thirdWave = ruleBasedCore(f.bots[thirdSlot].ai).getArcadeAggressivenessSnapshot();
+        assert.equal(runtime._slotWave.get(thirdSlot), 1, 'global wave 3 is local wave 1 on map 2');
+        const thirdExpected = resolveArcadeRoleAggressiveness(resolveArenaWavesAggression(1, 3), f.bots[thirdSlot].player.scenarioRole);
+        assert.ok(Math.abs(thirdWave.authored - thirdExpected) < 1e-9);
         assert.ok(thirdWave.profile > firstWave.profile, 'third-wave bots drive with a more aggressive profile');
     });
 }

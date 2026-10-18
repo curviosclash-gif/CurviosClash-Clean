@@ -76,6 +76,7 @@ test('every catalog scenario survives normalization and names a real map', () =>
 test('sector scenarios use their own map; parcours scenarios keep the course objective and leave normal maps in the pool', () => {
     let scenarioParcours = 0;
     let regularParcours = 0;
+    const parcoursScenarioIds = new Set();
     const laterSlotCounts = new Map([[4, { scenario: 0, regular: 0 }], [8, { scenario: 0, regular: 0 }], [12, { scenario: 0, regular: 0 }]]);
     for (const seed of Array.from({ length: 48 }, (_, index) => `scenario-cadence-${index}`)) {
         const plan = buildArcadeSectorPlan({ seed, sectorCount: 13, difficulty: 'normal' });
@@ -87,9 +88,11 @@ test('sector scenarios use their own map; parcours scenarios keep the course obj
         assert.equal(fourth.objectiveId, 'parcours_run', 'the course completion objective is preserved');
         if (fourth.scenarioId) {
             scenarioParcours += 1;
-            assert.equal(fourth.scenarioId, 'spiessrutenlauf');
-            assert.equal(fourth.mapKey, 'mirror_docks');
+            const parcoursScenario = scenarioById(fourth.scenarioId);
+            assert.equal(parcoursScenario?.slot, 'parcours');
+            assert.equal(fourth.mapKey, parcoursScenario.mapKey);
             assert.equal(fourth.combatProfile, 'hunt');
+            parcoursScenarioIds.add(fourth.scenarioId);
         } else {
             regularParcours += 1;
             assert.equal(fourth.combatProfile, undefined);
@@ -112,6 +115,7 @@ test('sector scenarios use their own map; parcours scenarios keep the course obj
         assert.equal(resolveMapSequence(plan, seed, MAP_PRESET_CATALOG)[2], scenario.mapKey);
     }
     assert.ok(scenarioParcours > 0 && regularParcours > 0, 'the scenario is occasional and leaves the map pool reachable');
+    assert.ok(parcoursScenarioIds.size >= 3, 'special courses vary across seeds');
     for (const [sectorNumber, counts] of laterSlotCounts) {
         assert.ok(counts.scenario > 0 && counts.regular > 0, `sector ${sectorNumber} keeps an independent occasional scenario cadence`);
     }

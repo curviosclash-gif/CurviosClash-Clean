@@ -204,10 +204,19 @@ for (const [label, transition] of [
 ]) {
     test(`${label} sector rebuild re-applies the next map after the settings refresh`, async () => {
         const callLog = [];
+        const journeyStore = {
+            readJsonRecordResult: () => ({ status: 'missing' }),
+            saveJsonRecord: () => true,
+        };
         const facade = {
             game: {
                 state: GAME_STATE_IDS.MENU,
                 settings: { localSettings: { sessionType: 'single', modePath: 'arcade' } },
+                playerProfileManager: {
+                    getProfiles: () => [{ id: 'pilot' }],
+                    getActiveProfile: () => ({ id: 'pilot' }),
+                    getRecordStorePort: () => journeyStore,
+                },
             },
             _clearMatchPrewarmTimer() { },
             _recordMenuTelemetry() { },

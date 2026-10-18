@@ -211,23 +211,24 @@ test('real tutorial finish awards only the profile captured at start; checkpoint
         entityManager: { humanPlayers: [{ index: 0, isBot: false }], requestRoundEnd: value => outcomes.push(value) } };
     prepareArcadeJourneyRuntime(support, state, false);
     assert.equal(support._journeyRun.binding.stageId, 'flight_school');
+    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 1, 'tutorial entry freezes the new profile before any medal');
     manager.setActiveProfile(profiles[1].id);
     const finish = { type: 'finish', playerIndex: 0, routeId: 'classic_tutorial_v1' };
     assert.equal(completeClassicTutorialJourney(support, state, { ...finish, type: 'checkpoint' }), false);
     assert.equal(completeClassicTutorialJourney(support, state, { ...finish, routeId: 'other' }), false);
     assert.equal(completeClassicTutorialJourney(support, state, { ...finish, playerIndex: 1 }), false);
-    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 0);
+    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 1);
     const human = state.entityManager.humanPlayers.pop();
     assert.equal(completeClassicTutorialJourney(support, state, finish), false, 'missing human cannot receive a successful result');
-    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 0);
+    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 1);
     state.entityManager.humanPlayers.push(human);
     assert.equal(completeClassicTutorialJourney(support, state, finish), true);
     assert.equal(completeClassicTutorialJourney(support, state, finish), false);
     assert.equal(outcomes.length, 1);
     assert.equal(outcomes[0].reason, 'JOURNEY_TUTORIAL');
     const writes = journeyWrites(recordStore, profiles.map(profile => profile.id));
-    assert.equal(writes.length, 1); assert.equal(writes[0].key, scopedJourneyKey(profiles[0].id));
-    assert.equal(writes[0].value.stages.flight_school.medals.normal.medal, 1);
+    assert.equal(writes.length, 2); assert.equal(writes[1].key, scopedJourneyKey(profiles[0].id));
+    assert.equal(writes[1].value.stages.flight_school.medals.normal.medal, 1);
     assert.equal(support._journeyRun.projected.nextStageId, 'first_run');
 });
 
@@ -239,7 +240,8 @@ test('abandoning the tutorial does not count as a completed stage', () => {
     prepareArcadeJourneyRuntime(support, state, false);
     prepareArcadeJourneyRuntime(support, { ...state, mapKey: 'standard' }, false);
     assert.equal(support._journeyRun, null);
-    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 0);
+    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 1, 'initialization does not imply completion');
+    assert.equal(recordStore.records.get(scopedJourneyKey(profiles[0].id)).stages.flight_school, undefined);
 });
 
 
@@ -268,11 +270,11 @@ test('real tutorial ring progression reaches the bound core completion callback 
         const previous = Object.fromEntries(['x', 'y', 'z'].map((key, axis) => [key, entry.pos[axis] - unit[axis] * entry.radius * 0.5]));
         player.position = Object.fromEntries(['x', 'y', 'z'].map((key, axis) => [key, entry.pos[axis] + unit[axis] * entry.radius * 0.5]));
         entities._simulationClockMs += 1000;
-        if (entry !== route.finish) assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 0);
+        if (entry !== route.finish) assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 1);
         parcours.updatePlayerProgress(player, previous, entities._simulationClockMs);
     }
     assert.equal(parcours.getPlayerProgressSnapshot(0).completed, true);
     assert.equal(outcomes.length, 1);
     assert.equal(support.getMenuSurfaceState().journey.medal, 1);
-    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 1);
+    assert.equal(journeyWrites(recordStore, profiles.map(profile => profile.id)).length, 2);
 });

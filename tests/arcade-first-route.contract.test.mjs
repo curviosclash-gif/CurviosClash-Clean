@@ -5,6 +5,7 @@ import { resolveArcadeSectorRuntimeProfile } from '../src/entities/directors/Arc
 import { createArcadeRunConfig } from '../src/state/arcade/ArcadeRunState.js';
 import { normalizeArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 import { evaluateArcadeJourneyMedal } from '../src/shared/contracts/ArcadeJourneyContract.js';
+import { resolveArcadeJourneyRunResult } from '../src/core/arcade/ArcadeJourneyEncounterPlan.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { PlayerActionPhase } from '../src/entities/systems/lifecycle/PlayerActionPhase.js';
@@ -21,17 +22,17 @@ const arcade = (overrides = {}) => ({ enabled: true, runType: 'gauntlet', journe
 const plan = overrides => buildArcadeEncounterPlan({ arcade: arcade(overrides), session: { mapKey: 'empty' } });
 const human = { index: 0, isBot: false, alive: true, hp: 100 };
 
-test('the first route has exactly three locked Rift sectors with only the middle sector weaponless', () => {
+test('the first route is one locked Rift course without a repeated sector', () => {
     for (const seed of [1, 8, 99, 18492]) {
         const value = plan({ seed });
-        assert.equal(value.sectorCount, 3);
-        assert.equal(value.sequence.length, 3);
+        assert.equal(value.sectorCount, 1);
+        assert.equal(value.sequence.length, 1);
         value.sequence.forEach((entry, index) => {
             assert.equal(entry.mapKey, 'parcours_rift'); assert.equal(entry.mapKeyLocked, true);
             assert.equal(entry.sectorNumber, index + 1); assert.equal(entry.parcoursEnabled, true);
             assert.equal(entry.objectiveId, 'parcours_run'); assert.equal(entry.isBoss, false);
-            assert.equal(entry.scenarioId, undefined); assert.equal(entry.weaponsDisabled, index === 1);
-            assert.equal(entry.combatProfile, index === 1 ? '' : 'hunt');
+            assert.equal(entry.scenarioId, undefined); assert.equal(entry.weaponsDisabled, false);
+            assert.equal(entry.botCount, 0); assert.equal(entry.combatProfile, 'hunt');
         });
         assert.deepEqual(value.sequence, plan({ seed: 8 }).sequence);
     }
@@ -39,7 +40,7 @@ test('the first route has exactly three locked Rift sectors with only the middle
 
 test('the authored count applies at both settings boundaries and does not leak into free or Daily runs', () => {
     for (const normalize of [normalizeArcadeRunSettings, createArcadeRunConfig]) {
-        assert.equal(normalize(arcade()).sectorCount, 3);
+        assert.equal(normalize(arcade()).sectorCount, 1);
         for (const other of [{ dailyChallenge: true }, { journeyStageId: '' }, { runType: 'arena_waves' }]) {
             assert.equal(normalize(arcade(other)).sectorCount, 20);
         }
@@ -50,7 +51,9 @@ test('the authored count applies at both settings boundaries and does not leak i
 });
 
 test('weaponless runtime profiles force a session rebuild in both directions even on the same map', () => {
-    const profiles = plan().sequence.map(entry => resolveArcadeSectorRuntimeProfile(entry));
+    const profiles = [false, true, false].map(weaponsDisabled => resolveArcadeSectorRuntimeProfile({
+        ...plan().sequence[0], weaponsDisabled, botCount: 1,
+    }));
     assert.deepEqual(profiles.map(p => p.weaponsDisabled), [false, true, false]);
     assert.deepEqual(profiles.map(p => p.botCount), [1, 1, 1]);
     const config = { arcade: { combatProfile: '', weaponsDisabled: false }, session: { numBots: 1 } };
@@ -112,35 +115,30 @@ function finishSector(run, seconds = 64) {
     return result;
 }
 
-test('all three route goals lead directly to a scored mission result without a fourth sector or endless choice', () => {
+test('the one real course finish ends the mission and awards its measured time', () => {
     const { run, advance } = startRun();
-    for (let sector = 1; sector <= 3; sector++) {
-        advance(64000);
-        const result = finishSector(run);
-        assert.equal(result.outcome.state, sector === 3 ? 'MATCH_END' : 'ROUND_END');
-        if (sector < 3) {
-            assert.equal(run.getIntermissionState().choices.length, 1);
-            assert.equal(run.getIntermissionState().choices[0].mapKey, 'parcours_rift');
-            run.beginNextSector();
-        }
-    }
+    advance(64000);
+    assert.equal(finishSector(run).outcome.state, 'MATCH_END');
     const state = run.getStateSnapshot();
-    assert.equal(state.phase, 'finished'); assert.equal(state.completedSectors, 3);
-    assert.equal(state.encounterSequence.length, 3); assert.equal(state.intermission, null);
-    assert.equal(state.postRunSummary.succeeded, true); assert.equal(state.postRunSummary.sectorHistory.length, 3);
+    assert.equal(state.phase, 'finished'); assert.equal(state.completedSectors, 1);
+    assert.equal(state.encounterSequence.length, 1); assert.equal(state.intermission, null);
+    assert.equal(state.postRunSummary.succeeded, true); assert.equal(state.postRunSummary.sectorHistory.length, 1);
     assert.equal(run.resolveVictoryChoice('continue'), null);
     assert.ok(state.postRunSummary.xpEarned > 0);
-    assert.equal(evaluateArcadeJourneyMedal('first_run', { succeeded: true, value: state.postRunSummary.score }), 2);
+    const measured = resolveArcadeJourneyRunResult({ _state: state }, state.postRunSummary);
+    assert.equal(measured.value, 64000);
+    assert.equal(evaluateArcadeJourneyMedal('first_run', measured), 3);
 });
 
-test('a clean fast three-sector route can reach gold with the unchanged score formula', () => {
+test('Rift time medals use exact calibrated boundaries', () => {
     const { run, advance } = startRun();
-    for (let sector = 1; sector <= 3; sector++) {
-        advance(32000); finishSector(run, 32);
-        if (sector < 3) run.beginNextSector();
-    }
+    advance(32000); finishSector(run, 32);
     const summary = run.getStateSnapshot().postRunSummary;
-    assert.equal(evaluateArcadeJourneyMedal('first_run', { succeeded: true, value: summary.score }), 3);
+    const measured = resolveArcadeJourneyRunResult(run, summary);
+    assert.equal(measured.value, 32000);
+    for (const [value, medal] of [[75000, 3], [75001, 2], [120000, 2], [120001, 1]]) {
+        assert.equal(evaluateArcadeJourneyMedal('first_run', { succeeded: true, value }), medal);
+    }
 });
 
 test('generic arena outcomes cannot clear the route; abort and defeat do not award a completion medal', () => {

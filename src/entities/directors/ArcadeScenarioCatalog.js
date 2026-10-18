@@ -27,7 +27,7 @@ const RAW_ARCADE_SCENARIOS = [
     {
         id: 'worm_hunt',
         label: 'Wurmjagd',
-        briefing: 'Der Riesenwurm ist erwacht. Erlege ihn, bevor die Zeit abläuft.',
+        briefing: '100 Würmer sind erwacht. Erlege alle, bevor die Zeit abläuft.',
         slot: 'sector',
         mapKey: 'standard',
         combatProfile: 'hunt',
@@ -59,6 +59,24 @@ const RAW_ARCADE_SCENARIOS = [
         preserveObjective: true,
         minSector: 4,
         mapUnits: [],
+    },
+    {
+        id: 'rift_precision_run', label: 'Rift-Präzision',
+        briefing: 'Fliege die engen Ringe des Rift-Kurses und halte die Linie bis zum Ziel.',
+        slot: 'parcours', mapKey: 'parcours_rift_precision', combatProfile: 'hunt',
+        preserveObjective: true, minSector: 4,
+    },
+    {
+        id: 'glass_serpent_run', label: 'Glasschlange',
+        briefing: 'Folge dem Glasparcours durch alle Checkpoints bis zum Ausgang.',
+        slot: 'parcours', mapKey: 'glass_serpent', combatProfile: 'hunt',
+        preserveObjective: true, minSector: 4,
+    },
+    {
+        id: 'wind_cathedral_run', label: 'Windkathedrale',
+        briefing: 'Halte den Kurs durch die Windkathedrale bis zum Zielportal.',
+        slot: 'parcours', mapKey: 'wind_cathedral', combatProfile: 'hunt',
+        preserveObjective: true, minSector: 4,
     },
     {
         id: 'bomber_alarm',
@@ -124,6 +142,20 @@ const RAW_ARCADE_SCENARIOS = [
         objective: { id: 'destroy_units', label: 'Hydra besiegen', unitKind: 'creature', count: 1, durationSec: 0, safetyTimeoutSec: 120, scoreWeight: 1.5 },
         minSector: 3,
     },
+    {
+        id: 'vault_finale', label: 'Tresor-Finale',
+        briefing: 'Brich das Turmbein auf, öffne den Tresor und besiege den Boss.',
+        slot: 'finale', mapKey: 'eiffel_tower_siege', combatProfile: 'hunt', botCount: 0,
+        objective: { id: 'breach_vault', label: 'Tresor öffnen · Boss besiegen', unitKind: 'boss', count: 1, durationSec: 0, safetyTimeoutSec: 120, scoreWeight: 1.6 },
+        minSector: 3,
+    },
+    {
+        id: 'bloom_finale', label: 'Blüten-Finale',
+        briefing: 'Halte durch, bis die Blütenarena ganz geöffnet ist.',
+        slot: 'finale', mapKey: 'bloom_core', squadId: 'hunter_pack',
+        objective: { id: 'survive_window', label: 'Arena vollständig öffnen', durationSec: BLOOM_CORE_FINAL_OPEN_SECONDS, scoreWeight: 1.4 },
+        minSector: 3,
+    },
 ];
 
 export function normalizeArcadeScenarioCatalog(rawScenarios = []) {
@@ -146,7 +178,7 @@ export const ARCADE_SCENARIOS = Object.freeze(normalizeArcadeScenarioCatalog(RAW
 const SCENARIO_SECTOR_INTERVAL = 4;
 const SCENARIO_SECTOR_OFFSET = 3;
 const FINALE_SCENARIO_CHANCE = 0.5;
-const PARCOURS_SCENARIO_CHANCE = 0.5;
+const PARCOURS_SCENARIO_CHANCE = 0.4;
 const MIN_SECTORS_FOR_SCENARIOS = 3;
 const LATE_SECTOR_SCENARIO_IDS = new Set(['worm_hunt', 'bomber_alarm', 'bridge_convoy']);
 
@@ -169,18 +201,22 @@ export function resolveArcadeScenarioForSector({
     const inRange = (scenario) => sectorNumber >= scenario.minSector
         && (sectorNumber <= scenario.maxSector
             || (allowLateSectorScenarios && LATE_SECTOR_SCENARIO_IDS.has(scenario.id)))
-        && (!allowedIds || allowedIds.has(scenario.id))
-        && (!excludedIds || !excludedIds.has(scenario.id));
+        && (!allowedIds || allowedIds.has(scenario.id));
+    const candidates = (slot) => {
+        const all = ARCADE_SCENARIOS.filter((scenario) => scenario.slot === slot && inRange(scenario));
+        const fresh = excludedIds ? all.filter((scenario) => !excludedIds.has(scenario.id)) : all;
+        return fresh.length ? fresh : all;
+    };
     if (isParcours) {
         if (randomFn() >= PARCOURS_SCENARIO_CHANCE) return null;
-        return pick(ARCADE_SCENARIOS.filter((scenario) => scenario.slot === 'parcours' && inRange(scenario)), randomFn);
+        return pick(candidates('parcours'), randomFn);
     }
     if (isBoss) {
         if (randomFn() >= FINALE_SCENARIO_CHANCE) return null;
-        return pick(ARCADE_SCENARIOS.filter((scenario) => scenario.slot === 'finale' && inRange(scenario)), randomFn);
+        return pick(candidates('finale'), randomFn);
     }
     if (sectorNumber % SCENARIO_SECTOR_INTERVAL !== SCENARIO_SECTOR_OFFSET % SCENARIO_SECTOR_INTERVAL) return null;
-    return pick(ARCADE_SCENARIOS.filter((scenario) => scenario.slot === 'sector' && inRange(scenario)), randomFn);
+    return pick(candidates('sector'), randomFn);
 }
 
 /** The fields a scenario lays over the sector entry of its slot. */

@@ -21,10 +21,6 @@ const referenceWorlds = [
         copy: 'Ein offener Themenpfad durch die Sperrzone.',
     }),
     Object.freeze({
-        id: 'giant_forest', label: 'Riesenwald', x: 285, y: 340, w: 435, h: 92,
-        copy: 'Ein offener Themenpfad zwischen den Riesenbäumen.',
-    }),
-    Object.freeze({
         id: 'orbit', label: 'Orbit', x: 745, y: 60, w: 130, h: 340,
         copy: 'Der Orbit-Pfad ist noch offen.',
     }),
@@ -38,7 +34,7 @@ export const ARCADE_JOURNEY_MAP_WORLDS = Object.freeze(referenceWorlds.map((worl
 const referenceNodes = [
     Object.freeze({ id: 'first_flight', worldId: 'flight_school', label: 'Erster Flug', goal: 'Durchfliege alle sechs Ringe und den Zielring der Flugschule.', x: 72, y: 196, stageId: 'flight_school', maxPlayers: 1 }),
     Object.freeze({ id: 'gaps_lesson', worldId: 'flight_school', label: 'Lücken', goal: 'Noch offen: Eigene Lückenroute durch Spurlücken der Flugschule.', x: 150, y: 268, stageId: '', maxPlayers: 1 }),
-    Object.freeze({ id: 'first_route', worldId: 'flight_school', label: 'Erster Lauf', goal: 'Meistere drei Sektoren auf Parcours Rift. Sektor 2 ist ohne Waffen.', x: 214, y: 200, stageId: 'first_run', maxPlayers: 3 }),
+    Object.freeze({ id: 'first_route', worldId: 'flight_school', label: 'Erster Lauf', goal: 'Bringe den Navigationskern durch alle Checkpoints des Rift-Kurses.', x: 214, y: 200, stageId: 'first_run', maxPlayers: 3 }),
     Object.freeze({ id: 'endless_hunt', worldId: 'flight_school', label: 'Endlosjagd', goal: 'Sammle mindestens 5.000 Punkte, bevor dein Lauf endet.', x: 88, y: 350, stageId: 'endless_hunt', optional: true, maxPlayers: 3 }),
 
     Object.freeze({ id: 'notre_dame', worldId: 'tower_city', label: 'Notre-Dame', goal: 'Den vollständigen Kurs durch Notre-Dame mit seinen Abzweigungen bis zum Ziel durchfliegen.', x: 330, y: 78, stageId: 'notre_dame', maxPlayers: 3 }),
@@ -46,7 +42,7 @@ const referenceNodes = [
     Object.freeze({ id: 'five_fronts', worldId: 'tower_city', label: 'Fünf Fronten', goal: 'Kämpfe in allen fünf Arenen und sammle mindestens 5.000 Punkte.', x: 560, y: 80, stageId: 'five_fronts', maxPlayers: 3 }),
     Object.freeze({ id: 'eiffel_siege', worldId: 'tower_city', label: 'Eiffel-Belagerung', goal: 'Noch offen: Den Turm auf Zeit fällen.', x: 675, y: 66, stageId: '', boss: true, maxPlayers: 3 }),
 
-    Object.freeze({ id: 'storm_bridge', worldId: 'storm_coast', label: 'Sturmbrücke', goal: 'Noch offen: Sektoren über die Brücke.', x: 330, y: 182, stageId: '', maxPlayers: 3 }),
+    Object.freeze({ id: 'bridge_convoy', worldId: 'storm_coast', label: 'Sturmbrücken-Konvoi', goal: 'Stoppe alle drei Panzer, bevor einer den Brückenausgang erreicht.', x: 330, y: 182, stageId: 'bridge_convoy', maxPlayers: 3 }),
     Object.freeze({ id: 'storm_dam', worldId: 'storm_coast', label: 'Staudamm', goal: 'Noch offen: Spuren ausweichen, Letzter gewinnt (ohne Waffen).', x: 445, y: 172, stageId: '', maxPlayers: 3 }),
     Object.freeze({ id: 'lighthouse', worldId: 'storm_coast', label: 'Leuchtturm', goal: 'Noch offen: Das Abschussziel erreichen.', x: 560, y: 186, stageId: '', maxPlayers: 3 }),
     Object.freeze({ id: 'storm_flood', worldId: 'storm_coast', label: 'Sturmflut', goal: 'Noch offen: Vor der Flut entkommen.', x: 675, y: 172, stageId: '', boss: true, maxPlayers: 3 }),
@@ -72,37 +68,19 @@ const additionalNodes = [
     { id: 'demolition', stageId: 'demolition', worldId: 'tower_city', label: 'Abrisskommando', maxPlayers: 3, x: 615, y: 100 },
     { id: 'portal_chain_k19', stageId: '', worldId: 'orbit', label: 'Portalreise', portalChainId: 'portal_chain_k19', goal: 'Fünf ungewöhnliche Parcours, verbunden durch ihre Ausgangsportale. Freie Tour ohne Reisesternwertung.', maxPlayers: 3, x: 810, y: 380 },
 ];
-export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([...referenceNodes, ...additionalNodes].map(node => {
+export const ARCADE_JOURNEY_MAP_NODES = Object.freeze([...referenceNodes, ...additionalNodes].filter(node => node.stageId || freeActions[node.id]).map(node => {
     const stage = getArcadeJourneyStage(node.stageId);
     const portalChainId = ('portalChainId' in node && node.portalChainId) || stage?.portalChainId || '';
     const worldIndex = ARCADE_JOURNEY_MAP_WORLDS.findIndex(world => world.id === node.worldId);
     const memberIndex = [...referenceNodes, ...additionalNodes].filter(member => member.worldId === node.worldId).indexOf(node);
-    return Object.freeze({ ...node, goal: node.goal || stage?.goal, portalChainId,
+    return Object.freeze({ ...node, goal: stage?.goal || node.goal, portalChainId,
         x: worldIndex % 2 * 450 + ((memberIndex % 3 + .5) / 3) * 450,
         y: Math.floor(worldIndex / 2) * 390 + 125 + Math.floor(memberIndex / 3) * 145,
         development: !stage && !freeActions[node.id], freeAction: freeActions[node.id] || '',
         kind: portalChainId ? 'tour' : 'boss' in node && node.boss ? 'boss' : ['five_fronts', 'endless_hunt', 'demolition', 'weapon_race'].includes(node.id) ? 'combat' : 'stage' });
 }));
 
-export const ARCADE_JOURNEY_MAP_PLANNED_LINKS = Object.freeze([
-    ['first_flight', 'gaps_lesson'],
-    ['gaps_lesson', 'first_route'],
-    ['first_route', 'storm_bridge'],
-    ['first_route', 'reactor'],
-    ['first_route', 'giant_forest'],
-    ['notre_dame', 'brandnacht'],
-    ['brandnacht', 'five_fronts'],
-    ['five_fronts', 'eiffel_siege'],
-    ['storm_bridge', 'storm_dam'],
-    ['storm_dam', 'lighthouse'],
-    ['lighthouse', 'storm_flood'],
-    ['reactor', 'clockwork'],
-    ['clockwork', 'worm_hunt'],
-    ['clockwork', 'weapon_mastery'],
-    ['giant_forest', 'dandelion'],
-    ['dandelion', 'sunflower'],
-    ['sunflower', 'hydra'],
-].map((link) => Object.freeze(link)));
+export const ARCADE_JOURNEY_MAP_PLANNED_LINKS = Object.freeze([]);
 
 // Only the access contract defines effective Bronze dependencies. Decorative future roads
 // never substitute for these edges or for the separate total-star thresholds.
@@ -117,6 +95,7 @@ const EXPECTED_RUNTIME_STAGE_IDS = new Set([
     'flight_school',
     'first_run',
     'notre_dame',
+    'bridge_convoy',
     'orbital_shipyard',
     'endless_hunt',
     'five_fronts',

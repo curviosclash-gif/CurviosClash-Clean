@@ -28,7 +28,7 @@ test('journey overview, world focus, party boards and native Hangar return keep 
     await page.setViewportSize({ width: 1280, height: 720 });
     await openJourney(page);
     const root = page.getByRole('region', { name: 'Arcade-Reise', exact: true });
-    await expect(root.locator('[data-journey-world]')).toHaveCount(6);
+    await expect(root.locator('[data-journey-world]')).toHaveCount(5);
     await root.locator('[data-journey-world="flight_school"]').click();
     await expect(root.locator('[data-journey-node="first_flight"]')).toBeFocused();
     await expect(root.locator('[data-journey-players="2"]')).toBeHidden();
@@ -48,7 +48,7 @@ test('journey overview, world focus, party boards and native Hangar return keep 
     await expect(page.locator('#btn-arcade-daily')).toBeEnabled();
 });
 
-test('controlled Rift crossings exercise the three-sector result, persisted medal and next-stage launch', async ({ page }, testInfo) => {
+test('controlled Rift crossings exercise the single-course result, persisted medal and next-stage launch', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await openJourney(page);
     await page.locator('[data-journey-world="flight_school"]').click();
@@ -57,7 +57,7 @@ test('controlled Rift crossings exercise the three-sector result, persisted meda
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING');
     const config = await page.evaluate(() => window.GAME_INSTANCE.runtimeConfig.arcade);
     expect(config.journeyStageId).toBe('first_run');
-    expect(config.sectorCount).toBe(3);
+    expect(config.sectorCount).toBe(1);
     // Integration fixture: enter normal round outcomes at the established lifecycle seam.
     // This checks wiring/storage/UI; it is not a gameplay or flight-completion acceptance proof.
     await finishJourneyFixture(page, testInfo);
@@ -65,7 +65,7 @@ test('controlled Rift crossings exercise the three-sector result, persisted meda
     const result = await readJourney(page);
     expect(result.status).toBe('found');
     expect(result.value.stages.first_run.medals.normal.medal).toBeGreaterThanOrEqual(1);
-    expect(result.value.boards['first_run:normal:1:v2']).toHaveLength(1);
+    expect(result.value.boards['first_run:normal:1:v3']).toHaveLength(1);
     for (const button of await page.locator('[data-journey-action]').all()) {
         const box = await button.boundingBox(); expect(box.height).toBeGreaterThanOrEqual(44);
     }
@@ -135,7 +135,8 @@ test('First Run keeps old scores and gold while new course results survive menu 
     await waitForLoadedGame(page);
     const old = { schema: ARCADE_JOURNEY_SCHEMA, note: 'keep historic rules',
         stages: { first_run: { note: 'earned gold', medals: { normal: { medal: 3, runId: 'old-course' } } } },
-        boards: { 'first_run:normal:1': [{ runId: 'old-course', value: 99999, medal: 3, playerCount: 1 }] } };
+        boards: { 'first_run:normal:1': [{ runId: 'old-course', value: 99999, medal: 3, playerCount: 1 }],
+            'first_run:normal:1:v2': [{ runId: 'old-course-v2', value: 42000, medal: 2, playerCount: 1 }] } };
     expect(await page.evaluate(({ key, value }) => {
         const manager = window.GAME_INSTANCE.playerProfileManager;
         return manager.getRecordStorePort(manager.getActiveProfile().id).saveJsonRecord(key, value);
@@ -146,9 +147,9 @@ test('First Run keeps old scores and gold while new course results survive menu 
     const card = page.locator('[data-journey-stage="first_run"]');
     const history = card.locator('.arcade-journey-board-history');
     await expect(card.locator('.arcade-journey-board')).toHaveText('Noch kein Ergebnis');
-    await expect(card).toContainText('Drei-Sektoren-Kurs');
+    await expect(card).toContainText('Rift-Einzelkurs');
     await history.locator('summary').click();
-    await expect(history.locator('li')).toHaveText('99.999 Punkte');
+    await expect(history.locator('li')).toHaveText(['Regeln v1: 99.999 Punkte', 'Regeln v2: 42.000 Punkte']);
     const hitbox = await history.locator('summary').boundingBox();
     expect(hitbox.height).toBeGreaterThanOrEqual(44);
     await page.locator('[data-journey-start="first_run"]').click();
@@ -156,10 +157,12 @@ test('First Run keeps old scores and gold while new course results survive menu 
     await finishJourneyFixture(page);
     const saved = (await readJourney(page)).value;
     expect(saved.boards['first_run:normal:1']).toEqual(old.boards['first_run:normal:1']);
-    expect(saved.boards['first_run:normal:1:v2']).toHaveLength(1);
-    expect(saved.boards['first_run:normal:1:v2'][0].value).toBeGreaterThan(0);
-    expect(saved.boards['first_run:normal:1:v2'][0].value).toBeLessThan(99999);
-    expect(saved.stages).toEqual(old.stages); expect(saved.note).toBe(old.note);
+    expect(saved.boards['first_run:normal:1:v2']).toEqual(old.boards['first_run:normal:1:v2']);
+    expect(saved.boards['first_run:normal:1:v3']).toHaveLength(1);
+    expect(saved.boards['first_run:normal:1:v3'][0].value).toBeGreaterThan(0);
+    expect(saved.boards['first_run:normal:1:v3'][0].value).toBeLessThan(99999);
+    expect(saved.stages).toEqual({ first_run: { ...old.stages.first_run, completed: true } });
+    expect(saved.note).toBe(old.note);
     await page.locator('[data-journey-action="map"]').click();
     await expect(card.locator('.arcade-journey-board li')).toHaveCount(1);
     await expect(card.locator('.arcade-journey-board')).not.toContainText('99.999');
@@ -171,36 +174,23 @@ test('First Run keeps old scores and gold while new course results survive menu 
     await expect(card.locator('.arcade-journey-board li')).toHaveCount(1);
     await expect(card.locator('.arcade-journey-board')).not.toContainText('99.999');
     await history.locator('summary').click();
-    await expect(history.locator('li')).toHaveText('99.999 Punkte');
+    await expect(history.locator('li')).toHaveText(['Regeln v1: 99.999 Punkte', 'Regeln v2: 42.000 Punkte']);
     await history.locator('summary').scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath('journey-current-and-historic-scores.png') });
 });
 
 async function finishJourneyFixture(page, testInfo = null) {
-    for (let sector = 1; sector <= 3; sector++) {
-        const profile = await page.evaluate(() => {
-            const game = window.GAME_INSTANCE;
-            const strategy = game.entityManager.gameModeStrategy;
-            return { map: game.runtimeConfig.session.mapKey, sector: game.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex,
-                weaponless: game.runtimeConfig.arcade.weaponsDisabled, allowsWeapons: strategy.allowsWeaponActions(),
-                machineGun: strategy.hasMachineGun(), weaponPickups: strategy.filterSpawnableTypes(['ROCKET_HEAVY', 'ROCKET_TURRET'], game.entityManager.entityRuntimeConfig.POWERUP.TYPES), route: game.entityManager.getParcoursRouteSnapshot().routeId };
-        });
-        expect(profile).toEqual({ map: 'parcours_rift', sector, weaponless: sector === 2, allowsWeapons: sector !== 2,
-            machineGun: sector !== 2, weaponPickups: sector === 2 ? [] : ['ROCKET_HEAVY'], route: 'rift_gauntlet_v1' });
-        if (sector === 2) {
-            const pickups = await page.evaluate(() => {
-                const manager = window.GAME_INSTANCE.entityManager.powerupManager;
-                manager.clear();
-                for (let index = 0; index < 8; index++) manager.update(10);
-                return manager.items.map(item => item.type);
-            });
-            expect(pickups.length).toBeGreaterThan(0);
-            expect(pickups.every(type => ['SHIELD', 'SPEED_UP'].includes(type))).toBe(true);
-        }
-        if (testInfo && sector === 2) await page.screenshot({ path: testInfo.outputPath('first-route-weaponless-sector.png') });
-        // Controlled ordered ring crossings exercise the real route predicates and outcome callback.
-        // This is integration evidence, not a manually flown route or a full-flight acceptance claim.
-        const crossed = await page.evaluate(() => {
+    const profile = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        return { map: game.runtimeConfig.session.mapKey,
+            sector: game.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex,
+            route: game.entityManager.getParcoursRouteSnapshot().routeId };
+    });
+    expect(profile).toEqual({ map: 'parcours_rift', sector: 1, route: 'rift_gauntlet_v1' });
+    if (testInfo) await page.screenshot({ path: testInfo.outputPath('first-route-rift-course.png') });
+    // Controlled ordered ring crossings exercise the real route predicates and outcome callback.
+    // Native flight completion is covered separately by the playtest.
+    const crossed = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const manager = game.entityManager;
             const system = manager.runtimePorts.spawn.parcoursProgressSystem;
@@ -225,14 +215,8 @@ async function finishJourneyFixture(page, testInfo = null) {
             if (!outcome?.shouldEnd) throw new Error('Ordered Rift crossings did not finish the route: ' + JSON.stringify(progress));
             game.matchFlowUiController.onRoundEnd(player, outcome);
             return { completed: progress.completed, reason: outcome.reason };
-        });
-        expect(crossed).toEqual({ completed: true, reason: 'PARCOURS_COMPLETE' });
-        if (sector < 3) {
-            await page.locator('#btn-arcade-intermission-continue').click();
-            await page.waitForFunction(next => window.GAME_INSTANCE.state === 'PLAYING'
-                && window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex === next, sector + 1);
-        }
-    }
+    });
+    expect(crossed).toEqual({ completed: true, reason: 'PARCOURS_COMPLETE' });
     await expect(page.locator('[data-journey-action="map"]')).toBeVisible();
     await expect(page.locator('#btn-arcade-victory-continue')).toBeHidden();
 }
@@ -333,11 +317,13 @@ for (const count of [2, 3]) test(`journey ${count}-player result belongs to all 
     await finishJourneyFixture(page);
     await expect(page.locator('[data-journey-action="next"]')).toBeEnabled();
     const records = await readJourneyProfiles(page, [neutral, ...ids]);
-    expect(records[0].status).toBe('missing');
+    expect(records[0].value?.stages?.first_run).toBeUndefined();
+    if (records[0].status === 'found') expect(records[0].value.legacyAccessInitialized).toBe(true);
+    else expect(records[0].status).toBe('missing');
     for (let index = 0; index < count; index++) {
         expect(records[index + 1].value.stages.first_run.medals.normal.medal).toBeGreaterThanOrEqual(1);
-        expect(records[index + 1].value.boards[`first_run:normal:${count}:v2`]).toHaveLength(1);
-        expect(records[index + 1].value.boards['first_run:normal:1:v2']).toBeUndefined();
+        expect(records[index + 1].value.boards[`first_run:normal:${count}:v3`]).toHaveLength(1);
+        expect(records[index + 1].value.boards['first_run:normal:1:v3']).toBeUndefined();
     }
     if (count === 2) expect(records[3].status).toBe('missing');
     await page.screenshot({ path: testInfo.outputPath(`journey-${count}-profiles-result.png`) });
@@ -359,7 +345,11 @@ test('switching real profiles reloads only their own journey gates and keeps the
     await openJourney(page);
     await openExtraStage(page, 'five_portals');
     await expect(page.locator('[data-journey-start="five_portals"]')).toBeDisabled();
-    expect(await readJourneyProfiles(page, [neutral, ...ids])).toEqual(before);
+    const after = await readJourneyProfiles(page, [neutral, ...ids]);
+    expect(after[0].value.stages).toEqual({});
+    expect(after[0].value.legacyAccessInitialized).toBe(true);
+    expect(after[1].value).toEqual({ ...before[1].value, legacyAccessInitialized: true, allStagesUnlocked: true });
+    expect(after.slice(2)).toEqual(before.slice(2));
 });
 
 async function startWormJourney(page) {

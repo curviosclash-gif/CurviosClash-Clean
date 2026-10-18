@@ -58,7 +58,7 @@ test('worm medals require the real scenario objective and use gameplay time inst
     ]) assert.equal(evaluateArcadeJourneyMedal('worm_hunt', result(invalid)), 0);
     assert.equal(evaluateArcadeJourneyMedal('worm_hunt', resolveArcadeJourneyRunResult({ _state: state }, { ...summary, aborted: true })), 0);
     assert.equal(evaluateArcadeJourneyMedal('worm_hunt', resolveArcadeJourneyRunResult({ _state: state }, { ...summary, succeeded: false })), 0);
-    assert.deepEqual(result({ ...state, config: config({ journeyStageId: 'first_run' }) }), { succeeded: true, value: 999999, aborted: false });
+    assert.deepEqual(result({ ...state, config: config({ journeyStageId: 'first_run' }) }), { succeeded: false, value: 0, aborted: false });
 });
 
 test('explicit full unlock includes the new stage while party limits and ordinary gates remain', () => {

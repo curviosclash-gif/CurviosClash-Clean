@@ -8,6 +8,8 @@ import { normalizeArcadeBotAggressiveness } from './ArcadeBotAggressionContract.
 export const ARENA_WAVES_RUN_TYPE = 'arena_waves';
 export const ARENA_WAVES_COMBAT_PROFILE = 'hunt';
 export const ARENA_WAVES_BOT_CAPACITY = 24;
+export const ARENA_WAVES_WAVES_PER_MAP = 2;
+export const ARENA_WAVES_RULE_VERSION = 'arena-waves-rules.v2';
 export const ARENA_WAVES_INTERVAL_SECONDS = 60;
 // An emptied arena shortens the rest of the wave timer to this window; every skipped second
 // scores twice the survival rate, so clearing fast beats waiting out the minute.

@@ -223,11 +223,12 @@ test('Abrisskommando medal line refreshes for the active profile when the menu r
 });
 
 test('the ranked line says when the chosen settings keep a run off the board', () => {
-    const entry = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 4321, scoreModel: 'arcade-score.v4', date: '2026-10-01T10:00:00.000Z' };
+    const entry = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 4321,
+        scoreModel: 'arcade-score.v4', gauntletRuleVersion: 'gauntlet-free-rules.v2', date: '2026-10-01T10:00:00.000Z' };
     const legacyEntry = { ...entry, runId: 'legacy', score: 9999 };
     const storeRecords = { [ARCADE_RANKED_STORAGE_KEY]: { schemaVersion: ARCADE_RANKED_VERSION, boards: {
         'gauntlet:normal:1-5': [legacyEntry],
-        'gauntlet:arcade-score.v4:normal:1-5': [entry],
+        'gauntlet:arcade-score.v4:gauntlet-free-rules.v2:normal:1-5': [entry],
     } } };
     const standard = mountSurface({ storeRecords }).byId('arcade-ranked-line').textContent;
     assert.match(standard, /4\.321 Punkte/);

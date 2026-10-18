@@ -458,7 +458,7 @@ export class MatchFlowArcadeOverlayController {
         if (runtimeState?.runType !== 'arena_waves' || !summary || !Array.isArray(summary.maps)) return false;
         const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
         while (panel.firstChild) panel.removeChild(panel.firstChild);
-        const title = document.createElement('h2'); title.textContent = `Fünf Fronten abgeschlossen – ${formatCount(toSafeNumber(summary.total, 0))} Punkte`;
+        const title = document.createElement('h2'); title.textContent = `Fünf Fronten ${summary.succeeded ? 'geschafft' : 'beendet'} – ${formatCount(toSafeNumber(summary.total, 0))} Punkte`;
         const list = createArcadeCardScroller(createArenaWavesMapBlocks(summary), 'Karten', 'Keine Kartendaten.');
         const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
         close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'arena_waves_finished' }));
@@ -498,6 +498,7 @@ export class MatchFlowArcadeOverlayController {
         const arenaBoard = resolveArenaWavesBoardTexts(runtimeState);
         if (arenaBoard && game.ui.messageText) game.ui.messageText.textContent = arenaBoard.title;
         if (arenaBoard && game.ui.messageSub) game.ui.messageSub.textContent = arenaBoard.sub;
+        if (journeyFinished && game.ui.messageSub) game.ui.messageSub.textContent = 'Wähle deinen nächsten Schritt oder ESC zum Menü.';
         if (runtimeState?.intermission && game.ui.messageSub) game.ui.messageSub.textContent = runtimeState.intermissionPaused
             ? 'Countdown angehalten – wähle Route und Belohnung.' : 'Wähle Route und Belohnung oder halte den Countdown an.';
         if (key === this._renderKey) return;

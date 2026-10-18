@@ -11,6 +11,7 @@ import { toSafeInt, toSafeNumber, computeDailySeed } from '../../shared/utils/Ar
 import { bindArcadeRunVehicleRewards } from './ArcadeRunVehicleRewardOps.js';
 import { clearArcadePlayerProfileBindings, loadArcadeRunVehicleProfiles } from './ArcadePlayerProfileBindings.js';
 import { syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
+import { readArcadeRecordsFromStorage, resolveArcadeRunProfileStorageKey } from './ArcadeRunPersistenceOps.js';
 
 function isPromiseLike(value) {
     return !!value && typeof value.then === 'function';
@@ -31,6 +32,9 @@ export function startArcadeRun(runtime, options = {}) {
         dailyChallenge: options.dailyChallenge === true || runtime._config.dailyChallenge === true,
     };
     const activeRunSeed = runtime._resolveActiveRunSeed(runConfig);
+    if (resolveArcadeRunProfileStorageKey(runConfig) !== resolveArcadeRunProfileStorageKey(runtime._config)) {
+        runtime._records = readArcadeRecordsFromStorage(runtime, runConfig);
+    }
     runtime._state = createArcadeRunState({
         config: runConfig,
         records: runtime._records,

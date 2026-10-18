@@ -11,6 +11,7 @@ import {
 import { applyCommandRuntimeSettings } from './RuntimeCommandSettingsService.js';
 import { requestRuntimeMultiplayerMatchStart } from './RuntimeMultiplayerFlowService.js';
 import { MatchStartRuntimeService } from './MatchStartRuntimeService.js';
+import { initializeLocalArcadeJourneyAccess } from './PlayerProfileRuntimeAccess.js';
 import {
     initRuntimeSession,
     teardownRuntimeSession,
@@ -214,6 +215,13 @@ export class GameRuntimeSessionHandler {
             });
             facade?.settingsHandler?.applySurfacePolicyStartDefaults?.();
             facade?.settingsHandler?.applyMapScenarioStartDefaults?.();
+            if (game.settings?.localSettings?.modePath === 'arcade') {
+                const access = initializeLocalArcadeJourneyAccess(game);
+                if (access.status === 'unavailable') {
+                    game?._showStatusToast?.('Arcade-Reisefortschritt kann gerade nicht gespeichert werden.', 2000, 'error');
+                    return false;
+                }
+            }
             // The settings refresh above rebuilt the session map from the menu choice;
             // multi-map runs must put the next map back on top of it.
             const sectorTransition = options?.arcadeSectorTransition;

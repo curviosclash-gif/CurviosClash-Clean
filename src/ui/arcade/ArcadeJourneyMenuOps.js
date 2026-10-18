@@ -13,8 +13,7 @@ export function syncArcadeJourneyMenu(view, runtimeAccess, settings, profile, re
         const tier = resolveArcadeRunTier(settings.arcade?.difficultyTierId, difficulty, { runType: stage.runType });
         return [stage.id, tier === 'any' ? 'normal' : tier];
     }));
-    const legacyAccess = Number(records?.runsPlayed) > 0
-        || Number(store?.loadJsonRecord?.('curviosclash.five-portals-records.v1', null)?.bestTotalMs) > 0;
+    const legacyAccess = loaded.progress.allStagesUnlocked === true;
     const briefing = runtimeAccess?.getArcadeJourneyBriefing?.(seed, tiers.first_run);
     const freeRecords = Object.fromEntries(Object.values(PORTAL_CHAINS).map(chain => {
         const record = store?.loadJsonRecord?.(chain.recordKey, null);
@@ -29,11 +28,9 @@ export function syncArcadeJourneyMenu(view, runtimeAccess, settings, profile, re
 export function prepareArcadeJourneyMenuStart(stageId, settings, runtimeAccess) {
     const stage = getArcadeJourneyStage(stageId);
     const store = runtimeAccess?.getSettingsStore?.();
-    const loaded = loadArcadeJourneyProgress(store);
-    if (!stage || loaded.status === 'unavailable') return false;
-    const legacy = runtimeAccess?.getArcadePrimaryProfileRecords?.()?.records;
-    const legacyAccess = Number(legacy?.runsPlayed) > 0
-        || Number(store?.loadJsonRecord?.('curviosclash.five-portals-records.v1', null)?.bestTotalMs) > 0;
+    const loaded = runtimeAccess?.initializeArcadeJourneyAccess?.(store);
+    if (!stage || !loaded || loaded.status === 'unavailable') return false;
+    const legacyAccess = loaded.progress.allStagesUnlocked === true;
     const access = resolveArcadeJourneyAccess(stageId, loaded.progress, {
         playerCount: resolveDemolitionLocalPlayerCount(settings), legacyAccess,
     });

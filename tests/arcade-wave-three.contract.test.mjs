@@ -207,7 +207,9 @@ test('preserved Parcours scenarios keep their real objective through runtime ass
     const entry = snapshot.encounterSequence[3];
     const profile = run.getSectorRuntimeProfile(4);
     assert.equal(snapshot.sectorIndex, 4);
-    assert.equal(entry.scenarioId, 'spiessrutenlauf');
+    const scenario = ARCADE_SCENARIOS.find((candidate) => candidate.id === entry.scenarioId);
+    assert.equal(scenario?.slot, 'parcours');
+    assert.equal(entry.mapKey, scenario.mapKey);
     assert.equal(entry.objectiveId, 'parcours_run');
     assert.equal(profile.parcoursEnabled, true);
     assert.equal(run.isCurrentSectorParcours(), true);

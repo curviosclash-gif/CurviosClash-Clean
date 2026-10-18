@@ -9,8 +9,7 @@ export function syncArcadeJourneyContinueSummary({ ui, settings, runtimeAccess, 
     const store = runtimeAccess.getSettingsStore?.();
     const record = loadLastRunSnapshot(store);
     const loaded = loadArcadeJourneyProgress(store);
-    const legacyAccess = Number(runtimeAccess.getArcadePrimaryProfileRecords?.()?.records?.runsPlayed) > 0
-        || Number(store?.loadJsonRecord?.('curviosclash.five-portals-records.v1', null)?.bestTotalMs) > 0;
+    const legacyAccess = loaded.progress.allStagesUnlocked === true;
     const continuation = resolveArcadeJourneyContinue(record, {
         profileId: profile.id, progress: loaded.progress, progressAvailable: loaded.status !== 'unavailable',
         playerCount: resolveDemolitionLocalPlayerCount(settings), legacyAccess,

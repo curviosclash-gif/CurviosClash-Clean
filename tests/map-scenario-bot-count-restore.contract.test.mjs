@@ -126,8 +126,7 @@ test('the fight pick on the route map still starts its hunt scenario', () => {
     handler.dispose();
 });
 
-test('an arcade pick of the assault course still starts its fight scenario', () => {
-    // Its route is authored for Hunt too, so the scenario hides nothing there.
+test('an explicit arcade pick of the assault course keeps its own mode and bots', () => {
     const facade = createFacade('parcours_assault');
     Object.assign(facade.game.settings, { gameMode: 'ARCADE', numBots: 0 });
     facade.game.settings.localSettings.modePath = 'arcade';
@@ -135,8 +134,8 @@ test('an arcade pick of the assault course still starts its fight scenario', () 
 
     handler.applyMapScenarioStartDefaults();
 
-    assert.equal(facade.game.settings.localSettings.modePath, 'fight');
-    assert.equal(facade.game.settings.gameMode, 'HUNT');
-    assert.equal(facade.game.settings.numBots, 4);
+    assert.equal(facade.game.settings.localSettings.modePath, 'arcade');
+    assert.equal(facade.game.settings.gameMode, 'ARCADE');
+    assert.equal(facade.game.settings.numBots, 0);
     handler.dispose();
 });

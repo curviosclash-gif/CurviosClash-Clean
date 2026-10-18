@@ -11,11 +11,16 @@ const ARCADE_SCENARIO_OBJECTIVES = Object.freeze({
     worm_hunt: 'Wurmjagd · erlege die Kreatur, bevor die Zeit abläuft',
     storm_flood: 'Sturmflut · halte durch, bis die Zeit abläuft',
     spiessrutenlauf: 'Spießrutenlauf · flieg die Route durch das Geschützfeuer',
+    rift_precision_run: 'Rift-Präzision · durchfliege alle Checkpoints bis zum Ziel',
+    glass_serpent_run: 'Glasschlange · durchfliege alle Checkpoints bis zum Ausgang',
+    wind_cathedral_run: 'Windkathedrale · durchfliege alle Checkpoints bis zum Zielportal',
     bomber_alarm: 'Bomberalarm · schieß den Bomber ab, bevor die Zeit abläuft',
     bridge_convoy: 'Konvoi · stoppe alle drei Panzer vor dem Ziel',
     vault_breaker: 'Tresorknacker · Turmbein zerstören, dann Tresor-Boss besiegen',
     bloom_escape: 'Ausbruch · halte durch, bis sich die Arena ganz öffnet',
     hydra_finale: 'Hydra-Tempel · besiege die Hydra',
+    vault_finale: 'Tresor-Finale · Turmbein zerstören, dann Tresor-Boss besiegen',
+    bloom_finale: 'Blüten-Finale · halte durch, bis sich die Arena ganz öffnet',
 });
 
 export function formatHuntClock(seconds) {

@@ -5,6 +5,7 @@ import { ARCADE_JOURNEY_SCHEMA, ARCADE_JOURNEY_STAGES, ARCADE_JOURNEY_WORLDS,
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { resolvePortalChain } from '../src/shared/contracts/PortalChainContract.js';
 import { ARENA_WAVES_BOT_CAPACITY } from '../src/shared/contracts/ArenaWavesContract.js';
+import { normalizeArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 
 const progress = (stages = {}) => ({ schema: ARCADE_JOURNEY_SCHEMA, stages });
 const bronze = () => ({ medals: { normal: { medal: 1, runId: 'completed' } } });
@@ -27,6 +28,8 @@ test('every journey entry resolves an existing world, map and acyclic predecesso
         }
     }
     assert.equal(ARCADE_JOURNEY_STAGES.find(stage => stage.id === 'five_fronts').botCount, ARENA_WAVES_BOT_CAPACITY);
+    assert.equal(normalizeArcadeRunSettings({ runType: 'weapon_race', journeyStageId: 'weapon_race', sectorCount: 5 }).sectorCount, 1,
+        'a Journey race finishes after one race instead of inheriting repeated free-run sectors');
 });
 
 test('a two- or three-player squad can unlock every shared stage without completing solo entries', () => {
@@ -55,7 +58,7 @@ test('stars use the best tier per known stage and ignore unknown or invalid meda
 });
 
 test('grandfathered access bypasses progression gates but preserves the real player limit', () => {
-    assert.equal(resolveArcadeJourneyAccess('demolition', progress()).reason, 'stars');
+    assert.equal(resolveArcadeJourneyAccess('demolition', progress()).reason, 'predecessor');
     assert.equal(resolveArcadeJourneyAccess('demolition', progress(), { legacyAccess: true }).unlocked, true);
     assert.equal(resolveArcadeJourneyAccess('weapon_race', progress(), { legacyAccess: true, playerCount: 2 }).reason, 'player_count');
     assert.equal(resolveArcadeJourneyAccess('first_run', progress(), { playerCount: 4 }).reason, 'player_count');
@@ -65,7 +68,7 @@ test('medals require a real completed objective or the endless points goal, neve
     assert.equal(evaluateArcadeJourneyMedal('five_portals', { succeeded: true, value: 200000 }), 3);
     assert.equal(evaluateArcadeJourneyMedal('five_portals', { succeeded: false, value: 200000 }), 0);
     assert.equal(evaluateArcadeJourneyMedal('five_portals', { succeeded: true, value: 0 }), 0);
-    assert.equal(evaluateArcadeJourneyMedal('first_run', { succeeded: true, value: 100 }), 1);
+    assert.equal(evaluateArcadeJourneyMedal('first_run', { succeeded: true, value: 120001 }), 1);
     assert.equal(evaluateArcadeJourneyMedal('first_run', { succeeded: true, value: 40000 }), 3);
     assert.equal(evaluateArcadeJourneyMedal('first_run', { succeeded: true, value: null }), 0);
     assert.equal(evaluateArcadeJourneyMedal('endless_hunt', { value: 4999 }), 0);

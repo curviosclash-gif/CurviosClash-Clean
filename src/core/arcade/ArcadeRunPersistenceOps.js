@@ -1,6 +1,11 @@
 import { createArcadeRunRecords } from '../../state/arcade/ArcadeRunState.js';
 import { saveGhostLibrary } from '../../state/arcade/ArcadeGhostLibrary.js';
-import { ARCADE_RUN_PROFILE_STORAGE_KEY } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import { ARCADE_RUN_PROFILE_STORAGE_KEY, GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+
+export function resolveArcadeRunProfileStorageKey(config) {
+    return config?.runType === 'gauntlet' && config.dailyChallenge !== true && !config.journeyStageId
+        ? GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY : ARCADE_RUN_PROFILE_STORAGE_KEY;
+}
 
 function toSafeInt(value, fallback = 0) {
     const parsed = Math.floor(Number(value));
@@ -49,12 +54,12 @@ export function scheduleArcadeLeaderboardSave(runtime) {
     return runtime._persistenceScheduler?.scheduleLeaderboard?.(store, runtime._leaderboard) === true;
 }
 
-export function readArcadeRecordsFromStorage(runtime) {
+export function readArcadeRecordsFromStorage(runtime, config = runtime._config) {
     const store = resolveArcadeSettingsRecordStore(runtime);
     if (!store || typeof store.loadJsonRecord !== 'function') {
         return createArcadeRunRecords(runtime._records);
     }
-    return createArcadeRunRecords(store.loadJsonRecord(ARCADE_RUN_PROFILE_STORAGE_KEY, null));
+    return createArcadeRunRecords(store.loadJsonRecord(resolveArcadeRunProfileStorageKey(config), null));
 }
 
 export function scheduleArcadeRecordsSave(runtime, records = runtime._records, onPersisted = null) {
@@ -63,7 +68,7 @@ export function scheduleArcadeRecordsSave(runtime, records = runtime._records, o
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
     return runtime._persistenceScheduler?.scheduleRunRecords?.(
         store,
-        ARCADE_RUN_PROFILE_STORAGE_KEY,
+        resolveArcadeRunProfileStorageKey(runtime._state?.config || runtime._config),
         records,
         createArcadeRunRecords,
         onPersisted

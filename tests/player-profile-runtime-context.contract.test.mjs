@@ -4,7 +4,7 @@ import { createPlayerProfileMenuRuntimeAccess, resolveHangarPlayerProfileContext
 import { createBrowserHangarPagePort } from '../src/platform/browser/BrowserHangarPagePort.js';
 import { createBrowserPageHangarAdapter } from '../src/platform/browser/BrowserPlatformAdapters.js';
 import { createArcadeRunRecords } from '../src/state/arcade/ArcadeRunState.js';
-import { ARCADE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import { GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 
 function harness() {
     const profiles = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
@@ -36,8 +36,8 @@ test('profile selection follows solo defaults and rejects stale explicit split I
 
 test('personal menu records follow the selected primary store before a run has started', () => {
     const { access, stores, game } = harness();
-    stores.a.loadJsonRecord = key => key === ARCADE_RUN_PROFILE_STORAGE_KEY ? { ...createArcadeRunRecords(), bestScore: 111 } : null;
-    stores.b.loadJsonRecord = key => key === ARCADE_RUN_PROFILE_STORAGE_KEY ? { ...createArcadeRunRecords(), bestScore: 333 } : null;
+    stores.a.loadJsonRecord = key => key === GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY ? { ...createArcadeRunRecords(), bestScore: 111 } : null;
+    stores.b.loadJsonRecord = key => key === GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY ? { ...createArcadeRunRecords(), bestScore: 333 } : null;
     assert.equal(access.getArcadePrimaryProfileRecords().records.bestScore, 333);
     game.settings.localSettings.startSetup.arcadePlayerProfileIds[0] = 'deleted';
     assert.equal(access.getArcadePrimaryProfileRecords().records.bestScore, 0, 'a missing profile never shows active A records');

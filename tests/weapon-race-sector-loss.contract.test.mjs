@@ -485,8 +485,17 @@ test('support start, Parcours finish and outcome polling share simulation time d
     assert.equal(support.getRunState().graceRemainingMs, 10_000,
         'the ordinary update path also returns the simulation-clock countdown');
     entityManager._simulationClockMs = 19_999;
-    assert.equal(parcours.getRoundOutcome(), null, 'finish grace is measured in simulation time');
+    human.alive = false;
+    human.hp = 0;
+    const outcomePoller = new RoundOutcomeSystem({
+        getPlayers: () => [human, bot], getHumanPlayers: () => [human],
+        isEliminationSuppressed: () => true,
+        getObjectiveOutcome: () => parcours.getRoundOutcome(),
+    });
+    assert.equal(outcomePoller.resolve().shouldEnd, false,
+        'a crash after the finish must not let elimination override the race during grace');
     entityManager._simulationClockMs = 20_000;
+    assert.equal(outcomePoller.resolve().reason, 'WEAPON_RACE_COMPLETE');
     const outcome = parcours.getRoundOutcome();
     assert.equal(outcome.shouldEnd, true);
     assert.equal(outcome.winner, human);

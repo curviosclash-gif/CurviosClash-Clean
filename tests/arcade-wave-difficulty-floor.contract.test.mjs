@@ -34,13 +34,14 @@ function arenaFixture() {
     return { manager, difficulties };
 }
 
-function runArenaToWave(runtime, wave) {
-    runtime.update(5); runtime.update(1);
-    for (let next = 2; next <= wave; next += 1) {
-        runtime.update(59); runtime.update(1);
-        if (runtime.phase === 'upgrade') { runtime.selectChoice(runtime.getHudState().choices[0]); runtime.update(1); }
+function clearArena(runtime, manager) {
+    for (let wave = 1; wave <= 2; wave++) {
+        for (const slot of [...runtime._activeSlots]) runtime.handleGameplayEvent({
+            type: 'kill', playerIndex: 0, victimIndex: manager.bots[slot].player.index,
+        });
+        runtime.update(5);
     }
-    assert.equal(runtime.wave, wave);
+    assert.equal(runtime.phase, 'upgrade');
 }
 
 test('arena waves climb to HARD on the Normal tier and never drop below the tier', () => {
@@ -48,10 +49,16 @@ test('arena waves climb to HARD on the Normal tier and never drop below the tier
     const runtime = new ArenaWavesRuntime();
     runtime.rankContext = { botStrength: { ai: 'NORMAL', tierId: 'normal' } };
     runtime.start({ entityManager: f.manager });
-    runArenaToWave(runtime, 1);
+    runtime.update(5); runtime.update(1);
     assert.equal(f.difficulties.get(0), 'NORMAL', 'wave 1 (EASY row) is lifted to the Normal floor');
-    runArenaToWave(runtime, 5);
-    const waveFiveSlot = [...runtime._slotWave.entries()].find(([, wave]) => wave === 5)[0];
+    for (let mapIndex = 0; mapIndex < 2; mapIndex++) {
+        clearArena(runtime, f.manager);
+        runtime.selectChoice(runtime.getHudState().choices[0]);
+        runtime.start({ entityManager: f.manager });
+        runtime.update(5); runtime.update(1);
+    }
+    assert.equal(runtime.mapIndex, 2);
+    const waveFiveSlot = [...runtime._slotWave.entries()].find(([, wave]) => wave === 1)[0];
     assert.equal(f.difficulties.get(waveFiveSlot), 'HARD', 'wave 5 uses its HARD row');
 });
 

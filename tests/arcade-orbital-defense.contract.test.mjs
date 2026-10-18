@@ -92,6 +92,7 @@ test('attacking bots are not time-trial entrants and the mission keeps historic 
     system._route={};
     assert.equal(system.updatePlayerProgress({index:1,isBot:true,alive:true},{},1000),null);
     assert.equal(resolveArcadeJourneyAccess('orbital_shipyard',{schema:'arcade-journey.v1',stages:{}}).unlocked,false);
-    assert.equal(resolveArcadeJourneyAccess('orbital_shipyard',{schema:'arcade-journey.v1',stages:{notre_dame:{medals:{normal:{medal:1}}}}}).unlocked,true);
+    assert.equal(resolveArcadeJourneyAccess('orbital_shipyard',{schema:'arcade-journey.v1',stages:{notre_dame:{medals:{normal:{medal:1}}}}}).unlocked,false);
+    assert.equal(resolveArcadeJourneyAccess('orbital_shipyard',{schema:'arcade-journey.v1',stages:{bridge_convoy:{completed:true}}}).unlocked,true);
     assert.ok(ARCADE_JOURNEY_WORLDS.every(w=>!w.rewardStageIds.includes('orbital_shipyard')));
 });

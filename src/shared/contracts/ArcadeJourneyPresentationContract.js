@@ -1,4 +1,4 @@
-import { ARCADE_JOURNEY_WORLDS, getArcadeJourneyStage, getArcadeJourneyStars, resolveArcadeJourneyAccess } from './ArcadeJourneyContract.js';
+import { ARCADE_JOURNEY_MAIN_STAGE_IDS, ARCADE_JOURNEY_WORLDS, getArcadeJourneyStage, getArcadeJourneyStars, isArcadeJourneyStageCompleted, resolveArcadeJourneyAccess } from './ArcadeJourneyContract.js';
 
 export function resolveJourneyNodeState(node, context) {
     const stage = getArcadeJourneyStage(node.stageId);
@@ -16,17 +16,17 @@ export function resolveJourneyNodeState(node, context) {
 export function journeyRequirements(stage, context) {
     if (!context.available) return 'Reisefortschritt kann gerade nicht sicher gelesen werden. Gespeicherte Medaillen bleiben erhalten.';
     if (context.legacyAccess || context.progress?.allStagesUnlocked) return 'Bestehender Sonderzugang · Spielergrenzen gelten weiterhin.';
-    const threshold = ARCADE_JOURNEY_WORLDS.find(world => world.id === stage.worldId).starsRequired;
+    const threshold = ARCADE_JOURNEY_MAIN_STAGE_IDS.includes(stage.id) ? 0 : ARCADE_JOURNEY_WORLDS.find(world => world.id === stage.worldId).starsRequired;
     const parts = threshold ? [`${threshold} ${threshold === 1 ? 'Reisestern' : 'Reisesterne'} insgesamt erforderlich · aktuell ${getArcadeJourneyStars(context.progress)}`] : [];
-    if (stage.predecessorId) parts.push(`Bronze in „${getArcadeJourneyStage(stage.predecessorId).label}“${getArcadeJourneyStars(context.progress, stage.predecessorId) ? ' erreicht' : ' erforderlich'}`);
-    return parts.join(' · ') || 'Reise-Einstieg ohne vorherige Medaille.';
+    if (stage.predecessorId) parts.push(`„${getArcadeJourneyStage(stage.predecessorId).label}“ abschließen${isArcadeJourneyStageCompleted(context.progress, stage.predecessorId) ? ' · geschafft' : ' · erforderlich'}`);
+    return parts.join(' · ') || 'Reise-Einstieg ohne Voraussetzung.';
 }
 
 export function nextJourneyNode(nodes, context) {
     if (!context.available) return null;
-    const order = ['first_run', 'five_portals', 'five_fronts', ...nodes.map(node => node.stageId)];
+    const order = [...ARCADE_JOURNEY_MAIN_STAGE_IDS, ...nodes.map(node => node.stageId)];
     return order.map(id => nodes.find(node => node.stageId === id)).find(node => node && !node.development
-        && !getArcadeJourneyStars(context.progress, node.stageId) && resolveJourneyNodeState(node, context).unlocked) || null;
+        && !isArcadeJourneyStageCompleted(context.progress, node.stageId) && resolveJourneyNodeState(node, context).unlocked) || null;
 }
 
 export function journeyMedalTarget(stage, progress, tier, playerCount, rows) {

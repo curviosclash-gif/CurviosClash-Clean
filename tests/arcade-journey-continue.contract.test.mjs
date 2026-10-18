@@ -17,19 +17,17 @@ import { menuScreenPanelId } from './support/menu-screens.js';
 import { ARCADE_JOURNEY_STAGES, getArcadeJourneyStars, resolveArcadeJourneyAccess } from '../src/shared/contracts/ArcadeJourneyContract.js';
 
 function memoryStore(initial = null) {
-    let record = initial;
+    const records = new Map(initial === null ? [] : [[ARCADE_LAST_RUN_STORAGE_KEY, initial]]);
     return {
         readJsonRecordResult(key) {
-            if (key !== ARCADE_LAST_RUN_STORAGE_KEY) return { status: 'missing' };
-            return record === null ? { status: 'missing' } : { status: 'found', value: record };
+            return records.has(key) ? { status: 'found', value: structuredClone(records.get(key)) } : { status: 'missing' };
         },
-        loadJsonRecord() { return record; },
+        loadJsonRecord(key, fallback = null) { return records.has(key) ? structuredClone(records.get(key)) : fallback; },
         saveJsonRecord(key, value) {
-            if (key !== ARCADE_LAST_RUN_STORAGE_KEY) return false;
-            record = structuredClone(value);
+            records.set(key, structuredClone(value));
             return true;
         },
-        read() { return record; },
+        read() { return records.get(ARCADE_LAST_RUN_STORAGE_KEY) ?? null; },
     };
 }
 

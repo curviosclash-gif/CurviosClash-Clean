@@ -15,10 +15,10 @@ import { handleSessionTypeChangeAction } from './MenuRuntimeSessionSwitchService
 import { appendMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 import { createSessionSettingsRestorePlan } from './SessionSettingsRestorePlan.js';
 import { createPlayerProfileMenuRuntimeAccess } from './PlayerProfileRuntimeAccess.js';
+import { initializeArcadeJourneyAccess } from '../../state/arcade/ArcadeJourneyAccessInitialization.js';
 import { startMatchWithBorrowedSettings } from './BorrowedMatchSettingsOps.js';
 import { ARCADE_LAST_RUN_STORAGE_KEY } from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
 import { resolveArcadeJourneyContinue } from '../../shared/contracts/ArcadeJourneyContinueContract.js';
-import { loadArcadeJourneyProgress } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
 
 // The one value a playlist start is allowed to keep: its cursor is persisted on purpose.
 const EVENT_PLAYLIST_STATE_PATH = 'localSettings.eventPlaylistState';
@@ -169,10 +169,8 @@ export async function handleQuickStartLastStartAction(ctx) {
         return false;
     }
     if (profileId && lastRunRecord) {
-        const progress = loadArcadeJourneyProgress(profileStore);
-        const profileRecords = profileAccess.getArcadePrimaryProfileRecords()?.records;
-        const legacyAccess = Number(profileRecords?.runsPlayed) > 0
-            || Number(profileStore?.loadJsonRecord?.('curviosclash.five-portals-records.v1', null)?.bestTotalMs) > 0;
+        const progress = initializeArcadeJourneyAccess(profileStore);
+        const legacyAccess = progress.progress.allStagesUnlocked === true;
         const continuation = resolveArcadeJourneyContinue(lastRunRecord, {
             profileId,
             progress: progress.progress,

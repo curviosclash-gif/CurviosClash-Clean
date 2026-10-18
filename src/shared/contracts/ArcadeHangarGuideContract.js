@@ -6,6 +6,7 @@ import { loadArcadeDifficultyProgress, ARCADE_DIFFICULTY_TIERS } from './ArcadeD
 import { evaluateArcadeLabUnlock, normalizeArcadeLabUnlockRecord, ARCADE_LAB_UNLOCK_STORAGE_KEY } from './ArcadeLabUnlockContract.js';
 import { arcadeVehicleXpForLevel } from './ArcadeVehicleProfileContract.js';
 import { ARCADE_MACHINE_GUN_MODELS, evaluateArcadeWeaponLevelPurchase, resolveArcadeMachineGunUnlockLevel } from './ArcadeMachineGunContract.js';
+import { loadArcadeJourneyProgress } from './ArcadeJourneyProgressContract.js';
 
 export const ARCADE_HANGAR_GUIDE_STORAGE_KEY = 'cuviosclash.arcade-hangar-guide.v1';
 export const ARCADE_HANGAR_GUIDE_SCHEMA_VERSION = 'arcade-hangar-guide.v1';
@@ -72,14 +73,14 @@ export function createArcadeHangarGuideSnapshot({ store, profile, profiles, draf
     const newDifficulty = ARCADE_DIFFICULTY_TIERS.findLast(tier => difficulty?.unlockedTierIds.includes(tier.id) && isNew(difficulty.unlockedAt?.[tier.id]));
     let lab = null;
     try { lab = normalizeArcadeLabUnlockRecord(store?.loadJsonRecord?.(ARCADE_LAB_UNLOCK_STORAGE_KEY, null)); } catch { /* unavailable */ }
-    const fleet = evaluateArcadeLabUnlock(profiles);
+    const fleet = evaluateArcadeLabUnlock(profiles, undefined, loadArcadeJourneyProgress(store).progress);
     return { vehicleId: profile.vehicleId, xpBank: resolveArcadeSpendableXp(profile),
         stones: { available, unplacedCount, freeSlotCount: freeSlots.length },
         size: { unlocked: sizes.sizeWorkshopUnlocked, freeSteps: Math.max(0, sizes.purchasedSizeSteps - spent), canPlace: ARCADE_PART_SIZE_GROUPS.some(group => sizes.partSizes[group] < 125) },
         offers, levelGates, newDifficulty, newColorIds: unlockedColors.filter(id => isNew(colors?.unlockedAt?.[id])),
         labUnlockedNew: lab?.unlocked === true && isNew(lab.unlockedAtMs), labUnlocked: lab?.unlocked === true, fleet,
         achievement: missingColor ? { id: missingColor, system: 'cosmetics', areaId: 'colors', label: `${missingColor[0].toUpperCase() + missingColor.slice(1)} freispielen`, detail: ARCADE_COLOR_REQUIREMENTS[missingColor] } : null,
-        lockedSummary: `Hart/Albtraum: vorherige Stufe gewinnen (Gauntlet: 5 Sektoren, Arena: 8 abgeschlossene Wellen, Endless: 5). Lab: ${fleet.qualifiedIds.length}/${fleet.required} Werksschiffe in allen Gruppen bei 125 %.` };
+        lockedSummary: `Hart/Albtraum: vorherige Stufe gewinnen (Gauntlet: 5 Sektoren, Arena: 8 abgeschlossene Wellen, Endless: 5). Lab: Hauptreise abschließen oder ${fleet.qualifiedIds.length}/${fleet.required} Werksschiffe voll ausbauen.` };
 }
 export function createArcadeHangarGuideRecord() {
     return { schemaVersion: ARCADE_HANGAR_GUIDE_SCHEMA_VERSION, tutorial: 'pending', tutorialFinishedAt: '', lastVisitAt: 0 };

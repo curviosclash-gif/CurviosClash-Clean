@@ -18,6 +18,7 @@ export class RoundOutcomeSystem {
         getElapsedSeconds = () => 0,
         getObjectiveOutcome = () => null,
         isTeamMode = () => false,
+        isArcadeGauntlet = () => false,
     } = {}) {
         this.getPlayers = getPlayers;
         this.getHumanPlayers = getHumanPlayers;
@@ -33,6 +34,7 @@ export class RoundOutcomeSystem {
         this.getElapsedSeconds = getElapsedSeconds;
         this.getObjectiveOutcome = getObjectiveOutcome;
         this.isTeamMode = isTeamMode;
+        this.isArcadeGauntlet = isArcadeGauntlet;
         this._overtime = false;
         this._requestedOutcome = null;
         this._objectiveHold = false;
@@ -207,6 +209,7 @@ export class RoundOutcomeSystem {
             return { shouldEnd, winner, reason: shouldEnd ? 'ELIMINATION' : '', parcours: null };
         }
         const shouldEnd = (combatants.length > 1 && alive.length <= 1)
+            || (humansOut && this.isArcadeGauntlet())
             || (humansOut && (alive.length === 0 || eliminationSuppressed));
         return {
             shouldEnd,

@@ -65,7 +65,7 @@ test('the runtime ranks with the run settings the match started with and writes 
     assert.equal(standard.rankContext.ranked, true);
     assert.equal(standard.rankContext.scoreModel, 'arcade-score.v4', 'the runtime passes the exact model from its frozen run settings');
     assert.equal(settleArcadeRunRanking(standard, { succeeded: true, score: 500, completedSectors: 5 }).rank, 1);
-    assert.ok(records.get(ARCADE_RANKED_STORAGE_KEY).boards['gauntlet:arcade-score.v4:normal:1-5']);
+    assert.ok(records.get(ARCADE_RANKED_STORAGE_KEY).boards['gauntlet:arcade-score.v4:gauntlet-free-rules.v2:normal:1-5']);
 });
 
 test('custom score settings keep parcours times on the level board; companions and Daily do not', () => {
@@ -90,7 +90,7 @@ test('entries saved before the standard-settings rule stay on their board untouc
         completedWaves: 0, completedSectors: 20, date: '2026-10-01T10:00:00.000Z' };
     const legacyKey = 'gauntlet:normal:1-5';
     const key = resolveArcadeRankKey(createArcadeRankContext({ ...base, runType: 'gauntlet', runSettings: createDefaultArcadeRunSettings() }));
-    assert.equal(key, 'gauntlet:arcade-score.v4:normal:1-5');
+    assert.equal(key, 'gauntlet:arcade-score.v4:gauntlet-free-rules.v2:normal:1-5');
     const records = new Map([[ARCADE_RANKED_STORAGE_KEY, { schemaVersion: ARCADE_RANKED_VERSION, boards: { [legacyKey]: [legacy] } }]]);
     const store = {
         readJsonRecordResult: (k) => records.has(k) ? { status: 'found', value: structuredClone(records.get(k)) } : { status: 'missing' },

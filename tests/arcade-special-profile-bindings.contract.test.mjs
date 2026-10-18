@@ -10,7 +10,7 @@ import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY, createArcadeVehicleProfileRecord } 
 import { ARCADE_STONE_WORKSHOP_SCHEMA_VERSION, ARCADE_STONE_WORKSHOP_STORAGE_KEY } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
 import { loadVehicleProfiles, saveVehicleProfiles } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { FIVE_PORTALS_RECORD_KEY } from '../src/shared/contracts/FivePortalsContract.js';
-import { ARCADE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import { GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 import { createArcadeRunRecords } from '../src/state/arcade/ArcadeRunState.js';
 import { createPlayerRecordStorePort } from '../src/application/player-profile/PlayerProfileManager.js';
 import { bindValidatedArcadeStartCapture, validateLocalArcadeProfileStart } from '../src/ui/arcade/ArcadeDemolitionProfileSelection.js';
@@ -138,8 +138,8 @@ test('a non-active P1 profile owns Five Portals XP, results and rebuilds without
 
 test('a general Arcade run loads and saves the selected P1 profile through finalization', () => {
     const { stores, support, runtimeState } = makeArcadeHarness('gauntlet');
-    stores[0].saveJsonRecord(ARCADE_RUN_PROFILE_STORAGE_KEY, { ...createArcadeRunRecords(), bestScore: 111 });
-    stores[1].saveJsonRecord(ARCADE_RUN_PROFILE_STORAGE_KEY, { ...createArcadeRunRecords(), bestScore: 333 });
+    stores[0].saveJsonRecord(GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY, { ...createArcadeRunRecords(), bestScore: 111 });
+    stores[1].saveJsonRecord(GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY, { ...createArcadeRunRecords(), bestScore: 333 });
     runtimeState.runtimeConfig.arcade.playerProfileIds = [PROFILE_IDS[1], PROFILE_IDS[2], PROFILE_IDS[0]];
     support.syncRuntimeConfig();
     support.startRunIfEnabled();

@@ -2,7 +2,7 @@ import {
     evaluateArcadeJourneyMedal,
     getArcadeJourneyStage,
 } from '../../shared/contracts/ArcadeJourneyContract.js';
-import { recordArcadeJourneyResult } from '../../state/arcade/ArcadeJourneyProgress.js';
+import { recordArcadeJourneyCompletion, recordArcadeJourneyResult } from '../../state/arcade/ArcadeJourneyProgress.js';
 
 const TIERS = new Set(['normal', 'hard', 'nightmare']);
 const bindings = new WeakSet();
@@ -86,8 +86,12 @@ export function settleArcadeJourneyRun(binding, { succeeded, value, aborted } = 
     if (!binding || !bindings.has(binding)) return { status: 'invalid', binding: null };
     const state = bindingStates.get(binding);
     if (!state.finalResult) {
+        const stage = getArcadeJourneyStage(binding.stageId);
+        const validValue = Number.isFinite(value) && value >= 0
+            && (stage.metric !== 'time' || value > 0)
+            && (!['place', 'completion'].includes(stage.metric) || value === 1);
         state.finalResult = Object.freeze({
-            succeeded: succeeded === true,
+            succeeded: succeeded === true && aborted !== true && validValue,
             value,
             aborted: aborted === true,
         });
@@ -95,15 +99,17 @@ export function settleArcadeJourneyRun(binding, { succeeded, value, aborted } = 
     }
     if (state.finished) return settlementSnapshot(binding, state);
 
-    if (state.medal < 1) {
-        for (const recipient of state.recipients) recipient.status = 'not_awarded';
-        state.pending = false;
-        state.finished = true;
-        return settlementSnapshot(binding, state);
-    }
-
     for (const recipient of state.recipients) {
         if (recipient.status !== 'pending') continue;
+        if (state.finalResult.succeeded === true && state.medal < 1 && !recipient.completionSaved) {
+            const completion = recordArcadeJourneyCompletion(recipient.store, binding.stageId);
+            if (completion.status !== 'saved' && completion.status !== 'unchanged') continue;
+            recipient.completionSaved = true;
+        }
+        if (state.medal < 1) {
+            recipient.status = 'not_awarded';
+            continue;
+        }
         const result = recordArcadeJourneyResult(recipient.store, {
             stageId: binding.stageId,
             leaderboardVersion: binding.leaderboardVersion,
@@ -112,6 +118,7 @@ export function settleArcadeJourneyRun(binding, { succeeded, value, aborted } = 
             runId: binding.runId,
             value: state.finalResult.value,
             playerCount: binding.participants.length,
+            succeeded: state.finalResult.succeeded,
         });
         recipient.rank = result.rank;
         recipient.count = result.count;

@@ -369,7 +369,7 @@ export function installPilotRuntime(version) {
         if (progress.completed) return { done: true, progress };
         const expected = progress.expectedCheckpointIds || [];
         const byId = new Map((route.checkpoints || []).map((checkpoint) => [checkpoint.id, checkpoint]));
-        if (route.finish) byId.set('FINISH', { id: 'FINISH', ...route.finish });
+        if (route.finish) byId.set(route.finish.id || 'FINISH', route.finish);
         const here = asArray(player.position);
         const preferred = runtime.spec?.branch ? expected.filter((id) => id.includes(runtime.spec.branch)) : [];
         const candidates = (preferred.length ? preferred : expected).map((id) => byId.get(id)).filter(Boolean);

@@ -299,8 +299,10 @@ export function buildArcadeSectorPlan(options = {}) {
                 ? null
                 : createSeededRandom(`${seedKey}-scenario-${sectorNumber}`);
             const scenario = scenarioRandomFn
-                ? resolveArcadeScenarioForSector({ sectorNumber, sectorCount, isBoss: false, isParcours: true }, scenarioRandomFn)
+                ? resolveArcadeScenarioForSector({ sectorNumber, sectorCount, isBoss: false, isParcours: true,
+                    excludedScenarioIds: generatedScenarioIds }, scenarioRandomFn)
                 : null;
+            if (scenario) generatedScenarioIds.add(scenario.id);
             sequence.push(applyArcadeScenarioToSectorEntry({
                 sectorNumber,
                 templateId: 'sector_parcours',
@@ -349,9 +351,7 @@ export function buildArcadeSectorPlan(options = {}) {
             isBoss,
             isParcours: false,
             allowedScenarioIds: dailyScenarioIds,
-            excludedScenarioIds: options.dailyChallenge === true || !generatedScenarioIds.has('storm_flood')
-                ? null
-                : new Set(['storm_flood']),
+            excludedScenarioIds: options.dailyChallenge === true ? null : generatedScenarioIds,
             allowLateSectorScenarios: options.dailyChallenge !== true && sectorNumber >= 7,
         }, scenarioRandomFn);
         if (scenario) generatedScenarioIds.add(scenario.id);

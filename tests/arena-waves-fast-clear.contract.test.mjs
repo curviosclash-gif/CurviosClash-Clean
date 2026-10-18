@@ -128,7 +128,7 @@ test('death cleanup first makes a delayed kill event stale', () => {
     assert.equal(f.runtime.getHudState().alive, 0);
 });
 
-test('real wave progression evicts the four oldest slots at capacity without completing evicted waves', () => {
+test('finite wave progression clears a map without capacity eviction', () => {
     const f = fixture();
     const deactivations = [];
     const originalDeactivate = f.manager.deactivateBotSlot;
@@ -136,20 +136,14 @@ test('real wave progression evicts the four oldest slots at capacity without com
     const runtime = new ArenaWavesRuntime();
     runtime.start({ entityManager: f.manager });
     runtime.update(5); runtime.update(1);
-    for (let wave = 1; wave < 4; wave += 1) { runtime.update(59); runtime.update(1); }
-    assert.equal(runtime.wave, 4);
-    runtime.update(60);
+    for (const slot of [...runtime._activeSlots]) kill(runtime, f, slot);
+    runtime.update(5);
+    assert.equal(runtime.wave, 2);
+    for (const slot of [...runtime._activeSlots]) kill(runtime, f, slot);
+    runtime.update(5);
     assert.equal(runtime.phase, 'upgrade');
-    runtime.selectChoice(runtime.getHudState().choices[0]);
-    runtime.update(1);
-    assert.equal(runtime.wave, 5);
-    runtime.update(59); runtime.update(1);
-    assert.equal(runtime.wave, 6);
-    assert.equal(runtime._activeSlots.size, ARENA_WAVES_BOT_CAPACITY);
-    assert.equal(deactivations.filter((entry) => entry.reason === 'wave_capacity').length, 4);
-    assert.equal(runtime.completedWaves.includes(1), false);
-    assert.equal(runtime.completedWaves.includes(2), false);
-    assert.equal(runtime.fastClearSeconds, 0);
+    assert.equal(deactivations.filter((entry) => entry.reason === 'wave_capacity').length, 0);
+    assert.deepEqual(runtime.mapStats[0].completedWaves, [1, 2]);
 });
 
 test('an actual map-death cleanup deactivates the wave without granting a clear bonus', () => {
@@ -174,7 +168,7 @@ test('the human and the last bot dying in one frame still complete the wave, in 
         assert.deepEqual(stats.completedWaves, [1], `${humanFirst ? 'human first' : 'bot first'}: wave 1 counts once`);
         assert.equal(stats.regularKills, 2);
         assert.equal(stats.fastClearSeconds, humanFirst ? 0 : 45, 'only a living pilot earns the clear bonus');
-        assert.equal(f.runtime.mapIndex, 1, 'the death still moves the run to the next map');
-        assert.equal(f.runtime.phase, 'upgrade');
+        assert.equal(f.runtime.mapIndex, 0, 'group death ends the current attempt');
+        assert.equal(f.runtime.phase, 'finished');
     }
 });

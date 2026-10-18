@@ -10,6 +10,7 @@ function initial() {
     return { schema: ARCADE_JOURNEY_SCHEMA, note: { keep: true },
         stages: { first_run: { note: 'earned', medals: { normal: { medal: 3, runId: 'old-gold', custom: 7 } } } },
         boards: { 'first_run:normal:1': [row('old-gold', 99999)],
+            'first_run:normal:1:v2': [row('old-course-v2', 42000)],
             'first_run:hard:2': [row('old-hard', 80000, 2)], 'unknown:future': [{ opaque: true }] } };
 }
 function store(seed = initial(), failedWrites = 0) {
@@ -19,16 +20,20 @@ function store(seed = initial(), failedWrites = 0) {
         saveJsonRecord(_key, value) { attempts++; if (attempts <= failedWrites) return false; data = structuredClone(value); return true; } };
 }
 const result = (extra = {}) => ({ stageId: 'first_run', tierId: 'normal', playerCount: 1,
-    value: 4000, medal: 2, runId: 'new-course', leaderboardVersion: 2, ...extra });
+    value: 40000, medal: 2, runId: 'new-course', leaderboardVersion: 3, ...extra });
 
-test('only changed First Run uses a new board key; unversioned values remain historical and reads never write', () => {
+test('changed First Run and Five Fronts use new board keys; earlier values remain historical', () => {
     const port = store(), before = structuredClone(port.data);
     for (const stage of ARCADE_JOURNEY_STAGES) {
-        assert.equal(stage.leaderboardVersion, stage.id === 'first_run' ? 2 : 1);
-        assert.equal(leaderboardKey(stage.id, 'normal', 1), `${stage.id}:normal:1${stage.id === 'first_run' ? ':v2' : ''}`);
+        const version = stage.id === 'first_run' ? 3 : stage.id === 'five_fronts' ? 2 : 1;
+        assert.equal(stage.leaderboardVersion, version);
+        assert.equal(leaderboardKey(stage.id, 'normal', 1), `${stage.id}:normal:1${version > 1 ? `:v${version}` : ''}`);
     }
     assert.deepEqual(getArcadeJourneyLeaderboard(port.data, 'first_run', 'normal', 1), []);
-    assert.deepEqual(getArcadeJourneyLegacyLeaderboard(port.data, 'first_run', 'normal', 1), before.boards['first_run:normal:1']);
+    assert.deepEqual(getArcadeJourneyLegacyLeaderboard(port.data, 'first_run', 'normal', 1), [
+        ...before.boards['first_run:normal:1'].map(row => ({ ...row, version: 1 })),
+        ...before.boards['first_run:normal:1:v2'].map(row => ({ ...row, version: 2 })),
+    ]);
     assert.equal(loadArcadeJourneyProgress(port).status, 'ok'); assert.equal(port.attempts, 0);
     assert.deepEqual(port.data, before);
     assert.equal(getArcadeJourneyStars(port.data, 'first_run'), 3);
@@ -38,12 +43,12 @@ test('only changed First Run uses a new board key; unversioned values remain his
 test('one atomic result adds the current board while preserving old scores, earned gold and unknown metadata', () => {
     const port = store(), before = structuredClone(port.data);
     assert.equal(recordArcadeJourneyResult(port, result()).status, 'saved'); assert.equal(port.attempts, 1);
-    assert.deepEqual(getArcadeJourneyLeaderboard(port.data, 'first_run', 'normal', 1), [{ ...row('new-course', 4000), medal: 2 }]);
+    assert.deepEqual(getArcadeJourneyLeaderboard(port.data, 'first_run', 'normal', 1), [{ ...row('new-course', 40000), medal: 2 }]);
     for (const [key, rows] of Object.entries(before.boards)) assert.deepEqual(port.data.boards[key], rows);
     assert.deepEqual(port.data.stages, before.stages); assert.deepEqual(port.data.note, before.note);
     const reloaded = store(port.data);
-    assert.equal(getArcadeJourneyLeaderboard(reloaded.data, 'first_run', 'normal', 1)[0].value, 4000);
-    assert.equal(getArcadeJourneyLegacyLeaderboard(reloaded.data, 'first_run', 'normal', 1)[0].value, 99999);
+    assert.equal(getArcadeJourneyLeaderboard(reloaded.data, 'first_run', 'normal', 1)[0].value, 40000);
+    assert.deepEqual(getArcadeJourneyLegacyLeaderboard(reloaded.data, 'first_run', 'normal', 1).map(row => row.value), [99999, 42000]);
     assert.equal(recordArcadeJourneyResult(reloaded, result({ value: 90000 })).status, 'unchanged');
     assert.equal(reloaded.attempts, 0);
 });
@@ -62,20 +67,20 @@ test('binding freezes the current rules and retries the same partition/result fo
     const a = store(), b = store(initial(), 1);
     const binding = createArcadeJourneyRunBinding({ stageId: 'first_run', runType: 'gauntlet', tierId: 'normal', runId: 'retry',
         participants: [{ profileId: 'a', store: a }, { profileId: 'b', store: b }] });
-    assert.equal(binding.leaderboardVersion, 2);
+    assert.equal(binding.leaderboardVersion, 3);
     assert.throws(() => { binding.leaderboardVersion = 1; }, TypeError);
-    assert.equal(settleArcadeJourneyRun(binding, { succeeded: true, value: 4000 }).pending, true);
+    assert.equal(settleArcadeJourneyRun(binding, { succeeded: true, value: 40000 }).pending, true);
     assert.equal(settleArcadeJourneyRun(binding, { succeeded: true, value: 99999 }).pending, false);
     assert.equal(a.attempts, 1); assert.equal(b.attempts, 2);
     for (const port of [a, b]) {
-        assert.equal(port.data.boards['first_run:normal:2:v2'][0].value, 4000);
+        assert.equal(port.data.boards['first_run:normal:2:v3'][0].value, 40000);
         assert.deepEqual(port.data.boards['first_run:normal:1'], initial().boards['first_run:normal:1']);
     }
 });
 
 test('stale or future rule requests fail without writing; valid storage failures preserve the complete record', () => {
     const port = store();
-    for (const leaderboardVersion of [0, 1, 3, '2', null, NaN]) {
+    for (const leaderboardVersion of [0, 1, 2, 4, '3', null, NaN]) {
         assert.equal(recordArcadeJourneyResult(port, result({ leaderboardVersion })).status, 'invalid');
     }
     assert.equal(port.attempts, 0); assert.deepEqual(port.data, initial());
@@ -87,7 +92,8 @@ test('stale or future rule requests fail without writing; valid storage failures
 test('malformed historical rows are preserved without being ranked or blocking the independent current board', () => {
     const data = initial(); data.boards['first_run:normal:1'] = [{ value: 'unknown', opaque: true }];
     const port = store(data);
-    assert.deepEqual(getArcadeJourneyLegacyLeaderboard(port.data, 'first_run', 'normal', 1), []);
+    assert.deepEqual(getArcadeJourneyLegacyLeaderboard(port.data, 'first_run', 'normal', 1),
+        data.boards['first_run:normal:1:v2'].map(row => ({ ...row, version: 2 })));
     assert.equal(recordArcadeJourneyResult(port, result()).status, 'saved');
     assert.deepEqual(port.data.boards['first_run:normal:1'], data.boards['first_run:normal:1']);
     assert.deepEqual(getArcadeJourneyLegacyLeaderboard(port.data, 'notre_dame', 'normal', 1), []);

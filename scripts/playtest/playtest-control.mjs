@@ -254,10 +254,11 @@ export async function observe(session, { vector = true, player = 0 } = {}) {
         const manager = game.entityManager;
         const self = (manager?.players || []).find((entry) => entry?.index === playerIndex) || null;
         const round = (value, digits = 1) => (Number.isFinite(value) ? Math.round(value * 10 ** digits) / 10 ** digits : null);
-        // The run's public snapshot; some run types (endless parcours, five portals, arena
-            // waves, demolition) return null there, then the raw state is the only source.
-            const arcadeRuntime = game.runtimeFacade?.arcadeRunRuntime || game.runtimeFacade?._arcadeSupport?.arcadeRunRuntime || null;
-            const arcade = arcadeRuntime?.getStateSnapshot?.() || arcadeRuntime?._state || null;
+        // The facade selects the active dedicated runtime and exposes its own HUD snapshot.
+        const arcadeRuntime = game.runtimeFacade?.arcadeRunRuntime || null;
+        const arcade = arcadeRuntime?.getStateSnapshot?.() || arcadeRuntime?._state || null;
+        const runHud = game.runtimeConfig?.arcade?.enabled === true
+            ? game.runtimeFacade?.getArcadeRunState?.() || null : null;
         const base = {
             state: game.state, simFrame: control.simFrame, paused: control.paused,
             mapKey: game.arena?.currentMapKey || null, gameMode: game.settings?.gameMode || null,
@@ -273,6 +274,7 @@ export async function observe(session, { vector = true, player = 0 } = {}) {
                 intermission: arcade.intermission ? control.flat(arcade.intermission) : null,
                 scenarioId: game.runtimeConfig?.arcade?.scenarioId ?? null, combatProfile: game.runtimeConfig?.arcade?.combatProfile ?? null,
             } : null,
+            runHud: runHud ? control.flat(runHud) : null,
             mapUnits: Array.isArray(manager?._mapUnitSystem?.units) ? manager._mapUnitSystem.units.slice(0, 12).map((unit) => ({
                 kind: unit.kind ?? null, id: unit.id ?? null, alive: unit.alive !== false, hp: round(unit.hp),
             })) : null,

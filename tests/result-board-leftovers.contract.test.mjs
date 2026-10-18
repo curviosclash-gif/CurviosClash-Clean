@@ -143,8 +143,8 @@ test('the arcade xp counter ends on a German grouped number', () => {
 test('the five fronts title groups thousands', () => {
     withDocument(() => {
         const { controller, panel } = makeController();
-        controller._renderArenaWavesPostRunPanel({ runType: 'arena_waves', postRunSummary: { total: 4200, maps: [] } });
-        assert.match(textOf(panel()), /Fünf Fronten abgeschlossen – 4\.200 Punkte/);
+        controller._renderArenaWavesPostRunPanel({ runType: 'arena_waves', postRunSummary: { succeeded: true, total: 4200, maps: [] } });
+        assert.match(textOf(panel()), /Fünf Fronten geschafft – 4\.200 Punkte/);
     });
 });
 

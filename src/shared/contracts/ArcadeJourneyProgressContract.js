@@ -83,9 +83,13 @@ export function getArcadeJourneyLeaderboard(progress, stageId, tierId, playerCou
 /** Known previous score rules remain readable without becoming today's competing scores. */
 export function getArcadeJourneyLegacyLeaderboard(progress, stageId, tierId, playerCount) {
     const request = validateLeaderboardRequest(stageId, tierId, playerCount);
-    if (!request?.stage.legacyLeaderboardMetric || request.stage.leaderboardVersion !== 2
+    if (!request?.stage.legacyLeaderboardMetric
         || !isValidProgress(progress) || !isRecord(progress.boards)) return [];
-    const rows = progress.boards[leaderboardKey(request.stageId, request.tierId, request.playerCount, 1)];
-    if (!validBoardRows(rows, request.playerCount, request.stage.legacyLeaderboardMetric)) return [];
-    return [...rows].sort((left, right) => compareRows(request.stage.legacyLeaderboardMetric, left, right)).slice(0, 10);
+    const versions = request.stage.legacyLeaderboardVersions || [1];
+    return versions.flatMap((version) => {
+        const rows = progress.boards[leaderboardKey(request.stageId, request.tierId, request.playerCount, version)];
+        return validBoardRows(rows, request.playerCount, request.stage.legacyLeaderboardMetric)
+            ? [...rows].sort((left, right) => compareRows(request.stage.legacyLeaderboardMetric, left, right))
+                .slice(0, 10).map((row) => ({ ...row, version })) : [];
+    });
 }

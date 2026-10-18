@@ -226,6 +226,41 @@ test('hunt standings carry kills, deaths and assists and sort by kills', () => {
     assert.equal(standings.entries[1].isLocal, true);
 });
 
+test('weapon race standings follow the finish places even when the hunt kills disagree', () => {
+    const players = createPlayers(3);
+    const summary = endRound({
+        players,
+        state: 'MATCH_END',
+        outcomeReason: 'WEAPON_RACE_COMPLETE',
+        outcomeParcours: { standings: [
+            { playerId: '0', place: 1, result: 'finished', finishTimeMs: 71000 },
+            { playerId: '2', place: 2, result: 'finished', finishTimeMs: 79000 },
+            { playerId: '1', place: 3, result: 'DNF', finishTimeMs: null },
+        ] },
+        huntScoreboard: [
+            { playerIndex: 1, kills: 9, deaths: 1, assists: 0 },
+            { playerIndex: 2, kills: 3, deaths: 2, assists: 1 },
+            { playerIndex: 0, kills: 1, deaths: 3, assists: 2 },
+        ],
+    }).statsSummary;
+
+    const standings = findBlock(summary, 'scoreboard');
+    assert.deepEqual(standings.entries.map((entry) => entry.playerIndex), [0, 2, 1]);
+    assert.deepEqual(standings.entries.map((entry) => entry.rank), [1, 2, 3]);
+    assert.deepEqual(standings.entries.map((entry) => entry.kills), [1, 3, 9]);
+    assert.equal(standings.entries[0].isRoundWinner, true);
+    const restore = installDocumentStub();
+    try {
+        const container = createStubElement('div');
+        renderMessageStats(container, summary);
+        const rows = walkElements(findBlockElement(container, 'scoreboard'))
+            .filter((node) => node.getAttribute('data-stats-row-key'));
+        assert.deepEqual(rows.map((row) => row.getAttribute('data-stats-row-key')), ['player-0', 'player-2', 'player-1']);
+    } finally {
+        restore();
+    }
+});
+
 test('without a hunt scoreboard the kill counters stay empty instead of zero', () => {
     const players = createPlayers(2);
     const summary = endRound({ players }).statsSummary;

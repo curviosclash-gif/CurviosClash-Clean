@@ -8,7 +8,7 @@ import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { ArcadeRoundStateController } from '../src/state/arcade/ArcadeRoundStateController.js';
 import { RoundStateController } from '../src/state/RoundStateController.js';
 import { buildArcadeSectorPlan } from '../src/entities/directors/ArcadeEncounterCatalog.js';
-import { ARCADE_RUN_PROFILE_STORAGE_KEY, LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import { ARCADE_RUN_PROFILE_STORAGE_KEY, GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY, LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 import { resolvePlayerScopedStorageKey } from '../src/shared/contracts/PlayerProfileStorageContract.js';
 import { applyParcoursLeaderboardEvent } from '../src/core/arcade/ArcadeParcoursLeaderboardOps.js';
 
@@ -190,12 +190,12 @@ test('profile reload isolates old and new scores while malformed new records sta
     const first = fixture({ sectorCount: 1 }); first.finishSector(); first.runtime.resolveVictoryChoice('finish');
     const firstScore = first.runtime.getRecordsSnapshot().bestScore;
     first.runtime.resetRunState();
-    const secondRecords = new Map([[ARCADE_RUN_PROFILE_STORAGE_KEY, { broken: true }],
+    const secondRecords = new Map([[GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY, { broken: true }],
         [LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY, { scoreModel: 'arcade-score.v2', bestScore: 1234 }]]);
     const second = fixture({ records: secondRecords });
     assert.equal(second.runtime.getRecordsSnapshot().bestScore, 0);
     assert.equal(second.runtime.getMenuSurfaceState().legacyRecords.bestScore, 1234);
-    assert.equal(first.records.get(ARCADE_RUN_PROFILE_STORAGE_KEY).bestScore, firstScore);
+    assert.equal(first.records.get(GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY).bestScore, firstScore);
     second.runtime.resetRunState();
 });
 

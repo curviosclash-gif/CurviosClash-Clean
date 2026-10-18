@@ -77,6 +77,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
                 || (isFivePortalsConfig(owner.runtimeConfig)
                     ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null)),
             isTeamMode: () => owner.runtimeConfig?.hunt?.teamMode === true,
+            isArcadeGauntlet: () => owner.runtimeConfig?.arcade?.enabled === true
+                && owner.runtimeConfig?.arcade?.runType === 'gauntlet',
         }),
         setupOps: new EntitySetupOps(owner),
         spawnOps: new EntitySpawnOps(owner),

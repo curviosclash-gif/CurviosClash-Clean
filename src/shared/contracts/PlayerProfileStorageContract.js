@@ -4,7 +4,7 @@ import {
     ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY,
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
 } from './ArcadeVehicleProfileContract.js';
-import { ARCADE_RUN_PROFILE_STORAGE_KEY, LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from './ArcadeRunSettingsContract.js';
+import { ARCADE_RUN_PROFILE_STORAGE_KEY, GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY, LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from './ArcadeRunSettingsContract.js';
 import { ARCADE_STONE_WORKSHOP_STORAGE_KEY } from './ArcadeStoneWorkshopContract.js';
 import {
     ARCADE_LAST_RUN_STORAGE_KEY,
@@ -31,6 +31,7 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     ARCADE_VEHICLE_PROFILE: 'arcadeVehicleProfile',
     LEGACY_ARCADE_VEHICLE_PROFILE: 'legacyArcadeVehicleProfile',
     ARCADE_RUN_PROFILE: 'arcadeRunProfile',
+    GAUNTLET_FREE_RUN_PROFILE: 'gauntletFreeRunProfile',
     LEGACY_ARCADE_RUN_PROFILE: 'legacyArcadeRunProfile',
     ARCADE_SEED: 'arcadeSeed',
     ARCADE_LAST_RUN: 'arcadeLastRun',
@@ -54,6 +55,7 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     SKY_LADDER_RECORDS: 'skyLadderRecords',
     K19_PORTAL_CHAIN_RECORDS: 'k19PortalChainRecords',
     ARENA_WAVES_RECORDS: 'arenaWavesRecords',
+    ARENA_WAVES_RECORDS_V2: 'arenaWavesRecordsV2',
     ENDLESS_PARCOURS_RECORDS: 'endlessParcoursRecords',
     ENDLESS_PARCOURS_SETTLEMENTS: 'endlessParcoursSettlements',
     ARCADE_JOURNEY: 'arcadeJourney',
@@ -70,6 +72,7 @@ const RECORD_DEFINITIONS = Object.freeze([
     { kind: PLAYER_PROFILE_RECORD_KINDS.SKY_LADDER_RECORDS, legacyKey: SKY_LADDER_RECORD_KEY, suffix: 'sky-ladder-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.K19_PORTAL_CHAIN_RECORDS, legacyKey: K19_PORTAL_CHAIN_RECORD_KEY, suffix: 'portal-chain-k19-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARENA_WAVES_RECORDS, legacyKey: 'curviosclash.arena-waves-records.v1', suffix: 'arena-waves-records.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ARENA_WAVES_RECORDS_V2, legacyKey: 'curviosclash.arena-waves-records.v2', suffix: 'arena-waves-records.v2' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ENDLESS_PARCOURS_RECORDS, legacyKey: ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, suffix: 'endless-parcours-records.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ENDLESS_PARCOURS_SETTLEMENTS, legacyKey: ENDLESS_PARCOURS_SETTLEMENT_STORAGE_KEY, suffix: 'endless-parcours-settlements.v1' },
     {kind:PLAYER_PROFILE_RECORD_KINDS.ARCADE_HANGAR_GUIDE,legacyKey:'cuviosclash.arcade-hangar-guide.v1',suffix:'arcade-hangar-guide.v1'},
@@ -80,6 +83,7 @@ const RECORD_DEFINITIONS = Object.freeze([
     { kind: PLAYER_PROFILE_RECORD_KINDS.LEGACY_ARCADE_VEHICLE_PROFILE, legacyKey: ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY, suffix: 'arcade-vehicle-profile.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_VEHICLE_PROFILE, legacyKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY, suffix: 'arcade-vehicle-profile.v2' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_RUN_PROFILE, legacyKey: ARCADE_RUN_PROFILE_STORAGE_KEY, suffix: 'arcade-run-profile.v3' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.GAUNTLET_FREE_RUN_PROFILE, legacyKey: GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY, suffix: 'arcade-run-profile.gauntlet-free-rules.v2' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_SEED, legacyKey: ARCADE_SEED_STORAGE_KEY, suffix: 'arcade.seed.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_LAST_RUN, legacyKey: ARCADE_LAST_RUN_STORAGE_KEY, suffix: 'arcade.last_run.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.PARCOURS_LEADERBOARD, legacyKey: 'cuviosclash.parcours-leaderboard.v1', suffix: 'parcours-leaderboard.v1' },

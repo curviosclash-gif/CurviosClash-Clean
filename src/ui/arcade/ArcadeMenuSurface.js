@@ -168,6 +168,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     const primaryProfile = () => runtimeAccess.getArcadePrimaryPlayerProfile
         ? runtimeAccess.getArcadePrimaryPlayerProfile() : runtimeAccess.getActivePlayerProfile?.();
     let activeProfileId = primaryProfile()?.id || '';
+    if (activeProfileId) runtimeAccess.initializeArcadeJourneyAccess?.(runtimeAccess.getSettingsStore?.());
     let activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
     let lastRunSnapshot = loadLastRunSnapshot(runtimeAccess?.getSettingsStore?.());
     let leaderboardExpanded = false;
@@ -197,13 +198,14 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     const sync = () => {
-        ui.syncArcadeContinueSummary();
         const nextProfileId = primaryProfile()?.id || '';
         if (nextProfileId !== activeProfileId) {
             activeProfileId = nextProfileId;
+            if (activeProfileId) runtimeAccess.initializeArcadeJourneyAccess?.(runtimeAccess.getSettingsStore?.());
             activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
             lastRunSnapshot = loadLastRunSnapshot(runtimeAccess?.getSettingsStore?.());
         }
+        ui.syncArcadeContinueSummary();
         const isArcade = shouldShowArcade(settings);
         const journeyHub = Boolean(document.getElementById('journey-hub-mount'));
         refs.details.classList.toggle('hidden', !isArcade && !journeyHub);
@@ -266,6 +268,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
             ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
             : `Persönlicher Rekord: ${formatInteger(records?.bestScore)} Punkte`
             + (records ? ` · ${formatCompletedRuns(records.runsPlayed)}` : '')
+            + (profileRecords?.previousRuleRecords?.runsPlayed || profileRecords?.previousRuleRecords?.bestScore
+                ? ` · Frühere Freilaufregeln: ${formatInteger(profileRecords.previousRuleRecords.bestScore)} Punkte` : '')
             + (legacyRecords ? ` · Frühere Wertung: ${formatInteger(legacyRecords.bestScore)} Punkte` : '');
         refs.endlessRecordsLine.textContent = summarizeEndlessRecordsLine(
             runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null) || null
@@ -510,11 +514,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
         });
 
     const syncOnInteraction = () => {
-        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-            window.requestAnimationFrame(sync);
-            return;
-        }
-        setTimeout(sync, 0);
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(sync);
+        else setTimeout(sync, 0);
     };
 
     for (const select of refs.demolitionProfileSelects || []) bind(select, 'change', () => {
@@ -547,9 +548,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     const dailyRefresh = setInterval(() => { if (refs.dailyEntry?.getAttribute('aria-expanded') === 'true') sync(); }, 30_000);
     dailyRefresh.unref?.();
     ui.arcadeSurfaceDispose = () => { clearInterval(dailyRefresh); refs.journey.dispose(); refs.journey.element.remove?.(); refs.dailyLine.closest?.('.journey-daily-panel')?.remove(); };
-    ui.arcadeJourneyOpenStage = (stageId) => {
-        sync(); refs.journey.openStage(stageId);
-    };
+    ui.arcadeJourneyOpenStage = (stageId) => { sync(); refs.journey.openStage(stageId); };
     const syncOnMenuReturn = () => { testFlightMenu.onMenuReturn(); syncOnInteraction(); };
     observeMenuReturn(level3Body.closest?.('#main-menu'), syncOnMenuReturn);
     sync();

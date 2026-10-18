@@ -3161,8 +3161,17 @@ test('GameRuntimeSessionHandler applies received LAN match-start commands locall
 
 test('GameRuntimeSessionHandler validates before preparing Arcade match state', async () => {
     const calls = [];
+    const journeyStore = {
+        readJsonRecordResult: () => ({ status: 'missing' }),
+        saveJsonRecord: () => true,
+    };
     const game = {
         state: null,
+        playerProfileManager: {
+            getProfiles: () => [{ id: 'pilot' }],
+            getActiveProfile: () => ({ id: 'pilot' }),
+            getRecordStorePort: () => journeyStore,
+        },
         settings: {
             localSettings: {
                 sessionType: 'single',

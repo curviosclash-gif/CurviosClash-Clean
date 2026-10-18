@@ -73,6 +73,6 @@ export function createHangarGuideCard({ shell, bind, store, getState, getProfile
         locks.textContent = snapshot.lockedSummary;
         show.disabled = !targetFor(currentGoal.areaId).target;
         const labButton = document.getElementById?.('hangar-window-open-lab');
-        if (labButton) { labButton.textContent = snapshot.labUnlocked ? 'Arcade-Lab' : `Arcade-Lab · ${snapshot.fleet.qualifiedIds.length}/${snapshot.fleet.required}`; labButton.title = snapshot.labUnlocked ? 'Eigene Arcade-Schiffe bauen' : 'Sechs Werksschiffe in allen Gruppen gleichzeitig auf 125 % ausbauen.'; }
+        if (labButton) { labButton.textContent = snapshot.labUnlocked ? 'Arcade-Lab' : `Arcade-Lab · ${snapshot.fleet.qualifiedIds.length}/${snapshot.fleet.required}`; labButton.title = snapshot.labUnlocked ? 'Eigene Arcade-Schiffe bauen' : 'Hauptreise abschließen oder sechs Werksschiffe in allen Gruppen auf 125 % ausbauen.'; }
     }, dispose: clearHighlight };
 }

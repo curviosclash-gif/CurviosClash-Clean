@@ -73,7 +73,7 @@ function createWorld({ boxes = [], tubes = [], tunnels = [], route = null, inver
         _parcoursProgressSystem: route ? {
             getPlayerProgressSnapshot: () => ({
                 completed: progress.completed,
-                expectedCheckpointIds: progress.completed ? [] : [progress.index < route.checkpoints.length ? route.checkpoints[progress.index].id : 'FINISH'],
+                expectedCheckpointIds: progress.completed ? [] : [progress.index < route.checkpoints.length ? route.checkpoints[progress.index].id : route.finish.id || 'FINISH'],
                 passedCheckpointIds: route.checkpoints.slice(0, progress.index).map((checkpoint) => checkpoint.id),
             }),
         } : null,
@@ -180,6 +180,17 @@ test('the parcours mode flies an ordered checkpoint route to the finish', () => 
     assert.equal(world.progress.completed, true, `stopped at checkpoint ${world.progress.index}`);
     assert.equal(world.pilot.describe().status, 'done');
     assert.equal(world.crashes(), 0);
+});
+
+test('the parcours pilot finds a route with a custom tutorial finish ID', () => {
+    const route = { enabled: true, checkpoints: [],
+        finish: { id: 'TUTORIAL_FINISH', pos: [0, 0, -40], radius: 12 } };
+    const world = createWorld({ route });
+    world.pilot.configure({ mode: 'parcours' });
+    let frames = 0;
+    while (world.pilot.describe().status === 'active' && frames < 60 * 10) { world.step(); frames += 1; }
+    assert.equal(world.progress.completed, true, 'custom finish must be resolved as a flight target');
+    assert.equal(world.pilot.describe().status, 'done');
 });
 
 test('a checkpoint inside a hollow tube is entered through the mouth on the ship side', () => {

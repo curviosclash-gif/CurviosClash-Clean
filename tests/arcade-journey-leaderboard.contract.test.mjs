@@ -53,8 +53,8 @@ test('metric sorting uses ascending time and place, descending score and ratio, 
         result({ stageId: 'weapon_race', tierId: 'normal', medal: 3, runId: 'place-1', value: 1 }),
         result({ stageId: 'demolition', tierId: 'normal', medal: 2, runId: 'ratio-low', value: 0.75 }),
         result({ stageId: 'demolition', tierId: 'normal', medal: 3, runId: 'ratio-high', value: 0.95 }),
-        result({ stageId: 'first_run', tierId: 'normal', medal: 2, runId: 'score-low', value: 20000 }),
-        result({ stageId: 'first_run', tierId: 'normal', medal: 3, runId: 'score-high', value: 40000 }),
+        result({ stageId: 'five_fronts', tierId: 'normal', medal: 2, runId: 'score-low', value: 20000 }),
+        result({ stageId: 'five_fronts', tierId: 'normal', medal: 3, runId: 'score-high', value: 40000 }),
     ]) {
         assert.equal(recordArcadeJourneyResult(store, row).status, 'saved');
     }
@@ -62,7 +62,7 @@ test('metric sorting uses ascending time and place, descending score and ratio, 
         ['time-fast-a', 'time-fast-b', 'time-slower']);
     assert.deepEqual(getArcadeJourneyLeaderboard(store.readValue(), 'weapon_race', 'normal', 1).map((row) => row.runId), ['place-1', 'place-2']);
     assert.deepEqual(getArcadeJourneyLeaderboard(store.readValue(), 'demolition', 'normal', 1).map((row) => row.runId), ['ratio-high', 'ratio-low']);
-    assert.deepEqual(getArcadeJourneyLeaderboard(store.readValue(), 'first_run', 'normal', 1).map((row) => row.runId), ['score-high', 'score-low']);
+    assert.deepEqual(getArcadeJourneyLeaderboard(store.readValue(), 'five_fronts', 'normal', 1).map((row) => row.runId), ['score-high', 'score-low']);
 });
 
 test('repeated receipts do not add rows, while weaker medals can add a new result without lowering best medal', () => {
@@ -74,16 +74,16 @@ test('repeated receipts do not add rows, while weaker medals can add a new resul
     assert.equal(store.writes.length, 2);
     assert.equal(store.readValue().stages.first_run.medals.normal.medal, 3);
     assert.equal(store.readValue().stages.first_run.medals.normal.runId, 'gold');
-    assert.deepEqual(getArcadeJourneyLeaderboard(store.readValue(), 'first_run', 'normal', 1).map((row) => row.runId), ['gold', 'bronze']);
+    assert.deepEqual(getArcadeJourneyLeaderboard(store.readValue(), 'first_run', 'normal', 1).map((row) => row.runId), ['bronze', 'gold']);
 });
 
 test('top ten is deterministic and getter rejects unavailable partitions', () => {
     const store = createStore();
     for (let index = 12; index >= 0; index -= 1) {
         assert.ok(['saved', 'unchanged'].includes(recordArcadeJourneyResult(store,
-            result({ runId: `run-${String(index).padStart(2, '0')}`, value: index, medal: 0 })).status));
+            result({ stageId: 'five_fronts', runId: `run-${String(index).padStart(2, '0')}`, value: index, medal: 0 })).status));
     }
-    const rows = getArcadeJourneyLeaderboard(store.readValue(), 'first_run', 'normal', 1);
+    const rows = getArcadeJourneyLeaderboard(store.readValue(), 'five_fronts', 'normal', 1);
     assert.equal(rows.length, 10);
     assert.equal(rows[0].runId, 'run-12');
     assert.equal(rows.at(-1).runId, 'run-03');
@@ -103,7 +103,7 @@ test('invalid requests, nonpositive time and malformed target boards fail closed
         assert.equal(recordArcadeJourneyResult(store, invalid).status, 'invalid');
     }
     assert.equal(store.writes.length, 0);
-    const corrupt = createStore({ schema: ARCADE_JOURNEY_SCHEMA, stages: {}, boards: { 'first_run:normal:1:v2': [{ runId: 'bad', value: 5, medal: 1, playerCount: 2 }] } });
+    const corrupt = createStore({ schema: ARCADE_JOURNEY_SCHEMA, stages: {}, boards: { 'first_run:normal:1:v3': [{ runId: 'bad', value: 5, medal: 1, playerCount: 2 }] } });
     const before = corrupt.readValue();
     assert.equal(recordArcadeJourneyResult(corrupt, result()).status, 'unavailable');
     assert.deepEqual(corrupt.readValue(), before);

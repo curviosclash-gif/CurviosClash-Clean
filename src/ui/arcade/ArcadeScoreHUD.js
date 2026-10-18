@@ -357,7 +357,8 @@ export class ArcadeScoreHUD {
             const kills = hudState.kills || {};
             const upgrades = hudState.upgrades || {};
             const telegraph = hudState.spawnWarning ? `\nAnkommend: ${hudState.plannedSpawnCount || 0} Gegner in ${Math.max(0, Math.ceil(hudState.spawnWarning.remaining || 0))} s` : (hudState.nextWaveInSeconds == null ? '' : `\nNächste Welle in ${Math.max(0, Math.ceil(hudState.nextWaveInSeconds))} s`);
-            this._arenaWavesSection.textContent = `Karte ${Number(hudState.mapIndex || 0) + 1}/${hudState.mapCount || 5}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nWelle ${hudState.wave || 1} | Gegner ${hudState.alive || 0} | Aggro ${Math.round((Number(hudState.aggression) || 0) * 100)}%\nKills ${kills.regular || 0} + Elite ${kills.elite || 0} | Zeit ${Math.floor(Number(hudState.survivalSeconds) || 0)} s\nMG ${formatArenaWavesMachineGunLabel(upgrades.machineGunId)} | Speed +${upgrades.speed || 0}% | HP +${upgrades.maxHp || 0}${telegraph}`;
+            const oldBest = Number(hudState.records?.legacyBestTotal) || 0;
+            this._arenaWavesSection.textContent = `Karte ${Number(hudState.mapIndex || 0) + 1}/${hudState.mapCount || 5}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nWelle ${hudState.wave || 1}/${hudState.wavesPerMap || 2} | Gegner ${hudState.alive || 0} | Aggro ${Math.round((Number(hudState.aggression) || 0) * 100)}%\nKills ${kills.regular || 0} + Elite ${kills.elite || 0} | Zeit ${Math.floor(Number(hudState.survivalSeconds) || 0)} s\nMG ${formatArenaWavesMachineGunLabel(upgrades.machineGunId)} | Speed +${upgrades.speed || 0}% | HP +${upgrades.maxHp || 0}${telegraph}${oldBest > 0 ? `\nFrühere Regeln: ${formatRounded(oldBest)} Punkte` : ''}`;
             return;
         }
         if (this._arenaWavesSection) this._arenaWavesSection.style.display = 'none';

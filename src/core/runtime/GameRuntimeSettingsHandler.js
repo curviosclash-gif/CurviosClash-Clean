@@ -19,9 +19,7 @@ import {
 import { filterKnownSettingsChangeKeys } from './RuntimeSettingsChangeKeys.js';
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
-import { isParcoursActiveForGameMode } from '../../shared/contracts/MapModeContract.js';
 import { RUNTIME_SESSION_TYPES, resolveRuntimeSessionContract } from '../../shared/contracts/RuntimeSessionContract.js';
-import { isWeaponRaceRunType } from '../../shared/contracts/WeaponRaceContract.js';
 
 export class GameRuntimeSettingsHandler {
     constructor({ facade = null } = {}) {
@@ -149,11 +147,9 @@ export class GameRuntimeSettingsHandler {
         if (session.sessionType !== RUNTIME_SESSION_TYPES.SINGLE) {
             return { changed: false, changedKeys: [] };
         }
-        // parcours_assault also has a normal single-player Fight scenario. The dedicated
-        // Arcade button deliberately borrows that map for Weapon Race, so its scenario
-        // defaults must not replace the selected Arcade runtime with Hunt.
-        if (settings.localSettings?.modePath === 'arcade'
-            && (isWeaponRaceRunType(settings.arcade?.runType) || settings.arcade?.runType === 'hangar_test')) {
+        // A dedicated Arcade start owns its map, bots and objective. The map's standalone
+        // single-player scenario applies only when starting that map from Fight.
+        if (settings.localSettings?.modePath === 'arcade' && settings.gameMode === 'ARCADE') {
             return { changed: false, changedKeys: [] };
         }
 
@@ -162,14 +158,6 @@ export class GameRuntimeSettingsHandler {
         if (!scenario) {
             return { changed: false, changedKeys: [] };
         }
-        // An Arcade pick is the only way into a route authored for Arcade alone (Aetherion);
-        // a scenario that switches the run to a mode without that route would hide it.
-        if (settings.localSettings?.modePath === 'arcade'
-            && isParcoursActiveForGameMode(mapDefinition, 'ARCADE')
-            && !isParcoursActiveForGameMode(mapDefinition, scenario.gameMode)) {
-            return { changed: false, changedKeys: [] };
-        }
-
         const changedKeys = [];
         const botCountBefore = Number(settings.numBots);
         if (settings.localSettings.modePath !== scenario.modePath) {

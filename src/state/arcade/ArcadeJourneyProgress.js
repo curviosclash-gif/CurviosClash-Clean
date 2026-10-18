@@ -2,7 +2,8 @@ import { emptyProgress, isRecord, safeRead, validateLeaderboardRequest, leaderbo
 export { loadArcadeJourneyProgress, getArcadeJourneyLeaderboard } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
 const TIERS = new Set(['normal', 'hard', 'nightmare']);
 const STAGE_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-import { ARCADE_JOURNEY_STORAGE_KEY } from '../../shared/contracts/ArcadeJourneyContract.js';
+import { ARCADE_JOURNEY_STORAGE_KEY, getArcadeJourneyStage } from '../../shared/contracts/ArcadeJourneyContract.js';
+import { syncArcadeLabUnlock } from '../../shared/contracts/ArcadeLabUnlockContract.js';
 export { ARCADE_JOURNEY_STORAGE_KEY, ARCADE_JOURNEY_SCHEMA, getArcadeJourneyStageStars } from '../../shared/contracts/ArcadeJourneyContract.js';
 
 function hasRunReceipt(progress, runId) {
@@ -34,6 +35,22 @@ function persistProgress(store, previous, next, extra = {}) {
     } catch {
         return { status: 'unavailable', progress: previous, ...extra };
     }
+}
+
+/** Successful objective completion is durable even when its optional medal target is missed. */
+export function recordArcadeJourneyCompletion(store, stageId) {
+    if (!getArcadeJourneyStage(stageId)) return { status: 'invalid' };
+    const loaded = safeRead(store);
+    if (loaded.status === 'unavailable') return loaded;
+    const previous = loaded.progress;
+    const stage = previous.stages[stageId];
+    if (stage !== undefined && !isRecord(stage)) return { status: 'unavailable', progress: previous };
+    if (stage?.completed === true) return { status: 'unchanged', progress: previous };
+    const result = persistProgress(store, previous, { ...previous, stages: {
+        ...previous.stages, [stageId]: { ...(stage || {}), completed: true },
+    } });
+    if (result.status === 'saved' && stageId === 'sky_ladder') syncArcadeLabUnlock(store, null);
+    return result;
 }
 
 function mergeMedal(progress, { stageId, tierId, medal, runId }) {
@@ -144,8 +161,13 @@ export function recordArcadeJourneyResult(store, result = {}) {
             boards: { ...(next.boards || {}), [leaderboardKey(id, tier, playerCount)]: boardMerge.rows },
         };
     }
+    if (result.succeeded === true && next.stages?.[id]?.completed !== true) {
+        next = { ...next, stages: { ...next.stages, [id]: { ...(next.stages?.[id] || {}), completed: true } } };
+    }
     if (next === previous) {
         return { status: 'unchanged', progress: previous, rank: boardMerge.rank, count: boardMerge.count };
     }
-    return persistProgress(store, previous, next, { rank: boardMerge.rank, count: boardMerge.count });
+    const persisted = persistProgress(store, previous, next, { rank: boardMerge.rank, count: boardMerge.count });
+    if (persisted.status === 'saved' && id === 'sky_ladder' && result.succeeded === true) syncArcadeLabUnlock(store, null);
+    return persisted;
 }

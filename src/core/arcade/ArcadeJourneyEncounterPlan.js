@@ -17,8 +17,8 @@ export function buildArcadeJourneyEncounterPlan(runtimeConfig, plan) {
             mapKey: stage.mapKey, mapKeyLocked: true, isBoss: false, bossMultiplier: 1,
             botCount: stage.botCount, parcoursEnabled: true, parcoursRacer: !stage.combatScenarioId,
             ...(stage.combatScenarioId ? { scenarioId: stage.combatScenarioId, squadId: 'scout_duo' } : {}),
-            combatProfile: stage.id === 'first_run' && index === 1 ? '' : 'hunt',
-            weaponsDisabled: stage.id === 'first_run' && index === 1,
+            combatProfile: 'hunt',
+            weaponsDisabled: false,
         })) };
     }
     if (!stage?.scenarioId) return null;
@@ -44,8 +44,9 @@ export function resolveArcadeJourneyRunResult(runtime, summary) {
     }
     if (!stage?.scenarioId) return { succeeded: summary.succeeded, value: summary.score, aborted: summary.aborted };
     const encounter = state.encounterSequence?.[0];
+    const scenario = ARCADE_SCENARIOS.find((entry) => entry.id === stage.scenarioId);
     const completed = encounter?.scenarioId === stage.scenarioId
-        && state.objectiveState?.objectiveId === 'destroy_units'
+        && state.objectiveState?.objectiveId === scenario?.objective?.id
         && state.objectiveState?.status === 'completed';
     return { succeeded: summary.succeeded && completed, value: state.gameplayTimeMs, aborted: summary.aborted };
 }

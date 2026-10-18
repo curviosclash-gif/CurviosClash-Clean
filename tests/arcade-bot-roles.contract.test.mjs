@@ -168,16 +168,26 @@ test('an arena elite wave spawns a real elite among mixed roles', () => {
     const f = arenaFixture();
     const runtime = new ArenaWavesRuntime();
     runtime.start({ entityManager: f.manager });
+    for (let mapIndex = 0; mapIndex < 2; mapIndex++) {
+        runtime.update(5); runtime.update(1);
+        for (let localWave = 1; localWave <= 2; localWave++) {
+            for (const slot of [...runtime._activeSlots]) runtime.handleGameplayEvent({ type: 'kill', playerIndex: 0, victimIndex: f.bots[slot].player.index });
+            runtime.update(5);
+        }
+        assert.equal(runtime.phase, 'upgrade');
+        runtime.selectChoice(runtime.getHudState().choices[0]);
+        runtime.start({ entityManager: f.manager });
+    }
     runtime.update(5); runtime.update(1);
-    for (let wave = 2; wave <= 5; wave += 1) { runtime.update(59); runtime.update(1); if (runtime.phase === 'upgrade') runtime.selectChoice(runtime.getHudState().choices[0]); }
-    while (runtime.wave < 5) runtime.update(1);
-    const fifth = f.bots.filter(({ slot }) => runtime._slotWave.get(slot) === 5);
+    assert.equal(runtime.mapIndex, 2);
+    assert.equal(runtime.wave, 1);
+    const fifth = f.bots.filter(({ slot }) => runtime._slotWave.get(slot) === 1);
     const elites = fifth.filter(({ player }) => player.arenaWavesElite);
     assert.equal(elites.length, 1, 'the fifth wave has one elite');
     assert.equal(elites[0].player.scenarioRole, 'elite', 'the elite slot drives the elite role');
     assert.ok(new Set(fifth.map(({ player }) => player.scenarioRole)).size >= 3, 'the rest of the wave mixes roles');
     const pursuer = fifth.find(({ player }) => player.scenarioRole === 'pursuer');
     assert.ok(pursuer, 'the wave still has a pursuer');
-    assert.equal(elites[0].ai.aggressiveness, resolveArcadeRoleAggressiveness(resolveArenaWavesAggression(0, 5), 'elite'));
+    assert.equal(elites[0].ai.aggressiveness, resolveArcadeRoleAggressiveness(resolveArenaWavesAggression(2, 5), 'elite'));
     assert.ok(elites[0].ai.aggressiveness > pursuer.ai.aggressiveness, 'the elite drives more aggressively than a pursuer');
 });

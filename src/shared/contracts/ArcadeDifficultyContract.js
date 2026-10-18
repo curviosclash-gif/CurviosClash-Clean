@@ -1,8 +1,9 @@
 import { resolveArcadeVehicleActiveStats } from './ArcadeVehicleActiveStatsContract.js';
 import { resolveArcadeLevelRange } from './ArcadeHangarRulesContract.js';
-import { hasCustomArcadeScoreSettings } from './ArcadeRunSettingsContract.js';
+import { GAUNTLET_FREE_RULE_VERSION, hasCustomArcadeScoreSettings } from './ArcadeRunSettingsContract.js';
 import { normalizePortalChainId } from './PortalChainContract.js';
 import { ENDLESS_PARCOURS_RULE_VERSION } from './EndlessParcoursWaveContract.js';
+import { ARENA_WAVES_RULE_VERSION } from './ArenaWavesContract.js';
 
 export const ARCADE_DIFFICULTY_STORAGE_KEY = 'cuviosclash.arcade-difficulty-progress.v1';
 export const ARCADE_DIFFICULTY_SCHEMA_VERSION = 'arcade-difficulty-progress.v1';
@@ -89,6 +90,8 @@ export function createArcadeRankContext({ runId, runType, vehicleId, profile, st
         // be silently promoted to the current score model by this rank-context boundary.
         scoreModel: typeof runSettings?.scoreModel === 'string' ? runSettings.scoreModel.trim() : '',
         ...(runType === 'endless_parcours' ? { endlessRuleVersion: ENDLESS_PARCOURS_RULE_VERSION } : {}),
+        ...(runType === 'arena_waves' ? { arenaWavesRuleVersion: ARENA_WAVES_RULE_VERSION } : {}),
+        ...(runType === 'gauntlet' && !dailyChallenge && !runSettings?.journeyStageId ? { gauntletRuleVersion: GAUNTLET_FREE_RULE_VERSION } : {}),
         tierId: runType === 'five_portals' ? 'any' : tierId,
         portalChainId: runType === 'five_portals' ? normalizePortalChainId(portalChainId) : '',
         strengthScaled,
@@ -104,7 +107,9 @@ export function evaluateArcadeDifficultyUnlock(progress, context, result, nowMs 
     if (!context?.ranked || !['gauntlet', 'arena_waves', 'endless_parcours'].includes(context.runType)) return current;
     const qualifies = context.runType === 'gauntlet'
         ? result?.succeeded === true && Number(result.completedSectors) >= 5
-        : Number(result?.lastCompletedWave ?? (Array.isArray(result?.completedWaves) ? Math.max(0, ...result.completedWaves) : result?.completedWaves)) >= (context.runType === 'arena_waves' ? 8 : 5);
+        : context.runType === 'arena_waves'
+            ? Number(result?.completedWaveCount) >= 8
+            : Number(result?.lastCompletedWave ?? (Array.isArray(result?.completedWaves) ? Math.max(0, ...result.completedWaves) : result?.completedWaves)) >= 5;
     const index = ARCADE_DIFFICULTY_TIERS.findIndex((tier) => tier.id === context.tierId);
     const next = ARCADE_DIFFICULTY_TIERS[index + 1]?.id;
     if (!qualifies || index < 0 || !next || !current.unlockedTierIds.includes(context.tierId) || current.unlockedTierIds.includes(next)) return current;

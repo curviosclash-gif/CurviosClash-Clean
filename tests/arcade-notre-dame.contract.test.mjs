@@ -82,7 +82,7 @@ test('time medals follow exact boundaries and cannot be replaced by score, wall 
         assert.equal(evaluateArcadeJourneyMedal('notre_dame', resolveArcadeJourneyRunResult({ _state: state }, { ...summary,...extra })), 0);
     }
     assert.equal(resolveArcadeJourneyRunResult({ _state: { ...state, completedSectors: 0 } }, summary).succeeded, false);
-    assert.equal(resolveArcadeJourneyRunResult({ _state: { ...state, config: config({ journeyStageId: 'first_run' }) } }, summary).value, summary.score);
+    assert.equal(resolveArcadeJourneyRunResult({ _state: { ...state, config: config({ journeyStageId: 'first_run' }) } }, summary).value, 180000);
 });
 
 test('generic arena goals cannot clear Notre-Dame and abort or party defeat cannot earn its medal', () => {
@@ -103,7 +103,7 @@ test('new course progression follows First Run without revoking the existing ear
     const progress = { schema: ARCADE_JOURNEY_SCHEMA, stages: { first_run:{ medals:{ normal:{ medal:1 } } } } };
     assert.equal(getArcadeJourneyNextStage('first_run', progress, 1).id, 'notre_dame');
     assert.deepEqual(ARCADE_JOURNEY_WORLDS.find(w => w.id === 'departure').rewardStageIds, ['flight_school','first_run','weapon_race']);
-    assert.equal(getArcadeJourneyStage('first_run').sectorCount, 3);
+    assert.equal(getArcadeJourneyStage('first_run').sectorCount, 1);
 });
 
 test('one shared course time is saved separately to one, two or three captured profiles and retry is idempotent', () => {

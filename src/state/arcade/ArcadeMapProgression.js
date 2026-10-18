@@ -49,7 +49,7 @@ function pickValidMap(pool, randomFn, mapCatalog) {
  * and the last one is the hardest stage the pool offers. Chance only picks inside a stage, and a
  * map already played in this run is skipped while its stage has others.
  */
-function pickParcoursMap(pool, randomFn, mapCatalog, { index, count, played }) {
+function pickParcoursMap(pool, randomFn, mapCatalog, { index, count, played, previous = '' }) {
     const validPool = Array.isArray(pool) ? pool.filter((key) => isValidMapKey(key, mapCatalog)) : [];
     if (validPool.length === 0) return DEFAULT_MAP;
     const stages = [];
@@ -63,7 +63,12 @@ function pickParcoursMap(pool, randomFn, mapCatalog, { index, count, played }) {
     const stageIndex = count > 1 ? Math.round((index * (stages.length - 1)) / (count - 1)) : 0;
     const maps = stages[Math.max(0, Math.min(stages.length - 1, stageIndex))].maps;
     const fresh = maps.filter((key) => !played.has(key));
-    const candidates = fresh.length > 0 ? fresh : maps;
+    let candidates = fresh.length > 0 ? fresh : maps;
+    if (candidates.length > 1) candidates = candidates.filter((key) => key !== previous);
+    else if (candidates[0] === previous && validPool.some((key) => key !== previous)) {
+        candidates = validPool.filter((key) => key !== previous && !played.has(key));
+        if (!candidates.length) candidates = validPool.filter((key) => key !== previous);
+    }
     return candidates[Math.max(0, Math.min(candidates.length - 1, Math.floor(randomFn() * candidates.length)))];
 }
 function resolveLockedMapKey(entry, mapCatalog) {
@@ -98,20 +103,25 @@ export function resolveMapSequence(sectorPlan, seed, mapCatalog) {
         const lockedMapKey = resolveLockedMapKey(entry, mapCatalog);
         const isParcours = templateId === 'sector_parcours';
         let mapKey = lockedMapKey || (isParcours
-            ? pickParcoursMap(pool, randomFn, mapCatalog, { index: parcoursIndex, count: parcoursCount, played: parcoursPlayed })
+            ? pickParcoursMap(pool, randomFn, mapCatalog, { index: parcoursIndex, count: parcoursCount, played: parcoursPlayed,
+                previous: sectorPlan.dailyChallenge === true ? '' : sequence[i - 1] || '' })
             : pickValidMap(pool, randomFn, mapCatalog));
         if (isParcours) {
             parcoursIndex += 1;
-            parcoursPlayed.add(mapKey);
         }
 
-        // Avoid consecutive duplicate maps when pool has alternatives
-        if (!lockedMapKey && !isParcours && i > 0 && mapKey === sequence[i - 1] && pool.length > 1) {
-            const alternatives = pool.filter((k) => k !== mapKey && isValidMapKey(k, mapCatalog));
+        // A fixed encounter in the next sector cannot move. Prefer a different flexible map now.
+        const nextLocked = sectorPlan.dailyChallenge === true ? ''
+            : resolveLockedMapKey(sectorPlan.sequence[i + 1], mapCatalog);
+        if (!lockedMapKey && !(sectorPlan.dailyChallenge === true && isParcours)
+            && (mapKey === sequence[i - 1] || (nextLocked && mapKey === nextLocked))) {
+            const alternatives = pool.filter((key) => key !== mapKey && key !== sequence[i - 1]
+                && key !== nextLocked && isValidMapKey(key, mapCatalog));
             if (alternatives.length > 0) {
                 mapKey = alternatives[Math.floor(randomFn() * alternatives.length)];
             }
         }
+        if (isParcours) parcoursPlayed.add(mapKey);
 
         sequence.push(mapKey);
     }

@@ -4,7 +4,7 @@
 // This block lists every active slot instead and hands the renderer raw facts (wins, colour, is it
 // me, did I just win the round, is one win missing to the match) rather than a finished "2/3" text.
 //
-// In HUNT the order comes from the live scoreboard (kills first), everywhere else from round wins.
+// A race uses its finish places; ordinary HUNT uses the live scoreboard (kills first).
 
 import { formatPlayerName, normalizeArray, normalizeNumber } from './PostMatchLabels.js';
 
@@ -46,14 +46,33 @@ function indexHuntScoreboard(huntScoreboard) {
     return byPlayer;
 }
 
+function indexRaceStandings(standings) {
+    const byPlayer = new Map();
+    for (const row of normalizeArray(standings)) {
+        const source = /** @type {{playerId?: unknown, place?: unknown}} */ (row);
+        const playerId = source?.playerId;
+        const playerIndex = Number(playerId);
+        const place = Number(source?.place);
+        if (String(playerId ?? '').trim() === '' || !Number.isInteger(playerIndex) || playerIndex < 0
+            || !Number.isInteger(place) || place < 1) continue;
+        byPlayer.set(playerIndex, place);
+    }
+    return byPlayer;
+}
+
 /**
- * @param {{entries: Array<{playerIndex: number, roundWins: number, isBot: boolean}>, huntRanks: Map<number, {rank: number}>}} context
+ * @param {{raceRanks: Map<number, number>, huntRanks: Map<number, {rank: number}>}} context
  * @returns {(left: {playerIndex: number, roundWins: number, isBot: boolean}, right: {playerIndex: number, roundWins: number, isBot: boolean}) => number}
  */
 function createStandingsComparator(context) {
-    const { huntRanks } = context;
+    const { raceRanks, huntRanks } = context;
     const fallbackRank = Number.MAX_SAFE_INTEGER;
     return (left, right) => {
+        if (raceRanks.size > 0) {
+            const rankDelta = (raceRanks.get(left.playerIndex) ?? fallbackRank)
+                - (raceRanks.get(right.playerIndex) ?? fallbackRank);
+            if (rankDelta !== 0) return rankDelta;
+        }
         if (huntRanks.size > 0) {
             const rankDelta = (huntRanks.get(left.playerIndex)?.rank ?? fallbackRank)
                 - (huntRanks.get(right.playerIndex)?.rank ?? fallbackRank);
@@ -70,7 +89,7 @@ function createStandingsComparator(context) {
 /**
  * @param {object} inputs
  * @param {unknown} inputs.players
- * @param {{requiredWins?: unknown, state?: unknown}|null} [inputs.outcome]
+ * @param {{requiredWins?: unknown, state?: unknown, parcours?: {standings?: unknown}}|null} [inputs.outcome]
  * @param {unknown} [inputs.huntScoreboard]
  * @param {unknown} [inputs.localPlayerIndexes]
  * @param {number} [inputs.roundWinnerIndex]
@@ -85,6 +104,7 @@ export function buildStandingsBlock({
 } = {}) {
     const requiredWins = Math.max(1, normalizeNumber(outcome?.requiredWins, 1));
     const huntRanks = indexHuntScoreboard(huntScoreboard);
+    const raceRanks = indexRaceStandings(outcome?.parcours?.standings);
     const localIndexes = new Set(normalizeArray(localPlayerIndexes).map((value) => Number(value)));
     const entries = normalizeArray(players)
         .filter((player) => !!player && /** @type {{entitySlotActive?: unknown}} */ (player).entitySlotActive !== false)
@@ -109,12 +129,12 @@ export function buildStandingsBlock({
             };
         });
     if (entries.length === 0) return null;
-    entries.sort(createStandingsComparator({ entries, huntRanks }));
+    entries.sort(createStandingsComparator({ raceRanks, huntRanks }));
     let classicRank = 0;
     let previousWins = null;
     entries.forEach((entry, index) => {
-        if (huntRanks.size > 0) {
-            entry.rank = index + 1;
+        if (raceRanks.size > 0 || huntRanks.size > 0) {
+            entry.rank = raceRanks.get(entry.playerIndex) ?? index + 1;
             return;
         }
         if (previousWins === null || entry.roundWins !== previousWins) classicRank = index + 1;

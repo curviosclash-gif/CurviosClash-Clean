@@ -1,4 +1,4 @@
-import { ARCADE_JOURNEY_WORLDS, getArcadeJourneyStage, getArcadeJourneyStars, getArcadeJourneyMaxStars } from '../../shared/contracts/ArcadeJourneyContract.js';
+import { ARCADE_JOURNEY_WORLDS, getArcadeJourneyStage, getArcadeJourneyStars, getArcadeJourneyMaxStars, isArcadeJourneyStageCompleted } from '../../shared/contracts/ArcadeJourneyContract.js';
 import { ARCADE_JOURNEY_MAP_WORLDS, ARCADE_JOURNEY_MAP_NODES, ARCADE_JOURNEY_MAP_LINKS } from '../../shared/contracts/ArcadeJourneyMapContract.js';
 import { getArcadeJourneyLeaderboard, getArcadeJourneyLegacyLeaderboard } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
 import { createArcadeJourneyMapView } from './ArcadeJourneyMapView.js';
@@ -88,7 +88,7 @@ export function createArcadeJourneyMenuView(createElement) {
         cards.set(node.id, { node, stage, card, title, briefing, thresholds, medal, condition, prerequisite, mode, rules, target, start, hangar, boardLabel, board, history, historyBoard, returnButton });
     }
     layout.append(map.element, side);
-    const legend = createElement('p', 'journey-map-legend', '→ Bronze-Voraussetzung · ┄→ Geplanter Weg · ◎ Tour · ◆ Boss · ● Etappe · kleine Plakette: Status · Kreuzende Wege sind keine Abzweigungen. Enter / A öffnet die Auswahl.');
+    const legend = createElement('p', 'journey-map-legend', '→ Vorherige Etappe abschließen · ◎ Tour · ◆ Boss · ● Etappe · kleine Plakette: Status. Enter / A öffnet die Auswahl.');
     const legacyRewards = createElement('p', 'menu-hint journey-legacy-rewards');
     element.append(heading, status, hub, filterLabel, back, empty, layout, legend, legacyRewards);
     let selectedWorld = '', selectedNode = nodes[0].id;
@@ -134,13 +134,14 @@ export function createArcadeJourneyMenuView(createElement) {
             title.textContent = `${node.label}${state.available && access.unlocked && !stars ? ' · Neu' : ''}`;
             briefing.replaceChildren();
             const preview = stage && state.briefings?.[stage.id];
-            if (preview) briefing.append(createElement('span', 'arcade-journey-boss', preview.silhouette),
-                createElement('p', 'menu-hint', `Endgegner: ${preview.label}`), createElement('p', 'menu-hint', preview.text));
+            if (stage?.briefing) briefing.append(createElement('p', 'menu-hint', stage.briefing.join(' ')));
+            else if (preview) briefing.append(createElement('span', 'arcade-journey-boss', preview.silhouette),
+                createElement('p', 'menu-hint', preview.label), createElement('p', 'menu-hint', preview.text));
             const nightmareMedal = state.progress?.stages?.[stage?.id]?.medals?.nightmare?.medal;
             medal.textContent = stage ? !state.available ? 'Gespeicherte Medaillen gerade nicht lesbar' : `${stars ? '★'.repeat(stars) : '☆'} ${stars}/${maxStars} Sterne${Number.isInteger(nightmareMedal) && nightmareMedal > 0 && nightmareMedal <= 3 ? ' · Albtraum-Abzeichen' : ''}` : node.development ? 'In Entwicklung' : 'Freie Tour · keine Reise-Sterne';
             medal.classList.toggle('hidden', free); ref.thresholds.classList.toggle('hidden', free || node.development);
             condition.textContent = stage ? journeyRequirements(stage, state) + (access.reason === 'player_count' ? ' · ' + access.label + ': Spielerzahl bewusst in der Zentrale ändern.' : '') : label;
-            ref.prerequisite.classList.toggle('hidden', !stage?.predecessorId || !state.available || getArcadeJourneyStars(state.progress, stage.predecessorId) > 0 || state.legacyAccess || state.progress?.allStagesUnlocked === true);
+            ref.prerequisite.classList.toggle('hidden', !stage?.predecessorId || !state.available || isArcadeJourneyStageCompleted(state.progress, stage.predecessorId) || state.legacyAccess || state.progress?.allStagesUnlocked === true);
             start.disabled = free ? !access.free : !access.unlocked;
             start.textContent = node.development ? 'In Entwicklung' : free ? 'Freien Lauf starten' : 'Reise starten';
             start.setAttribute('aria-label', node.label + ': ' + start.textContent);
@@ -164,7 +165,7 @@ export function createArcadeJourneyMenuView(createElement) {
             for (const row of rows) board.appendChild(createElement('li', '', leaderboardValue(stage, row.value)));
             const oldRows = getArcadeJourneyLegacyLeaderboard(state.progress, stage.id, tierId, count);
             history.classList.toggle('hidden', !oldRows.length);
-            for (const row of oldRows) historyBoard.appendChild(createElement('li', '', leaderboardValue({ metric: stage.legacyLeaderboardMetric }, row.value)));
+            for (const row of oldRows) historyBoard.appendChild(createElement('li', '', `Regeln v${row.version}: ${leaderboardValue({ metric: stage.legacyLeaderboardMetric }, row.value)}`));
             boardLabel.classList.toggle('hidden', free || !state.available); board.classList.toggle('hidden', free || !state.available); history.classList.toggle('hidden', free || !state.available || !oldRows.length);
             if (free) { boardLabel.textContent = state.freeRecords?.[node.id] || 'Rekorde bleiben nach Strecke, Regeln und Spielerzahl getrennt.'; boardLabel.classList.remove('hidden'); }
         }

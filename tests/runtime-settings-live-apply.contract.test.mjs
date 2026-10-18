@@ -10,7 +10,7 @@ import { ARCADE_GHOST_LIBRARY_STORAGE_KEY } from '../src/state/arcade/ArcadeGhos
 import { assignSectorMissions } from '../src/state/arcade/ArcadeMissionState.js';
 import { buildArcadeMissionSeed } from '../src/core/arcade/ArcadeObjectiveRuntimeOps.js';
 import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
-import { ARCADE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import { GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 import {
     getRuntimeMapCatalog,
     getRuntimeMapDefinition,
@@ -1053,7 +1053,7 @@ test('V96.7 Arcade run records are scheduled and flushed instead of written inli
     runtime.flushPersistenceSaves();
 
     assert.equal(writes.length, 1);
-    assert.equal(writes[0]?.key, ARCADE_RUN_PROFILE_STORAGE_KEY);
+    assert.equal(writes[0]?.key, GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY);
     assert.equal(writes[0]?.value?.runsPlayed, 1);
     assert.equal(writes[0]?.value?.lastScore, 4321);
 });

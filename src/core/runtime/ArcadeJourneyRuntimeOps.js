@@ -2,14 +2,16 @@ import { isClassicTutorialRoute } from '../../shared/contracts/ClassicTutorialCo
 import { createArcadeJourneyRunBinding, settleArcadeJourneyRun } from '../arcade/ArcadeJourneyRunBinding.js';
 import { resolvePlayerRecordStorePortForIndex } from './PlayerProfileRuntimeAccess.js';
 import { loadArcadeJourneyProgress } from '../../state/arcade/ArcadeJourneyProgress.js';
-import { getArcadeJourneyNextStage } from '../../shared/contracts/ArcadeJourneyContract.js';
+import { initializeArcadeJourneyAccess } from '../../state/arcade/ArcadeJourneyAccessInitialization.js';
+import { getArcadeJourneyNextStage, isArcadeJourneyMainComplete } from '../../shared/contracts/ArcadeJourneyContract.js';
 
 function updateResult(current, result) {
     const binding = current.binding;
     const progress = loadArcadeJourneyProgress(binding.participants[0].store);
-    const next = !result.pending && result.medal > 0 && progress.status !== 'unavailable'
+    const next = !result.pending && result.result?.succeeded === true && progress.status !== 'unavailable'
         ? getArcadeJourneyNextStage(binding.stageId, progress.progress, binding.participants.length) : null;
-    current.projected = { ...result, stageId: binding.stageId, tierId: binding.tierId, nextStageId: next?.id || '' };
+    current.projected = { ...result, stageId: binding.stageId, tierId: binding.tierId, nextStageId: next?.id || '',
+        mainJourneyCompleted: progress.status !== 'unavailable' && isArcadeJourneyMainComplete(progress.progress) };
     current.runtime.journeyResult = current.projected;
     return current.projected;
 }
@@ -62,6 +64,9 @@ export function prepareArcadeJourneyRuntime(support, state, runActive) {
         profileId: profileIds?.[player.index],
         store: resolvePlayerRecordStorePortForIndex(manager, player.index, profileIds?.[player.index]),
     }));
+    if (tutorial && initializeArcadeJourneyAccess(participants[0]?.store).status === 'unavailable') {
+        throw new Error('Der Reise-Fortschritt konnte vor der Flugschule nicht gesichert werden.');
+    }
     support._journeySequence = (support._journeySequence || 0) + 1;
     const binding = createArcadeJourneyRunBinding({ stageId: tutorial ? 'flight_school' : config.journeyStageId, runType: tutorial ? 'classic_tutorial' : config.runType,
         portalChainId: !tutorial && config.runType === 'five_portals' ? config.portalChainId : '',

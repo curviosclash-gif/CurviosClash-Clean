@@ -1,6 +1,6 @@
 // Player facing texts for the Five Fronts ("arena_waves") screens. The run reuses the round end
-// board, whose own title ("Bot 2 gewinnt die Runde", "Nächste Runde in 3…") does not fit a death
-// that only moves the run on to the next map.
+// board, whose own title ("Bot 2 gewinnt die Runde", "Nächste Runde in 3…") does not fit an
+// arena clear that moves the run on to the next map.
 
 import { resolveAnyMachineGunModel } from '../../shared/contracts/ArcadeMachineGunContract.js';
 
@@ -29,12 +29,9 @@ export function formatArenaWavesMachineGunLabel(id) {
 /** Title and subline for the round end board while a Five Fronts screen owns it, else null. */
 export function resolveArenaWavesBoardTexts(runtimeState) {
     if (runtimeState?.runType !== 'arena_waves') return null;
-    if (runtimeState.postRunSummary) return { title: 'Fünf Fronten beendet', sub: '' };
+    if (runtimeState.postRunSummary) return { title: runtimeState.postRunSummary.succeeded ? 'Fünf Fronten geschafft' : 'Fünf Fronten beendet', sub: '' };
     if (runtimeState.phase !== 'upgrade') return null;
     const mapCount = Math.max(1, Number(runtimeState.mapCount) || 5);
     const nextMap = Math.min(mapCount, Math.max(1, (Number(runtimeState.mapIndex) || 0) + 1));
-    if (runtimeState.choiceReason === 'wave') {
-        return { title: 'Welle geschafft', sub: 'Wähle einen Vorteil für die nächste Welle.' };
-    }
-    return { title: 'Abgeschossen', sub: `Wähle einen Vorteil für Karte ${nextMap}/${mapCount}.` };
+    return { title: 'Arena geschafft', sub: `Wähle einen Vorteil für Karte ${nextMap}/${mapCount}.` };
 }

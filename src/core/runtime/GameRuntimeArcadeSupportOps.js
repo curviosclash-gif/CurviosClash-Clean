@@ -15,6 +15,8 @@ import { resolvePlayerRecordStorePortForIndex } from './PlayerProfileRuntimeAcce
 import { resolveActiveArcadeCompanionCount } from '../../shared/contracts/ArcadeCompanionContract.js';
 import { buildArcadeJourneyEncounterPlan } from '../arcade/ArcadeJourneyEncounterPlan.js';
 
+const WEAPON_RACE_GRACE_HOLD = Object.freeze({ shouldEnd: false, holdRoundEnd: true });
+
 export function resolveArcadeP1RecordStore(support, config) {
     const id = String(config?.arcade?.playerProfileIds?.[0] || '').trim();
     return id ? resolvePlayerRecordStorePortForIndex(support.game?.playerProfileManager, 0, id)
@@ -111,7 +113,10 @@ export function buildArcadeEncounterPlan(runtimeConfig, store = null) {
 }
 
 export function handleWeaponRaceLeaderboard(support, runtimeState, data) {
-    if (data?.type === 'round_outcome') return support.weaponRaceRuntime.getRoundOutcome(data.now);
+    if (data?.type === 'round_outcome') {
+        const race = support.weaponRaceRuntime;
+        return race.getRoundOutcome(data.now) || (race.phase === 'grace' ? WEAPON_RACE_GRACE_HOLD : null);
+    }
     const humanIndexes = runtimeState?.entityManager?.humanPlayers?.map((player) => player?.index) || [];
     if (data?.type === 'finish' && !humanIndexes.includes(data?.playerIndex)) return null;
     const result = support.arcadeRunRuntime.applyParcoursLeaderboardEvent(

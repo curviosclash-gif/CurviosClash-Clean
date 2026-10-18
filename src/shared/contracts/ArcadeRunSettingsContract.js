@@ -36,8 +36,10 @@ export const ARCADE_RUN_SETTINGS_RANGES = Object.freeze({
 });
 
 export const CURRENT_ARCADE_SCORE_MODEL = 'arcade-score.v4';
+export const GAUNTLET_FREE_RULE_VERSION = 'gauntlet-free-rules.v2';
 export const LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.v1';
 export const ARCADE_RUN_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.v3';
+export const GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.gauntlet-free-rules.v2';
 export const ARCADE_RUN_PROFILE_SCHEMA_VERSION = 'arcade-run-profile.v3';
 
 const DEFAULTS = Object.freeze({
