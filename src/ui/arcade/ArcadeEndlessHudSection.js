@@ -7,6 +7,8 @@
 
 const SIDE_LABELS = Object.freeze({
     left: 'Jäger links',
+    top: 'Jäger oben',
+    bottom: 'Jäger unten',
     right: 'Jäger rechts',
     ahead: 'Sperre vorn',
     behind: 'Jäger im Rückraum',
@@ -260,12 +262,12 @@ export class ArcadeEndlessHudSection {
                 this._spawnWarning.style.display = 'block';
                 this._spawnWarning.style.left = side === 'right' ? 'auto' : '18px';
                 this._spawnWarning.style.right = side === 'right' ? '18px' : 'auto';
-                if (side === 'ahead' || side === 'behind') {
+                if (side === 'ahead' || side === 'behind' || side === 'top' || side === 'bottom') {
                     this._spawnWarning.style.left = '50%';
                     this._spawnWarning.style.right = 'auto';
                     this._spawnWarning.style.transform = 'translate(-50%,-50%)';
-                    this._spawnWarning.style.top = side === 'ahead' ? '86px' : 'auto';
-                    this._spawnWarning.style.bottom = side === 'behind' ? '86px' : 'auto';
+                    this._spawnWarning.style.top = (side === 'ahead' || side === 'top') ? '86px' : 'auto';
+                    this._spawnWarning.style.bottom = (side === 'behind' || side === 'bottom') ? '86px' : 'auto';
                 } else {
                     this._spawnWarning.style.transform = 'translateY(-50%)';
                     this._spawnWarning.style.top = '50%';

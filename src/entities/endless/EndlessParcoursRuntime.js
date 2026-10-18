@@ -136,8 +136,8 @@ export class EndlessParcoursRuntime {
         this._tmpDelta = new THREE.Vector3();
         this._tmpSpawnPosition = new THREE.Vector3();
         this._tmpSpawnDirection = new THREE.Vector3(0, 0, 1);
-        this._candidateSpawnAnchor = { id: '', x: 0, y: 0, z: 0, ahead: false };
-        this._selectedSpawnAnchor = { id: '', x: 0, y: 0, z: 0, ahead: false };
+        this._candidateSpawnAnchor = { id: '', x: 0, y: 0, z: 0, ahead: false, portId: '', side: '' };
+        this._selectedSpawnAnchor = { id: '', x: 0, y: 0, z: 0, ahead: false, portId: '', side: '' };
         this._sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
         this._sharedGeometry.userData = { __sharedNoDispose: true };
         this._materials = createEndlessMaterials();

@@ -28,6 +28,7 @@ function sameAnchor(left, right) {
 function isAnchorLoaded(runtime, anchor) {
     if (!anchor) return false;
     for (const instance of runtime.activeModules.values()) {
+        if (instance.sidePort?.id === anchor.id) return true;
         for (const candidate of instance.module.botAnchors) {
             if (candidate.id === anchor.id) return true;
         }
@@ -39,6 +40,7 @@ function resetTelegraph(runtime, slotState, anchor) {
     const human = runtime.entityManager?.humanPlayers?.[0] || null;
     slotState.plannedAnchor = {
         id: anchor.id, x: anchor.x, y: anchor.y, z: anchor.z, ahead: anchor.ahead === true,
+        portId: anchor.portId || '', side: anchor.side || '',
     };
     slotState.telegraphedAt = runtime.elapsedCombatSeconds;
     runtime.spawnWarning = {
@@ -72,6 +74,11 @@ export function tryActivateEndlessSlot(runtime, slotState) {
     const frame = runtime.projectCoursePoint(slotState.plannedAnchor);
     runtime._tmpSpawnDirection.copy(frame.tangent);
     if (slotState.plannedAnchor.ahead === true) runtime._tmpSpawnDirection.multiplyScalar(-1);
+    if (slotState.plannedAnchor.portId) {
+        for (const instance of runtime.activeModules.values()) {
+            if (instance.sidePort?.id === slotState.plannedAnchor.portId) runtime._tmpSpawnDirection.copy(instance.sidePort.axis).multiplyScalar(-1);
+        }
+    }
     const activated = runtime.entityManager?.activateBotSlot?.({
         slot: slotState.slot,
         position: slotState.plannedAnchor,
@@ -92,6 +99,7 @@ export function tryActivateEndlessSlot(runtime, slotState) {
     slotState.player.endlessActivationGeneration = slotState.activationGeneration;
     slotState.player.endlessBotSlot = slotState.slot;
     slotState.player.endlessRunId = runtime.runId;
+    slotState.player.endlessPortId = slotState.plannedAnchor.portId || '';
     slotState.player.endlessWaveNumber = runtime.waveNumber;
     slotState.player.endlessDifficulty = elite ? 'HARD' : profile.difficulty;
     slotState.player.endlessDamageMultiplier = profile.damageMultiplier;

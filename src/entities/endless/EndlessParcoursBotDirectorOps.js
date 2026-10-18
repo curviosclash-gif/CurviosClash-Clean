@@ -39,15 +39,17 @@ export function findSafeEndlessSpawnAnchor(runtime, slotState, options = {}) {
     const wantsAhead = wantsElite || options.wantsAhead === true;
     for (const instance of runtime.activeModules.values()) {
         const module = instance.module;
-        for (let index = 0; index < module.botAnchors.length; index += 1) {
-            const local = module.botAnchors[index];
+        const port = !wantsElite && runtime.waveNumber >= 3 ? instance.sidePort : null;
+        for (let index = 0; index < module.botAnchors.length + (port ? 1 : 0); index += 1) {
+            const isPort = index === module.botAnchors.length;
+            const local = isPort ? port.anchor : module.botAnchors[index];
             if (wantsElite && local.elite !== true) continue;
             if (!wantsElite && local.elite === true) continue;
             if (!wantsAhead && local.ahead === true) continue;
             // Wie Waende, Hindernisse und Pickups liegen die Anker relativ zur
             // Korridormitte. Ohne diese Verschiebung stehen sie in einer Kurve
             // oder Steigung ausserhalb der Roehre.
-            const point = resolveEndlessCoursePoint(module, local.x, local.y, local.z, SPAWN_FRAME).position;
+            const point = isPort ? local : resolveEndlessCoursePoint(module, local.x, local.y, local.z, SPAWN_FRAME).position;
             runtime._tmpSpawnPosition.copy(point);
             const candidate = runtime._candidateSpawnAnchor;
             candidate.id = local.id;
@@ -55,8 +57,10 @@ export function findSafeEndlessSpawnAnchor(runtime, slotState, options = {}) {
             candidate.y = runtime._tmpSpawnPosition.y;
             candidate.z = runtime._tmpSpawnPosition.z;
             candidate.ahead = local.ahead === true;
+            candidate.portId = isPort ? port.id : '';
+            candidate.side = isPort ? port.side : '';
             if (!runtime._isSpawnAnchorSafe(candidate, human)) continue;
-            const rank = deriveEndlessSeed(runtime.baseSeed, `${domain}:${candidate.id}`);
+            const rank = (deriveEndlessSeed(runtime.baseSeed, `${domain}:${candidate.id}`) >>> 1) + (isPort ? 0 : 0x80000000);
             if (rank >= selectedRank) continue;
             selectedRank = rank;
             hasSelection = true;
@@ -65,6 +69,8 @@ export function findSafeEndlessSpawnAnchor(runtime, slotState, options = {}) {
             runtime._selectedSpawnAnchor.y = candidate.y;
             runtime._selectedSpawnAnchor.z = candidate.z;
             runtime._selectedSpawnAnchor.ahead = candidate.ahead;
+            runtime._selectedSpawnAnchor.portId = candidate.portId;
+            runtime._selectedSpawnAnchor.side = candidate.side;
         }
     }
     return hasSelection ? runtime._selectedSpawnAnchor : null;
@@ -75,7 +81,7 @@ export function findSafeEndlessSpawnAnchor(runtime, slotState, options = {}) {
  * muss weiterhin hinter der Blickrichtung liegen.
  *
  * @param {any} runtime
- * @param {{ ahead?: boolean }} anchor
+ * @param {{ ahead?: boolean, portId?: string }} anchor
  * @param {any} human
  * @param {number} forwardDot
  * @param {number} distance
@@ -84,6 +90,7 @@ export function findSafeEndlessSpawnAnchor(runtime, slotState, options = {}) {
 export function isEndlessAnchorDirectionAllowed(runtime, anchor, human, forwardDot, distance) {
     void runtime;
     void human;
+    if (anchor?.portId) return distance >= AHEAD_MIN_DISTANCE || forwardDot <= 0.05;
     if (anchor?.ahead === true) return distance >= AHEAD_MIN_DISTANCE;
     return forwardDot <= 0.05;
 }
@@ -116,10 +123,16 @@ export function resolveEndlessBotRocketType(waveNumber, role) {
  * Aus welcher Richtung ein Jaeger kommt - fuer die Randwarnung im HUD.
  *
  * @param {any} human
- * @param {{ x: number, z: number }} anchor
- * @returns {'left' | 'right' | 'ahead' | 'behind'}
+ * @param {{ x: number, z: number, portId?: string, side?: string }} anchor
+ * @returns {'left' | 'right' | 'top' | 'bottom' | 'ahead' | 'behind'}
  */
 export function resolveEndlessSpawnSide(human, anchor) {
+    if (anchor?.portId) {
+        switch (anchor.side) {
+            case 'left': case 'right': case 'top': case 'bottom': return anchor.side;
+            default: break;
+        }
+    }
     const playerZ = Number(human?.position?.z) || 0;
     const playerX = Number(human?.position?.x) || 0;
     const deltaZ = (Number(anchor?.z) || 0) - playerZ;
@@ -143,7 +156,7 @@ export function telegraphEndlessSpawn(runtime, slotState, options = {}) {
         wantsAhead: shouldUseAheadAnchor(runtime, slotState),
     });
     if (!anchor) return false;
-    slotState.plannedAnchor = { id: anchor.id, x: anchor.x, y: anchor.y, z: anchor.z, ahead: anchor.ahead === true };
+    slotState.plannedAnchor = { id: anchor.id, x: anchor.x, y: anchor.y, z: anchor.z, ahead: anchor.ahead === true, portId: anchor.portId || '', side: anchor.side || '' };
     slotState.plannedElite = elite;
     slotState.telegraphedAt = runtime.elapsedCombatSeconds;
     const human = runtime.entityManager?.humanPlayers?.[0] || null;

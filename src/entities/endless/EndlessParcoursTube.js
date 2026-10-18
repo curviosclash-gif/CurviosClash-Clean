@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { deriveEndlessSeed } from '../../shared/contracts/EndlessParcoursContract.js';
 import { createStaticMeshCollider } from '../arena/StaticMeshCollider.js';
+import { resolveEndlessSidePort, isEndlessPortPatch, sidePortRingProgress, appendEndlessSidePort, initializeEndlessSidePort } from './EndlessParcoursSidePort.js';
 import { createEndlessPathSample, sampleEndlessModuleFrame } from './EndlessParcoursPathMetric.js';
 
 export const ENDLESS_TUBE = Object.freeze({ radialSegments: 24, axialSegments: 32, minRadius: 27, thickness: 1.2 });
@@ -26,8 +27,9 @@ function geometryFrom(positions, indices) {
 export function buildEndlessTube({ module, baseSeed, material, ownerId }) {
     const { radialSegments: radial, axialSegments: axial, thickness } = ENDLESS_TUBE;
     const stride = radial, layerVertices = (axial + 1) * stride;
-    const positions = new Float32Array(layerVertices * 2 * 3);
-    const inner = new Float32Array((layerVertices + 2) * 3);
+    const port = resolveEndlessSidePort(module, baseSeed);
+    const positions = Array(layerVertices * 2 * 3).fill(0);
+    const inner = Array((layerVertices + 2) * 3).fill(0);
     const frame = createEndlessPathSample();
     for (let ring = 0; ring <= axial; ring++) {
         const t = ring / axial;
@@ -37,21 +39,27 @@ export function buildEndlessTube({ module, baseSeed, material, ownerId }) {
             const theta = side * Math.PI * 2 / radial, x = Math.cos(theta), y = Math.sin(theta);
             for (let layer = 0; layer < 2; layer++) {
                 const offset = (layer * layerVertices + ring * stride + side) * 3;
-                const r = radius + layer * thickness;
+                const layerT = sidePortRingProgress(port, ring, axial, layer, thickness, module.length);
+                sampleEndlessModuleFrame(module, layerT, frame);
+                const r = (layer ? resolveEndlessTubeRadius(baseSeed, module.moduleIndex, layerT) : radius) + layer * thickness;
                 positions[offset] = frame.position.x + r * (frame.right.x * x + frame.up.x * y);
                 positions[offset + 1] = frame.position.y + r * (frame.right.y * x + frame.up.y * y);
                 positions[offset + 2] = frame.position.z - module.originZ + r * (frame.right.z * x + frame.up.z * y);
-                if (layer === 0) inner.set(positions.subarray(offset, offset + 3), (ring * stride + side) * 3);
+                if (layer === 0) {
+                    const target = (ring * stride + side) * 3;
+                    inner[target] = positions[offset]; inner[target + 1] = positions[offset + 1]; inner[target + 2] = positions[offset + 2];
+                }
             }
         }
         if (ring === 0 || ring === axial) {
-            inner.set([frame.position.x, frame.position.y, frame.position.z - module.originZ],
-                (layerVertices + (ring === 0 ? 0 : 1)) * 3);
+            const cap = (layerVertices + (ring === 0 ? 0 : 1)) * 3;
+            inner[cap] = frame.position.x; inner[cap + 1] = frame.position.y; inner[cap + 2] = frame.position.z - module.originZ;
         }
     }
     const wallIndices = [], volumeIndices = [];
     for (let ring = 0; ring < axial; ring++) {
         for (let side = 0; side < radial; side++) {
+            if (isEndlessPortPatch(port, ring, side, radial)) continue;
             const a = ring * stride + side, b = ring * stride + (side + 1) % radial;
             const c = a + stride, d = b + stride;
             // Inward winding for the cabin; outward winding for the exterior.
@@ -71,6 +79,10 @@ export function buildEndlessTube({ module, baseSeed, material, ownerId }) {
             else volumeIndices.push(a, b, layerVertices + 1);
         }
     }
+    appendEndlessSidePort({ port, module, radial, axial, thickness,
+        radiusAt: t => resolveEndlessTubeRadius(baseSeed, module.moduleIndex, t),
+        positions, inner, wallIndices, volumeIndices, layerVertices });
+    initializeEndlessSidePort(port, module, t => resolveEndlessTubeRadius(baseSeed, module.moduleIndex, t));
     const geometry = geometryFrom(positions, wallIndices);
     const volumeGeometry = geometryFrom(inner, volumeIndices);
     const mesh = new THREE.Mesh(geometry, material);
@@ -84,7 +96,7 @@ export function buildEndlessTube({ module, baseSeed, material, ownerId }) {
     const volumeCollider = createStaticMeshCollider(volumeMesh);
     // The query mesh borrows the shared wall material and never enters the scene.
     const box = geometry.boundingBox.clone().translate(mesh.position);
-    return { mesh, volumeCollider, box, geometries: [geometry, volumeGeometry],
+    return { mesh, volumeCollider, box, port, geometries: [geometry, volumeGeometry],
         collider: { id: `${ownerId}:tube`, ownerId, kind: 'wall', isWall: true,
             box, meshCollider: createStaticMeshCollider(mesh) } };
 }

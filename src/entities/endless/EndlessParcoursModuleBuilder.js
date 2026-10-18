@@ -176,6 +176,7 @@ export function buildEndlessModuleInstance({ module, geometry, materials, record
         recordMarker,
         staticColliders: [tube.collider, ...obstacles.statics],
         volumeCollider: tube.volumeCollider,
+        sidePort: tube.port,
         bounds: tube.box,
         ownedGeometries: tube.geometries,
         cycleColliders: obstacles.cycles,

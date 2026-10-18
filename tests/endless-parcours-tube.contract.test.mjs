@@ -36,7 +36,8 @@ test('tube wall collider uses the exact rendered triangles; cabin and exterior r
         for (const t of [0.125, 0.5, 0.875]) {
             path.getMetric().sampleAtProgress(index, t, frame);
             const p = new THREE.Vector3(frame.position.x, frame.position.y, frame.position.z);
-            const right = new THREE.Vector3(frame.right.x, frame.right.y, frame.right.z);
+            const right = new THREE.Vector3(frame.right.x, frame.right.y, frame.right.z)
+                .multiplyScalar(tube.port?.side === 'right' ? -1 : 1);
             const radius = resolveEndlessTubeRadius(4242, index, t);
             assert.equal(sphereIntersectsStaticMeshCollider(tube.collider.meshCollider, p, 2), false);
             assert.equal(sphereIntersectsStaticMeshCollider(tube.volumeCollider, p, 0), true);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sampleEndlessPortRoute } from './EndlessParcoursSidePort.js';
 import { ENDLESS_PARCOURS_MODULE_LENGTH } from '../../shared/contracts/EndlessParcoursContract.js';
 
 export const ENDLESS_HUNTER_SPEED_MULTIPLIER = 1.12;
@@ -55,6 +56,12 @@ export function getEndlessHunterRoute(runtime, playerIndex) {
         route = { enabled: true, kind: 'endless_hunter', runId: runtime.runId, totalCheckpoints: 1,
             checkpoints: [{ id: `hunter:${playerIndex}`, routeIndex: 0, pos: new THREE.Vector3() }] };
         runtime._hunterRoutes.set(playerIndex, route);
+    }
+    if (player.endlessPortId) {
+        for (const instance of runtime.activeModules.values()) {
+            if (instance.sidePort?.id === player.endlessPortId
+                && sampleEndlessPortRoute(instance.sidePort, player.position, route.checkpoints[0].pos)) return route;
+        }
     }
     metric.sampleAtS(targetS, runtime._hunterFrame);
     route.checkpoints[0].pos.copy(runtime._hunterFrame.position);
