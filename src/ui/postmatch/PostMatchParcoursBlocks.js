@@ -1,3 +1,4 @@
+import { ENDLESS_BIOMES } from '../../shared/contracts/EndlessParcoursBiomeContract.js';
 // The parcours cards of the post-match board: the fixed route and the endless chase.
 //
 // The endless chase used to dump eighteen rows on the screen, most of them "0". Now the four rows a
@@ -36,38 +37,44 @@ export function buildParcoursBlock(lastRoundMetrics) {
 
 /**
  * @param {Record<string, unknown>} summary
- * @returns {Array<{key: string, label: string, value: number, type: string}>}
+ * @returns {Array<{key: string, label: string, value: number|string, type: string}>}
  */
 function buildEndlessPrimaryRows(summary) {
     return dropZeroRows([
         { key: 'score', label: 'Punkte', value: toCount(summary.score), type: 'count' },
         { key: 'distance', label: 'Distanz', value: toCount(summary.distanceMeters), type: 'distance' },
         { key: 'survival', label: 'Zeit', value: Math.max(0, normalizeNumber(summary.survivalSeconds, 0)), type: 'duration' },
-        { key: 'record', label: 'Rekord', value: toCount(summary.recordScore), type: 'count' },
+        { key: 'record', label: 'Bisheriger Bestwert', value: toCount(summary.recordScore), type: 'count' },
     ]);
 }
 
 /**
  * @param {Record<string, unknown>} summary
- * @returns {Array<{key: string, label: string, value: number, type: string}>}
+ * @returns {Array<{key: string, label: string, value: number|string, type: string}>}
  */
 function buildEndlessDetailRows(summary) {
-    return dropZeroRows([
-        { key: 'kills', label: 'Bot-Abschüsse', value: toCount(summary.botKills), type: 'count' },
-        { key: 'elite-kills', label: 'Anführer', value: toCount(summary.eliteKills), type: 'count' },
-        { key: 'gates', label: 'Tore', value: toCount(summary.checkpointsPassed), type: 'count' },
-        { key: 'best-streak', label: 'Beste Serie', value: toCount(summary.bestStreak), type: 'count' },
-        { key: 'shakeoffs', label: 'Abgeschüttelt', value: toCount(summary.shakeoffs), type: 'count' },
-        { key: 'revives', label: 'Rettungen', value: toCount(summary.revives), type: 'count' },
-        { key: 'bonus', label: 'Bonus', value: toCount(summary.bonusScore), type: 'count' },
-        { key: 'modules', label: 'Module', value: toCount(summary.completedModules), type: 'count' },
-        { key: 'wave', label: 'Welle überstanden', value: toCount(summary.lastCompletedWave), type: 'count' },
-        { key: 'side-routes', label: 'Nebenwege', value: toCount(summary.sideRoutesCompleted), type: 'count' },
-        { key: 'flight-objectives', label: 'Flugziele', value: toCount(summary.flightObjectivesCompleted), type: 'count' },
-        { key: 'xp', label: 'XP', value: toCount(summary.xp), type: 'count' },
-        { key: 'unlocks', label: 'Freischaltungen', value: normalizeArray(summary.unlocks).length, type: 'count' },
-        { key: 'milestones', label: 'Neue Meilensteine', value: normalizeArray(summary.newMilestones).length, type: 'count' },
-    ]);
+    return [
+        ...(summary.biomeId ? [{ key: 'zone', label: 'Letzte Zone', value: ENDLESS_BIOMES[String(summary.biomeId)]?.label || String(summary.biomeId), type: 'text' }] : []),
+        ...(summary.threatLevel ? [{ key: 'threat', label: 'Gefahr', value: String(summary.threatLevel), type: 'text' }] : []),
+        ...dropZeroRows([
+            { key: 'active-bots', label: 'Jäger am Ende', value: toCount(summary.activeBots), type: 'count' },
+            { key: 'record-distance', label: 'Bisheriger Streckenrekord', value: toCount(summary.recordDistanceMeters), type: 'distance' },
+            { key: 'kills', label: 'Bot-Abschüsse', value: toCount(summary.botKills), type: 'count' },
+            { key: 'elite-kills', label: 'Anführer', value: toCount(summary.eliteKills), type: 'count' },
+            { key: 'gates', label: 'Tore', value: toCount(summary.checkpointsPassed), type: 'count' },
+            { key: 'best-streak', label: 'Beste Serie', value: toCount(summary.bestStreak), type: 'count' },
+            { key: 'shakeoffs', label: 'Abgeschüttelt', value: toCount(summary.shakeoffs), type: 'count' },
+            { key: 'revives', label: 'Rettungen', value: toCount(summary.revives), type: 'count' },
+            { key: 'bonus', label: 'Bonus', value: toCount(summary.bonusScore), type: 'count' },
+            { key: 'modules', label: 'Module', value: toCount(summary.completedModules), type: 'count' },
+            { key: 'wave', label: 'Welle überstanden', value: toCount(summary.lastCompletedWave), type: 'count' },
+            { key: 'side-routes', label: 'Nebenwege', value: toCount(summary.sideRoutesCompleted), type: 'count' },
+            { key: 'flight-objectives', label: 'Flugziele', value: toCount(summary.flightObjectivesCompleted), type: 'count' },
+            { key: 'xp', label: 'XP', value: toCount(summary.xp), type: 'count' },
+            { key: 'unlocks', label: 'Freischaltungen', value: normalizeArray(summary.unlocks).length, type: 'count' },
+            { key: 'milestones', label: 'Neue Meilensteine', value: normalizeArray(summary.newMilestones).length, type: 'count' },
+        ]),
+    ];
 }
 
 /**

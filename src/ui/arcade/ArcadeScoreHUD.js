@@ -290,6 +290,7 @@ export class ArcadeScoreHUD {
         if (renderHuntParcoursHud(this, hudState)) return;
         const score = hudState.score && typeof hudState.score === 'object' ? hudState.score : {};
         const isEndless = String(hudState.runType || '') === 'endless_parcours';
+        if (this._scoreValue) this._scoreValue.style.marginRight = isEndless ? '14px' : '';
         const isArenaWaves = String(hudState.runType || '') === 'arena_waves';
         const isFivePortals = String(hudState.runType || '') === 'five_portals';
         const isWeaponRace = String(hudState.runType || '') === 'weapon_race';

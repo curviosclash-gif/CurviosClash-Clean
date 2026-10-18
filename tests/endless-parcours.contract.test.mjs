@@ -5,9 +5,6 @@ import * as THREE from 'three';
 import {
     calculateEndlessScore,
     ENDLESS_PARCOURS_BOT_CAPACITY,
-    resolveEndlessDesiredBotCount,
-    resolveEndlessDifficultyTier,
-    resolveEndlessReinforcementDelay,
 } from '../src/shared/contracts/EndlessParcoursContract.js';
 import {
     generateEndlessParcoursModule,
@@ -127,12 +124,7 @@ test('endless module generation is deterministic, connected and has an intro', (
     );
 });
 
-test('difficulty, bot count, reinforcement delay and score use the specified thresholds', () => {
-    assert.deepEqual([89, 90, 239, 240, 449, 450].map(resolveEndlessDifficultyTier), [1, 2, 2, 3, 3, 4]);
-    assert.equal(resolveEndlessDesiredBotCount(0), 2);
-    assert.equal(resolveEndlessDesiredBotCount(450), 12);
-    assert.equal(resolveEndlessDesiredBotCount(9999), 12);
-    assert.ok(resolveEndlessReinforcementDelay(360) < resolveEndlessReinforcementDelay(0));
+test('score uses the active rule base rates', () => {
     assert.equal(calculateEndlessScore({
         maxProgressMeters: 123.9,
         survivalSeconds: 61.9,

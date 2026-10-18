@@ -1,3 +1,4 @@
+import { buildEndlessParcoursBlocks } from './postmatch/PostMatchParcoursBlocks.js';
 import { renderFivePortalsPostRunPanel, renderDemolitionPostRunPanel, renderHuntParcoursPostRunPanel } from './arcade/ArcadeDedicatedPostRunPanels.js';
 import { renderArcadeJourneyResult, requestArcadeJourneyResultAction } from './arcade/ArcadeJourneyResultView.js';
 import {
@@ -356,8 +357,9 @@ export class MatchFlowArcadeOverlayController {
             panel.removeChild(panel.firstChild);
         }
 
+        const isEndless = runtimeState.runType === 'endless_parcours';
         const score = Math.max(0, Math.round(toSafeNumber(summary.score, 0)));
-        const xpEarned = Math.max(0, Math.round(toSafeNumber(summary.xpEarned, 0)));
+        const xpEarned = Math.max(0, Math.round(toSafeNumber(summary.xpEarned ?? (isEndless ? summary.xp : 0), 0)));
         const dailyResult = summary?.dailyResult && typeof summary.dailyResult === 'object'
             ? summary.dailyResult
             : null;
@@ -369,10 +371,11 @@ export class MatchFlowArcadeOverlayController {
         header.className = 'arcade-overlay-header';
         
         const h3 = document.createElement('h3');
-        h3.textContent = dailyResult ? (dailyResult.succeeded ? 'Daily geschafft' : 'Daily-Versuch beendet')
+        h3.textContent = isEndless ? 'Endlosjagd beendet' : dailyResult ? (dailyResult.succeeded ? 'Daily geschafft' : 'Daily-Versuch beendet')
             : (summary.succeeded === false ? 'Arcade Run gescheitert' : 'Arcade Run abgeschlossen');
         header.appendChild(h3);
-        appendArcadeCards(header, createArcadeRunBlocks({
+        if (isEndless) header.appendChild(createArcadeCardScroller(buildEndlessParcoursBlocks({parcours:{endlessSummary:summary}}), 'Endlosjagd-Ergebnis', 'Keine Laufdaten.'));
+        else appendArcadeCards(header, createArcadeRunBlocks({
             ...summary,
             score,
             dailyResult: dailyResult
@@ -384,7 +387,8 @@ export class MatchFlowArcadeOverlayController {
         const bodyDiv = document.createElement('div');
         bodyDiv.className = 'arcade-overlay-body';
 
-        // Section 1: points per sector
+        // Fixed-sector runs keep their sector list; Endlos uses the run cards above.
+        if (!isEndless) {
         const sect1 = document.createElement('section');
         sect1.className = 'arcade-overlay-section';
         const s1h4 = document.createElement('h4');
@@ -397,6 +401,7 @@ export class MatchFlowArcadeOverlayController {
             ARCADE_RESULT_TEXTS.emptySectors
         ));
         bodyDiv.appendChild(sect1);
+        }
 
         // Section 2: XP
         const sect2 = document.createElement('section');
