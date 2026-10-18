@@ -136,6 +136,11 @@ test('the renderer builds one segmented worm visual and clears it on restart', (
     const renderer = { addToScene: (root) => roots.push(root), removeFromScene() {} };
     const { system, worm } = createWorld({ renderer });
     assert.equal(worm.root.userData.creature, true);
+    assert.equal(worm.root.userData.wormVisual, true);
+    assert.equal(worm.root.userData.face.userData.creatureFace, true);
+    assert.equal(worm.root.userData.face.children.filter((child) => child.name === 'worm-eye').length, 2);
+    assert.equal(worm.root.userData.face.children.filter((child) => child.name === 'worm-pupil').length, 2);
+    assert.ok(worm.root.userData.face.children.some((child) => child.name === 'worm-smile'));
     assert.ok(worm.root.children.length >= 8);
     const firstRoot = worm.root;
     system.startRound();
