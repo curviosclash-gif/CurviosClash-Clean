@@ -211,6 +211,7 @@ test('the finale is sometimes a boss scenario, decided by the seed alone', () =>
 
 test('a scenario sector flies with hunt weapons and its own bot count', () => {
     const worm = scenarioById('worm_hunt');
+    const standardWorm = MAP_PRESET_CATALOG.standard.mapUnits.find((unit) => unit.id === 'standard_giant_worm');
     const profile = resolveArcadeSectorRuntimeProfile(
         { sectorNumber: 3, templateId: 'sector_pressure', scenarioId: 'worm_hunt', squadId: worm.squadId, combatProfile: worm.combatProfile, botCount: worm.botCount, pressure: 0.5, mapUnits: worm.mapUnits, mapUnitsMode: worm.mapUnitsMode },
         { mapKey: worm.mapKey, fallbackBotCount: 7 },
@@ -222,6 +223,12 @@ test('a scenario sector flies with hunt weapons and its own bot count', () => {
     assert.equal(profile.mapUnitsMode, 'replace');
     assert.equal(profile.mapUnits.length, 100);
     assert.ok(profile.mapUnits.every((unit) => unit.kind === 'creature' && unit.maxHp === 6));
+    assert.ok(profile.mapUnits.every((unit) => unit.hitboxRadius === standardWorm.hitboxRadius
+        && unit.speed === standardWorm.speed
+        && unit.respawnSeconds === standardWorm.respawnSeconds
+        && unit.loop === standardWorm.loop));
+    assert.deepEqual(profile.mapUnits[0].attack, standardWorm.attack);
+    assert.deepEqual(profile.mapUnits[0].allowedModes, standardWorm.allowedModes);
 
     const manager = {
         runtimeConfig: { arcade: { scenarioMapUnits: profile.mapUnits, scenarioMapUnitsMode: profile.mapUnitsMode } },
