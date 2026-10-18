@@ -17,7 +17,10 @@ function resolveLocalSplitScreenPlayerColor(splitScreenVariant, index) {
 }
 
 export function disposeMatchSessionSystems(renderer, currentSession, options = {}) {
-    currentSession?.endlessParcoursRuntime?.dispose?.();
+    // Prepared sessions carry the runtime directly; published session refs expose
+    // it through their entity owner. Dispose before that owner's players vanish.
+    const endless = currentSession?.endlessParcoursRuntime || currentSession?.entityManager?.endlessParcoursRuntime;
+    endless?.dispose?.();
     if (currentSession?.entityManager) {
         currentSession.entityManager.dispose();
     }

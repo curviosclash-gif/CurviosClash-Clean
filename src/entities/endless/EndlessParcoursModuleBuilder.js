@@ -1,4 +1,6 @@
 import { ENDLESS_RING } from './EndlessParcoursRingOps.js';
+import { resolveEndlessBiome } from '../../shared/contracts/EndlessParcoursBiomeContract.js';
+import { buildEndlessBiomeView } from './EndlessParcoursBiomeView.js';
 import * as THREE from 'three';
 import {
     ENDLESS_COURSE_HALF_WIDTH,
@@ -98,10 +100,10 @@ function buildRecordMarker({ module, group, geometry, materials, recordDistanceM
     return marker;
 }
 
-function buildAreaCues({ module, group, geometry, materials }) {
+function buildAreaCues({ module, group, geometry, materials, hasBiome = false }) {
     const material = materials[module.area] || materials.gate;
     if (module.area === 'intro') return;
-    for (const localZ of [18, 58, 98]) {
+    for (const localZ of hasBiome ? [] : [18, 58, 98]) {
         if (module.area === 'industrial') {
             group.add(createMesh(geometry, material, 0, 22, localZ, 34, 2, 2, module));
         } else if (module.area === 'canyon') {
@@ -129,16 +131,20 @@ function buildAreaCues({ module, group, geometry, materials }) {
  * Baut einen Baustein als eine Szenen-Gruppe samt Kollisionskoerpern. Alles, was
  * spaeter animiert oder umgeschaltet wird, kommt als Referenz zurueck.
  *
- * @param {{ module: any, geometry: THREE.BufferGeometry, ringGeometry?: THREE.BufferGeometry, materials: Record<string, THREE.Material>, recordDistanceMeters?: number, metric?: any, baseSeed?: number, setpieceBank?: any, elapsedSeconds?: number }} options
+ * @param {{ module: any, geometry: THREE.BufferGeometry, ringGeometry?: THREE.BufferGeometry, materials: Record<string, THREE.Material>, recordDistanceMeters?: number, metric?: any, baseSeed?: number, setpieceBank?: any, biomeResources?: any, elapsedSeconds?: number }} options
  */
-export function buildEndlessModuleInstance({ module, geometry, ringGeometry = null, materials, recordDistanceMeters = 0, metric = null, baseSeed = 1, setpieceBank = null, elapsedSeconds = 0 }) {
+export function buildEndlessModuleInstance({ module, geometry, ringGeometry = null, materials, recordDistanceMeters = 0, metric = null, baseSeed = 1, setpieceBank = null, biomeResources = null, elapsedSeconds = 0 }) {
     const ownerId = `endless-module:${module.moduleIndex}`;
     const group = new THREE.Group();
     group.name = ownerId;
     group.userData.endlessModuleIndex = module.moduleIndex;
-    const tube = buildEndlessTube({ module, baseSeed, material: materials.wall, ownerId });
-    group.add(tube.mesh);
     const underwater = isEndlessWaterModule(module, baseSeed);
+    const biomeId = resolveEndlessBiome(module, baseSeed, underwater);
+    const style = biomeResources?.styles[biomeId];
+    const tube = buildEndlessTube({ module, baseSeed, material: style?.wall || materials.wall, ownerId });
+    group.add(tube.mesh);
+    const biomeView = style ? buildEndlessBiomeView(module, baseSeed, biomeId, style, tube.port) : null;
+    if (biomeView) group.add(biomeView.group);
     const waterMesh = underwater ? buildEndlessWaterVisual(tube, module, materials.water) : null;
     if (waterMesh) group.add(waterMesh);
     const setpiece = setpieceBank?.create(module, baseSeed, elapsedSeconds);
@@ -150,11 +156,12 @@ export function buildEndlessModuleInstance({ module, geometry, ringGeometry = nu
     ownedRing.userData.__sharedNoDispose = true;
     const gate = buildGate({ module, group, ringGeometry: ownedRing, materials, ownerId });
     const recordMarker = buildRecordMarker({ module, group, geometry, materials, recordDistanceMeters, metric });
-    buildAreaCues({ module, group, geometry, materials });
+    buildAreaCues({ module, group, geometry, materials, hasBiome: !!biomeView });
     return {
         ownerId,
         setpiece,
         underwater,
+        biomeId,
         waterMesh,
         module,
         group,
@@ -166,7 +173,7 @@ export function buildEndlessModuleInstance({ module, geometry, ringGeometry = nu
         volumeCollider: tube.volumeCollider,
         sidePort: tube.port,
         bounds: tube.box,
-        ownedGeometries: ringGeometry ? tube.geometries : [...tube.geometries, ownedRing],
+        ownedGeometries: [...tube.geometries, ...(ringGeometry ? [] : [ownedRing]), ...(biomeView?.geometries || [])],
         cycleColliders: obstacles.cycles,
         cycleSignature: '',
     };

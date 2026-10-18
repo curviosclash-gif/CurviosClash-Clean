@@ -119,6 +119,9 @@ export function updateEndlessStageEffects(runtime, dt) {
     } else if (runtime._materials.gate) {
         runtime._materials.gate.emissiveIntensity = 0.9;
     }
+    const pulse = Math.max(0, ((runtime._materials.wall?.emissiveIntensity ?? palette.wallEmissiveIntensity) - palette.wallEmissiveIntensity)
+        / (PULSE_PEAK_INTENSITY - palette.wallEmissiveIntensity));
+    runtime._biomeResources?.update(safeDt, pulse);
 }
 
 /**

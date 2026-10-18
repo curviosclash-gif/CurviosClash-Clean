@@ -14,6 +14,7 @@ export function instantiateEndlessModule(runtime, module) {
         geometry: runtime._sharedGeometry,
         ringGeometry: runtime._ringGeometry,
         materials: runtime._materials,
+        biomeResources: runtime._biomeResources,
         metric: runtime._path.getMetric(),
         baseSeed: runtime.baseSeed,
         setpieceBank: runtime._setpieceBank,

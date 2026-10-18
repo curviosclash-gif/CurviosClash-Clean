@@ -1,4 +1,5 @@
 import { normalizeEndlessSeedMode } from '../../shared/contracts/EndlessParcoursSeedContract.js';
+import { createEndlessBiomeResources } from './EndlessParcoursBiomeResources.js';
 import { resolveEndlessAreaTier, resolveEndlessAreaThreat } from '../../shared/contracts/EndlessParcoursPacingContract.js';
 import { ENDLESS_RING, createEndlessRingState, prepareEndlessRingSegment, finishEndlessRingSegment } from './EndlessParcoursRingOps.js';
 import {
@@ -151,6 +152,7 @@ export class EndlessParcoursRuntime {
         this._sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
         this._sharedGeometry.userData = { __sharedNoDispose: true };
         this._materials = createEndlessMaterials();
+        this._biomeResources = createEndlessBiomeResources();
         this._botSlots = createEndlessBotSlots(entityManager?.bots);
         this.entityManager.endlessParcoursRuntime = this;
         this.arena?.enterStaticStreamingMode?.({
@@ -525,6 +527,7 @@ export class EndlessParcoursRuntime {
         this._ringGeometry?.dispose?.();
         this._sharedGeometry?.dispose?.();
         for (const material of Object.values(this._materials)) material?.dispose?.();
+        this._biomeResources.dispose();
         if (this.entityManager?.endlessParcoursRuntime === this) this.entityManager.endlessParcoursRuntime = null;
         this._path.dispose();
         this._disposed = true;

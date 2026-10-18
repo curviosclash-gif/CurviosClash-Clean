@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addEndlessTubeUvs } from './EndlessParcoursBiomeTextures.js';
 import { deriveEndlessSeed } from '../../shared/contracts/EndlessParcoursContract.js';
 import { createStaticMeshCollider } from '../arena/StaticMeshCollider.js';
 import { resolveEndlessSidePort, isEndlessPortPatch, sidePortRingProgress, appendEndlessSidePort, initializeEndlessSidePort } from './EndlessParcoursSidePort.js';
@@ -84,6 +85,7 @@ export function buildEndlessTube({ module, baseSeed, material, ownerId }) {
         positions, inner, wallIndices, volumeIndices, layerVertices });
     initializeEndlessSidePort(port, module, t => resolveEndlessTubeRadius(baseSeed, module.moduleIndex, t));
     const geometry = geometryFrom(positions, wallIndices);
+    addEndlessTubeUvs(geometry, radial, axial, module.length);
     const volumeGeometry = geometryFrom(inner, volumeIndices);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `${ownerId}:tube`;
