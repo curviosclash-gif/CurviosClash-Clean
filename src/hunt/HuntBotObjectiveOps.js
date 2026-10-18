@@ -1,5 +1,6 @@
 import { applyEscortBotMovement } from './HuntBotEscortOps.js';
 import { applyFlagBotMovement } from './HuntBotFlagOps.js';
+import { applyHuntBotParcoursMovement } from './HuntBotParcoursOps.js';
 
 export function applyHuntBotObjectiveMovement(options = {}) {
     if (options.player) {
@@ -12,5 +13,5 @@ export function applyHuntBotObjectiveMovement(options = {}) {
 
     const escortRole = applyEscortBotMovement(options);
     if (escortRole && options.player) options.player.botObjectiveType = 'ESCORT';
-    return escortRole;
+    return escortRole || applyHuntBotParcoursMovement(options);
 }

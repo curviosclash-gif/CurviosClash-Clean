@@ -25,6 +25,7 @@ import {
 import { normalizeEndlessParcoursRecords } from '../../state/arcade/EndlessParcoursRecords.js';
 import { EndlessParcoursExclusionZone } from './EndlessParcoursExclusionZone.js';
 import { EndlessParcoursWaterSource } from './EndlessParcoursWater.js';
+import { getEndlessHunterRoute, syncEndlessHunterSpeeds } from './EndlessParcoursHunterOps.js';
 import { EndlessParcoursPath } from './EndlessParcoursPath.js';
 import { createEndlessPathSample } from './EndlessParcoursPathMetric.js';
 import { resolveEndlessCoursePoint } from './EndlessParcoursCourseSpace.js';
@@ -119,6 +120,9 @@ export class EndlessParcoursRuntime {
         this.activeModules = new Map();
         this._setpieceBank = null;
         this._setpieceElapsedSeconds = 0;
+        this._hunterRoutes = new Map();
+        this._hunterFrame = createEndlessPathSample();
+        this._hunterSpeedOptions = { speed: 1 };
         this._records = normalizeEndlessParcoursRecords();
         this._startSpeed = resolveEndlessStartSpeed(entityManager?.humanPlayers?.[0], 1);
         this._path = new EndlessParcoursPath({ baseSeed: this.baseSeed });
@@ -177,7 +181,8 @@ export class EndlessParcoursRuntime {
     getPathMetric() { return this._path.getMetric(); }
 
     prepareSetpieces(options = {}) { return prepareEndlessSetpieces(this, options); }
-    updateGeometry(dt) { updateEndlessSetpieces(this, dt); }
+    updateGeometry(dt) { updateEndlessSetpieces(this, dt); syncEndlessHunterSpeeds(this); }
+    getBotRouteSnapshot(playerIndex) { return getEndlessHunterRoute(this, playerIndex); }
 
     getRecordDistanceMeters() {
         return Math.max(0, Number(this._records.bestDistanceByRuleVersion?.[ENDLESS_PARCOURS_RULE_VERSION]?.distanceMeters) || 0);
@@ -483,6 +488,7 @@ export class EndlessParcoursRuntime {
         }
         for (const instance of this.activeModules.values()) this._removeModule(instance);
         this.activeModules.clear();
+        this._hunterRoutes.clear();
         this._setpieceBank?.dispose();
         this._sideRouteStates.clear();
         this._rewardedSideRoutes.clear();

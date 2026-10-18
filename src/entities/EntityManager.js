@@ -110,6 +110,8 @@ export class EntityManager {
         this.players = [];
         this.humanPlayers = [];
         this.bots = [];
+        /** @type {import('./endless/EndlessParcoursRuntime.js').EndlessParcoursRuntime|null} */
+        this.endlessParcoursRuntime = null;
         this.botByPlayer = new Map();
         // ponytail: camera updates are synchronous, so one mutable context avoids per-frame garbage.
         this._cameraContext = {
@@ -365,7 +367,10 @@ export class EntityManager {
         return this._parcoursProgressSystem.getPlayerHudState(playerIndex, now);
     }
 
-    getParcoursRouteSnapshot() {
+    getParcoursRouteSnapshot(playerIndex = null) {
+        if (Number.isInteger(playerIndex) && this.endlessParcoursRuntime) {
+            return this.endlessParcoursRuntime.getBotRouteSnapshot(playerIndex);
+        }
         return this._parcoursProgressSystem?.getRouteSnapshot?.() || null;
     }
 

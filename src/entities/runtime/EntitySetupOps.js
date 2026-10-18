@@ -14,6 +14,7 @@ import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntime
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
+import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursContract.js';
 import { resolveArcadeRoleAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import {
     ARCADE_COMPANION_AGGRESSIVENESS,
@@ -240,6 +241,11 @@ export class EntitySetupOps {
         const authoredRoles = Array.isArray(scenario?.botRoles) ? scenario.botRoles : [];
         // An arcade sector without authored map roles hands out its squad's role mix.
         const arcadeEnabled = owner.runtimeConfig?.arcade?.enabled === true;
+        // Endlos is entered through ARCADE but its authored combat rules are Hunt.
+        // Resolve its real combat policy instead of the menu mode's Classic fallback.
+        const defaultPolicyType = isEndlessParcoursConfig(owner.runtimeConfig)
+            ? resolveMatchBotPolicyType({ huntModeActive: true, planarMode: owner.runtimeConfig?.gameplay?.planarMode === true })
+            : owner.botPolicyType;
         const arcadeRoles = arcadeEnabled && Array.isArray(owner.runtimeConfig?.bot?.arcadeBotRoles) ? owner.runtimeConfig.bot.arcadeBotRoles : [];
         const scenarioRoles = authoredRoles.length > 0 ? authoredRoles : arcadeRoles;
         for (let i = 0; i < numBots; i++) {
@@ -278,7 +284,7 @@ export class EntitySetupOps {
             const botDifficulty = setupContext.teamBotDifficulty?.[player.teamId] || owner.botDifficulty;
             const policyType = parcoursRacer
                 ? BOT_POLICY_TYPES.HEURISTIC
-                : (scenarioHuntBot ? BOT_POLICY_TYPES.HUNT : owner.botPolicyType);
+                : (scenarioHuntBot ? BOT_POLICY_TYPES.HUNT : defaultPolicyType);
             const ai = owner.botPolicyRegistry.create(policyType, {
                 difficulty: botDifficulty,
                 recorder: owner.recorder,

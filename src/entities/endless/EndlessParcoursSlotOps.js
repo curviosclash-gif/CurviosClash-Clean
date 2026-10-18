@@ -11,6 +11,7 @@ import {
 } from './EndlessParcoursBotDirectorOps.js';
 import { canActivateEndlessSlot, countEndlessOccupiedSlots } from './EndlessParcoursWaveOps.js';
 import { resolveHigherArcadeBotDifficulty } from '../directors/ArcadeEncounterCatalog.js';
+import { syncEndlessHunterSpeed } from './EndlessParcoursHunterOps.js';
 
 const BOT_SPAWN_DEFER_SECONDS = 0.5;
 
@@ -70,6 +71,7 @@ export function tryActivateEndlessSlot(runtime, slotState) {
     slotState.activationGeneration += 1;
     const frame = runtime.projectCoursePoint(slotState.plannedAnchor);
     runtime._tmpSpawnDirection.copy(frame.tangent);
+    if (slotState.plannedAnchor.ahead === true) runtime._tmpSpawnDirection.multiplyScalar(-1);
     const activated = runtime.entityManager?.activateBotSlot?.({
         slot: slotState.slot,
         position: slotState.plannedAnchor,
@@ -115,6 +117,7 @@ export function tryActivateEndlessSlot(runtime, slotState) {
         }
     }
     slotState.state = 'active';
+    syncEndlessHunterSpeed(runtime, slotState.player);
     slotState.eligibleAt = 0;
     slotState.plannedAnchor = null;
     slotState.plannedElite = false;
