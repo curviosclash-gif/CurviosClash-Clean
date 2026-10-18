@@ -4,15 +4,12 @@ const OBJECTIVES = Object.freeze([
     Object.freeze({ id: 'shakeoff_two', target: 2 }),
 ]);
 
-function objectiveForModuleIndex(moduleIndex) {
-    const block = Math.max(0, Math.floor((Math.max(1, moduleIndex) - 1) / 6));
-    return OBJECTIVES[block % OBJECTIVES.length];
-}
-
 export function syncEndlessFlightObjective(runtime, moduleIndex, area) {
-    const block = Math.max(0, Math.floor((Math.max(1, moduleIndex) - 1) / 6));
-    if (runtime.objectiveAreaBlock === block) return;
-    const definition = objectiveForModuleIndex(moduleIndex);
+    const module = runtime.activeModules?.get(moduleIndex)?.module || runtime._path?.getModule(moduleIndex);
+    const block = Math.max(0, module?.areaBlock ?? Math.floor((Math.max(1, moduleIndex) - 1) / 6));
+    // A return flight or rescue cannot reset an already rewarded area's objective.
+    if (runtime.objectiveAreaBlock >= block) return;
+    const definition = OBJECTIVES[block % OBJECTIVES.length];
     runtime.objectiveAreaBlock = block;
     runtime.currentArea = String(area || 'industrial');
     runtime.flightObjective = {

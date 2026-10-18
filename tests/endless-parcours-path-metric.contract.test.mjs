@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EndlessParcoursPath } from '../src/entities/endless/EndlessParcoursPath.js';
 import { EndlessParcoursPathMetric, createEndlessPathSample } from '../src/entities/endless/EndlessParcoursPathMetric.js';
-import { generateEndlessParcoursSequence } from '../src/entities/endless/EndlessParcoursGenerator.js';
 import { resolveModuleCenterAtZ } from '../src/entities/endless/EndlessParcoursModuleBuilder.js';
 
 const near = (actual, expected, tolerance = 1e-9) => assert.ok(
@@ -21,14 +20,15 @@ function assertFrame(frame) {
     near(r.x * u.y - r.y * u.x, t.z);
 }
 
-test('1000 generated modules preserve seed, frozen tier and the existing centreline', () => {
+test('1000 generated modules preserve seed across preview order and the existing centreline', () => {
     const path = new EndlessParcoursPath({ baseSeed: 130707 });
-    const expected = generateEndlessParcoursSequence(130707, 1000, 4);
+    const preview = new EndlessParcoursPath({ baseSeed: 130707 });
+    preview.getModule(999);
     const metric = path.getMetric(), frame = createEndlessPathSample(), projected = createEndlessPathSample();
     let previousEnd = 0, bent = 0;
     for (let index = 0; index < 1000; index++) {
         const module = path.getModule(index, 4);
-        assert.deepEqual(module, expected[index]);
+        assert.deepEqual(module, preview.getModule(index));
         assert.deepEqual(path.getModule(index, 9), module, 'reloading freezes the original tier');
         const range = metric.getStationRange(index, {});
         near(range.startS, previousEnd);

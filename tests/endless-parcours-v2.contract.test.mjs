@@ -390,10 +390,12 @@ test('flight objectives use actual loss, count the final area gate, and keep fix
     runtime.flightObjective.progress = 2;
     runtime._damagedSinceCheckpoint = false;
     const beforeObjective = runtime.bonusScore;
-    runtime.onCheckpointPassed(6);
+    let lastAreaGate = 1;
+    while (runtime._path.getModule(lastAreaGate + 1).areaBlock === 0) lastAreaGate++;
+    runtime.onCheckpointPassed(lastAreaGate);
     assert.equal(runtime.flightObjective.completed, true, 'the last gate is evaluated in the old area');
     assert.equal(runtime.bonusScore - beforeObjective, 400);
-    syncEndlessFlightObjective(runtime, 7, 'canyon');
+    syncEndlessFlightObjective(runtime, lastAreaGate + 1, 'canyon');
     assert.equal(runtime.flightObjective.id, 'risk_route');
 
     runtime._syncModules(9, 4);

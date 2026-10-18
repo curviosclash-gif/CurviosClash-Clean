@@ -1,3 +1,4 @@
+import { resolveEndlessAreaTier, resolveEndlessAreaThreat } from '../../shared/contracts/EndlessParcoursPacingContract.js';
 import { ENDLESS_RING, createEndlessRingState, prepareEndlessRingSegment, finishEndlessRingSegment } from './EndlessParcoursRingOps.js';
 import {
     instantiateEndlessModule,
@@ -14,9 +15,6 @@ import {
     ENDLESS_PARCOURS_SCORE,
     ENDLESS_PARCOURS_END_REASONS,
     ENDLESS_PARCOURS_MODULE_LENGTH,
-    resolveEndlessDesiredBotCount,
-    resolveEndlessDifficultyTier,
-    resolveEndlessThreatLevel,
 } from '../../shared/contracts/EndlessParcoursContract.js';
 import {
     ENDLESS_PARCOURS_ELITE,
@@ -99,6 +97,7 @@ export class EndlessParcoursRuntime {
     /** @type {number} */ eliteKills;
     /** @type {number} */ bonusScore;
     /** @type {number} */ combatBonusScore;
+    /** @type {number} */ pacingAreaBlock;
 
     constructor({
         baseSeed = 1,
@@ -160,7 +159,7 @@ export class EndlessParcoursRuntime {
         });
         this._activePaletteTier = 0;
         applyEndlessStagePalette(this._materials, 0);
-        this._syncModules(0, 1);
+        this._syncModules(0);
         this._previousExclusionZoneSource = this.arena?.exclusionZoneSource;
         this._exclusionZoneSource = new EndlessParcoursExclusionZone(this);
         if (this.arena) this.arena.exclusionZoneSource = this._exclusionZoneSource;
@@ -196,7 +195,7 @@ export class EndlessParcoursRuntime {
     }
 
     getCoursePoint(moduleIndex, x = 0, y = 0, localZ = 0, out = this._courseSample) {
-        const module = this._path.getModule(moduleIndex, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
+        const module = this._path.getModule(moduleIndex);
         return resolveEndlessCoursePoint(module, x, y, localZ, out);
     }
 
@@ -204,7 +203,7 @@ export class EndlessParcoursRuntime {
         if (!Number.isFinite(point?.z)) return null;
         const index = Math.max(0, Math.floor(point.z / ENDLESS_PARCOURS_MODULE_LENGTH));
         if (this._path.getMetric().getModuleCount() <= index + 1) {
-            this._path.getModule(index + 1, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
+            this._path.getModule(index + 1);
         }
         this._projectionBounds.minModuleIndex = Math.max(0, index - 1);
         this._projectionBounds.maxModuleIndex = index + 1;
@@ -234,7 +233,7 @@ export class EndlessParcoursRuntime {
 
     onCheckpointPassed(index) {
         if (Math.floor(Number(index) || 0) <= 0) return;
-        const module = this._path.getModule(index, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
+        const module = this._path.getModule(index);
         registerEndlessObjectiveCheckpoint(this, index, module.area);
     }
 
@@ -312,8 +311,8 @@ export class EndlessParcoursRuntime {
         return deactivateEndlessBotsInModule(this, module, options);
     }
 
-    _syncModules(currentModuleIndex, difficultyTier) {
-        return syncEndlessModules(this, currentModuleIndex, difficultyTier);
+    _syncModules(currentModuleIndex) {
+        return syncEndlessModules(this, currentModuleIndex);
     }
 
     _syncCycleColliders() {
@@ -354,27 +353,26 @@ export class EndlessParcoursRuntime {
     }
 
     _announceEscalation() {
-        const tier = resolveEndlessDifficultyTier(this.elapsedCombatSeconds);
+        const tier = resolveEndlessAreaTier(this.pacingAreaBlock);
         switchEndlessStage(this, this.combatStarted ? tier : 0);
-        const threat = resolveEndlessThreatLevel(this.elapsedCombatSeconds);
-        const botTarget = resolveEndlessDesiredBotCount(this.elapsedCombatSeconds);
-        if (threat === this._lastThreatLevel && botTarget === this._lastAnnouncedBotTarget) return;
+        const threat = resolveEndlessAreaThreat(this.pacingAreaBlock);
+        if (threat === this._lastThreatLevel) return;
         this._lastThreatLevel = threat;
-        this._lastAnnouncedBotTarget = botTarget;
         const human = this.entityManager?.humanPlayers?.[0] || null;
-        this.entityManager?._notifyPlayerFeedback?.(human, `Bedrohungsstufe: ${threat} | Jäger: ${botTarget}`);
+        this.entityManager?._notifyPlayerFeedback?.(human, `Bedrohungsstufe: ${threat}`);
     }
 
     _updateProgress(player) {
         const projected = this.projectCoursePoint(player?.position);
-        if (!projected) return;
+        if (!projected) return false;
         const progress = projected.s;
         this.currentProgressMeters = progress;
         this.currentModuleIndex = projected.moduleIndex;
-        this._syncModules(this.currentModuleIndex, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
-        if (this._exclusionZoneSource.isOutside(player)) return;
+        this._syncModules(this.currentModuleIndex);
+        if (this._exclusionZoneSource.isOutside(player)) return false;
+        this.pacingAreaBlock = Math.max(this.pacingAreaBlock, this.activeModules.get(this.currentModuleIndex).module.areaBlock);
         handleEndlessCheckpointCrossing(this, progress);
-        if (progress <= this.maxProgressMeters) return;
+        if (progress <= this.maxProgressMeters) return true;
         this.maxProgressMeters = progress;
         const completed = this.currentModuleIndex;
         if (completed > this.completedModules) {
@@ -387,6 +385,7 @@ export class EndlessParcoursRuntime {
             this._lastThreatLevel = 'EASY';
             beginEndlessAttackWave(this, 1);
         }
+        return true;
     }
 
     /**
@@ -444,7 +443,7 @@ export class EndlessParcoursRuntime {
         this.survivalSeconds += safeDt;
         if (this.combatStarted) this._trackHumanEvents(human);
         prepareEndlessRingSegment(this, human);
-        this._updateProgress(human);
+        const insideCourse = this._updateProgress(human);
         finishEndlessRingSegment(this, human);
         if (this._pendingFinalReason) return this.finalize(this._pendingFinalReason);
         if (!human?.alive) return this.finalize(ENDLESS_PARCOURS_END_REASONS.PLAYER_DEATH);
@@ -458,8 +457,10 @@ export class EndlessParcoursRuntime {
         if (this.combatStarted) {
             this.elapsedCombatSeconds += safeDt;
             const module = this.activeModules.get(this.currentModuleIndex)?.module;
-            if (module) syncEndlessFlightObjective(this, module.moduleIndex, module.area);
-            updateEndlessSideRoute(this, human);
+            if (insideCourse) {
+                if (module) syncEndlessFlightObjective(this, module.moduleIndex, module.area);
+                updateEndlessSideRoute(this, human);
+            }
             updateEndlessStreak(this);
             advanceEndlessWave(this, safeDt);
             this._announceEscalation();

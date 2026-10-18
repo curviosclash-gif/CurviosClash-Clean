@@ -49,6 +49,7 @@ export function createEndlessRuntimeState() {
         sideRoutesCompleted: 0,
         flightObjectivesCompleted: 0,
         currentArea: 'intro',
+        pacingAreaBlock: 0,
         objectiveAreaBlock: -1,
         flightObjective: null,
         _damagedSinceCheckpoint: false,

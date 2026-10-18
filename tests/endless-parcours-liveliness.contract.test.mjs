@@ -397,6 +397,12 @@ test('runtime recolours the course when the threat tier changes', () => {
     const { runtime } = harness;
     const introWall = runtime._materials.wall.color.getHex();
     runtime.update(120);
+    assert.equal(runtime._activePaletteTier, 1, 'waiting does not advance the course tier');
+    let index = 1;
+    while (runtime._path.getModule(index).areaBlock < 3) index++;
+    const point = runtime.getCoursePoint(index, 0, 0, 8);
+    harness.human.position.copy(point.position);
+    runtime.update(0);
     assert.equal(runtime._activePaletteTier, 2);
     assert.notEqual(runtime._materials.wall.color.getHex(), introWall);
     assert.ok(harness.sounds.includes('PARCOURS_TIMEOUT'), 'der Stufenwechsel meldet sich');

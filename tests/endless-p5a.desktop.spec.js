@@ -2,8 +2,7 @@ import { expect, test } from './helpers.desktop.js';
 import { collectErrors, selectSessionType, waitForLoadedGame } from './helpers.js';
 import { installControl, setPaused, step } from '../scripts/playtest/playtest-control.mjs';
 
-test('Endlos P5a hunters follow the course at the current player pace and retain real attacks', async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
+async function readyHunter(page) {
     const errors=collectErrors(page);
     await waitForLoadedGame(page); await selectSessionType(page,'single');
     await page.locator('[data-journey-world="flight_school"]').click();
@@ -25,6 +24,12 @@ test('Endlos P5a hunters follow the course at the current player pace and retain
         if(index!=null)break;
     }
     expect(index).not.toBeUndefined();
+    return {session,index,errors};
+}
+
+test('Endlos P5a hunters follow the course at the current player pace', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const {session,index,errors}=await readyHunter(page);
     const start=await page.evaluate(i=>{
         const m=window.GAME_INSTANCE.entityManager,r=m.endlessParcoursRuntime,h=m.humanPlayers[0],b=m.players[i];
         const spawn={position:b.position.toArray(),radius:b.hitboxRadius,collision:Boolean(m.arena.getCollisionInfo(b.position,b.hitboxRadius))};
@@ -54,6 +59,12 @@ test('Endlos P5a hunters follow the course at the current player pace and retain
     expect(flight.alive).toBe(true);expect(flight.station-start.station).toBeGreaterThan(20);
     expect(flight.botSpeed/flight.humanSpeed).toBeCloseTo(1.12,5);expect(flight.policy).toBe('hunt-3d');
     expect(samples.some(sample=>sample.objective==='ENDLESS_ROUTE')).toBe(true);
+    expect(errors).toHaveLength(0);
+});
+
+test('Endlos P5a a fresh hunter retains real attacks without forced fire or heat resets', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const {session,index,errors}=await readyHunter(page);
     const before=await page.evaluate(i=>{
         const m=window.GAME_INSTANCE.entityManager,r=m.endlessParcoursRuntime,h=m.humanPlayers[0],b=m.players[i];
         for(const[p,z]of[[b,20],[h,45]]) {

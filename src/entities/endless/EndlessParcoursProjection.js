@@ -1,9 +1,9 @@
+import { resolveEndlessAreaThreat } from '../../shared/contracts/EndlessParcoursPacingContract.js';
 import {
     calculateEndlessScore,
     ENDLESS_PARCOURS_SCORE,
     ENDLESS_PARCOURS_BOT_CAPACITY,
     resolveEndlessMilestones,
-    resolveEndlessThreatLevel,
 } from '../../shared/contracts/EndlessParcoursContract.js';
 import { ENDLESS_PARCOURS_CHECKPOINT, resolveEndlessStreakMultiplier } from '../../shared/contracts/EndlessParcoursStageContract.js';
 import { ENDLESS_PARCOURS_RULE_VERSION } from '../../shared/contracts/EndlessParcoursWaveContract.js';
@@ -66,7 +66,7 @@ export function buildEndlessHudState(runtime) {
         occupiedBotSlots: runtime._botSlots.filter((entry) => entry.state !== 'idle').length,
         botCapacity: ENDLESS_PARCOURS_BOT_CAPACITY,
         threatLevel: runtime.combatStarted
-            ? resolveEndlessThreatLevel(runtime.elapsedCombatSeconds)
+            ? resolveEndlessAreaThreat(runtime.pacingAreaBlock)
             : 'INTRO',
         streak: runtime.streak,
         streakMultiplier: resolveEndlessStreakMultiplier(runtime.streak),

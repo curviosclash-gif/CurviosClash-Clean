@@ -66,8 +66,11 @@ export function runEndlessHunterFlight({ seed = 1, ahead = false, guided = true,
     };
     const strategy = new HuntModeStrategy({ seed });
     const controller = new PlayerController(), metric = runtime.getPathMetric();
-    runtime._syncModules(8, 4);
-    const start = metric.getStationAtProgress(8, 0.3);
+    // The comparison needs an actually curved high-tier course. Difficulty now
+    // follows distance, so select its real late-course stage rather than injecting a tier.
+    const startModule = 80;
+    runtime._syncModules(startModule);
+    const start = metric.getStationAtProgress(startModule, 0.3);
     const botFrame = metric.sampleAtS(start), direction = new THREE.Vector3().copy(botFrame.tangent);
     bot.position.copy(botFrame.position).addScaledVector(botFrame.right, ahead ? 10 : -10);
     if (ahead && guided) direction.negate();
@@ -81,7 +84,7 @@ export function runEndlessHunterFlight({ seed = 1, ahead = false, guided = true,
         human.position.copy(frame.position);
         human.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), new THREE.Vector3().copy(frame.tangent));
         runtime.currentProgressMeters = station;
-        runtime._syncModules(frame.moduleIndex, 4);
+        runtime._syncModules(frame.moduleIndex);
         manager._simulationClockMs = ticks * dt * 1000;
         const context = createBotRuntimeContext(manager, bot, dt);
         const input = policy.update(dt, bot, context);

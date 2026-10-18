@@ -38,10 +38,10 @@ const RHYTHM_LAYOUTS = Object.freeze({
     challenge: Object.freeze(new Set(['closing_walls', 'hazard_corridor', 'pendulum_bars', 'sprint_shafts'])),
 });
 
-export function resolveEndlessArea(baseSeed, moduleIndex, previousArea = '') {
+export function resolveEndlessArea(baseSeed, moduleIndex, previousArea = '', areaBlock = null) {
     const index = Math.max(0, Math.floor(Number(moduleIndex) || 0));
     if (index === 0) return 'intro';
-    const block = Math.floor((index - 1) / 6);
+    const block = areaBlock == null ? Math.floor((index - 1) / 6) : Math.max(0, Math.floor(areaBlock));
     if (block < ENDLESS_PARCOURS_AREAS.length) return ENDLESS_PARCOURS_AREAS[block];
     let prior = ENDLESS_PARCOURS_AREAS[ENDLESS_PARCOURS_AREAS.length - 1];
     for (let currentBlock = ENDLESS_PARCOURS_AREAS.length; currentBlock <= block; currentBlock += 1) {
@@ -165,7 +165,7 @@ function createSpawnAnchors(definition, baseSeed, moduleIndex) {
  * Vorgaenger, damit der Korridor ohne Sprung weiterlaeuft; `entryDrift` ist der
  * bereits aufsummierte Weltversatz des Korridormittelpunkts.
  *
- * @param {{ baseSeed?: unknown, moduleIndex?: unknown, previousConnector?: string, entryDrift?: { x: number, y: number }, difficultyTier?: unknown, sinceRecovery?: unknown }} [options]
+ * @param {{ baseSeed?: unknown, moduleIndex?: unknown, previousConnector?: string, entryDrift?: { x: number, y: number }, difficultyTier?: unknown, sinceRecovery?: unknown, areaBlock?: number | null }} [options]
  */
 export function generateEndlessParcoursModule({
     baseSeed,
@@ -176,13 +176,14 @@ export function generateEndlessParcoursModule({
     sinceRecovery = 0,
     previousTemplateId = '',
     previousArea = '',
+    areaBlock = null,
 } = {}) {
     const index = Math.max(0, Math.floor(Number(moduleIndex) || 0));
     const safeEntryDrift = {
         x: Number(entryDrift?.x) || 0,
         y: Number(entryDrift?.y) || 0,
     };
-    const area = resolveEndlessArea(baseSeed, index, previousArea);
+    const area = resolveEndlessArea(baseSeed, index, previousArea, areaBlock);
     const rhythm = resolveEndlessModuleRhythm(index);
     const definition = selectDefinition({
         baseSeed,
@@ -214,6 +215,7 @@ export function generateEndlessParcoursModule({
         arrangementId: definition.id,
         label: definition.label,
         area,
+        areaBlock: index === 0 ? -1 : (areaBlock ?? Math.floor((index - 1) / 6)),
         rhythm,
         recovery: definition.recovery === true,
         moduleIndex: index,

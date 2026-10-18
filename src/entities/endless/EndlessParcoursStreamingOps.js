@@ -78,12 +78,12 @@ export function deactivateEndlessBotsInModule(runtime, module, options = {}) {
     if (shaken > 0 && runtime.combatStarted) registerEndlessShakeoff(runtime, shaken);
 }
 
-export function syncEndlessModules(runtime, currentModuleIndex, difficultyTier) {
+export function syncEndlessModules(runtime, currentModuleIndex) {
     const minIndex = Math.max(0, currentModuleIndex - ENDLESS_PARCOURS_ACTIVE_WINDOW.behind);
     const maxIndex = currentModuleIndex + ENDLESS_PARCOURS_ACTIVE_WINDOW.ahead;
     for (let index = minIndex; index <= maxIndex; index += 1) {
         if (runtime.activeModules.has(index)) continue;
-        runtime.activeModules.set(index, runtime._instantiateModule(runtime._path.getModule(index, difficultyTier)));
+        runtime.activeModules.set(index, runtime._instantiateModule(runtime._path.getModule(index)));
     }
     for (const [index, instance] of runtime.activeModules) {
         if (index >= minIndex && index <= maxIndex) continue;

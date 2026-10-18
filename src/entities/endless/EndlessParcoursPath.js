@@ -1,32 +1,30 @@
 import { generateEndlessParcoursModule } from './EndlessParcoursGenerator.js';
 import { EndlessParcoursPathMetric } from './EndlessParcoursPathMetric.js';
+import { resolveEndlessAreaBlock, resolveEndlessAreaTier } from '../../shared/contracts/EndlessParcoursPacingContract.js';
 
 /**
  * Haelt den Kettenzustand der Strecke. Weil sich der Korridorversatz aufsummiert
  * und die Erholungsgarantie zaehlt, ist die Kette - nicht der einzelne Index -
  * die Wahrheit ueber den Verlauf.
  *
- * Nebeneffekt, der ein altes Problem loest: Der Schwierigkeitsgrad eines
- * Bausteins wird beim ersten Erzeugen festgeschrieben. Vorher konnte derselbe
- * Streckenabschnitt beim erneuten Laden anders aussehen, weil in der Zwischenzeit
- * die Bedrohungsstufe gestiegen war.
+ * Tier und Gebiet entstehen aus der tatsaechlichen Laenge aller Vorgaenger.
+ * Vorschau und Flugzeit koennen einen spaeter erneut geladenen Abschnitt nicht
+ * veraendern; die Kette speichert ihren Ausgangszustand beim ersten Erzeugen.
  */
 export class EndlessParcoursPath {
     constructor({ baseSeed = 1 } = {}) {
         this.baseSeed = Math.max(1, Number(baseSeed) >>> 0);
-        /** @type {{ entranceConnector: string, driftX: number, driftY: number, sinceRecovery: number, tier: number, previousTemplateId: string, previousArea: string }[]} */
+        /** @type {{ entranceConnector: string, driftX: number, driftY: number, sinceRecovery: number, tier: number, startS: number, areaBlock: number, previousTemplateId: string, previousArea: string }[]} */
         this._chain = [];
         this._metric = new EndlessParcoursPathMetric();
     }
 
     /**
      * @param {unknown} index
-     * @param {unknown} [difficultyTier]
      */
-    getModule(index, difficultyTier = 1) {
+    getModule(index) {
         const safeIndex = Math.max(0, Math.floor(Number(index) || 0));
-        const tier = Math.max(1, Math.floor(Number(difficultyTier) || 1));
-        this._ensureChain(safeIndex, tier);
+        this._ensureChain(safeIndex);
         return this._buildAt(safeIndex);
     }
 
@@ -46,6 +44,7 @@ export class EndlessParcoursPath {
             previousConnector: state.entranceConnector,
             entryDrift: { x: state.driftX, y: state.driftY },
             difficultyTier: state.tier,
+            areaBlock: state.areaBlock,
             sinceRecovery: state.sinceRecovery,
             previousTemplateId: state.previousTemplateId,
             previousArea: state.previousArea,
@@ -54,14 +53,16 @@ export class EndlessParcoursPath {
         return module;
     }
 
-    _ensureChain(index, tier) {
+    _ensureChain(index) {
         if (this._chain.length === 0) {
             this._chain.push({
                 entranceConnector: 'straight',
                 driftX: 0,
                 driftY: 0,
                 sinceRecovery: 0,
-                tier,
+                tier: 1,
+                startS: 0,
+                areaBlock: -1,
                 previousTemplateId: '',
                 previousArea: '',
             });
@@ -69,6 +70,8 @@ export class EndlessParcoursPath {
         while (this._chain.length <= index) {
             const previous = this._buildAt(this._chain.length - 1);
             const previousState = this._chain[this._chain.length - 1];
+            const startS = this._metric.totalLength;
+            const areaBlock = resolveEndlessAreaBlock(startS, this._metric.getStationRange(0).endS);
             this._chain.push({
                 entranceConnector: previous.exitConnector,
                 driftX: previous.exitDrift.x,
@@ -76,7 +79,9 @@ export class EndlessParcoursPath {
                 sinceRecovery: previous.recovery || previous.templateId === 'combat_free_intro'
                     ? 0
                     : previousState.sinceRecovery + 1,
-                tier,
+                tier: resolveEndlessAreaTier(areaBlock),
+                startS,
+                areaBlock,
                 previousTemplateId: previous.templateId,
                 previousArea: previous.area,
             });
