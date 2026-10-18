@@ -118,7 +118,7 @@ test('Arcade scenarios: worm hunt wakes the worm, outlives the bots and hands ba
         combatProfile: 'hunt',
         modeType: 'ARCADE',
         pickupMode: 'HUNT',
-        creatures: 1,
+        creatures: 100,
         objectiveId: 'destroy_units',
         objectiveStatus: 'active',
     });

@@ -9,6 +9,7 @@ import { normalizeString } from './ContractNormalizeUtils.js';
 import { normalizeMapUnits } from './MapUnitContract.js';
 
 export const ARCADE_SCENARIO_CONTRACT_VERSION = 'arcade-scenario.v1';
+export const MAX_ARCADE_SCENARIO_MAP_UNITS = 100;
 
 const VALID_SLOTS = new Set(['sector', 'parcours', 'finale']);
 const VALID_UNIT_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber', 'creature']);
@@ -47,7 +48,7 @@ function normalizeObjective(source) {
     if (id === 'destroy_units' || id === 'intercept' || id === 'breach_vault') {
         const kind = normalizeId(source?.unitKind);
         objective.unitKind = VALID_UNIT_KINDS.has(kind) ? kind : (id === 'breach_vault' ? 'boss' : id === 'intercept' ? 'tank' : 'creature');
-        objective.count = Math.trunc(finiteNumber(source?.count, 1, 1, 16));
+        objective.count = Math.trunc(finiteNumber(source?.count, 1, 1, 100));
     }
     return Object.freeze(objective);
 }
@@ -65,7 +66,7 @@ export function normalizeArcadeScenario(source) {
     const botCount = source?.botCount === null || source?.botCount === undefined ? NaN : Number(source.botCount);
     const minSector = Math.trunc(finiteNumber(source?.minSector, 1, 1, 99));
     const slot = normalizeId(source?.slot);
-    const mapUnits = normalizeMapUnits(source?.mapUnits, { preserveSpatial: true });
+    const mapUnits = normalizeMapUnits(source?.mapUnits, { preserveSpatial: true, maxUnits: MAX_ARCADE_SCENARIO_MAP_UNITS });
     return Object.freeze({
         id,
         label: normalizeString(source?.label, id).trim() || id,
