@@ -1,3 +1,4 @@
+import { resolveEndlessRecordScope } from './EndlessParcoursSeedContract.js';
 import {
     ENDLESS_PARCOURS_MILESTONES,
     resolveEndlessMilestones,
@@ -9,7 +10,8 @@ import {
  * Der Speicherschluessel bleibt bei v1, damit vorhandene Rekorde erhalten bleiben.
  */
 export const ENDLESS_PARCOURS_RECORDS_STORAGE_KEY = 'curviosclash.endless-parcours-records.v1';
-export const ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION = 'endless-parcours-records.v3';
+export const ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION = 'endless-parcours-records.v4';
+export const ENDLESS_PARCOURS_RECORDS_V3_SCHEMA_VERSION = 'endless-parcours-records.v3';
 export const ENDLESS_PARCOURS_RECORDS_LEGACY_SCHEMA_VERSION = 'endless-parcours-records.v1';
 export const ENDLESS_PARCOURS_RECORDS_V2_SCHEMA_VERSION = 'endless-parcours-records.v2';
 export const ENDLESS_PARCOURS_TOP_RUNS = 5;
@@ -55,6 +57,9 @@ function normalizeMetrics(value = null) {
         shakeoffs: integer(source.shakeoffs),
         revives: integer(source.revives),
         bonusScore: integer(source.bonusScore),
+        combatScore: integer(source.combatScore),
+        vehicleId: text(source.vehicleId),
+        seedMode: ['free', 'training'].includes(source.seedMode) ? source.seedMode : '',
         seed: integer(source.seed),
         date: text(source.date),
         runId: text(source.runId),
@@ -85,6 +90,26 @@ function normalizeTopRuns(value, best) {
     return usable.sort(sortByScoreDesc).slice(0, ENDLESS_PARCOURS_TOP_RUNS);
 }
 
+export function isReadableEndlessRecords(value) {
+    return value == null || (typeof value === 'object' && !Array.isArray(value) && [
+        ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION, ENDLESS_PARCOURS_RECORDS_V3_SCHEMA_VERSION,
+        ENDLESS_PARCOURS_RECORDS_V2_SCHEMA_VERSION, ENDLESS_PARCOURS_RECORDS_LEGACY_SCHEMA_VERSION,
+    ].includes(value.schemaVersion));
+}
+
+function scopedBests(value, candidates, metric) {
+    const result = Object.create(null);
+    for (const [key, raw] of Object.entries(value && typeof value === 'object' && !Array.isArray(value) ? value : {})) {
+        const entry = normalizeMetrics(raw);
+        if (key && resolveEndlessRecordScope(entry) === key) result[key] = entry;
+    }
+    for (const entry of candidates) {
+        const key = resolveEndlessRecordScope(entry);
+        if (key && entry[metric] > (result[key]?.[metric] || 0)) result[key] = { ...entry };
+    }
+    return result;
+}
+
 /**
  * Nimmt sowohl das aktuelle Format als auch die erste Fassung an. Ein alter
  * Rekord bleibt dadurch erhalten, statt beim Aufraeumen verloren zu gehen.
@@ -97,6 +122,7 @@ export function normalizeEndlessParcoursRecords(value = null) {
     );
     const version = text(candidate.schemaVersion);
     const isKnown = version === ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION
+        || version === ENDLESS_PARCOURS_RECORDS_V3_SCHEMA_VERSION
         || version === ENDLESS_PARCOURS_RECORDS_V2_SCHEMA_VERSION
         || version === ENDLESS_PARCOURS_RECORDS_LEGACY_SCHEMA_VERSION;
     const source = isKnown ? candidate : {};
@@ -147,8 +173,12 @@ export function normalizeEndlessParcoursRecords(value = null) {
             bestDistanceByRuleVersion[entry.ruleVersion] = { ...entry };
         }
     }
+    const candidates = [best, last, bestDistance, ...top, ...Object.values(bestByRuleVersion),
+        ...Object.values(bestDistanceByRuleVersion), ...Object.values(topByRuleVersion).flat()];
     return {
         schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
+        bestByRunScope: scopedBests(source.bestByRunScope, candidates, 'score'),
+        bestDistanceByRunScope: scopedBests(source.bestDistanceByRunScope, candidates, 'distanceMeters'),
         best,
         bestDistance,
         bestDistanceByRuleVersion,
@@ -164,7 +194,7 @@ export function normalizeEndlessParcoursRecords(value = null) {
             ...resolveEndlessCosmeticUnlocks(best),
             ...resolveEndlessCosmeticUnlocks(farthest),
         ])],
-        milestones: version === ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION || version === ENDLESS_PARCOURS_RECORDS_V2_SCHEMA_VERSION
+        milestones: version === ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION || version === ENDLESS_PARCOURS_RECORDS_V3_SCHEMA_VERSION || version === ENDLESS_PARCOURS_RECORDS_V2_SCHEMA_VERSION
             ? normalizeMilestoneIds(source.milestones)
             : resolveEndlessMilestones(best),
     };
@@ -182,7 +212,9 @@ export function updateEndlessParcoursRecords(records, summary, date = '') {
     const current = normalizeEndlessParcoursRecords(records);
     const last = normalizeMetrics({ ...summary, date });
     const versionBest = normalizeMetrics(current.bestByRuleVersion[last.ruleVersion]);
-    const isNewRecord = last.score > versionBest.score;
+    const scope = resolveEndlessRecordScope(last);
+    const isNewVersionRecord = last.score > versionBest.score;
+    const isNewRecord = scope ? last.score > (current.bestByRunScope[scope]?.score || 0) : isNewVersionRecord;
     const top = last.score > 0
         ? [...current.top, { ...last }].sort(sortByScoreDesc).slice(0, ENDLESS_PARCOURS_TOP_RUNS)
         : current.top.slice();
@@ -199,6 +231,8 @@ export function updateEndlessParcoursRecords(records, summary, date = '') {
     return {
         records: {
             schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
+            bestByRunScope: scopedBests(current.bestByRunScope, [last], 'score'),
+            bestDistanceByRunScope: scopedBests(current.bestDistanceByRunScope, [last], 'distanceMeters'),
             best: last.score > current.best.score ? { ...last } : { ...current.best },
             bestDistance: isNewDistance ? { ...last } : { ...current.bestDistance },
             bestDistanceByRuleVersion: { ...current.bestDistanceByRuleVersion,
@@ -208,7 +242,7 @@ export function updateEndlessParcoursRecords(records, summary, date = '') {
             top,
             bestByRuleVersion: {
                 ...current.bestByRuleVersion,
-                [last.ruleVersion]: isNewRecord ? { ...last } : { ...versionBest },
+                [last.ruleVersion]: isNewVersionRecord ? { ...last } : { ...versionBest },
             },
             topByRuleVersion: { ...current.topByRuleVersion, [last.ruleVersion]: versionTop },
             processedSettlementIds: current.processedSettlementIds.slice(),

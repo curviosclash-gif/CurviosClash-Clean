@@ -269,6 +269,7 @@ export function createMatchSession({
             if (isEndlessParcoursConfig(runtimeConfig)) {
                 createdSession.endlessParcoursRuntime = new EndlessParcoursRuntime({
                     baseSeed: runtimeConfig?.arcade?.seed,
+                    seedMode: runtimeConfig?.arcade?.endlessSeedMode,
                     renderer,
                     arena,
                     powerupManager: createdSession.powerupManager,

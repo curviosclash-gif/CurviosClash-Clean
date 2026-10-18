@@ -7,6 +7,7 @@ import {
 import {
     ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
     normalizeEndlessParcoursRecords,
+    isReadableEndlessRecords,
     updateEndlessParcoursRecords,
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 import {
@@ -43,9 +44,14 @@ export function loadEndlessSettlementLedger(store) {
 
 function applyRecordsTarget(store, entry) {
     const settlement = entry.settlement;
-    const current = normalizeEndlessParcoursRecords(
-        store.loadJsonRecord(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null)
-    );
+    const read = store.readJsonRecordResult?.(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY);
+    const hasReader = typeof store.readJsonRecordResult === 'function';
+    if (hasReader && (!['found', 'missing'].includes(read?.status) || read?.ok === false)) return false;
+    if (read?.status === 'found' && read.value == null) return false;
+    const raw = hasReader ? (read.status === 'found' ? read.value : null)
+        : store.loadJsonRecord(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null);
+    if (!isReadableEndlessRecords(raw)) return false;
+    const current = normalizeEndlessParcoursRecords(raw);
     if (current.processedSettlementIds.includes(settlement.runId)) return true;
     const update = updateEndlessParcoursRecords(current, {
         ...settlement.summary,

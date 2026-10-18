@@ -1,3 +1,4 @@
+import { resolveEndlessRecordScope } from './EndlessParcoursSeedContract.js';
 import { resolveArcadeLevelRange } from './ArcadeHangarRulesContract.js';
 import { DEFAULT_PORTAL_CHAIN_ID, normalizePortalChainId } from './PortalChainContract.js';
 import { CURRENT_ARCADE_SCORE_MODEL, GAUNTLET_FREE_RULE_VERSION } from './ArcadeRunSettingsContract.js';
@@ -33,13 +34,17 @@ export function resolveArcadeRankKey(context) {
     if (SCORE_RUNS.has(context.runType) && scoreModel !== CURRENT_ARCADE_SCORE_MODEL) return '';
     const endless = context.runType === 'endless_parcours';
     if (endless && context.endlessRuleVersion !== ENDLESS_PARCOURS_RULE_VERSION) return '';
+    const endlessScope = endless ? resolveEndlessRecordScope({ vehicleId: context.vehicleId,
+        ruleVersion: context.endlessRuleVersion, seedMode: context.endlessSeedMode, seed: context.endlessSeed }) : '';
+    if (endless && !endlessScope) return '';
+    const modelScope = endless ? `${encodeURIComponent(endlessScope)}:` : '';
     const arenaWaves = context.runType === 'arena_waves';
     if (arenaWaves && context.arenaWavesRuleVersion !== ARENA_WAVES_RULE_VERSION) return '';
     if (context.runType === 'gauntlet' && context.gauntletRuleVersion
         && context.gauntletRuleVersion !== GAUNTLET_FREE_RULE_VERSION) return '';
     const rules = endless ? `${context.endlessRuleVersion}:` : arenaWaves ? `${context.arenaWavesRuleVersion}:`
         : context.gauntletRuleVersion ? `${context.gauntletRuleVersion}:` : '';
-    return `${context.runType}:${scoreModel ? `${scoreModel}:` : ''}${rules}${chain}${context.tierId}:${range.min}-${range.max}`;
+    return `${context.runType}:${scoreModel ? `${scoreModel}:` : ''}${rules}${modelScope}${chain}${context.tierId}:${range.min}-${range.max}`;
 }
 
 export function resolveArcadeParcoursRankKey(routeId, context) {
@@ -69,6 +74,8 @@ export function normalizeArcadeRankedLeaderboard(value) {
             && Number.isFinite(row.score) && row.score >= 0 && Number.isFinite(row.vehicleLevel) && row.vehicleLevel >= 1)
             .filter((row) => !scoreModel || row.scoreModel === scoreModel)
             .filter((row) => !endlessRule || row.endlessRuleVersion === endlessRule)
+            .filter((row) => !endlessRule || !key.split(':')[3]?.startsWith('%5B')
+                || encodeURIComponent(resolveEndlessRecordScope({ ...row, ruleVersion: row.endlessRuleVersion })) === key.split(':')[3])
             .filter((row) => !arenaRule || row.arenaWavesRuleVersion === arenaRule)
             .filter((row) => !gauntletRule || row.gauntletRuleVersion === gauntletRule)
             .slice(0, 10).map((row) => ({ ...row }));
@@ -88,7 +95,8 @@ export function insertArcadeRankedResult(leaderboard, context, result, nowMs = D
         tierId: context.tierId, score, completedWaves: Number(result?.lastCompletedWave) || 0,
         completedSectors: Number(result?.completedSectors) || 0, date: new Date(nowMs).toISOString(),
         ...(SCORE_RUNS.has(context.runType) || context.runType === 'hunt_parcours' ? { scoreModel: context.scoreModel } : {}),
-        ...(context.runType === 'endless_parcours' ? { endlessRuleVersion: context.endlessRuleVersion } : {}),
+        ...(context.runType === 'endless_parcours' ? { endlessRuleVersion: context.endlessRuleVersion,
+            seedMode: context.endlessSeedMode, seed: context.endlessSeed } : {}),
         ...(context.runType === 'arena_waves' ? { arenaWavesRuleVersion: context.arenaWavesRuleVersion } : {}),
         ...(context.gauntletRuleVersion ? { gauntletRuleVersion: context.gauntletRuleVersion } : {}) };
     const rows = (current.boards[key] || []).filter((row) => row.runId !== entry.runId);

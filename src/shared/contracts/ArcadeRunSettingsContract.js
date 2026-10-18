@@ -1,3 +1,4 @@
+import { normalizeEndlessSeedMode } from './EndlessParcoursSeedContract.js';
 import { normalizeArcadeCompanionCount } from './ArcadeCompanionContract.js';
 import { getArcadeJourneyStage, normalizeArcadeJourneyStageId } from './ArcadeJourneyContract.js';
 import {
@@ -48,6 +49,7 @@ const DEFAULTS = Object.freeze({
     combatProfile: '',
     scoreModel: CURRENT_ARCADE_SCORE_MODEL,
     seed: 0,
+    endlessSeedMode: 'free',
     sectorCount: 5,
     intermissionSeconds: 10,
     comboWindowMs: 5000,
@@ -71,7 +73,7 @@ const DEFAULTS = Object.freeze({
 });
 
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
- * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
+ * seed: number, endlessSeedMode: string, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
  * dailyChallenge: boolean, nightmare: boolean, difficultyTierId: string, portalChainId: string, journeyStageId: string, huntParcoursVariantId: string,
  * demolitionProfileIds?: readonly string[], playerProfileIds?: readonly string[], companionCount: number }} ArcadeRunSettings */
@@ -149,6 +151,7 @@ export function normalizeArcadeRunSettings(
         seed: runType === HUNT_PARCOURS_RUN_TYPE
             ? resolveHuntParcoursVariant(normalizeArcadeHuntParcoursVariantId(runType, input.huntParcoursVariantId)).seed
             : clampInteger(input.seed, ARCADE_RUN_SETTINGS_RANGES.seed, DEFAULTS.seed),
+        endlessSeedMode: normalizeEndlessSeedMode(input.endlessSeedMode),
         sectorCount: getArcadeJourneyStage(normalizeArcadeJourneyStageId(input.journeyStageId, {
             runType, portalChainId: normalizePortalChainId(input.portalChainId), dailyChallenge: input.dailyChallenge,
         }))?.sectorCount || clampInteger(input.sectorCount, ARCADE_RUN_SETTINGS_RANGES.sectorCount, DEFAULTS.sectorCount),

@@ -44,6 +44,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/endless-p5c.desktop.spec.js',
             'tests/endless-p6a.desktop.spec.js',
             'tests/endless-p6b.desktop.spec.js',
+            'tests/endless-p6c.desktop.spec.js',
             'tests/arcade-v3.desktop.spec.js',
             'tests/arcade-wave-three.desktop.spec.js',
             'tests/arcade-vehicle-roles.desktop.spec.js',

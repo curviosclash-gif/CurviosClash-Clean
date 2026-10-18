@@ -261,3 +261,17 @@ test('historical medals remain visible without impossible fractions or changes t
     assert.equal(find('[data-journey-world="flight_school"]').querySelectorAll('.journey-map-progress')[0].textContent, '3/15 ★');
     assert.deepEqual(progress, before);
 });
+
+
+test('Endlos offers free seeds by default, explicit fixed training, and clears another profile choice', () => {
+    const {view,find,state}=setup({playerCount:1});
+    assert.equal(view.getEndlessStartOptions().seedMode,'free');
+    const card=find('[data-journey-stage="endless_hunt"]');
+    const choice=card.querySelectorAll('select').find(el=>el.getAttribute('aria-label')==='Endlosjagd: Strecke');
+    const seed=card.querySelectorAll('input')[0];
+    choice.value='training';choice.dispatchEvent(createEvent('change'));seed.value='130202';
+    assert.deepEqual(view.getEndlessStartOptions(),{seedMode:'training',trainingSeed:130202});
+    assert.equal(seed.disabled,false);
+    view.render({...state,profileId:'profile-b'});
+    assert.equal(view.getEndlessStartOptions().seedMode,'free');assert.equal(seed.disabled,true);
+});

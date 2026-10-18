@@ -1,5 +1,5 @@
 import { test, expect } from './helpers.desktop.js';
-import { waitForLoadedGame, openCustomSubmenu, openStartSetupSection } from './helpers.js';
+import { waitForLoadedGame, openCustomSubmenu, openStartSetupSection, selectSessionType } from './helpers.js';
 
 async function openArcade(page) {
     await waitForLoadedGame(page);
@@ -71,8 +71,9 @@ test('Arcade desktop: held countdown, explicit victory and voluntary continuatio
 test('Daily desktop uses fixed vehicle and records victory before optional continuation', async ({ page }, testInfo) => {
     test.setTimeout(180000);
     await page.setViewportSize({ width: 1920, height: 1080 });
-    await openArcade(page);
-    await page.locator('#arcade-inline-surface').evaluate(node => { node.open = true; });
+    await waitForLoadedGame(page);
+    await selectSessionType(page, 'single');
+    await page.locator('#btn-arcade-daily-open').click();
     await page.click('#btn-arcade-daily');
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING');
     const config = await page.evaluate(() => window.GAME_INSTANCE.runtimeConfig);
@@ -96,8 +97,10 @@ test('Daily desktop uses fixed vehicle and records victory before optional conti
     await page.screenshot({ path: testInfo.outputPath('arcade-daily-result-1920.png') });
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'MENU');
-    await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+    await selectSessionType(page, 'single');
+    await page.locator('#arcade-daily-panel').getByRole('button',{name:'← Zur Arcade-Reise',exact:true}).click();
+    await page.locator('#btn-arcade-custom-open').click();
+    await page.locator('#btn-arcade-custom-configure').click();
     const options = await page.locator('#arcade-ghost-duel-mode-select option').evaluateAll(nodes => nodes.map(node => node.value));
     expect(options).toContain('self_best_time_ghost');
     await openStartSetupSection(page, 'match');

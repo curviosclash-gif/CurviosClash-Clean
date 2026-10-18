@@ -1,3 +1,4 @@
+import { normalizeEndlessSeedMode } from '../../shared/contracts/EndlessParcoursSeedContract.js';
 import { resolveEndlessAreaTier, resolveEndlessAreaThreat } from '../../shared/contracts/EndlessParcoursPacingContract.js';
 import { ENDLESS_RING, createEndlessRingState, prepareEndlessRingSegment, finishEndlessRingSegment } from './EndlessParcoursRingOps.js';
 import {
@@ -29,7 +30,7 @@ import { getEndlessHunterRoute, syncEndlessHunterSpeeds } from './EndlessParcour
 import { EndlessParcoursPath } from './EndlessParcoursPath.js';
 import { createEndlessPathSample } from './EndlessParcoursPathMetric.js';
 import { resolveEndlessCoursePoint } from './EndlessParcoursCourseSpace.js';
-import { ENDLESS_PARCOURS_RULE_VERSION, ENDLESS_PARCOURS_WAVE_TIMING } from '../../shared/contracts/EndlessParcoursWaveContract.js';
+import { ENDLESS_PARCOURS_WAVE_TIMING } from '../../shared/contracts/EndlessParcoursWaveContract.js';
 import {
     resolveModuleCenterAtZ,
 } from './EndlessParcoursModuleBuilder.js';
@@ -101,6 +102,7 @@ export class EndlessParcoursRuntime {
 
     constructor({
         baseSeed = 1,
+        seedMode = 'free',
         renderer = null,
         arena = null,
         powerupManager = null,
@@ -110,6 +112,8 @@ export class EndlessParcoursRuntime {
     } = {}) {
         Object.assign(this, createEndlessRuntimeState());
         this.baseSeed = Math.max(1, Number(baseSeed) >>> 0);
+        this.seedMode = normalizeEndlessSeedMode(seedMode);
+        this._recordScopeKey = '';
         this.renderer = renderer;
         this.arena = arena;
         this.powerupManager = powerupManager;
@@ -190,8 +194,12 @@ export class EndlessParcoursRuntime {
     updateGeometry(dt) { updateEndlessSetpieces(this, dt); syncEndlessHunterSpeeds(this); }
     getBotRouteSnapshot(playerIndex) { return getEndlessHunterRoute(this, playerIndex); }
 
+    getRecordScore() {
+        return Math.max(0, Number(this._records.bestByRunScope?.[this._recordScopeKey]?.score) || 0);
+    }
+
     getRecordDistanceMeters() {
-        return Math.max(0, Number(this._records.bestDistanceByRuleVersion?.[ENDLESS_PARCOURS_RULE_VERSION]?.distanceMeters) || 0);
+        return Math.max(0, Number(this._records.bestDistanceByRunScope?.[this._recordScopeKey]?.distanceMeters) || 0);
     }
 
     getCoursePoint(moduleIndex, x = 0, y = 0, localZ = 0, out = this._courseSample) {

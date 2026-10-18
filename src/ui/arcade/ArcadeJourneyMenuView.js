@@ -1,3 +1,4 @@
+import { createArcadeEndlessSeedOptions } from './ArcadeEndlessSeedOptions.js';
 import { ARCADE_JOURNEY_WORLDS, getArcadeJourneyStage, getArcadeJourneyStars, getArcadeJourneyMaxStars, isArcadeJourneyStageCompleted } from '../../shared/contracts/ArcadeJourneyContract.js';
 import { ARCADE_JOURNEY_MAP_WORLDS, ARCADE_JOURNEY_MAP_NODES, ARCADE_JOURNEY_MAP_LINKS } from '../../shared/contracts/ArcadeJourneyMapContract.js';
 import { getArcadeJourneyLeaderboard, getArcadeJourneyLegacyLeaderboard } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
@@ -66,6 +67,7 @@ export function createArcadeJourneyMenuView(createElement) {
         const mode = createElement('select', 'menu-select'); mode.setAttribute('aria-label', node.label + ': Wertung');
         for (const [value, label] of [['journey','Reise · Sterne verdienen'],['free','Freier Lauf · eigenen Rekord verbessern']]) { const o = createElement('option', '', label); o.value = value; mode.appendChild(o); } mode.value = node.stageId ? 'journey' : 'free'; modeLabel.appendChild(mode);
         modeLabel.classList.toggle('hidden', !stage || !node.freeAction);
+        const seedOptions = node.id === 'endless_hunt' ? createArcadeEndlessSeedOptions(createElement) : null;
         const rules = createElement('p', 'menu-hint journey-start-rules');
         const target = createElement('p', 'journey-medal-target');
         const route = createElement('ol', 'journey-tour-route'); route.setAttribute('aria-label', 'Streckenfolge der Tour');
@@ -83,9 +85,9 @@ export function createArcadeJourneyMenuView(createElement) {
         const historyBoard = createElement('ol', 'arcade-journey-legacy-board');
         history.appendChild(historyBoard);
         const returnButton = createElement('button', 'secondary-btn journey-return-map', '↑ Zur Karte'); returnButton.type = 'button';
-        card.append(title, goal, briefing, route, thresholds, medal, condition, prerequisite, modeLabel, rules, target, start, hangar, boardLabel, board, history, returnButton);
+        card.append(title, goal, briefing, route, thresholds, medal, condition, prerequisite, modeLabel, ...(seedOptions ? [seedOptions.element] : []), rules, target, start, hangar, boardLabel, board, history, returnButton);
         side.appendChild(card);
-        cards.set(node.id, { node, stage, card, title, briefing, thresholds, medal, condition, prerequisite, mode, rules, target, start, hangar, boardLabel, board, history, historyBoard, returnButton });
+        cards.set(node.id, { node, stage, card, title, briefing, thresholds, medal, condition, prerequisite, mode, seedOptions, rules, target, start, hangar, boardLabel, board, history, historyBoard, returnButton });
     }
     layout.append(map.element, side);
     const legend = createElement('p', 'journey-map-legend', '→ Vorherige Etappe abschließen · ◎ Tour · ◆ Boss · ● Etappe · kleine Plakette: Status. Enter / A öffnet die Auswahl.');
@@ -100,7 +102,7 @@ export function createArcadeJourneyMenuView(createElement) {
     const render = (state = lastState) => {
         lastState = state;
         nodeStates = new Map(nodes.map(node => [node.id, resolveJourneyNodeState(node, state)]));
-        if (state.profileId !== currentProfileId) { currentProfileId = state.profileId; selectedWorld = ''; selectedNode = nodes[0].id; }
+        if (state.profileId !== currentProfileId) { currentProfileId = state.profileId; cards.get('endless_hunt')?.seedOptions?.reset(); selectedWorld = ''; selectedNode = nodes[0].id; }
         const visible = nodes.filter(node => matches(node) && (!selectedWorld || node.worldId === selectedWorld));
         if (!visible.some(node => node.id === selectedNode)) selectedNode = visible[0]?.id || '';
         empty.classList.toggle('hidden', visible.length > 0);
@@ -175,13 +177,18 @@ export function createArcadeJourneyMenuView(createElement) {
     return {
         element, back, hubActions, render, moveFocus: map.moveFocus, activateFocused: map.activateFocused, dispose: map.dispose,
         setFreeStarts(actions) { freeStarts = actions; },
+        getEndlessStartOptions(profileId) {
+            const options = cards.get('endless_hunt')?.seedOptions;
+            if (profileId !== undefined && profileId !== currentProfileId) options?.reset();
+            return options?.read() || { seedMode: 'free' };
+        },
         startButtons: Object.fromEntries(Array.from(cards.values()).filter(ref => ref.stage).map(ref => [ref.stage.id, ref.start])),
         openStage(stageId) {
             const ref = Array.from(cards.values()).find(entry => entry.stage?.id === stageId);
             if (!ref) return;
             filter.value = 'all'; ref.mode.value = 'journey'; selectedWorld = ref.node.worldId; select(ref.node.id); map.focusNode(ref.node.id);
         },
-        bind(bind, onStart, onHangar) {
+        bind(bind, onStart, onHangar, onSeedChange) {
             const start = id => { const ref = cards.get(id); if (!ref || ref.start.disabled) return; const current = resolveJourneyNodeState(ref.node, lastState); if (ref.mode.value === 'free') { if (current.free) freeStarts[ref.node.freeAction]?.(); } else if (current.unlocked && ref.stage) onStart(ref.stage); };
             map.bind(bind, { onSelect: select, onWorld(id) {
                 if (selectedWorld === id) { selectedWorld = ''; render(); map.focusWorld(id); return; }
@@ -199,6 +206,7 @@ export function createArcadeJourneyMenuView(createElement) {
                 bind(ref.start, 'click', () => start(ref.node.id));
                 bind(ref.hangar, 'click', () => { if (!ref.hangar.disabled) onHangar?.(ref.stage); });
                 bind(ref.mode, 'change', () => render());
+                ref.seedOptions?.bind(bind, onSeedChange);
                 bind(ref.returnButton, 'click', () => { map.focusNode(ref.node.id); map.element.scrollIntoView?.({ block: 'nearest' }); });
                 bind(ref.prerequisite, 'click', () => { const n = nodes.find(node => node.stageId === ref.stage?.predecessorId); if (!n) return; filter.value = 'all'; selectedWorld = n.worldId; select(n.id); map.focusNode(n.id); });
             }

@@ -1,6 +1,5 @@
-import { loadSeed, saveSeed, loadLastRunSnapshot, saveLastRunSnapshot } from './ArcadeMenuProfilePersistence.js';
-import { createArcadeLastRunRecord } from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
-import { resolveArcadeDailySettings } from '../../shared/contracts/ArcadeDailyRulesContract.js';
+import { resolveEndlessStartChoice } from '../../shared/contracts/EndlessParcoursSeedContract.js';
+import { loadSeed, saveSeed, loadLastRunSnapshot, saveLastRunSnapshot, createArcadeRunSnapshot } from './ArcadeMenuProfilePersistence.js';
 import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import { getArcadeVehicleProfileRecord, loadArcadeVehicleProfileRecord } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
@@ -119,22 +118,6 @@ function resolveVehicleMasteryProfile(runtimeAccess, vehicleId) {
 function shouldShowArcade(settings) {
     const modePath = String(settings?.localSettings?.modePath || '').trim().toLowerCase();
     return modePath === 'arcade';
-}
-
-function createArcadeRunSnapshot(settings, seed, hangarBuild = null) {
-    settings = resolveArcadeDailySettings(settings);
-    if (settings.arcade?.dailyChallenge) seed = settings.arcade.seed;
-    return createArcadeLastRunRecord({
-        at: new Date().toISOString(),
-        mapKey: normalizeString(settings?.mapKey, 'standard'),
-        vehicleId: resolveArcadeMenuVehicleId(settings),
-        botCount: toInt(settings?.numBots, 0),
-        botDifficulty: normalizeString(settings?.botDifficulty, 'NORMAL').toUpperCase(),
-        seed: toInt(seed, 0),
-        dailyChallenge: settings?.arcade?.dailyChallenge === true,
-        buildId: normalizeString(hangarBuild?.buildId, ''),
-        buildSchemaVersion: normalizeString(hangarBuild?.schemaVersion, ''),
-    });
 }
 
 export function setupArcadeMenuSurface(ctx = {}) {
@@ -361,6 +344,12 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     // These runs play on their own map and bot count. Both only ride along with the start
     // (borrowedSettings), so the menu keeps the player's map and bots afterwards.
+    const applyEndlessSeed = () => {
+        const choice = resolveEndlessStartChoice(refs.journey.getEndlessStartOptions(), Math.random());
+        if (!choice.ok) { showToast(runtimeAccess, 'Trainingsseed muss eine ganze Zahl zwischen 1 und 2147483647 sein.', 'warning'); return false; }
+        settings.arcade.seed = choice.seed; settings.arcade.endlessSeedMode = choice.seedMode;
+        return true;
+    };
     const startRunWithOwnMap = (runType, borrowedSettings, portalChainId) => {
         if (runType === 'weapon_race' && resolveDemolitionLocalPlayerCount(settings) !== 1) {
             showToast(runtimeAccess, 'Waffenrennen ist solo. Bitte wähle bewusst Allein in der Startzentrale.', 'warning'); return;
@@ -368,6 +357,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const playerCount = runType === 'weapon_race' ? 1 : null;
         if (runType !== 'demolition' && !validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount })) return;
         applySeedToSettings(activeSeed, { dailyChallenge: false });
+        if (runType === 'endless_parcours' && !applyEndlessSeed()) return;
         settings.arcade.runType = runType;
         settings.arcade.journeyStageId = '';
         settings.arcade.combatProfile = runType === 'gauntlet' ? '' : 'hunt';
@@ -402,10 +392,11 @@ export function setupArcadeMenuSurface(ctx = {}) {
         if (!validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess)) return;
         emit(eventTypes.MODE_PATH_CHANGE, { modePath: 'arcade', stayOnPanel: true });
         applySeedToSettings(activeSeed, { dailyChallenge: false });
+        if (stage.runType === 'endless_parcours' && !applyEndlessSeed()) return;
         const prepared = prepareHangarRunStart();
         if (prepared?.ok === false) return;
         emit(eventTypes.START_MATCH, { borrowedSettings: { journeyStageId: stage.id } });
-    }, () => refs.openHangarButton.click());
+    }, () => refs.openHangarButton.click(), () => sync());
 
     bind(refs.openHangarButton, 'click', async () => {
         const profileId = primaryProfile()?.id || '';

@@ -1,4 +1,4 @@
-export const ENDLESS_PARCOURS_RULE_VERSION = 'endless-parcours-rules.v3-p6b';
+export const ENDLESS_PARCOURS_RULE_VERSION = 'endless-parcours-rules.v3';
 
 export const ENDLESS_PARCOURS_WAVE_PHASES = Object.freeze({
     INTRO: 'intro',

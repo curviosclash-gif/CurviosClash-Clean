@@ -1,3 +1,4 @@
+import { resolveEndlessRecordScope } from '../src/shared/contracts/EndlessParcoursSeedContract.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -266,7 +267,7 @@ test('P1 personal records and active HUD stay separate from v2 while all-time hi
     }).records;
     assert.notEqual(ENDLESS_PARCOURS_RULE_VERSION, 'endless-parcours-rules.v2');
     const update = updateEndlessParcoursRecords(old, {
-        score: 100, distanceMeters: 120, runId: 'p1', ruleVersion: ENDLESS_PARCOURS_RULE_VERSION,
+        score: 100, distanceMeters: 120, runId: 'p1', ruleVersion: ENDLESS_PARCOURS_RULE_VERSION, vehicleId: 'ship5', seedMode: 'free', seed: 77,
     });
     assert.equal(update.isNewRecord, true);
     assert.equal(update.records.best.score, 9000, 'all-time maximum remains preserved');
@@ -277,6 +278,7 @@ test('P1 personal records and active HUD stay separate from v2 while all-time hi
     const h = harness();
     h.runtime._records = old;
     assert.equal(h.runtime.getHudState().recordScore, 0);
+    h.runtime.setRunProfile({ vehicleId: 'ship5' });
     h.runtime._records = update.records;
     assert.equal(h.runtime.getHudState().recordScore, 100);
     assert.equal(h.runtime.getHudState().recordDistanceMeters, 120, 'distance marker uses the same station rules as the active run');
@@ -294,7 +296,7 @@ test('ranked keys and rows require the current Endlos rule while preserving unve
     const oldRow = { runId: 'legacy', score: 9000, vehicleLevel: 1, scoreModel: context.scoreModel };
     const previous = { schemaVersion: ARCADE_RANKED_VERSION, boards: { [oldKey]: [oldRow] } };
     const ranked = insertArcadeRankedResult(previous, context, { score: 100 }, 0);
-    assert.equal(ranked.key, `endless_parcours:${context.scoreModel}:${ENDLESS_PARCOURS_RULE_VERSION}:normal:${min}-${max}`);
+    assert.equal(ranked.key, `endless_parcours:${context.scoreModel}:${ENDLESS_PARCOURS_RULE_VERSION}:${encodeURIComponent(resolveEndlessRecordScope({vehicleId:'ship5',ruleVersion:ENDLESS_PARCOURS_RULE_VERSION,seedMode:'free'}))}:normal:${min}-${max}`);
     assert.equal(ranked.rank, 1);
     assert.deepEqual(ranked.leaderboard.boards[oldKey], [oldRow]);
     assert.equal(ranked.leaderboard.boards[ranked.key][0].endlessRuleVersion, ENDLESS_PARCOURS_RULE_VERSION);

@@ -1,3 +1,8 @@
+import { normalizeEndlessParcoursRecords, ENDLESS_PARCOURS_RECORDS_STORAGE_KEY } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
+import { resolveEndlessRecordScope } from '../../shared/contracts/EndlessParcoursSeedContract.js';
+import { ENDLESS_PARCOURS_RULE_VERSION } from '../../shared/contracts/EndlessParcoursWaveContract.js';
+import { resolveArcadeRunVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
+import { resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { loadArcadeJourneyProgress } from '../../shared/contracts/ArcadeJourneyProgressContract.js';
 import { ARCADE_JOURNEY_STAGES, getArcadeJourneyStage, resolveArcadeJourneyAccess } from '../../shared/contracts/ArcadeJourneyContract.js';
 import { loadArcadeDifficultyProgress, resolveArcadeRunTier } from '../../shared/contracts/ArcadeDifficultyContract.js';
@@ -20,6 +25,14 @@ export function syncArcadeJourneyMenu(view, runtimeAccess, settings, profile, re
         return [chain.id, Number.isFinite(record?.bestTotalMs) && record.bestTotalMs > 0
             ? `Bisheriger freier Tourrekord: ${(record.bestTotalMs / 1000).toFixed(2)} s · eigene Rekordwertung, keine Reisemedaille` : 'Noch keine gespeicherte freie Tourbestzeit'];
     }));
+    const options = view.getEndlessStartOptions?.(profile?.id || '') || { seedMode: 'free' };
+    const vehicleId = resolveArcadeRunVehicleId(settings?.vehicles?.PLAYER_1);
+    const scope = resolveEndlessRecordScope({ ruleVersion: ENDLESS_PARCOURS_RULE_VERSION, vehicleId,
+        seedMode: options.seedMode, seed: options.trainingSeed });
+    const endless = normalizeEndlessParcoursRecords(store?.loadJsonRecord?.(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null));
+    const best = endless.bestByRunScope[scope], distance = endless.bestDistanceByRunScope[scope];
+    freeRecords.endless_hunt = `${resolveVehiclePreview(vehicleId).label} · ${options.seedMode === 'training' ? 'Training · Seed ' + options.trainingSeed : 'Frei'}: `
+        + (best ? `${Math.round(best.score)} Punkte · ${Math.round(distance?.distanceMeters || 0)} m` : 'Noch kein Modellrekord.');
     view.render({ briefings: briefing ? { first_run: briefing } : {}, progress: loaded.progress, available: loaded.status !== 'unavailable', legacyAccess, tiers, freeRecords,
         playerCount: resolveDemolitionLocalPlayerCount(settings), profileId: profile?.id || '', profileName: profile?.displayName || '' });
 }

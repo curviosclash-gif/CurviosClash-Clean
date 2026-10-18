@@ -1,3 +1,4 @@
+import { resolveEndlessRecordScope } from '../../shared/contracts/EndlessParcoursSeedContract.js';
 import { ENDLESS_PARCOURS_END_REASONS } from '../../shared/contracts/EndlessParcoursContract.js';
 import { resolveEndlessCosmeticUnlocks } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 import { ENDLESS_PARCOURS_RULE_VERSION } from '../../shared/contracts/EndlessParcoursWaveContract.js';
@@ -55,6 +56,8 @@ export function setEndlessRunProfile(runtime, {
     const profiles = loadVehicleProfiles(runtime._recordStore);
     runtime.rewardBinding = bindArcadeVehicleRewards({ runType: 'endless_parcours', vehicleId });
     runtime.startVehicleId = runtime.rewardBinding.vehicleId;
+    runtime._recordScopeKey = resolveEndlessRecordScope({ ruleVersion: ENDLESS_PARCOURS_RULE_VERSION,
+        vehicleId: runtime.startVehicleId, seedMode: runtime.seedMode, seed: runtime.baseSeed });
     const profile = getOrCreateProfile(profiles, runtime.startVehicleId);
     runtime.startProfile = Object.freeze(JSON.parse(JSON.stringify(profile)));
     runtime.startBonuses = Object.freeze({ ...getArcadeRunVehicleBonuses(profile, runtime._recordStore) });
@@ -70,6 +73,7 @@ export function setEndlessRunProfile(runtime, {
     }
     const human = runtime.entityManager?.humanPlayers?.[0] || null;
     runtime._startSpeed = resolveEndlessStartSpeed(human, runtime._startSpeed);
+    runtime._refreshRecordMarkers?.();
     return { vehicleId: runtime.startVehicleId, bonuses: { ...runtime.startBonuses } };
 }
 
@@ -134,7 +138,7 @@ export function finalizeEndlessRun(runtime, reason, options = {}) {
         runtime._lastPersistenceResult = queueEndlessSettlement(runtime._recordStore, runtime._settlement);
         runtime._records = loadEndlessParcoursRecords(runtime._recordStore);
         runtime._newMilestones = (runtime._records.milestones || []).filter((id) => !priorMilestones.has(id));
-        const ruleBest = runtime._records.bestByRuleVersion?.[ENDLESS_PARCOURS_RULE_VERSION];
+        const ruleBest = runtime._records.bestByRunScope?.[runtime._recordScopeKey];
         runtime._isNewRecord = ruleBest?.runId === runtime.runId;
         runtime._summary.isNewRecord = runtime._isNewRecord;
         runtime._summary.newMilestones = runtime._newMilestones;

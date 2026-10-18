@@ -638,13 +638,14 @@ test('the record marker is placed into the loaded stretch after the store arrive
         loadJsonRecord: () => ({
             schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
             best: { score: 9000, distanceMeters: 250 },
-            bestDistance: { score: 4000, distanceMeters: 550, ruleVersion: ENDLESS_PARCOURS_RULE_VERSION },
+            bestDistance: { score: 4000, distanceMeters: 550, ruleVersion: ENDLESS_PARCOURS_RULE_VERSION, vehicleId: 'ship5', seedMode: 'free', seed: 6789 },
             last: {},
             top: [],
             milestones: [],
         }),
         saveJsonRecord: () => true,
     });
+    runtime.setRunProfile({vehicleId:'ship5'});
     assert.equal(runtime.getDebugSnapshot().recordMarkers, 1, 'der Rekord muss in der Strecke stehen');
     assert.equal(runtime.getHudState().recordDistanceMeters, 550);
     assert.equal(

@@ -1,3 +1,5 @@
+import { resolveArcadeDailySettings } from '../../shared/contracts/ArcadeDailyRulesContract.js';
+import { resolveArcadeRunVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import {
     ARCADE_LAST_RUN_STORAGE_KEY,
     ARCADE_SEED_STORAGE_KEY,
@@ -72,4 +74,18 @@ export function saveLastRunSnapshot(snapshot, store = null) {
     const record = createArcadeLastRunRecord(snapshot);
     if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_LAST_RUN_STORAGE_KEY, record);
     else safeWriteLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY, JSON.stringify(record));
+}
+
+
+/** The persisted launch snapshot uses the effective seed and equipment of this run. */
+export function createArcadeRunSnapshot(settings, seed, hangarBuild = null) {
+    settings = resolveArcadeDailySettings(settings);
+    if (settings.arcade?.dailyChallenge || settings.arcade?.runType === 'endless_parcours') seed = settings.arcade.seed;
+    return createArcadeLastRunRecord({
+        at: new Date().toISOString(), mapKey: settings?.mapKey,
+        vehicleId: resolveArcadeRunVehicleId(settings?.vehicles?.PLAYER_1),
+        botCount: settings?.numBots, botDifficulty: settings?.botDifficulty,
+        seed, dailyChallenge: settings?.arcade?.dailyChallenge === true,
+        buildId: hangarBuild?.buildId, buildSchemaVersion: hangarBuild?.schemaVersion,
+    });
 }

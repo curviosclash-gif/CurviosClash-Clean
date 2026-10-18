@@ -9,9 +9,9 @@ async function openHub(page, session = 'single') {
 test('Arcade map hub: real desktop map, filters, valuation, keyboard, Daily and custom return', async ({ page }, testInfo) => {
     await openHub(page);
     const root = page.locator('.arcade-journey');
-    await expect(root.locator('[data-journey-node]')).toHaveCount(26);
-    await expect(root.locator('[data-journey-world]')).toHaveCount(6);
-    await expect(root.locator('.journey-map-path')).toHaveCount(23);
+    await expect(root.locator('[data-journey-node]')).toHaveCount(13);
+    await expect(root.locator('[data-journey-world]')).toHaveCount(5);
+    await expect(root.locator('.journey-map-path')).toHaveCount(7);
     await expect(root.locator('.journey-start-hub #btn-free-play')).toBeVisible();
     await expect(page.locator('.arcade-start-mode-options')).toBeHidden();
     for (const size of [{width:1920,height:1080},{width:1366,height:768},{width:1280,height:720},{width:1024,height:768}]) {
@@ -38,7 +38,7 @@ test('Arcade map hub: real desktop map, filters, valuation, keyboard, Daily and 
     await expect(card.locator('[data-journey-start]')).toBeDisabled();
     await expect(card.locator('.journey-map-node-mark')).toHaveCount(0);
     await card.getByRole('button',{name:'Zur Voraussetzung',exact:true}).click();
-    await expect(root.locator('[data-journey-stage="five_portals"]')).toBeVisible();
+    await expect(root.locator('[data-journey-stage="orbital_shipyard"]')).toBeVisible();
     await root.locator('[data-journey-back]').click();
     await root.locator('[data-journey-node="five_portals"]').press('Enter');
     await expect(root.locator('[data-journey-stage="five_portals"] select')).toBeFocused();

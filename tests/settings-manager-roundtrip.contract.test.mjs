@@ -118,6 +118,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['vehicles.PLAYER_3', 'arrow'],
     ['arcade.profileId', 'arcade-alt'],
     ['arcade.runType', 'endless_parcours'],
+    ['arcade.endlessSeedMode', 'training'],
     ['arcade.combatProfile', 'hunt'],
     ['arcade.difficultyTierId', 'hard'],
     ['arcade.portalChainId', 'sky_ladder'],

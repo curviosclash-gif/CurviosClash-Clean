@@ -1,3 +1,4 @@
+import { normalizeEndlessSeedMode } from './EndlessParcoursSeedContract.js';
 import { resolveArcadeVehicleActiveStats } from './ArcadeVehicleActiveStatsContract.js';
 import { resolveArcadeLevelRange } from './ArcadeHangarRulesContract.js';
 import { GAUNTLET_FREE_RULE_VERSION, hasCustomArcadeScoreSettings } from './ArcadeRunSettingsContract.js';
@@ -89,7 +90,8 @@ export function createArcadeRankContext({ runId, runType, vehicleId, profile, st
         // Preserve the model that the caller actually supplied. Missing/legacy settings must not
         // be silently promoted to the current score model by this rank-context boundary.
         scoreModel: typeof runSettings?.scoreModel === 'string' ? runSettings.scoreModel.trim() : '',
-        ...(runType === 'endless_parcours' ? { endlessRuleVersion: ENDLESS_PARCOURS_RULE_VERSION } : {}),
+        ...(runType === 'endless_parcours' ? { endlessRuleVersion: ENDLESS_PARCOURS_RULE_VERSION,
+            endlessSeedMode: normalizeEndlessSeedMode(runSettings?.endlessSeedMode), endlessSeed: Number(runSettings?.seed) || 0 } : {}),
         ...(runType === 'arena_waves' ? { arenaWavesRuleVersion: ARENA_WAVES_RULE_VERSION } : {}),
         ...(runType === 'gauntlet' && !dailyChallenge && !runSettings?.journeyStageId ? { gauntletRuleVersion: GAUNTLET_FREE_RULE_VERSION } : {}),
         tierId: runType === 'five_portals' ? 'any' : tierId,
