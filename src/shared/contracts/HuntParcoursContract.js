@@ -6,6 +6,7 @@ export const HUNT_PARCOURS_PATHS = Object.freeze({
     ENTRY: 'entry',
     HETZEN: 'hetzen',
     STUERMEN: 'stuermen',
+    GRENZLAND_ELEMENTS: 'grenzland_elements',
 });
 
 export const HUNT_PARCOURS_MEDAL_THRESHOLDS = Object.freeze({
@@ -24,6 +25,11 @@ const VARIANTS = Object.freeze([
         id: 'nemesis', label: 'Nemesis', path: HUNT_PARCOURS_PATHS.ENTRY, unlockAfter: '',
         mapKeys: Object.freeze(['mirror_docks', 'glass_serpent', 'wind_cathedral']),
         botCount: 1, raceWeight: 0.6, roundSeconds: 0, seed: 130101, referenceScore: 3600,
+    }),
+    Object.freeze({
+        id: 'thunderflight', label: 'Gewitterflug', path: HUNT_PARCOURS_PATHS.GRENZLAND_ELEMENTS, unlockAfter: 'nemesis',
+        mapKeys: Object.freeze(['sky_islands', 'spiral_tower', 'abyssal_descent']),
+        botCount: 4, raceWeight: 1, roundSeconds: 0, seed: 130909, referenceScore: 4800,
     }),
     Object.freeze({
         id: 'fox_hunt', label: 'Fuchsjagd', path: HUNT_PARCOURS_PATHS.HETZEN, unlockAfter: 'nemesis',

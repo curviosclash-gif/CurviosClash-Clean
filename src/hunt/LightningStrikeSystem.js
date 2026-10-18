@@ -90,6 +90,16 @@ export class LightningStrikeSystem {
 
     activate(caster) {
         if (!caster || !this.canActivate()) return false;
+        return this._queueStrike(caster);
+    }
+
+    /** Authored weather has no player owner: every eligible flyer can be hit, with no kill credit. */
+    activateEnvironment() {
+        if (!this.canActivate()) return false;
+        return this._queueStrike(null);
+    }
+
+    _queueStrike(caster) {
         const warning = positive(this._config()?.WARNING_SECONDS, 2);
         const id = this._nextStrikeId++;
         this.pending.push({ id, caster, remaining: warning, duration: warning });
@@ -99,7 +109,7 @@ export class LightningStrikeSystem {
         });
         this._resolveEffect();
         this._announce();
-        this.entityManager?.recorder?.logEvent?.('LIGHTNING_CAST', Number.isInteger(caster.index) ? caster.index : -1, `warning=${warning}`);
+        this.entityManager?.recorder?.logEvent?.('LIGHTNING_CAST', Number.isInteger(caster?.index) ? caster.index : -1, `warning=${warning}`);
         return true;
     }
 

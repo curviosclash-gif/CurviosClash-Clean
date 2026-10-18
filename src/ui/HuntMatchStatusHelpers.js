@@ -5,6 +5,7 @@ import { HUNT_LAST_ALIVE_LIVES } from '../shared/contracts/HuntLivesContract.js'
 import { resolveTeamLabel, TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
 import { isDemolitionConfig } from '../shared/contracts/DemolitionContract.js';
 import { isFivePortalsConfig, resolvePortalChain } from '../shared/contracts/PortalChainContract.js';
+import { isHuntParcoursConfig } from '../shared/contracts/HuntParcoursContract.js';
 
 // One line per entry of ArcadeScenarioCatalog; a scenario without one would read "Elimination".
 const ARCADE_SCENARIO_OBJECTIVES = Object.freeze({
@@ -92,6 +93,9 @@ export function formatFlagObjectiveSummary(flags = []) {
 
 /** Header line: arcade hunt runs are no elimination match, even though they use the fight HUD. */
 export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
+    if (isHuntParcoursConfig(runtimeConfig)) return runtimeConfig.arcade.huntParcoursVariantId === 'thunderflight'
+        ? 'Gewitterflug · Ringpunkte aus drei Karten entscheiden'
+        : 'Nemesis · Ziel oder drei Abschüsse, zwei Kartensiege gewinnen';
     if (isDemolitionConfig(runtimeConfig)) return 'Abrisskommando · zerstöre das Bauwerk';
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';

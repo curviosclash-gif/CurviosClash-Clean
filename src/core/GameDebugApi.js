@@ -19,10 +19,10 @@ export function createGameDebugRuntimeAccess(runtime) {
             isDevelopmentEnvironment: () => resolveElectronDeveloperEnvironment() || import.meta.env?.DEV === true,
             async startHuntParcours(variantId) {
                 const variant = resolveHuntParcoursVariant(variantId);
-                if (!game || game.state !== 'MENU' || variant?.id !== 'nemesis') return false;
+                if (!game || game.state !== 'MENU' || !['nemesis', 'thunderflight'].includes(variant?.id)) return false;
                 const profileId = game.playerProfileManager?.getActiveProfile?.()?.id;
                 if (typeof profileId !== 'string' || !profileId.trim()) return false;
-                Object.assign(game.settings, { mode: '1p', numHumans: 1, numBots: 1, gameMode: 'ARCADE', mapKey: variant.mapKeys[0], winsNeeded: 15 });
+                Object.assign(game.settings, { mode: '1p', numHumans: 1, numBots: variant.botCount, gameMode: 'ARCADE', mapKey: variant.mapKeys[0], winsNeeded: 15 });
                 Object.assign(game.settings.arcade, { enabled: true, runType: 'hunt_parcours', huntParcoursVariantId: variant.id,
                     seed: variant.seed, journeyStageId: '', dailyChallenge: false, companionCount: 0,
                     playerProfileIds: [profileId.trim(), '', ''] });

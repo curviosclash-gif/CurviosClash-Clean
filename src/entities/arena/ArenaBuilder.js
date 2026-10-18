@@ -14,6 +14,7 @@ import { resolveGLBColliderMode } from '../mapSchema/MapSchemaGlbOps.js';
 import { ArenaExpansionController } from './ArenaExpansionController.js';
 import { resolveArenaPlayableVolumes } from './ArenaPlayableVolumes.js';
 import { listSkippedBreakSceneModelIds, resolveBreakSceneLoadKey } from './MapBreakSceneLoadPolicy.js';
+import { resolveThunderflightMap } from '../../shared/contracts/ThunderflightContract.js';
 
 function asPositiveScale(value, fallback = 1) {
     const scale = Number(value);
@@ -195,7 +196,7 @@ export class ArenaBuilder {
         const hasRequestedMap = typeof mapKey === 'string' && !!config.MAPS[mapKey];
         const map = hasRuntimeMap ? runtimeMap : (hasRequestedMap ? config.MAPS[mapKey] : fallbackMap);
         const currentMapKey = hasRuntimeMap || hasRequestedMap ? mapKey : 'standard';
-        return { map, fallbackMap, currentMapKey };
+        return { map: resolveThunderflightMap(map, currentMapKey, this.arena.runtimeConfig), fallbackMap, currentMapKey };
     }
 
     _resolveScaledMapSize(map, fallbackMap, scale) {
