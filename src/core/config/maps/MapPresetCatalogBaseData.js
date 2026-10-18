@@ -6,6 +6,7 @@ import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
 import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld, CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
 import { BATTLEFIELD_SUNSET_LIGHTING, PYRAMID_SUN_LIGHTING, CLEAR_DAY_LIGHTING, FLOODLIT_PIT_LIGHTING, FOREST_DAY_LIGHTING, GOLDEN_HOUR_LIGHTING, HALL_TORCHLIGHT_LIGHTING, PORTAL_PSYCHEDELIC_LIGHTING, REACTOR_GLOW_LIGHTING, TWILIGHT_BEACON_LIGHTING } from './presets/map_lighting_profiles.js';
+import { STANDARD_GIANT_WORM } from '../../../shared/contracts/StandardGiantWormContract.js';
 
 // Storm and ambience share one shelter list; the volumes are the interiors built by
 // scripts/generate_pyramid_map_assets.py (tests/pyramid-blender-assets.contract.test.mjs).
@@ -62,13 +63,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { type: 'KILL_COUNT', params: { target: 3 }, weight: 2 },
             { type: 'SURVIVE_DURATION', params: { target: 30 }, weight: 1 },
         ],
-        mapUnits: [{
-            id: 'standard_giant_worm', kind: 'creature',
-            path: [[-32, 0, -32], [32, 0, -32]], loop: false,
-            speed: 8, maxHp: 600, hitboxRadius: 6, respawnSeconds: 90,
-            attack: { damage: 30, cooldown: 4, radius: 20 },
-            allowedModes: ['HUNT', 'ARCADE'],
-        }],
+        mapUnits: [STANDARD_GIANT_WORM],
     },
     custom: {
         name: 'Custom (Editor gespeichert)',

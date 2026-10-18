@@ -40,6 +40,7 @@ import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { isTurretCombatActive } from '../src/shared/contracts/TurretCombatContract.js';
 import { MAP_UNIT_LIMITS } from '../src/shared/contracts/MapUnitContract.js';
 import { WATER_PHASES } from '../src/shared/contracts/WaterZoneContract.js';
+import { STANDARD_GIANT_WORM } from '../src/shared/contracts/StandardGiantWormContract.js';
 
 const scenarioById = (id) => ARCADE_SCENARIOS.find((entry) => entry.id === id);
 
@@ -212,6 +213,9 @@ test('the finale is sometimes a boss scenario, decided by the seed alone', () =>
 test('a scenario sector flies with hunt weapons and its own bot count', () => {
     const worm = scenarioById('worm_hunt');
     const standardWorm = MAP_PRESET_CATALOG.standard.mapUnits.find((unit) => unit.id === 'standard_giant_worm');
+    assert.equal(standardWorm, STANDARD_GIANT_WORM, 'the standard arena and Wurmjagd share one canonical worm definition');
+    assert.equal(worm.mapUnits[0].speed, STANDARD_GIANT_WORM.speed);
+    assert.equal(worm.mapUnits[0].hitboxRadius, STANDARD_GIANT_WORM.hitboxRadius);
     const profile = resolveArcadeSectorRuntimeProfile(
         { sectorNumber: 3, templateId: 'sector_pressure', scenarioId: 'worm_hunt', squadId: worm.squadId, combatProfile: worm.combatProfile, botCount: worm.botCount, pressure: 0.5, mapUnits: worm.mapUnits, mapUnitsMode: worm.mapUnitsMode },
         { mapKey: worm.mapKey, fallbackBotCount: 7 },

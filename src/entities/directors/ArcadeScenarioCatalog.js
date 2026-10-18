@@ -1,10 +1,8 @@
 import { normalizeArcadeScenario } from '../../shared/contracts/ArcadeScenarioContract.js';
 import { BLOOM_CORE_FINAL_OPEN_SECONDS } from '../../shared/contracts/BloomCoreTimingContract.js';
-import { MAP_PRESET_CATALOG_BASE_DATA } from '../../core/config/maps/MapPresetCatalogBaseData.js';
+import { STANDARD_GIANT_WORM } from '../../shared/contracts/StandardGiantWormContract.js';
 
 const WORM_HUNT_WORM_COUNT = 100;
-const STANDARD_GIANT_WORM = MAP_PRESET_CATALOG_BASE_DATA.standard.mapUnits.find((unit) => unit.id === 'standard_giant_worm');
-if (!STANDARD_GIANT_WORM) throw new Error('Wurmjagd requires the standard map giant worm definition.');
 
 const WORM_HUNT_WORMS = Array.from({ length: WORM_HUNT_WORM_COUNT }, (_, index) => {
     const column = index % 10;
