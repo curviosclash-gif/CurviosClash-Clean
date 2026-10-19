@@ -27,6 +27,8 @@ export const CLOUD_HARBOR_MAPS = {
             + 'Dachgärten, hinauf um den Wetterturm durch seine Kreiselringe und entlang der '
             + 'Seilbahn zwischen den Ankerketten hindurch zum Hafentor.',
         size: MAP_SIZE,
+        // A pure course: default portals (ArcadeDaily switches portals on) would sit on the route.
+        portalCount: 0,
         scaleAuthoredAnchors: true,
         // Every part is modelled in one shared map frame at scale 1 and recentred by the loader
         // onto its own bounding box, like the Orbital Shipyard; the openings a run flies through
