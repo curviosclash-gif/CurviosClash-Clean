@@ -57,6 +57,8 @@ export class LANSessionAdapter extends SessionAdapterBase {
         this._pollAbortController = null;
         this._pollInFlight = false;
         this._pollStopped = false;
+        /** The running client handshake ({ controller, successor, outcome }); a newer one aborts it. */
+        this._clientHandshake = null;
 
         this._dataChannelManager.on('message', ({ peerId, channel, data }) => {
             this._handleMessage(peerId, channel, data);
@@ -78,8 +80,8 @@ export class LANSessionAdapter extends SessionAdapterBase {
             this._registerPeerDisconnect(peerId, 'heartbeat-timeout');
         });
 
-        this._peerManager.on('iceCandidate', ({ peerId, candidate }) => {
-            this._sendIceCandidate(peerId, candidate);
+        this._peerManager.on('iceCandidate', ({ peerId, candidate, signal }) => {
+            this._sendIceCandidate(peerId, candidate, signal);
         });
 
         this._peerManager.on('peerConnected', ({ peerId }) => {
@@ -132,37 +134,83 @@ export class LANSessionAdapter extends SessionAdapterBase {
         if (!playerId) {
             throw new Error('LAN reconnect failed: playerId missing');
         }
-        const rejoinRes = await fetchSignaling(`${this._signalingUrl}/lobby/rejoin`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ playerId, playerToken: this._peerToken }),
+        await this._runClientHandshake(async (signal) => {
+            const rejoinRes = await fetchSignaling(`${this._signalingUrl}/lobby/rejoin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId, playerToken: this._peerToken }),
+                signal,
+            });
+            signal.throwIfAborted();
+            if (rejoinRes?.ok === false) {
+                throw new Error(`LAN reconnect rejected (${rejoinRes.status || 'unknown'})`);
+            }
+            await this._attachExistingClient(playerId, signal);
         });
-        if (rejoinRes?.ok === false) {
-            throw new Error(`LAN reconnect rejected (${rejoinRes.status || 'unknown'})`);
+    }
+
+    /**
+     * Runs one client handshake. Starting the next one (reconnect, new match)
+     * or disconnect() aborts it, so it cannot consume the successor's offer,
+     * post a stale answer or emit `connected`. A superseded handshake then
+     * settles with its successor's outcome; after disconnect() it ends quietly.
+     */
+    _runClientHandshake(run) {
+        const previous = this._clientHandshake;
+        const handshake = { controller: new AbortController(), successor: null, outcome: null };
+        this._clientHandshake = handshake;
+        if (previous) {
+            previous.successor = handshake;
+            previous.controller.abort();
         }
-        await this._attachExistingClient(playerId);
+        handshake.outcome = this._settleClientHandshake(handshake, run);
+        return handshake.outcome;
+    }
+
+    async _settleClientHandshake(handshake, run) {
+        const { controller } = handshake;
+        let connected = false;
+        try {
+            await run(controller.signal);
+            connected = true;
+        } catch (err) {
+            if (!controller.signal.aborted) throw err;
+        } finally {
+            if (this._clientHandshake === handshake) {
+                this._clientHandshake = null;
+                // A failed attempt must not keep announcing ICE for its connection;
+                // a successful one keeps its signal live for late trickle candidates.
+                if (!connected) controller.abort();
+            }
+        }
+        if (!connected && handshake.successor) await handshake.successor.outcome;
     }
 
     async _joinAsClient(lobbyCode) {
         try {
-            const joinRes = await fetchSignaling(`${this._signalingUrl}/lobby/join`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lobbyCode }),
+            await this._runClientHandshake(async (signal) => {
+                const joinRes = await fetchSignaling(`${this._signalingUrl}/lobby/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lobbyCode }),
+                    signal,
+                });
+                signal.throwIfAborted();
+                if (joinRes?.ok === false) {
+                    throw new Error(`Lobby join failed (${joinRes.status || 'unknown'})`);
+                }
+                const joinData = await joinRes.json();
+                signal.throwIfAborted();
+                this._peerToken = String(joinData.playerToken || '').trim() || this._peerToken;
+                await this._attachExistingClient(joinData.playerId, signal);
             });
-            if (joinRes?.ok === false) {
-                throw new Error(`Lobby join failed (${joinRes.status || 'unknown'})`);
-            }
-            const joinData = await joinRes.json();
-            this._peerToken = String(joinData.playerToken || '').trim() || this._peerToken;
-            await this._attachExistingClient(joinData.playerId);
         } catch (err) {
             logger.error('Join as client failed:', err);
             throw err;
         }
     }
 
-    async _attachExistingClient(playerId) {
+    async _attachExistingClient(playerId, signal = null) {
         this.localPlayerId = String(playerId || '').trim();
         if (!this.localPlayerId) {
             throw new Error('Client attach failed: playerId missing');
@@ -173,13 +221,17 @@ export class LANSessionAdapter extends SessionAdapterBase {
             playerId: this.localPlayerId,
             token: this._peerToken,
             now: this._now,
+            signal,
         });
+        signal?.throwIfAborted();
         const channelOpenPromise = waitForStateChannelOpen({
             dataChannelManager: this._dataChannelManager,
             peerId: 'host',
             timeoutMs: CLIENT_CHANNEL_OPEN_TIMEOUT_MS,
+            signal,
         });
-        const answer = await this._peerManager.handleOffer('host', offer);
+        const answer = await this._peerManager.handleOffer('host', offer, { signal });
+        signal?.throwIfAborted();
 
         const answerRes = await fetchSignaling(`${this._signalingUrl}/signaling/answer`, {
             method: 'POST',
@@ -189,9 +241,12 @@ export class LANSessionAdapter extends SessionAdapterBase {
                 playerToken: this._peerToken,
                 answer,
             }),
+            signal,
         }).catch((err) => {
+            signal?.throwIfAborted();
             throw new Error(`Answer send failed: ${err?.message || err}`);
         });
+        signal?.throwIfAborted();
         if (answerRes?.ok === false) {
             throw new Error(`Answer send failed (${answerRes.status || 'unknown'})`);
         }
@@ -199,12 +254,14 @@ export class LANSessionAdapter extends SessionAdapterBase {
         await this._pollIceCandidates('host', {
             playerId: this.localPlayerId,
             fromPeerId: 'host',
+            signal,
         });
 
         // Signaling done is not connected: only report success once the reliable
         // state channel is actually open, so P2P failures surface as errors
         // instead of a silently hanging session.
         await channelOpenPromise;
+        signal?.throwIfAborted();
 
         this.isConnected = true;
         this._latencyMonitor.start();
@@ -212,13 +269,14 @@ export class LANSessionAdapter extends SessionAdapterBase {
         this._emit('connected', { playerId: this.localPlayerId });
     }
 
-    async _sendIceCandidate(peerId, candidate) {
+    async _sendIceCandidate(peerId, candidate, signal = null) {
         await sendIceCandidate({
             signalingUrl: this._signalingUrl,
             sourcePlayerId: String(this.localPlayerId || (this.isHost ? 'host' : '') || '').trim(),
             token: this._peerToken,
             targetPlayerId: String(peerId || '').trim() || 'host',
             candidate,
+            signal,
         });
     }
 
@@ -247,6 +305,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
                 ? { quietWindowPolls: Math.max(1, Math.floor(Number(options.quietWindowPolls))) } : {}),
             ...(Number.isFinite(Number(options.pollDelayMs))
                 ? { pollDelayMs: Math.max(0, Math.floor(Number(options.pollDelayMs))) } : {}),
+            signal: options.signal || null,
         });
     }
 
@@ -489,6 +548,8 @@ export class LANSessionAdapter extends SessionAdapterBase {
 
     disconnect() {
         this._isDisconnecting = true;
+        this._clientHandshake?.controller.abort();
+        this._clientHandshake = null;
         this._sendLeaveMessage();
 
         this._stopStatusPolling();
