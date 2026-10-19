@@ -43,6 +43,8 @@ const MODIFIER_EFFECTS = Object.freeze({
     portal_storm: Object.freeze({ spawnRateMultiplier: 2.0 }),
     boost_tax: Object.freeze({ boostHpCostPerSecond: 8.0 }),
 });
+// Share of max HP that Heat Stress leaves standing outside sudden death.
+const HEAT_STRESS_HP_FLOOR_RATIO = 0.25;
 
 const NULL_SLOT_BONUSES = Object.freeze({ turningBonusPct: 0, speedBonusPct: 0, maxHpBonus: 0 });
 
@@ -402,7 +404,14 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (this._huntCombat && !this.isNormalArcadeRun()) return this._huntCombat.updateHealthRegen(player, dt, entityManager);
         if (!player || player.hp <= 0) return null;
         const drain = ((this._huntCombat ? null : this._getAggregatedModifierEffects())?.hpDrainPerSecond || 0) * Math.max(0, dt);
-        if (drain > 0) return this._applyModifierDamage(player, drain, 'HEAT_STRESS', entityManager);
+        if (drain > 0) {
+            // Outside sudden death heat wears the hull down but never finishes a pilot on its own:
+            // a 55 s survive window drained 137.5 HP, more than most hulls hold. The shield still goes first.
+            const floorHp = this._sdActive ? 0 : HEAT_STRESS_HP_FLOOR_RATIO * Math.max(0, toSafe(player.maxHp, 0));
+            const shieldHp = player.hasShield ? Math.max(0, toSafe(player.shieldHP, 0)) : 0;
+            const allowed = Math.min(drain, shieldHp + Math.max(0, player.hp - floorHp));
+            return allowed > 0 ? this._applyModifierDamage(player, allowed, 'HEAT_STRESS', entityManager) : null;
+        }
         if (!this.isNormalArcadeRun()) return null;
         const activeManager = entityManager || player.entityManager;
         const healWorld = activeManager?.gameModeStrategy || activeManager?.strategy
