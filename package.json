@@ -63,6 +63,7 @@
     "test:remote": "node scripts/run-remote-tests.mjs",
     "test:browser:compat": "node scripts/run-playwright-browser-contract.mjs tests/core-targeted.spec.js --grep \"T1:|T2:|T3:\"",
     "test:editor-ui": "npm run build:app:test && node scripts/run-playwright-targeted.mjs tests/editor-map-ui.spec.js",
+    "test:settings-studio": "npm run build:app:test && node scripts/run-playwright-targeted.mjs -c playwright.settings-studio.config.mjs",
     "test:gpu": "npm run build:app:test && node scripts/run-playwright-targeted.mjs tests/gpu.spec.js",
     "test:physics": "npm run build:app:test && node scripts/run-playwright-targeted.mjs tests/physics-core.spec.js tests/physics-hunt.spec.js tests/physics-policy.spec.js",
     "test:stress": "npm run build:app:test && node scripts/run-playwright-targeted.mjs tests/stress.spec.js",

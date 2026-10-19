@@ -24,6 +24,7 @@ on:
       - scripts/esbuild-stream-fallback.cjs
       - playwright.config.js
       - playwright.editor.config.mjs
+      - playwright.settings-studio.config.mjs
       - index.html
       - hangar.html
       - style.css
@@ -56,6 +57,7 @@ on:
       - scripts/esbuild-stream-fallback.cjs
       - playwright.config.js
       - playwright.editor.config.mjs
+      - playwright.settings-studio.config.mjs
       - index.html
       - hangar.html
       - style.css
@@ -161,6 +163,28 @@ jobs:
       - name: Run ${{ matrix.cluster }} cluster
         run: node scripts/run-playwright-targeted-clusters.mjs ${{ matrix.cluster }} --timeout=180000
 
+  settings-studio:
+    needs: build-test-renderer
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+      - run: npm ci
+      - run: npm run app:setup
+      - name: Download test renderer
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-test-renderer
+          path: dist-app-test
+      - name: Settings Studio and map balancing windows
+        run: node scripts/run-playwright-targeted.mjs -c playwright.settings-studio.config.mjs
   heavy-e2e:
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     needs: build-test-renderer
