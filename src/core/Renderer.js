@@ -546,6 +546,7 @@ export class Renderer {
     }
 
     _onResize() {
+        this.qualityController.refreshPixelRatio();
         this.viewportSystem.onResize(this.cameras);
         this._width = this.viewportSystem.width;
         this._height = this.viewportSystem.height;

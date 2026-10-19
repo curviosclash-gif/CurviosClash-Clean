@@ -110,13 +110,22 @@ export class RenderQualityController {
         // und Fog bleiben konstant, sonst kippt die Szenenhelligkeit bei jedem Stufenwechsel
         // sichtbar zwischen hell und dunkel. Fog gehoert dem Grafikstil (Renderer.setGraphicsStyle),
         // das Environment dem SceneEnvironmentController: er tauscht es beim Kartenwechsel aus.
+        const previousShadowEnabled = this.renderer.shadowMap.enabled;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.setPixelRatio(this._resolvePixelRatio(window.devicePixelRatio));
 
         this._applyShadowQuality();
         this._applyBloomQuality();
         this.postProcessingPipeline?.setPixelRatio?.(this.renderer.getPixelRatio());
-        this._refreshMaterials();
+        if (previousShadowEnabled !== this.renderer.shadowMap.enabled) this._refreshMaterials();
+    }
+
+    refreshPixelRatio() {
+        const pixelRatio = this._resolvePixelRatio(window.devicePixelRatio);
+        if (this.renderer.getPixelRatio() === pixelRatio) return false;
+        this.renderer.setPixelRatio(pixelRatio);
+        this.postProcessingPipeline?.setPixelRatio?.(pixelRatio);
+        return true;
     }
 
     _resolvePixelRatio(devicePixelRatio) {
@@ -144,9 +153,10 @@ export class RenderQualityController {
         if (this.shadowQuality === nextShadowQuality) {
             return;
         }
+        const previousShadowEnabled = this.renderer.shadowMap.enabled;
         this.shadowQuality = nextShadowQuality;
         this._applyShadowQuality();
-        this._refreshMaterials();
+        if (previousShadowEnabled !== this.renderer.shadowMap.enabled) this._refreshMaterials();
     }
 
     getShadowQuality() {
@@ -220,11 +230,16 @@ export class RenderQualityController {
     }
 
     _refreshMaterials() {
+        const materials = new Set();
         this.scene.traverse((child) => {
             if (child.isMesh && child.material) {
-                child.material.needsUpdate = true;
+                const assigned = Array.isArray(child.material) ? child.material : [child.material];
+                for (const material of assigned) {
+                    if (material?.isMaterial === true) materials.add(material);
+                }
             }
         });
+        for (const material of materials) material.needsUpdate = true;
     }
 
     dispose() {

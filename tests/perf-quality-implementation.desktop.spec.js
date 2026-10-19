@@ -1,12 +1,90 @@
 import { writeFile } from 'node:fs/promises';
 import { test, expect } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame, chooseFreePlayVariant } from './helpers.js';
+import { CONFIG } from '../src/core/Config.js';
 
 // Compare production uploads with a full-upload reference and verify GPU bytes and pixels.
 test.describe.configure({ timeout: 360000 });
 const auditTimings = process.env.PW_PERF_AUDIT_TIMING !== '0';
 const uploadScope = process.env.PW_PERF_UPLOAD_SCOPE || 'all';
 if (!['all', 'particles', 'leaves'].includes(uploadScope)) throw new Error(`Invalid PW_PERF_UPLOAD_SCOPE: ${uploadScope}`);
+
+test('renderer quality lifecycle: native resize, shadows and recording floor', async ({ page, electronApp }, testInfo) => {
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await waitForLoadedGame(page);
+    await electronApp.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows()[0];
+        if (window.isMaximized()) window.unmaximize();
+        window.setContentSize(960, 640);
+    });
+    await openCustomSubmenu(page);
+    await chooseFreePlayVariant(page, 'ffa');
+    await page.selectOption('#map-select', 'standard');
+    await page.evaluate(() => {
+        const slider = document.getElementById('bot-count');
+        slider.value = '0'; slider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.click('#btn-start');
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 60000 });
+    const report = await page.evaluate(({ highCap }) => {
+        const game = window.GAME_INSTANCE, r = game.renderer, controller = r.qualityController;
+        game.gameLoop.stop(); // Controlled rendering fixture; no flight or FPS claim.
+        const descriptor = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+        const environment = r.scene.environment, fog = r.scene.fog;
+        const checks = [], gpuErrors = [];
+        const dpr = value => Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value });
+        const frame = () => { r.render(); gpuErrors.push(r.renderer.getContext().getError()); };
+        const materialVersions = () => {
+            const values = new Map();
+            r.scene.traverse(child => {
+                if (!child.isMesh) return;
+                for (const material of Array.isArray(child.material) ? child.material : [child.material]) {
+                    if (material?.isMaterial) values.set(material, material.version);
+                }
+            });
+            return values;
+        };
+        const checkMaterials = (label, action, delta) => {
+            const before = materialVersions(); action();
+            checks.push({ label, materials: before.size, valid: [...before].every(([material, version]) => material.version === version + delta) });
+            frame();
+        };
+        try {
+            controller.setQualityLock(false); dpr(1); r.setQuality('HIGH'); r.setShadowQuality(3); r._onResize(); frame();
+            dpr(2); r._onResize(); frame();
+            const highRatio = Math.min(2, highCap);
+            const canvas = r.renderer.domElement;
+            checks.push({ label: 'native drawing buffer after DPR change', valid: r.renderer.getPixelRatio() === highRatio
+                && canvas.width === Math.floor(window.innerWidth * highRatio) && canvas.height === Math.floor(window.innerHeight * highRatio),
+                width: canvas.width, height: canvas.height, pixelRatio: r.renderer.getPixelRatio() });
+            checkMaterials('resolution and shadow-map size only', () => r.setQuality('MEDIUM'), 0);
+            checkMaterials('shadows disabled', () => r.setQuality('LOW'), 1);
+            checkMaterials('shadows enabled', () => r.setQuality('HIGH'), 1);
+            checkMaterials('shadow resolution only', () => r.setShadowQuality(1), 0);
+            checkMaterials('explicit shadows off', () => r.setShadowQuality(0), 1);
+            checkMaterials('explicit shadows on', () => r.setShadowQuality(3), 1);
+            dpr(1); r.setQuality('ULTRA', { supersample: true }); r._onResize(); frame();
+            checks.push({ label: 'ULTRA supersample on native DPR1', valid: r.renderer.getPixelRatio() === 1.25 });
+            controller.setQualityLock(true, 'renderer-regression'); r.setQuality('LOW'); dpr(3); r._onResize(); frame();
+            checks.push({ label: 'recording HIGH floor and DPR cap', valid: controller.getQualityState().effectiveQuality === 'HIGH'
+                && r.renderer.getPixelRatio() === Math.min(3, highCap) });
+            checks.push({ label: 'map environment and fog preserved', valid: r.scene.environment === environment && r.scene.fog === fog });
+            return { checks, gpuErrors, materials: materialVersions().size, state: game.state };
+        } finally {
+            if (descriptor) Object.defineProperty(window, 'devicePixelRatio', descriptor);
+            else delete window.devicePixelRatio;
+            controller.setQualityLock(false); r.setQuality('HIGH'); r.setShadowQuality(3); r._onResize(); frame();
+        }
+    }, { highCap: CONFIG.RENDER.MAX_PIXEL_RATIO });
+    await writeFile(testInfo.outputPath('renderer-quality-lifecycle.json'), JSON.stringify(report, null, 2));
+    await page.screenshot({ path: testInfo.outputPath('renderer-quality-lifecycle.png') });
+    expect(report.materials).toBeGreaterThan(0);
+    expect(report.checks.filter(check => !check.valid)).toEqual([]);
+    expect(report.gpuErrors.every(code => code === 0)).toBe(true);
+    expect(report.state).toBe('PLAYING');
+    expect(errors).toEqual([]);
+});
 
 for (const mapKey of ['standard', 'cherry_grove', 'dandelion_sky']) {
     test(`performance audit: ${mapKey} real GPU uploads and identical pixels`, async ({ page, electronApp }, testInfo) => {
