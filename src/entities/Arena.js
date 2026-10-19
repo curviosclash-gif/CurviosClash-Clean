@@ -18,6 +18,7 @@ import { resolveAircraftDecorationColor, resolveAircraftDecorationVehicleId } fr
 import { ExclusionBoundaryVisual } from './arena/ExclusionBoundaryVisual.js';
 import { MapDestructibleGlowController } from './arena/MapDestructibleGlowController.js';
 import * as plants from './arena/ArenaShootablePlantOps.js';
+import { selectAuthoredObstacleDefs } from './arena/GlbColliderRules.js';
 import { getRandomArenaPosition, getRandomArenaPositionOnLevel } from './arena/ArenaRandomPositionOps.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
@@ -242,12 +243,9 @@ export class Arena {
             // 'dynamic' only adds colliders for the moving GLB parts, so the authored box
             // obstacles stay responsible for the static set dressing. Exact scene collision can
             // still request a small supplemental set for things no GLB surface represents.
-            const useFallbackObstacles = !usedGlbModel
-                || !requiredWorldComplete || buildContext.glbColliderMode === 'fallbackOnly'
-                || buildContext.glbColliderMode === 'dynamic';
-            const obstacleDefs = useFallbackObstacles
-                ? buildContext.obstacleDefs
-                : buildContext.obstacleDefs.filter((obstacle) => obstacle?.compileWithGlb === true);
+            const obstacleDefs = selectAuthoredObstacleDefs(buildContext.obstacleDefs, {
+                usedGlbModel, requiredWorldComplete, colliderMode: buildContext.glbColliderMode,
+            });
             if (obstacleDefs.length > 0) {
                 this._builder.geometryPipeline.compileObstacleStage({
                     obstacleDefs,

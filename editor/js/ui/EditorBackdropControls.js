@@ -120,7 +120,7 @@ export function bindEditorBackdropControls(editor) {
             editor.notify?.('Platzierungen stehen im Feld „Map JSON“ zum Kopieren bereit.', 'info');
         }
         if (warnings.length > 0) {
-            console.warn('[EditorBackdrop] Values above the world limits of the target map:', warnings);
+            console.warn('[EditorBackdrop] Notes on the copied placements:', warnings);
             const more = warnings.length > 1 ? ` (+${warnings.length - 1} weitere, siehe Konsole)` : '';
             editor.notify?.(`${warnings[0]}${more}`, 'warn');
         }

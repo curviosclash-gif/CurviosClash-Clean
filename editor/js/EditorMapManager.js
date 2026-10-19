@@ -52,6 +52,8 @@ export class EditorMapManager {
         this.authoringMetadataProvider = null;
         this.arenaSizeProvider = null;
         this._orientationForward = new THREE.Vector3();
+        /** @type {WeakMap<THREE.Object3D, number>} */
+        this._checkpointRingScales = new WeakMap();
 
         this.setCallbacks(options?.callbacks || options);
         this.setupPrimitives();
@@ -186,6 +188,28 @@ export class EditorMapManager {
         const conversion = getCustomMapConversionScale({ arenaSize: this.arenaSizeProvider?.() }).scale;
         const ringRadius = resolveCheckpointRingVisualRadius(Number(cpRadius) / conversion, { finish }) * conversion;
         return ringRadius / this.torusGeo.parameters.radius;
+    }
+
+    /**
+     * Draws a checkpoint ring for its radius and remembers the scale it drew. The arena can change
+     * the conversion later; only a ring that left this remembered scale was resized by the gizmo.
+     * @param {THREE.Object3D} object
+     * @param {number} cpRadius
+     * @param {boolean} [finish]
+     */
+    applyCheckpointRingScale(object, cpRadius, finish = false) {
+        const scale = this.getCheckpointRingScale(cpRadius, finish);
+        object.scale.setScalar(scale);
+        this._checkpointRingScales.set(object, scale);
+    }
+
+    /** Redraws every standing ring after the arena size changed the export conversion. */
+    refreshCheckpointRingScales() {
+        for (const object of this.core.objectsContainer.children) {
+            const userData = object.userData;
+            if (userData?.type !== 'checkpoint' || !(Number(userData.cpRadius) > 0)) continue;
+            this.applyCheckpointRingScale(object, userData.cpRadius, userData.subType === 'finish');
+        }
     }
 
     /**
@@ -476,13 +500,16 @@ export class EditorMapManager {
             } else if (userData.type === 'checkpoint') {
                 // cpRadius is the authored truth. Moves, turns and the size field leave the ring at
                 // the radius's own size; only a ring the gizmo actually resized names a new radius.
+                // The drawn scale, not today's conversion, says what "its own size" is: an arena
+                // resize changes the conversion while the ring still shows the old one.
                 const finish = userData.subType === 'finish';
                 const authored = Number(userData.cpRadius);
-                const shownScale = this.getCheckpointRingScale(authored, finish);
+                const shownScale = this._checkpointRingScales.get(rootObject)
+                    ?? this.getCheckpointRingScale(authored, finish);
                 if (!(authored > 0) || Math.abs(scalar - shownScale) > shownScale * 1e-6) {
                     userData.cpRadius = this.resolveCheckpointRadiusFromRingScale(scalar, finish, authored);
                 }
-                rootObject.scale.setScalar(this.getCheckpointRingScale(userData.cpRadius, finish));
+                this.applyCheckpointRingScale(rootObject, userData.cpRadius, finish);
             } else if (userData.type === 'escort_waypoint') {
                 userData.routeRadius = scalar / 10;
             }

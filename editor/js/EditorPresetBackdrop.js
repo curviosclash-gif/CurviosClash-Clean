@@ -141,7 +141,8 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
     const glbModels = (Array.isArray(preset.glbModels) ? preset.glbModels : []).map((model, index) => {
         const targetSize = finiteOr(model.targetSize, 0);
         return {
-            id: `${model.id || key}#${BACKDROP_ID_PREFIX}${index + 1}`,
+            // Without an own ID the match names a model model-N; the export strips the suffix again.
+            id: `${model.id || `model-${index + 1}`}#${BACKDROP_ID_PREFIX}${index + 1}`,
             url: model.url,
             position: (Array.isArray(model.position) ? model.position : [0, 0, 0]).map((value) => finiteOr(value, 0) * units),
             rotation: Array.isArray(model.rotation) ? [...model.rotation] : [0, 0, 0],
@@ -209,6 +210,22 @@ export function isBackdropObject(object, preset = null) {
 }
 
 /**
+ * Checkpoints placed on top of a template course, without the template's route ID, rules and
+ * guidance: those describe the template route, which keeps them. Links into the template stay,
+ * links to a checkpoint neither here nor in the template are dropped.
+ */
+function additionsToTemplateRoute(checkpoints, finish, preset) {
+    const knownIds = new Set([...checkpoints, finish, ...(preset?.parcours?.checkpoints || []), preset?.parcours?.finish]
+        .map(checkpoint => checkpoint?.id).filter(Boolean));
+    const withKnownLinks = (checkpoint) => {
+        const { nextIds, aliasOf, ...rest } = checkpoint;
+        const links = (nextIds || []).filter(id => knownIds.has(id));
+        return { ...rest, ...(links.length ? { nextIds: links } : {}), ...(knownIds.has(aliasOf) ? { aliasOf } : {}) };
+    };
+    return { checkpoints: checkpoints.map(withKnownLinks), ...(finish ? { finish: withKnownLinks(finish) } : {}) };
+}
+
+/**
  * The editor map as the preset file would write it: map units, anchors in the preset's own
  * convention, backdrop models left out unless asked for.
  */
@@ -252,7 +269,14 @@ export function exportPlacementsInPresetFormat(mapManager, arenaSize, {
         const originalIds = new Set((preset?.parcours?.checkpoints || []).map(checkpoint => checkpoint.id));
         const checkpoints = runtime.parcours.checkpoints.filter(checkpoint => includeBackdrop || !originalIds.has(checkpoint.id));
         const finish = includeBackdrop || runtime.parcours.finish?.id !== preset?.parcours?.finish?.id ? runtime.parcours.finish : undefined;
-        if (checkpoints.length || finish) result.parcours = { ...runtime.parcours, checkpoints, finish };
+        const partial = checkpoints.length < runtime.parcours.checkpoints.length || (!finish && runtime.parcours.finish);
+        if ((checkpoints.length || finish) && partial) {
+            result.parcours = additionsToTemplateRoute(checkpoints, finish, preset);
+            warnings?.push('parcours enthält nur die neuen Checkpoints: in parcours.checkpoints der Vorlage ergänzen, '
+                + 'nicht das parcours-Objekt ersetzen.');
+        } else if (checkpoints.length || finish) {
+            result.parcours = { ...runtime.parcours, checkpoints, finish };
+        }
     }
     if (Array.isArray(warnings) && anchorScale !== 1) collectWorldLimitWarnings(result, warnings);
     return result;

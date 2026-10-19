@@ -289,6 +289,7 @@ export class EditorUI {
                 this.core.yGroundMesh.position.y = yLayer;
             }
             this.updateArenaVisual();
+            this.mapManager?.refreshCheckpointRingScales?.();
             this.refreshGameView?.();
         };
         this.syncArenaValues = syncArenaValues;

@@ -167,3 +167,43 @@ for (const finish of [false, true]) {
         assertClose(wide.userData.cpRadius, smallestRadiusOfMinimumRing, 'shrinking again keeps that radius');
     });
 }
+
+/** An arena the test can resize while rings stand, like the editor's width/height/depth fields. */
+function createResizableEditor(initialArena) {
+    let arenaSize = initialArena;
+    const mapManager = createEditor(initialArena);
+    mapManager.setArenaSizeProvider(() => arenaSize);
+    return { mapManager, resize(next) { arenaSize = next; } };
+}
+
+test('resizing the arena across conversion factors keeps the authored checkpoint radius', () => {
+    const { mapManager, resize } = createResizableEditor(LEGACY_ARENA);
+    const gate = mapManager.createMesh('checkpoint', 'gate', 0, 100, 0, 0, { id: 'cp_a', cpRadius: 5.5 });
+    const finish = mapManager.createMesh('checkpoint', 'finish', 80, 100, 0, 0, { id: 'cp_f', cpRadius: 7 });
+
+    resize(SMALL_ARENA);
+    // Moving and turning run the same metadata sync as a gizmo drag; the ring still shows the old arena.
+    gate.position.x += 25;
+    gate.rotation.y = Math.PI / 3;
+    mapManager.notifyObjectMutated(gate);
+    mapManager.notifyObjectMutated(finish);
+    assert.equal(gate.userData.cpRadius, 5.5, 'a moved gate keeps its radius after the arena shrank');
+    assert.equal(finish.userData.cpRadius, 7, 'the finish keeps its radius after the arena shrank');
+    assert.equal(exportedRadius(mapManager, SMALL_ARENA, 'cp_a'), 5.5, 'the export carries the authored radius');
+    assertClose(gate.scale.x, mapManager.getCheckpointRingScale(5.5, false), 'the moved ring is redrawn for the new arena');
+});
+
+test('resizing the arena redraws standing rings for the new conversion', () => {
+    const { mapManager, resize } = createResizableEditor(LEGACY_ARENA);
+    const gate = mapManager.createMesh('checkpoint', 'gate', 0, 100, 0, 0, { id: 'cp_a', cpRadius: 40 });
+
+    resize(SMALL_ARENA);
+    mapManager.refreshCheckpointRingScales();
+    assertClose(gate.scale.x, mapManager.getCheckpointRingScale(40, false), 'the ring matches the small arena');
+    const [gameGate] = gameRingRadii(mapManager, SMALL_ARENA);
+    assertClose(editorRingRadius(mapManager, gate), gameGate, 'the redrawn ring is the ring the match builds');
+
+    // A gizmo drag after the redraw still names a new radius.
+    dragRing(mapManager, gate, 1.5);
+    assertClose(gate.userData.cpRadius, 60, 'a drag after the resize scales the radius');
+});

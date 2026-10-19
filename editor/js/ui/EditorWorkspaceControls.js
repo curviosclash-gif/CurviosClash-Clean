@@ -280,6 +280,7 @@ export function bindEditorWorkspaceControls(editor) {
         }
         updateIssueMarkers(items);
         editor.lastValidationItems = items;
+        editor.onWorkspaceValidated?.(items);
         return items;
     };
 
