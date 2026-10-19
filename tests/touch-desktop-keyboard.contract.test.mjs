@@ -52,7 +52,9 @@ function createDocumentStub() {
     };
 }
 
-function resolveSource({ coarsePointer }) {
+function resolveSource({ coarsePointer, appMode = 'web', appTarget = 'default', mouseSteering = false, mobileClassic = false, mobileArcade = false }) {
+    const document = createDocumentStub();
+    document.documentElement.dataset.appTarget = appTarget;
     return withGlobals({
         window: {
             ontouchstart: null,
@@ -61,27 +63,74 @@ function resolveSource({ coarsePointer }) {
             removeEventListener() {},
         },
         navigator: { maxTouchPoints: 10, getGamepads: () => [] },
-        document: createDocumentStub(),
+        document,
+        __APP_MODE__: appMode,
+        __APP_TARGET__: appTarget,
     }, () => {
         const source = createPreferredMatchInputSource({
             inputManager: { getKeyboardInput: () => ({ keyboard: true }) },
             playerIndex: 0,
             localHumanCount: 1,
-            game: { settings: { localSettings: {} } },
+            game: {
+                _mobileClassicAppTarget: mobileClassic,
+                _mobileArcadeAppTarget: mobileArcade,
+                settings: { localSettings: { mouseSteering } },
+            },
         });
         source.bind(0);
-        const polled = source.poll();
+        const result = { type: source.type, polled: source.poll() };
         source.dispose();
-        return polled;
+        return result;
     });
 }
 
 test('a touch-capable desktop with a mouse keeps keyboard input for player one', () => {
-    const polled = resolveSource({ coarsePointer: false });
-    assert.equal(polled?.keyboard, true, 'touch laptops and touch monitors must not lose the keyboard');
+    const result = resolveSource({ coarsePointer: false });
+    assert.equal(result.polled?.keyboard, true, 'touch laptops and touch monitors must not lose the keyboard');
 });
 
 test('a device whose primary pointer is a finger still gets touch controls', () => {
-    const polled = resolveSource({ coarsePointer: true });
-    assert.notEqual(polled?.keyboard, true, 'phones and tablets keep the on-screen controls');
+    const result = resolveSource({ coarsePointer: true });
+    assert.notEqual(result.polled?.keyboard, true, 'phones and tablets keep the on-screen controls');
+    assert.equal(result.type, 'touch');
+});
+
+test('a coarse-touch desktop app keeps keyboard input instead of replacing it with touch', () => {
+    // 'default' is the dist-app build, 'game' the packaged game export.
+    for (const appTarget of ['default', 'game']) {
+        const result = resolveSource({ coarsePointer: true, appMode: 'app', appTarget });
+        assert.equal(result.polled?.keyboard, true, appTarget);
+        assert.equal(result.type, 'keyboard', appTarget);
+    }
+});
+
+test('a coarse-touch desktop app keeps its opt-in mouse-steering source', () => {
+    const result = resolveSource({
+        coarsePointer: true,
+        appMode: 'app',
+        appTarget: 'default',
+        mouseSteering: true,
+    });
+    assert.equal(result.polled?.keyboard, true);
+    assert.equal(result.type, 'mouse');
+});
+
+test('mobile app targets still prefer touch controls on a coarse pointer', () => {
+    for (const result of [
+        resolveSource({
+            coarsePointer: true,
+            appMode: 'app',
+            appTarget: 'mobile-classic',
+            mobileClassic: true,
+        }),
+        resolveSource({
+            coarsePointer: true,
+            appMode: 'app',
+            appTarget: 'mobile-arcade',
+            mobileArcade: true,
+        }),
+    ]) {
+        assert.notEqual(result.polled?.keyboard, true);
+        assert.equal(result.type, 'touch');
+    }
 });
