@@ -280,6 +280,7 @@ export function invalidateMultiplayerReadyIfHostChangedSettings({
     if (!invalidationResult) return null;
 
     return Promise.resolve(invalidationResult).then((resolvedResult) => {
+        if (resolvedResult?.ok === false) return resolvedResult;
         if (!resolvedResult?.event) return null;
         onSettingsChanged?.({
             changedKeys: [settingsChangeKeys.MULTIPLAYER_STATUS],
@@ -408,7 +409,8 @@ export async function handleMultiplayerHostAction({
     if (game.ui?.multiplayerLobbyCodeInput) {
         game.ui.multiplayerLobbyCodeInput.value = result.lobbyCode || '';
     }
-    menuMultiplayerBridge?.publishHostSettings?.(settingsSnapshot);
+    // The host call (and ensureMultiplayerSessionType) may change settings; publish their current state.
+    menuMultiplayerBridge?.publishHostSettings?.(captureSettingsSnapshot?.() ?? settingsSnapshot);
     finishPendingAction();
     syncUiState?.();
     return result;

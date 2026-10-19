@@ -1,4 +1,4 @@
-import { SNAPSHOT_NOOP } from './StorageLobbySnapshotCas.js';
+import { areStorageLobbyJsonValuesEqual, SNAPSHOT_NOOP } from './StorageLobbySnapshotCas.js';
 
 const STORAGE_LOBBY_MAX_PLAYERS = 10;
 
@@ -146,9 +146,6 @@ export function joinStorageLobby(bridge, options, helpers) {
     if (hostUnavailable) {
         return bridge._fail(`Lobby hat aktuell keinen aktiven Host: ${requestedLobbyCode}`, 'host_unavailable');
     }
-    if (!persistedSnapshot) {
-        return bridge._fail(`Lobby nicht verfügbar: ${requestedLobbyCode}`, 'lobby_not_found');
-    }
     if (!snapshotHasPeer(persistedSnapshot, bridge._peerId, helpers.normalizeString)) {
         return bridge._fail(`Beitritt zur Lobby ${requestedLobbyCode} konnte nicht gespeichert werden.`, 'join_persist_failed');
     }
@@ -215,6 +212,9 @@ export function toggleReadyStorageLobby(bridge, options, helpers) {
     if (failureCode) {
         return bridge._fail(failureMessage, failureCode);
     }
+    if (!persistedSnapshot) {
+        return bridge._fail('Bereitschaft konnte nicht gespeichert werden.', 'ready_persist_failed');
+    }
     bridge._setStatus(ready ? 'Du bist bereit.' : 'Du bist nicht mehr bereit.');
     const event = bridge._emit(helpers.eventTypes.READY_TOGGLE, {
         actorId: currentActorId,
@@ -231,16 +231,24 @@ export function toggleReadyStorageLobby(bridge, options, helpers) {
     };
 }
 
+function hasReadyClient(snapshot, hostPeerId) {
+    return Array.isArray(snapshot?.members)
+        && snapshot.members.some((member) => member.peerId !== hostPeerId && member.ready === true);
+}
+
 export function invalidateStorageLobbyReadyForAll(bridge, reason, helpers) {
     if (!bridge._activeLobbyCode) return null;
-    let shouldEmit = false;
+    // A readable lobby with nothing to reset stays a no-op even when another tab holds the lock.
+    const currentSnapshot = bridge._getSnapshot();
+    if (currentSnapshot && (currentSnapshot.hostPeerId !== bridge._peerId || !hasReadyClient(currentSnapshot, bridge._peerId))) {
+        return null;
+    }
+    let noop = false;
     const persistedSnapshot = bridge._updateActiveSnapshot((existingSnapshot) => {
+        noop = true;
         if (!existingSnapshot || existingSnapshot.hostPeerId !== bridge._peerId) return SNAPSHOT_NOOP;
-        const hadReady = existingSnapshot.members.some((member) => (
-            member.peerId !== bridge._peerId && member.ready === true
-        ));
-        if (!hadReady) return SNAPSHOT_NOOP;
-        shouldEmit = true;
+        if (!hasReadyClient(existingSnapshot, bridge._peerId)) return SNAPSHOT_NOOP;
+        noop = false;
         return {
             ...existingSnapshot,
             members: existingSnapshot.members.map((member) => ({
@@ -250,7 +258,10 @@ export function invalidateStorageLobbyReadyForAll(bridge, reason, helpers) {
             })),
         };
     }, 'ready_invalidated');
-    if (!shouldEmit || !persistedSnapshot) return null;
+    if (noop) return null;
+    if (!persistedSnapshot) {
+        return bridge._fail('Bereitschaft konnte nicht dauerhaft zurückgesetzt werden.', 'ready_invalidation_failed');
+    }
     bridge._setStatus('Bereitschaft zurückgesetzt, weil der Host etwas geändert hat');
     const event = bridge._emit(helpers.eventTypes.READY_INVALIDATED, {
         reason: helpers.normalizeString(reason, 'host_settings_changed'),
@@ -267,14 +278,25 @@ export function invalidateStorageLobbyReadyForAll(bridge, reason, helpers) {
 
 export function publishStorageLobbyHostSettings(bridge, settingsSnapshot, helpers) {
     if (!bridge._activeLobbyCode) return null;
-    return bridge._updateActiveSnapshot((existingSnapshot) => {
+    const currentSnapshot = bridge._getSnapshot();
+    if (currentSnapshot?.hostPeerId && currentSnapshot.hostPeerId !== bridge._peerId) return null;
+    if (currentSnapshot && areStorageLobbyJsonValuesEqual(currentSnapshot.hostSettingsSnapshot, settingsSnapshot)) {
+        return currentSnapshot;
+    }
+    let noop = false;
+    const persistedSnapshot = bridge._updateActiveSnapshot((existingSnapshot) => {
+        noop = true;
         if (!existingSnapshot || existingSnapshot.hostPeerId !== bridge._peerId) return SNAPSHOT_NOOP;
+        if (areStorageLobbyJsonValuesEqual(existingSnapshot.hostSettingsSnapshot, settingsSnapshot)) return SNAPSHOT_NOOP;
+        noop = false;
         return {
             ...existingSnapshot,
             hostActorId: existingSnapshot.hostActorId,
             hostSettingsSnapshot: helpers.deepClone(settingsSnapshot),
         };
     }, 'host_settings_sync');
+    if (noop || persistedSnapshot) return persistedSnapshot;
+    return bridge._fail('Match-Einstellungen konnten nicht gespeichert werden.', 'host_settings_persist_failed');
 }
 
 export function requestStorageLobbyMatchStart(bridge, options, helpers) {
@@ -286,6 +308,7 @@ export function requestStorageLobbyMatchStart(bridge, options, helpers) {
     let failureCode = '';
     let failureMessage = '';
     const persistedSnapshot = bridge._updateActiveSnapshot((existingSnapshot) => {
+        commandId = '';
         if (!existingSnapshot) {
             failureCode = 'lobby_not_found';
             failureMessage = 'Lobby nicht mehr verfügbar.';

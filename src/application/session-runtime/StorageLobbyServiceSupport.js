@@ -188,17 +188,30 @@ export function generateLobbyCode(nowProvider, randomProvider) {
     return `LOBBY-${randomToken.toUpperCase()}`;
 }
 
-export function readSnapshotFromStorage(storage, lobbyCode, now) {
+/**
+ * Reads the lobby key and tells a failed read (`ok: false`) apart from a missing key (`raw: null`).
+ * `raw` is the stored string, so a write can be confirmed against exactly what was persisted.
+ */
+export function readSnapshotRecordFromStorage(storage, lobbyCode, now) {
     const storageKey = createLobbyStorageKey(lobbyCode);
-    if (!storageKey || !storage?.getItem) return null;
+    if (!storageKey || !storage?.getItem) return { ok: false, raw: null, snapshot: null };
 
+    let raw = null;
     try {
-        const raw = storage.getItem(storageKey);
-        if (!raw) return null;
-        return normalizeSessionSnapshot(JSON.parse(raw), now);
+        raw = storage.getItem(storageKey);
     } catch {
-        return null;
+        return { ok: false, raw: null, snapshot: null };
     }
+    if (raw === null || raw === undefined) return { ok: true, raw: null, snapshot: null };
+    try {
+        return { ok: true, raw: String(raw), snapshot: normalizeSessionSnapshot(JSON.parse(raw), now) };
+    } catch {
+        return { ok: true, raw: String(raw), snapshot: null };
+    }
+}
+
+export function readSnapshotFromStorage(storage, lobbyCode, now) {
+    return readSnapshotRecordFromStorage(storage, lobbyCode, now).snapshot;
 }
 
 export function persistSnapshotToStorage(storage, snapshot) {
