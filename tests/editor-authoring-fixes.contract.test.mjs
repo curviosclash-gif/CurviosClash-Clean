@@ -75,6 +75,8 @@ test('validation uses rotated runtime blocks and vehicle clearance', () => {
 
 test('GLB clearance follows transforms and excludes no-collision meshes', () => {
     const { core, manager, editor } = setup();
+    // Model surfaces collide only where the match builds them; the editor's own default is fallbackOnly.
+    manager.mapDocumentMeta.glbColliderMode = 'scene';
     const glb = manager.createMesh('glb', 'test', 0, 100, 0, 100, { glbUrl: 'assets/test.glb' });
     let blocked = createEditorCollisionProbe(editor, core.objectsContainer.children);
     assert.equal(blocked(new THREE.Vector3(0, 100, 0)), true);

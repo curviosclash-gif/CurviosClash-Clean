@@ -7,6 +7,7 @@ import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
 import { normalizeAllowedGLBUrl, normalizeGLBModelRole, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
+import { isBatchedShootablePart, resolveGlbMeshColliderKind } from './arena/GlbColliderRules.js';
 import { computeCollectionPlacement } from './GLBCollectionPlacement.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -162,18 +163,8 @@ export function resolveGLBMapSourceFootprint(mapDefinition) {
     return resolveGLBFootprint(mapDefinition?.glbModel, { colliderMode });
 }
 
-function isMeshColliderDisabled(mesh) {
-    const name = String(mesh?.name || '').toLowerCase();
-    return name.includes('_nocol');
-}
-
 function isMeshCollisionOnly(mesh) {
     return String(mesh?.name || '').toLowerCase().includes('_colonly');
-}
-
-function isMeshColliderForcedDynamic(mesh) {
-    const name = String(mesh?.name || '').toLowerCase();
-    return name.includes('_dyn');
 }
 
 function resolveColliderKind(mesh) {
@@ -207,17 +198,6 @@ export function collectAnimatedNodes(root, clips) {
     return animated;
 }
 
-// Shootable seeds and kernels are drawn by an instanced batch that hides their nodes, and a
-// swarm of small parts spends the shadow budget the landmark's big surfaces need.
-const BATCHED_SHOOTABLE_ROLES = new Set(['shootable_seed', 'shootable_kernel']);
-
-function isBatchedShootablePart(mesh) {
-    for (let node = mesh; node; node = node.parent) {
-        if (BATCHED_SHOOTABLE_ROLES.has(node.userData?.role)) return true;
-    }
-    return false;
-}
-
 /**
  * The collection slot a mesh sits in, or null on a single-model map - there is no slot there,
  * so its colliders carry an empty model id and nothing can be switched on or off separately.
@@ -236,9 +216,6 @@ function collectSceneColliders(root, options = {}) {
     const shadowCandidates = [];
     const collectColliders = options.collectColliders !== false;
     const animatedNodes = options.animatedNodes instanceof Set ? options.animatedNodes : null;
-    // 'dynamic' keeps static set dressing on the map's authored box obstacles and only
-    // adds mesh colliders for the moving parts.
-    const dynamicOnly = options.colliderMode === 'dynamic';
     const shadowCasterBudget = Math.max(0, Math.trunc(
         Number(options.shadowCasterBudget ?? DEFAULT_GLB_SHADOW_CASTER_BUDGET) || 0
     ));
@@ -265,6 +242,7 @@ function collectSceneColliders(root, options = {}) {
         const collisionOnly = isMeshCollisionOnly(child);
         const transparent = materials.some((material) => material?.transparent === true);
         const noShadow = String(child.name || '').toLowerCase().includes('_noshadow');
+        // A swarm of batched shootable parts would spend the shadow budget of the big surfaces.
         if (!transparent && !noShadow && !collisionOnly && !isBatchedShootablePart(child)) {
             const width = box.max.x - box.min.x;
             const height = box.max.y - box.min.y;
@@ -277,18 +255,17 @@ function collectSceneColliders(root, options = {}) {
         if (collisionOnly) child.visible = false;
 
         if (!collectColliders) return;
-        // A shootable part is hit through its controller's targeted queries; a baked collider
-        // would stay behind in the air after the part itself was shot away.
-        if (isMeshColliderDisabled(child) || isBatchedShootablePart(child)) return;
-
         const slot = resolveColliderSlot(child);
         // A break scene that turns toward the hit needs every collider to follow its slot.
         // Fixed-placement scenes can bake meshes that their clip does not animate.
         const inTriggeredModel = slot?.userData?.glbHiddenUntilTriggered === true;
-        const isAnimated = (inTriggeredModel && slot?.userData?.glbFixedTriggeredPlacement !== true)
-            || isMeshColliderForcedDynamic(child)
-            || !!animatedNodes?.has(child);
-        if (dynamicOnly && !isAnimated) return;
+        const colliderKind = resolveGlbMeshColliderKind(child, {
+            colliderMode: options.colliderMode,
+            animated: (inTriggeredModel && slot?.userData?.glbFixedTriggeredPlacement !== true)
+                || !!animatedNodes?.has(child),
+        });
+        if (!colliderKind) return;
+        const isAnimated = colliderKind === 'dynamic';
 
         const kind = resolveColliderKind(child);
         const meshCollider = isAnimated
