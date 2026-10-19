@@ -377,6 +377,22 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         dom.exportValidationList.replaceChildren(fragment);
     };
 
+    const warningSignature = (items) => items.filter((item) => !item.ok && item.severity === 'warning')
+        .map((item) => `${item.code || ''}:${item.label || ''}`).sort().join('|');
+
+    // Assets that finish loading and edits behind the dialog change the result; an open form
+    // follows it, and a warning the author has not seen yet is not acknowledged.
+    editor.onWorkspaceValidated = (items) => {
+        if (!exportState || exportState.busy || !dom.exportDialog?.open || dom.exportFormView?.hidden) return;
+        const next = Array.isArray(items) ? items : [];
+        if (dom.exportWarningAcknowledge && warningSignature(next) !== warningSignature(exportState.validationItems)) {
+            dom.exportWarningAcknowledge.checked = false;
+        }
+        exportState.validationItems = next;
+        renderExportValidation();
+        updateExportDialog();
+    };
+
     const showExportResult = ({ summary = '', paths = [], mapKey = '', canOpenFolder = false } = {}) => {
         if (dom.exportFormView) dom.exportFormView.hidden = true;
         if (dom.exportResultView) dom.exportResultView.hidden = false;
