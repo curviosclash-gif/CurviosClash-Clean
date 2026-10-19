@@ -3,6 +3,7 @@ import {
     rewindParcoursProgressState,
 } from './ParcoursProgressStateOps.js';
 import { createWeaponRaceRoute } from '../arcade/WeaponRaceRouteOps.js';
+import { FOX_HUNT_RESPAWN_RULES, isFoxHuntConfig } from '../../shared/contracts/FoxHuntContract.js';
 
 const modeRulesByRoute = new WeakMap();
 
@@ -12,9 +13,10 @@ const modeRulesByRoute = new WeakMap();
 // round start. The merged route is cached so per-frame reads allocate nothing.
 export function resolveModeParcoursRoute(entityManager, route) {
     const weaponRace = entityManager?.gameModeStrategy?.isWeaponRace?.() === true;
-    const overrides = entityManager?.gameModeStrategy?.getParcoursRespawnFallback?.() || null;
+    const foxHunt = isFoxHuntConfig(entityManager?.runtimeConfig);
+    const overrides = foxHunt ? FOX_HUNT_RESPAWN_RULES : entityManager?.gameModeStrategy?.getParcoursRespawnFallback?.() || null;
     if (!route || !overrides || typeof overrides !== 'object') return route;
-    if (!weaponRace && route.rules?.respawnOnDeath === true) return route;
+    if (!weaponRace && !foxHunt && route.rules?.respawnOnDeath === true) return route;
     const cached = modeRulesByRoute.get(route);
     if (cached?.overrides === overrides) return cached.route;
     const base = weaponRace ? createWeaponRaceRoute(route) : route;

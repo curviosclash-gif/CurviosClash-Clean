@@ -34,7 +34,7 @@ const VARIANTS = Object.freeze([
     Object.freeze({
         id: 'fox_hunt', label: 'Fuchsjagd', path: HUNT_PARCOURS_PATHS.HETZEN, unlockAfter: 'nemesis',
         mapKeys: Object.freeze(['neon_carnival', 'kinetic_tide', 'orbital_shipyard']),
-        botCount: 4, raceWeight: 0.2, roundSeconds: 180, seed: 130202, referenceScore: 4200,
+        botCount: 4, raceWeight: 0.2, roundSeconds: 300, seed: 130202, referenceScore: 4200,
     }),
     Object.freeze({
         id: 'trail_scent', label: 'Fährte', path: HUNT_PARCOURS_PATHS.HETZEN, unlockAfter: 'fox_hunt',
@@ -109,13 +109,13 @@ export function isHuntParcoursVariantUnlocked(variantId, medalsByVariant = {}) {
  * @param {unknown} score
  * @returns {'' | 'bronze' | 'silver' | 'gold'}
  */
-export function resolveHuntParcoursMedal(variantId, score) {
+export function resolveHuntParcoursMedal(variantId, score, { succeeded = false } = {}) {
     const variant = resolveHuntParcoursVariant(variantId);
     const value = Number(score);
     if (!variant || !Number.isFinite(value) || !(variant.referenceScore > 0)) return '';
     const ratio = value / variant.referenceScore;
     if (ratio >= HUNT_PARCOURS_MEDAL_THRESHOLDS.gold) return 'gold';
     if (ratio >= HUNT_PARCOURS_MEDAL_THRESHOLDS.silver) return 'silver';
-    if (ratio >= HUNT_PARCOURS_MEDAL_THRESHOLDS.bronze) return 'bronze';
+    if (ratio >= HUNT_PARCOURS_MEDAL_THRESHOLDS.bronze || (variant.id === 'fox_hunt' && succeeded === true)) return 'bronze';
     return '';
 }

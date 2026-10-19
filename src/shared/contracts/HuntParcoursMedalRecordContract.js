@@ -66,15 +66,15 @@ export function isWritableHuntParcoursMedalRecord(value) {
  * An unknown variant or a non-numeric score leaves the record as it was (normalized).
  * @returns {HuntParcoursMedalRecord}
  */
-/** @param {unknown} record @param {{variantId?: unknown, score?: unknown}} [result] */
-export function recordHuntParcoursResult(record, { variantId = '', score = NaN } = {}) {
+/** @param {unknown} record @param {{variantId?: unknown, score?: unknown, succeeded?: boolean}} [result] */
+export function recordHuntParcoursResult(record, { variantId = '', score = NaN, succeeded = false } = {}) {
     const normalized = normalizeHuntParcoursMedalRecord(record);
     const id = normalizeHuntParcoursVariantId(variantId);
     const value = Number(score);
     if (!id || !Number.isFinite(value)) return normalized;
     const points = toCount(value);
     const previous = normalized.variants[id] || normalizeEntry(null);
-    const medal = resolveHuntParcoursMedal(id, points);
+    const medal = resolveHuntParcoursMedal(id, points, { succeeded });
     normalized.variants[id] = {
         bestScore: Math.max(previous.bestScore, points),
         bestMedal: medalRank(medal) > medalRank(previous.bestMedal) ? medal : previous.bestMedal,

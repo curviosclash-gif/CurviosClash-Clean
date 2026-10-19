@@ -1,4 +1,5 @@
 import { createParcoursOutcomeCounters } from './ParcoursProgressSnapshot.js';
+import { isFoxHuntConfig } from '../../shared/contracts/FoxHuntContract.js';
 import { ORBITAL_JOURNEY_SCENARIO_ID } from '../../shared/contracts/OrbitalJourneyDefenseContract.js';
 import {
     createPlayerProgressState,
@@ -442,7 +443,8 @@ export class ParcoursProgressSystem {
             }
         }
 
-        if (expectedIndex >= this._route.totalCheckpoints && this._route.finish) {
+        if (expectedIndex >= this._route.totalCheckpoints && this._route.finish
+            && (!isFoxHuntConfig(this.entityManager?.runtimeConfig) || this.entityManager.huntParcoursFoxIndex === player.index)) {
             const finishHit = this._isCheckpointTriggered(this._route.finish, player, previousPosition, now, state);
             if (finishHit) {
                 this._completeParcours(player, state, now);

@@ -26,6 +26,7 @@ import { resolveHuntParcoursStageResult } from './HuntParcoursVariantRules.js';
 import { applyHuntParcoursRivalSpawnBonuses } from '../../entities/ai/HeuristicHuntParcoursModifierOps.js';
 import { GAME_STATE_IDS } from '../../shared/contracts/GameStateIds.js';
 import { ThunderflightRunOps } from './ThunderflightRunOps.js';
+import { FoxHuntRunOps } from './FoxHuntRunOps.js';
 
 function safeCount(value) {
     return Math.max(0, Math.floor(Number(value) || 0));
@@ -45,8 +46,10 @@ export class HuntParcoursRuntime {
 
     reset(variantId = 'nemesis') {
         this.variant = resolveHuntParcoursVariant(variantId);
-        if (!['nemesis', 'thunderflight'].includes(this.variant?.id)) throw new Error('Hunt-Parcours variant is not implemented');
+        if (!['nemesis', 'thunderflight', 'fox_hunt'].includes(this.variant?.id)) throw new Error('Hunt-Parcours variant is not implemented');
         this.thunderflight = this.variant.id === 'thunderflight' ? new ThunderflightRunOps(this) : null;
+        this.foxHunt = this.variant.id === 'fox_hunt' ? new FoxHuntRunOps(this) : null;
+        this.variantOps = this.foxHunt || this.thunderflight;
         this.entityManager = null;
         this.phase = 'idle';
         this.mapIndex = 0;
@@ -95,14 +98,15 @@ export class HuntParcoursRuntime {
             this.elapsedMs = 0;
         }
         this.entityManager = entityManager || null;
-        this.thunderflight?.start();
+        this.variantOps?.start(seed);
         this._applyNemesisRival();
         return this.getHudState();
     }
 
     handleXpEvent(eventType, playerIndex = 0) {
+        if (this.foxHunt && (this.phase !== 'hunting' || this._finishEvent)) return null;
         const index = Number(playerIndex);
-        const partner = index === 0 ? null : this._getPlayerRewardTarget?.(index);
+        const partner = index === 0 ? null : this.foxHunt ? this.foxHunt.targets?.get(index) : this._getPlayerRewardTarget?.(index);
         if (this.phase !== 'hunting' && this.phase !== 'transition') return null;
         if (!this.rewardBinding || !Number.isInteger(index) || (index !== 0 && !partner)) return null;
         const amount = {
@@ -114,7 +118,7 @@ export class HuntParcoursRuntime {
             partner ? partner.store : (this._recordStore || this._getRecordStore()),
             partner ? { ...this.rewardBinding, vehicleId: partner.vehicleId } : this.rewardBinding,
             amount,
-            this._rewardTotals, !partner,
+            this.foxHunt?.rewardTotals?.get(index) || this._rewardTotals, this.foxHunt ? true : !partner,
         );
     }
 
@@ -168,6 +172,7 @@ export class HuntParcoursRuntime {
 
     handleGameplayEvent(event) {
         if (this.phase !== 'hunting' || this._finishEvent) return null;
+        if (this.foxHunt && event?.type !== 'damage') return this.foxHunt.handleGameplayEvent(event);
         if (this.thunderflight && event?.type !== 'damage') return null;
         if (event?.type === 'ring_crossed') {
             const human = this.entityManager?.humanPlayers?.find((player) => Number(player?.index) === Number(event.playerIndex));
@@ -207,7 +212,7 @@ export class HuntParcoursRuntime {
     }
 
     handleParcoursEvent(event) {
-        if (this.thunderflight) return this.phase === 'hunting' ? this.thunderflight.handleParcoursEvent(event) : null;
+        if (this.variantOps) return this.phase === 'hunting' ? this.variantOps.handleParcoursEvent(event) : null;
         if (this.phase !== 'hunting' || event?.type !== 'finish') return null;
         if (this._finishEvent) return this.getHudState();
         const playerIndex = Number(event?.playerIndex);
@@ -229,7 +234,7 @@ export class HuntParcoursRuntime {
     _completeStage({ reason, winnerSide, totalTimeMs = 0 }) {
         if (this.phase !== 'hunting') return null;
         this.mapResults[this.mapIndex] = {
-            ...this.thunderflight?.mapResult(),
+            ...this.variantOps?.mapResult(),
             mapKey: this.variant.mapKeys[this.mapIndex],
             won: winnerSide === 'human',
             winnerSide,
@@ -245,7 +250,7 @@ export class HuntParcoursRuntime {
             && (this.humanMapWins >= 2 || this.rivalMapWins >= 2);
         if (bestOfThreeDecided || this.mapIndex >= this.variant.mapKeys.length - 1) {
             this.phase = 'finished';
-            this._settleRun(this.thunderflight?.winnerSide() || winnerSide);
+            this._settleRun(this.variantOps?.winnerSide() || winnerSide);
             return this.getHudState();
         }
         this.mapIndex += 1;
@@ -272,7 +277,7 @@ export class HuntParcoursRuntime {
     }
 
     _scoreRun() {
-        if (this.thunderflight) return this.thunderflight.totalPoints.get(this.entityManager?.humanPlayers?.[0]?.index) || 0;
+        if (this.variantOps) return this.variantOps.totalPoints.get(this.entityManager?.humanPlayers?.[0]?.index) || 0;
         if (this.variant.id === 'nemesis') {
             return this.mapResults.reduce((score, result) => score + (result
                 ? scoreHuntParcoursNemesisMap({
@@ -296,14 +301,16 @@ export class HuntParcoursRuntime {
         if (this._settled) return;
         this._settled = true;
         const score = this._scoreRun();
-        const medal = resolveHuntParcoursMedal(this.variant.id, score);
+        const primarySucceeded = this.foxHunt
+            ? this.foxHunt.leaders().includes(this.entityManager?.humanPlayers?.[0]?.index) : winnerSide === 'human';
+        const medal = resolveHuntParcoursMedal(this.variant.id, score, { succeeded: Boolean(this.foxHunt && primarySucceeded) });
         const facedRival = this.rivalState ? {
             name: this.rivalState.name,
             stage: this.rivalState.stage,
             rivalWins: this.rivalState.rivalWins,
         } : null;
         if (this._medalRecordWritable && this._recordStore && this._medalRecord) {
-            const next = recordHuntParcoursResult(this._medalRecord, { variantId: this.variant.id, score });
+            const next = recordHuntParcoursResult(this._medalRecord, { variantId: this.variant.id, score, succeeded: Boolean(this.foxHunt && primarySucceeded) });
             this._saveRecord(HUNT_PARCOURS_MEDAL_RECORD_STORAGE_KEY, next);
             this._medalRecord = next;
         }
@@ -322,15 +329,16 @@ export class HuntParcoursRuntime {
             this.rivalState = nextRival;
         }
         this.ranking = settleArcadeRunRanking(this, {
-            succeeded: winnerSide === 'human',
+            succeeded: primarySucceeded,
             score,
             completedSectors: this.mapResults.length,
             completedMaps: this.mapResults.length,
             aborted: false,
         });
-        trackArcadeColorEvent(this._colorProgress, { type: 'run_complete', succeeded: winnerSide === 'human' });
+        trackArcadeColorEvent(this._colorProgress, { type: 'run_complete', succeeded: primarySucceeded });
         this._finalSummary = {
-            ...this.thunderflight?.hud(),
+            ...this.variantOps?.hud(),
+            ...(this.foxHunt ? { participants: this.foxHunt.settlePartners() } : {}),
             variantId: this.variant.id,
             score,
             medal,
@@ -347,7 +355,7 @@ export class HuntParcoursRuntime {
     }
 
     getRoundOutcome() {
-        if (this.thunderflight) return this.thunderflight.getRoundOutcome();
+        if (this.variantOps) return this.variantOps.getRoundOutcome();
         if (this._roundOutcome) return this._roundOutcome;
         if (this.phase !== 'hunting') return null;
         const result = resolveHuntParcoursStageResult({
@@ -378,7 +386,7 @@ export class HuntParcoursRuntime {
     update(dt) {
         if (this.phase === 'hunting') {
             this.elapsedMs += Math.max(0, Number(dt) || 0) * 1000;
-            this.thunderflight?.update();
+            this.variantOps?.update();
         }
     }
 
@@ -389,13 +397,13 @@ export class HuntParcoursRuntime {
     getPhase() { return this.phase; }
 
     deriveRoundEndPlan({ players, inputs, baseController }) {
-        const plan = baseController.deriveOnRoundEndPlan(players, { ...inputs, winsNeeded: this.thunderflight ? this.variant.mapKeys.length + 1 : 2 });
+        const plan = baseController.deriveOnRoundEndPlan(players, { ...inputs, winsNeeded: this.variantOps ? this.variant.mapKeys.length + 1 : 2 });
         if (this.phase !== 'finished') return plan;
         const outcome = { ...plan.outcome, state: GAME_STATE_IDS.MATCH_END, matchWinner: inputs.winner,
-            messageText: this.thunderflight ? this.thunderflight.resultTitle()
+            messageText: this.variantOps ? this.variantOps.resultTitle()
                 : this.humanMapWins >= 2 ? 'Nemesis besiegt' : 'Nemesis gewinnt', messageSub: '' };
-        if (this.thunderflight) {
-            const leaders = this.thunderflight.leaders();
+        if (this.variantOps) {
+            const leaders = this.variantOps.leaders();
             outcome.matchWinner = leaders.length === 1 ? players.find(player => player.index === leaders[0]) || null : null;
         }
         return { outcome, transition: baseController.deriveRoundEndTransition(outcome) };
@@ -410,7 +418,7 @@ export class HuntParcoursRuntime {
 
     getHudState() {
         return {
-            ...this.thunderflight?.hud(),
+            ...this.variantOps?.hud(),
             runType: 'hunt_parcours',
             variantId: this.variant.id,
             label: this.variant.label,

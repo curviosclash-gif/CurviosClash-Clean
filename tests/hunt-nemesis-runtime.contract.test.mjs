@@ -30,7 +30,7 @@ function kills(world, side = 'human') {
 }
 
 test('only implemented variants start; an unavailable variant is never silently Nemesis', () => {
-    for (const id of ['fox_hunt', 'grand_loop', 'unknown']) {
+    for (const id of ['trail_scent', 'grand_loop', 'unknown']) {
         assert.throws(() => new HuntParcoursRuntime().start(null, { variantId: id }), /not implemented/);
     }
 });

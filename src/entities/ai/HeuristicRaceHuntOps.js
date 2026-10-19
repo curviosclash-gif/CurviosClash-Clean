@@ -19,14 +19,16 @@ export function applyHeuristicRaceHuntBehavior(policy, input, dt, player, runtim
     let nearest = null;
     let distanceSq = Infinity;
     for (const other of players) {
-        if (!other?.alive || !other.position || !canTargetEnemy(player, other)) continue;
+        if (!other?.alive || !other.position || !canTargetEnemy(player, other)
+            || (Number.isInteger(player.huntParcoursFoxTargetIndex) && other.index !== player.huntParcoursFoxTargetIndex)) continue;
         const distance = player.position.distanceToSquared(other.position);
         if (distance < distanceSq) { nearest = other; distanceSq = distance; }
     }
     state.routeSeconds = Math.max(0, state.routeSeconds - seconds);
     const reach = 120 * (1 - weight);
     const leaveReach = state.combatSeconds > 0 ? reach * 1.25 : reach;
-    let combat = weight < 1 && nearest && distanceSq <= leaveReach * leaveReach && state.routeSeconds <= 0;
+    let combat = weight < 1 && nearest && (Number.isInteger(player.huntParcoursFoxTargetIndex)
+        || (distanceSq <= leaveReach * leaveReach && state.routeSeconds <= 0));
     if (combat && weight > 0 && policy._resolveParcoursTarget(runtimeContext, player, policy._tmpRoleTarget)) {
         const detour = Math.sqrt(distanceSq) + nearest.position.distanceTo(policy._tmpRoleTarget)
             - player.position.distanceTo(policy._tmpRoleTarget);

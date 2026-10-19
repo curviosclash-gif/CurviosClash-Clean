@@ -17,16 +17,25 @@ export function createGameDebugRuntimeAccess(runtime) {
             getRuntimeFacade: () => game?.runtimeCoordinator?.getRuntimeFacade?.() || null,
             getSettingsManager: () => game?.settingsManager || null,
             isDevelopmentEnvironment: () => resolveElectronDeveloperEnvironment() || import.meta.env?.DEV === true,
-            async startHuntParcours(variantId) {
+            async startHuntParcours(variantId, { humanCount = 1, profileIds = null } = {}) {
                 const variant = resolveHuntParcoursVariant(variantId);
-                if (!game || game.state !== 'MENU' || !['nemesis', 'thunderflight'].includes(variant?.id)) return false;
+                if (!game || game.state !== 'MENU' || !['nemesis', 'thunderflight', 'fox_hunt'].includes(variant?.id)) return false;
                 const profileId = game.playerProfileManager?.getActiveProfile?.()?.id;
                 if (typeof profileId !== 'string' || !profileId.trim()) return false;
-                Object.assign(game.settings, { mode: '1p', numHumans: 1, numBots: variant.botCount, gameMode: 'ARCADE', mapKey: variant.mapKeys[0], winsNeeded: 15 });
+                const count = Number(humanCount);
+                if (![1, 2, 3].includes(count) || (count > 1 && variant.id !== 'fox_hunt')) return false;
+                const ids = profileIds || (count === 1 ? [profileId.trim()] : game.settings.arcade?.playerProfileIds);
+                const profiles = game.playerProfileManager?.getProfiles?.() || [{ id: profileId.trim() }];
+                if (!Array.isArray(ids) || ids.length < count || ids.slice(0, count).some(id => !profiles.some(p => p.id === id))
+                    || new Set(ids.slice(0, count)).size !== count) return false;
+                Object.assign(game.settings, { mode: count === 1 ? '1p' : '2p', numHumans: count, numBots: variant.botCount, gameMode: 'ARCADE', mapKey: variant.mapKeys[0], winsNeeded: 15 });
                 Object.assign(game.settings.arcade, { enabled: true, runType: 'hunt_parcours', huntParcoursVariantId: variant.id,
                     seed: variant.seed, journeyStageId: '', dailyChallenge: false, companionCount: 0,
-                    playerProfileIds: [profileId.trim(), '', ''] });
-                Object.assign(game.settings.localSettings, { sessionType: 'single', modePath: 'arcade', multiplayerTransport: '' });
+                    playerProfileIds: Array.from({ length: 3 }, (_, index) => index < count ? ids[index] : '') });
+                Object.assign(game.settings.localSettings, { sessionType: count === 1 ? 'single' : 'splitscreen', modePath: 'arcade', multiplayerTransport: '',
+                    splitScreenVariant: count === 3 ? 'three_player' : 'standard' });
+                game.settings.localSettings.startSetup = { ...game.settings.localSettings.startSetup,
+                    arcadePlayerProfileIds: Array.from({ length: 3 }, (_, index) => index < count ? ids[index] : '') };
                 await game._onSettingsChanged?.();
                 return game.runtimeCoordinator?.getRuntimeFacade?.()?.startMatch?.() ?? false;
             },
@@ -91,9 +100,9 @@ export class GameDebugApi {
         this.runtimeAccess.setRecorderFrameCaptureEnabled?.(enabled);
     }
 
-    startHuntParcours(variantId = 'nemesis') {
+    startHuntParcours(variantId = 'nemesis', options = {}) {
         if (this.runtimeAccess.isDevelopmentEnvironment?.() !== true) return false;
-        return this.runtimeAccess.startHuntParcours?.(variantId) ?? false;
+        return this.runtimeAccess.startHuntParcours?.(variantId, options) ?? false;
     }
 
     // ---- Match diagnostics for desktop measurements (bot flight safety) ----

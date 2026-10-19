@@ -36,6 +36,8 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/demolition.desktop.spec.js',
             'tests/hunt-nemesis.desktop.spec.js',
             'tests/thunderflight.desktop.spec.js',
+            'tests/fox-hunt.desktop.spec.js',
+            'tests/fox-hunt-normal-flight.desktop.spec.js',
             'tests/endless-p1.desktop.spec.js',
             'tests/endless-p2.desktop.spec.js',
             'tests/endless-p3.desktop.spec.js',

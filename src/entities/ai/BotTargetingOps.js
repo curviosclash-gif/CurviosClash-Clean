@@ -62,7 +62,8 @@ export function selectTarget(bot, player, allPlayers) {
     for (let i = 0; i < allPlayers.length; i++) {
         const other = allPlayers[i];
         // A teammate (an arcade companion's human, a Team Hunt ally) is never the target.
-        if (!other || other === player || !other.alive || areTeammates(player, other) || !isTargetVisibleToPlayer(player, other)) continue;
+        if (!other || other === player || !other.alive || areTeammates(player, other) || !isTargetVisibleToPlayer(player, other)
+            || (Number.isInteger(player.huntParcoursFoxTargetIndex) && other.index !== player.huntParcoursFoxTargetIndex)) continue;
 
         bot._tmpVec.subVectors(other.position, player.position);
         const distSq = bot._tmpVec.lengthSq();

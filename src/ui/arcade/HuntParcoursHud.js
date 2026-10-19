@@ -24,6 +24,18 @@ export function renderHuntParcoursHud(hud, state) {
     if (hud._modifierWrap) hud._modifierWrap.style.display = 'none';
     hud._suddenDeathBanner?.classList?.add('hidden');
     hud._arenaWavesSection.style.display = 'block';
+    if (state.variantId === 'fox_hunt') {
+        hud._scoreLabel.textContent = 'Fuchsjagd'; hud._scoreValue.textContent = String(state.score || 0);
+        const section = hud._arenaWavesSection;
+        if (hud._foxRoleLine?.parentNode !== section) {
+            hud._foxRoleLine = document.createElement('div'); hud._foxRoleLine.style.color = '#ffcc66';
+            hud._foxRulesText = document.createElement('div'); section.replaceChildren(hud._foxRoleLine, hud._foxRulesText);
+        }
+        hud._foxRoleLine.textContent = `🦊 ${state.foxLabel} trägt das Signalpaket · ${Math.ceil(state.remainingSeconds)} s`;
+        hud._foxRulesText.textContent = `Karte ${state.mapIndex + 1}/${state.mapCount} · ${resolveArcadeMapLabel(state.currentMapKey)}\n`
+            + 'Fuchs: Ringe und Ziel · Jäger: Fuchs abschießen\n100 je Fuchsring · 250 je Fuchsabschuss · 1.000 Zielbonus';
+        return true;
+    }
     if (state.variantId === 'thunderflight') {
         hud._scoreLabel.textContent = 'Gewitterflug';
         hud._scoreValue.textContent = String(state.score || 0);

@@ -242,6 +242,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         || targetPlayer.index === player.fightLastAttackerIndex
     ) ? targetPlayer : preferred.enemy;
     enemy = resolveOpportunisticEnemy(policy, player, players, enemy);
+    if (Number.isInteger(player?.huntParcoursFoxTargetIndex)) enemy = preferred.enemy;
     if (player?.endlessForcedRetreat === true) {
         clearSteeringInput(input);
         applyRetreatSteering(policy, input, player, enemy);

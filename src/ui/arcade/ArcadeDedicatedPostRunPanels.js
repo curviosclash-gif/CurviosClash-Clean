@@ -2,6 +2,7 @@ import { createFivePortalsBlocks, createDemolitionMapBlocks } from './postrun/Ar
 import { createArcadeCardScroller } from './postrun/ArcadePostRunCards.js';
 import { formatCount } from '../postmatch/PostMatchFormat.js';
 import { createArcadeBlock, createArcadeRankingBlock, countRow, durationRow, textRow, resolveArcadeMapLabel } from './postrun/ArcadePostRunBlocks.js';
+import { renderFoxHuntPostRunPanel } from './FoxHuntPostRunPanel.js';
 const toSafeNumber = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function renderFivePortalsPostRunPanel(controller, runtimeState) {
@@ -35,6 +36,7 @@ export function renderHuntParcoursPostRunPanel(controller, state) {
     if (state?.runType !== 'hunt_parcours' || !summary) return false;
     const panel = controller._ensureArcadeOverlayPanel();
     if (!panel) return false;
+    if (state.variantId === 'fox_hunt') return renderFoxHuntPostRunPanel(controller, state, panel);
     if (state.variantId === 'thunderflight') return renderThunderflightPostRunPanel(controller, state, panel);
     panel.replaceChildren();
     const title = document.createElement('h2');

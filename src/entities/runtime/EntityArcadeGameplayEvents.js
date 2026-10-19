@@ -1,3 +1,4 @@
+import { isFoxHuntConfig } from '../../shared/contracts/FoxHuntContract.js';
 import { ARCADE_COMPANION_KILL_SCORE_FACTOR, isArcadeCompanion } from '../../shared/contracts/ArcadeCompanionContract.js';
 
 function findPlayerByIndex(players, playerIndex) {
@@ -38,6 +39,15 @@ export function emitArcadeDamageEvent(owner, event) {
 export function emitArcadeEliminationEvents(owner, player, cause, options = {}) {
     const killer = options?.killer || null;
     const companionKill = isArcadeCompanion(killer);
+    if (isFoxHuntConfig(owner?.runtimeConfig)) {
+        if (killer && killer !== player && owner.players?.includes(killer) && options.environmentCredit !== true
+            && ['MG_BULLET', 'PROJECTILE', 'RAILGUN', 'FLAMETHROWER'].includes(cause)) {
+            owner._foxHuntEliminationSequence = (owner._foxHuntEliminationSequence || 0) + 1;
+            owner.onArcadeGameplayEvent?.({ type: 'fox_hunt_elimination', playerIndex: killer.index,
+                victimIndex: player?.index, sequence: owner._foxHuntEliminationSequence });
+        }
+        return;
+    }
     if (killer?.isBot === true && player?.isBot !== true && killer !== player
         && owner?.runtimeConfig?.arcade?.enabled === true && owner.runtimeConfig.arcade.runType === 'hunt_parcours') {
         owner?.onArcadeGameplayEvent?.({ type: 'bot_kill', playerIndex: killer.index, victimIndex: player?.index, count: 1,

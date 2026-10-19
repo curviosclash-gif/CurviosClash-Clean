@@ -93,6 +93,9 @@ export function formatFlagObjectiveSummary(flags = []) {
 
 /** Header line: arcade hunt runs are no elimination match, even though they use the fight HUD. */
 export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
+    if (isHuntParcoursConfig(runtimeConfig) && runtimeConfig.arcade.huntParcoursVariantId === 'fox_hunt') {
+        return 'Fuchsjagd · Fuchs: Ringe und Ziel · Jäger: Fuchs abschießen · fünf Minuten';
+    }
     if (isHuntParcoursConfig(runtimeConfig)) return runtimeConfig.arcade.huntParcoursVariantId === 'thunderflight'
         ? 'Gewitterflug · Ringpunkte aus drei Karten entscheiden'
         : 'Nemesis · Ziel oder drei Abschüsse, zwei Kartensiege gewinnen';

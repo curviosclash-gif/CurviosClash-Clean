@@ -24,8 +24,9 @@ export function resolveArcadeRankKey(context) {
     const range = resolveArcadeLevelRange(context.vehicleLevel);
     if (context.runType === 'hunt_parcours') {
         const huntKey = resolveHuntParcoursLeaderboardKey({ variantId: context.huntParcoursVariantId, rivalTierGroup: context.rivalTierGroup });
+        const humans = context.huntParcoursVariantId === 'fox_hunt' ? `humans-${Math.max(1, Math.min(3, Math.floor(Number(context.huntParcoursHumanCount) || 1)))}:` : '';
         return huntKey && context.scoreModel === HUNT_PARCOURS_SCORE_MODEL
-            ? `hunt_parcours:${HUNT_PARCOURS_SCORE_MODEL}:${huntKey.slice('hunt_parcours:'.length)}:${context.tierId}:${range.min}-${range.max}` : '';
+            ? `hunt_parcours:${HUNT_PARCOURS_SCORE_MODEL}:${huntKey.slice('hunt_parcours:'.length)}:${humans}${context.tierId}:${range.min}-${range.max}` : '';
     }
     // Every portal chain rides five_portals; the default chain keeps the key its saved times use.
     const chainId = context.runType === 'five_portals' ? normalizePortalChainId(context.portalChainId) : DEFAULT_PORTAL_CHAIN_ID;

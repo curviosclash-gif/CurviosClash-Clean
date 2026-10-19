@@ -8,6 +8,7 @@ import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
 const NEUTRAL_TACTIC_BIAS = 0.5;
 
 export function resolveOpportunisticEnemy(policy, player, players, fallbackEnemy) {
+    if (Number.isInteger(player?.huntParcoursFoxTargetIndex)) return fallbackEnemy;
     const enabled = Number(policy?.profile?.opportunistBias) > NEUTRAL_TACTIC_BIAS
         || Number(policy?.profile?.openingFanoutBias) > NEUTRAL_TACTIC_BIAS;
     if (!enabled || !player?.position) return fallbackEnemy;

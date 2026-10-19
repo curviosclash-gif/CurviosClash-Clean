@@ -21,7 +21,8 @@ export function getPreferredFightEnemy(player, allPlayers, outVec, dt = 0) {
     let wrappedIndex = Infinity;
     let candidateCount = 0;
     for (const other of allPlayers || []) {
-        if (!other || !other.alive || !canTargetEnemy(player, other) || !hasValidFightPosition(other)) continue;
+        if (!other || !other.alive || !canTargetEnemy(player, other) || !hasValidFightPosition(other)
+            || (Number.isInteger(player.huntParcoursFoxTargetIndex) && other.index !== player.huntParcoursFoxTargetIndex)) continue;
         candidateCount += 1;
         const index = Number.isInteger(other.index) ? other.index : Infinity;
         if (index > player.index && index < preferredIndex) preferredIndex = index;
@@ -36,7 +37,8 @@ export function getPreferredFightEnemy(player, allPlayers, outVec, dt = 0) {
     let lockedDistSq = Infinity;
     let lockedScore = Infinity;
     for (const other of allPlayers || []) {
-        if (!other || !other.alive || !canTargetEnemy(player, other) || !hasValidFightPosition(other)) continue;
+        if (!other || !other.alive || !canTargetEnemy(player, other) || !hasValidFightPosition(other)
+            || (Number.isInteger(player.huntParcoursFoxTargetIndex) && other.index !== player.huntParcoursFoxTargetIndex)) continue;
         outVec.subVectors(other.position, player.position);
         const candidateDistSq = outVec.lengthSq();
         const vitalityWeight = 0.8 + resolveHealthRatio(other) * 0.2;

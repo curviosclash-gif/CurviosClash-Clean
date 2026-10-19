@@ -275,7 +275,7 @@ export class HeuristicBotPolicy {
         const observation = runtimeContext?.observation || null;
         applyHeuristicObstacleAvoidance(this, input, player, observation);
 
-        const mode = player.isHuntParcoursCompetitor === true ? 'RACE_HUNT'
+        const mode = player.isHuntParcoursCompetitor === true || typeof player.huntParcoursFox === 'boolean' ? 'RACE_HUNT'
             : player.isArcadeParcoursCompetitor === true ? 'ARCADE' : resolveMode(runtimeContext, observation);
         const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
         let decision = {

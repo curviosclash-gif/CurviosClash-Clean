@@ -42,7 +42,7 @@ export class GameRuntimeHuntParcoursSupport {
     prepare(config) {
         if (!this.isActive(config)) return null;
         const variant = resolveHuntParcoursVariant(config.arcade.huntParcoursVariantId);
-        if (!['nemesis', 'thunderflight'].includes(variant?.id)) throw new Error('Hunt-Parcours variant is not implemented');
+        if (!['nemesis', 'thunderflight', 'fox_hunt'].includes(variant?.id)) throw new Error('Hunt-Parcours variant is not implemented');
         const mapIndex = ['idle', 'finished'].includes(this.runtime.phase) ? 0 : this.runtime.mapIndex;
         return { mapKey: variant.mapKeys[mapIndex], botCount: variant.botCount, combatProfile: 'hunt',
             huntParcours: true, parcoursRacer: true };
@@ -62,7 +62,7 @@ export class GameRuntimeHuntParcoursSupport {
         }
         if (this.runtime.rankContext) this.runtime.rankContext = {
             ...this.runtime.rankContext, huntParcoursVariantId: started.variantId,
-            scoreModel: 'hunt-score.v1', rivalTierGroup: started.rival ? (started.rival.stage >= 4 ? '4-5' : started.rival.stage >= 2 ? '2-3' : '0-1') : '',
+            scoreModel: 'hunt-score.v1', huntParcoursHumanCount: state?.entityManager?.humanPlayers?.length || 1, rivalTierGroup: started.rival ? (started.rival.stage >= 4 ? '4-5' : started.rival.stage >= 2 ? '2-3' : '0-1') : '',
         };
         this.support._sectorRebuildInFlight = false;
         return started;
