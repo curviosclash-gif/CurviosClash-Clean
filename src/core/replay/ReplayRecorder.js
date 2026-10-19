@@ -31,13 +31,27 @@ export const REPLAY_EXPORT_CONTRACT_VERSION = 'replay.v1';
  *   saveReplayToFile(filePath) → saves via Electron IPC (C.5)
  */
 export class ReplayRecorder {
-    constructor() {
+    constructor({ now = null, monotonicNow = null } = {}) {
+        this._now = typeof now === 'function' ? now : () => Date.now();
+        this._monotonicNow = typeof monotonicNow === 'function'
+            ? monotonicNow : () => globalThis.performance?.now?.() ?? this._now();
         this._recording = false;
         this._initialState = null;
         this._actions = [];
         this._playerCount = 0;
         this._startTime = 0;
+        this._startMonotonicMs = null;
+        this._durationMs = 0;
         this._matchId = null;
+    }
+
+    _readElapsedDurationMs() {
+        if (!Number.isFinite(this._startMonotonicMs)) return this._durationMs;
+        const current = this._monotonicNow();
+        if (Number.isFinite(current)) {
+            this._durationMs = Math.max(this._durationMs, Math.floor(current - this._startMonotonicMs));
+        }
+        return this._durationMs;
     }
 
     /**
@@ -47,8 +61,10 @@ export class ReplayRecorder {
     startRecording(entityManager, roundState, playerCount) {
         this._recording = true;
         this._playerCount = playerCount;
-        this._startTime = Date.now();
-        this._matchId = `match-${Date.now().toString(36)}`;
+        this._startTime = this._now();
+        this._matchId = `match-${this._startTime.toString(36)}`;
+        this._startMonotonicMs = this._monotonicNow();
+        this._durationMs = 0;
         this._initialState = createGameStateSnapshot(entityManager, roundState);
         this._actions = [];
     }
@@ -62,7 +78,7 @@ export class ReplayRecorder {
         if (!this._recording) return;
         this._actions.push({
             ...action,
-            timestamp: Date.now() - this._startTime,
+            timestamp: this._readElapsedDurationMs(),
         });
     }
 
@@ -72,6 +88,7 @@ export class ReplayRecorder {
      * @returns {object} replay data
      */
     stopRecording() {
+        if (this._recording) this._readElapsedDurationMs();
         this._recording = false;
         return this.getReplay();
     }
@@ -88,7 +105,7 @@ export class ReplayRecorder {
             matchId: this._matchId,
             playerCount: this._playerCount,
             startTime: this._startTime,
-            duration: Date.now() - this._startTime,
+            duration: this._recording ? this._readElapsedDurationMs() : this._durationMs,
             initialState: this._initialState,
             actions: this._actions,
             actionCount: this._actions.length,
@@ -166,6 +183,9 @@ export class ReplayRecorder {
         this._initialState = null;
         this._actions = [];
         this._playerCount = 0;
+        this._startTime = 0;
+        this._startMonotonicMs = null;
+        this._durationMs = 0;
         this._matchId = null;
     }
 }
