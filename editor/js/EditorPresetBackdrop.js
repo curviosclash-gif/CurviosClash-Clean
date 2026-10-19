@@ -3,6 +3,7 @@ import { fromArenaMapDefinition, parseMapJSON, toArenaMapDefinition } from '../.
 import { resolveMapStaticTurretDefinitions } from '../../src/shared/contracts/MapSinglePlayerScenarioContract.js';
 import { resolveMapUnitDefinitions } from '../../src/shared/contracts/MapUnitContract.js';
 import { MAP_FOG_LAYER_RANGES } from '../../src/shared/contracts/MapFogLayerContract.js';
+import { readGLBPlacementMetadata } from '../../src/entities/mapSchema/MapSchemaGlbOps.js';
 
 // A built-in map as backdrop: its world model, spawns and lighting become an editor map (saved
 // with it, so the match lights it the same), and
@@ -20,7 +21,7 @@ const PLACEMENT_KEYS = Object.freeze([
 ]);
 // Editor document lists a block-only game map fills: all of it is backdrop, so it gets locked on
 // load and stays out of a copy, like the world model of the other maps.
-const BLOCK_BACKDROP_KEYS = Object.freeze(['hardBlocks', 'foamBlocks', 'tunnels', 'portals', 'gates', 'items']);
+const BLOCK_BACKDROP_KEYS = Object.freeze(['hardBlocks', 'foamBlocks', 'tunnels', 'portals', 'gates', 'items', 'aircraft']);
 // Placements the match multiplies by MAP_SCALE only when the map sets scaleAuthoredAnchors
 // (Arena anchors and aircraft, StaticTurretSystem, MapUnitSystem).
 const ANCHOR_KEYS = Object.freeze(['playerSpawn', 'botSpawns', 'items', 'aircraft', 'staticTurrets', 'mapUnits']);
@@ -111,15 +112,21 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
         throw new Error('Preset needs a size of three numbers.');
     }
     const warnings = [];
+    const converted = fromArenaMapDefinition(preset, { mapScale });
+    warnings.push(...converted.warnings);
+    for (const entry of converted.skipped) {
+        if (!['glbModels', 'cameraFar', 'fogLayer'].includes(entry.key)) {
+            warnings.push(`Der Editor hat ${entry.count} ${entry.count === 1 ? 'Eintrag' : 'Einträge'} aus „${entry.key}“ nicht übernommen.`);
+        }
+    }
+    for (const listKey of BLOCK_BACKDROP_KEYS) {
+        converted.document[listKey] = (converted.document[listKey] || []).map((entry, index) => ({
+            ...entry, id: `${BACKDROP_ID_PREFIX}${entry.id || `${listKey}_${index + 1}`}`,
+        }));
+    }
     if ((!Array.isArray(preset?.glbModels) || preset.glbModels.length === 0)
         && Array.isArray(preset?.obstacles) && preset.obstacles.length > 0) {
-        const document = fromArenaMapDefinition(preset, { mapScale }).document;
-        for (const listKey of BLOCK_BACKDROP_KEYS) {
-            document[listKey] = (document[listKey] || []).map((entry, index) => ({
-                ...entry,
-                id: `${BACKDROP_ID_PREFIX}${entry.id || `${listKey}_${index + 1}`}`,
-            }));
-        }
+        const document = converted.document;
         return { document: { ...document, ...presetViewFields(preset, mapScale, warnings), editorBackdrop: key }, warnings };
     }
     const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
@@ -138,12 +145,14 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
             url: model.url,
             position: (Array.isArray(model.position) ? model.position : [0, 0, 0]).map((value) => finiteOr(value, 0) * units),
             rotation: Array.isArray(model.rotation) ? [...model.rotation] : [0, 0, 0],
+            ...readGLBPlacementMetadata(model),
             ...(targetSize > 0 ? { targetSize: targetSize * units } : { scale: finiteOr(model.scale, 1) * units }),
         };
     });
     const lighting = adaptLightingToScaledAnchors(preset.lighting, preset, mapScale);
     return {
         document: {
+            ...converted.document,
             editorBackdrop: key,
             arenaSize: { width, height, depth },
             glbModels,
@@ -192,8 +201,11 @@ function collectWorldLimitWarnings(placements, warnings) {
     }
 }
 
-export function isBackdropObject(object) {
-    return String(object?.userData?.id || '').startsWith(BACKDROP_ID_PREFIX);
+export function isBackdropObject(object, preset = null) {
+    const id = String(object?.userData?.id || '');
+    return id.startsWith(BACKDROP_ID_PREFIX) || id.includes(`#${BACKDROP_ID_PREFIX}`)
+        || (object?.userData?.type === 'checkpoint' && (preset?.parcours?.finish?.id === id
+            || preset?.parcours?.checkpoints?.some(checkpoint => checkpoint.id === id) === true));
 }
 
 /**
@@ -209,6 +221,8 @@ export function exportPlacementsInPresetFormat(mapManager, arenaSize, {
             if (!Array.isArray(editorDocument[listKey])) continue;
             editorDocument[listKey] = editorDocument[listKey].filter((entry) => !String(entry?.id || '').startsWith(BACKDROP_ID_PREFIX));
         }
+        if (Array.isArray(editorDocument.glbModels)) editorDocument.glbModels = editorDocument.glbModels
+            .filter(model => !String(model.id).includes(`#${BACKDROP_ID_PREFIX}`));
     }
     const parsed = parseMapJSON(JSON.stringify(editorDocument));
     const conversion = getCustomMapConversionScale(parsed.map).scale;
@@ -234,7 +248,12 @@ export function exportPlacementsInPresetFormat(mapManager, arenaSize, {
         }
         if (entries.length > 0) result[key] = entries;
     }
-    if (runtime.parcours?.checkpoints?.length) result.parcours = runtime.parcours;
+    if (runtime.parcours?.checkpoints?.length) {
+        const originalIds = new Set((preset?.parcours?.checkpoints || []).map(checkpoint => checkpoint.id));
+        const checkpoints = runtime.parcours.checkpoints.filter(checkpoint => includeBackdrop || !originalIds.has(checkpoint.id));
+        const finish = includeBackdrop || runtime.parcours.finish?.id !== preset?.parcours?.finish?.id ? runtime.parcours.finish : undefined;
+        if (checkpoints.length || finish) result.parcours = { ...runtime.parcours, checkpoints, finish };
+    }
     if (Array.isArray(warnings) && anchorScale !== 1) collectWorldLimitWarnings(result, warnings);
     return result;
 }

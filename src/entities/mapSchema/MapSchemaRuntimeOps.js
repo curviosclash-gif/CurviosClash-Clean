@@ -6,6 +6,7 @@ import { toRuntimeMapUnits } from './MapSchemaMapUnitOps.js';
 import { toRuntimeWaterZone } from './MapSchemaWaterZoneOps.js';
 import { toRuntimeFlagObjectives } from './MapSchemaFlagObjectiveOps.js';
 import { toRuntimePlayableVolumes } from './MapSchemaExtendedContentOps.js';
+import { readGLBPlacementMetadata, readAuthoredObstacleGLBFlags } from './MapSchemaGlbOps.js';
 
 function cloneObject(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
@@ -78,6 +79,7 @@ function mapParcoursToRuntime(parcours, invScale) {
     return {
         enabled: true,
         routeId: typeof parcours.routeId === 'string' ? parcours.routeId : 'custom_route_v1',
+        ...(Array.isArray(parcours.gameModes) ? { gameModes: [...parcours.gameModes] } : {}),
         checkpoints,
         guidancePaths,
         guidanceBranchCheckpointIds: Array.isArray(parcours.guidanceBranchCheckpointIds)
@@ -149,8 +151,14 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
     const warnings = [];
     const normalized = createMapDocument(mapDocument, { warnings });
 
+    const placementId = id => typeof id !== 'string' || !normalized.editorBackdrop ? id
+        : id.startsWith('backdrop_') ? id.slice('backdrop_'.length) : id.replace(/#backdrop_\d+$/, '');
     const obstacles = [];
     const pushBlockAsObstacle = (block, kind = 'hard') => {
+        const tunnel = block.tunnel && typeof block.tunnel === 'object' ? {
+            radius: asPositiveNumber(block.tunnel.radius, Math.min(block.width, block.height, block.depth) * 0.3, 0.1) * invScale,
+            axis: block.tunnel.axis === 'x' || block.tunnel.axis === 'y' || block.tunnel.axis === 'z' ? block.tunnel.axis : 'z',
+        } : null;
         const obstacle = {
             pos: [
                 block.x * invScale,
@@ -164,15 +172,9 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             ],
             kind,
             rotateY: Number(block.rotateY) || 0,
+            ...readAuthoredObstacleGLBFlags(block),
+            ...(tunnel ? { tunnel } : {}),
         };
-        if (block.tunnel && typeof block.tunnel === 'object') {
-            obstacle.tunnel = {
-                radius: asPositiveNumber(block.tunnel.radius, Math.min(block.width, block.height, block.depth) * 0.3, 0.1) * invScale,
-                axis: block.tunnel.axis === 'x' || block.tunnel.axis === 'y' || block.tunnel.axis === 'z'
-                    ? block.tunnel.axis
-                    : 'z',
-            };
-        }
         obstacles.push(obstacle);
     };
 
@@ -226,7 +228,8 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
         const portalPair = {
             a: [entryA.x * invScale, entryA.y * invScale, entryA.z * invScale],
             b: [entryB.x * invScale, entryB.y * invScale, entryB.z * invScale],
-            color: DEFAULT_PORTAL_COLORS[pairIndex % DEFAULT_PORTAL_COLORS.length],
+            color: Number.isInteger(entryA.color) ? entryA.color : Number.isInteger(entryB.color) ? entryB.color
+                : DEFAULT_PORTAL_COLORS[pairIndex % DEFAULT_PORTAL_COLORS.length],
         };
         if (entryA.model) portalPair.modelA = entryA.model;
         if (entryB.model) portalPair.modelB = entryB.model;
@@ -242,7 +245,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
     }
 
     const items = normalized.items.map((entry) => ({
-        id: entry.id,
+        id: placementId(entry.id),
         type: entry.type,
         pickupType: entry.pickupType,
         model: entry.model,
@@ -284,7 +287,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
     }
 
     const aircraft = normalized.aircraft.map((entry) => ({
-        id: entry.id,
+        id: placementId(entry.id),
         jetId: entry.jetId,
         x: entry.x * invScale,
         y: entry.y * invScale,
@@ -294,19 +297,18 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
     }));
 
     const glbModels = normalized.glbModels.map((entry) => ({
-        id: entry.id,
+        id: placementId(entry.id),
         url: entry.url,
         position: entry.position.map((value) => value * invScale),
         rotation: [...entry.rotation],
         scale: asPositiveNumber(entry.scale, 1, 0.0001) * invScale,
         targetSize: Number(entry.targetSize) > 0 ? entry.targetSize * invScale : 0,
-        ...(entry.collision === false ? { collision: false } : {}),
-        ...(entry.role === undefined ? {} : { role: entry.role }),
+        ...readGLBPlacementMetadata(entry),
     }));
 
     const playerSpawn = normalized.playerSpawn
         ? {
-            id: normalized.playerSpawn.id,
+            id: placementId(normalized.playerSpawn.id),
             x: normalized.playerSpawn.x * invScale,
             y: normalized.playerSpawn.y * invScale,
             z: normalized.playerSpawn.z * invScale,
@@ -318,14 +320,14 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
         };
 
     const botSpawns = normalized.botSpawns.map((entry) => ({
-        id: entry.id,
+        id: placementId(entry.id),
         x: entry.x * invScale,
         y: entry.y * invScale,
         z: entry.z * invScale,
     }));
 
     const gates = normalized.gates.map((gate) => ({
-        id: gate.id,
+        id: placementId(gate.id),
         type: gate.type,
         legacyType: typeof gate.legacyType === 'string' ? gate.legacyType : undefined,
         warningCode: typeof gate.warningCode === 'string' ? gate.warningCode : undefined,
@@ -390,6 +392,9 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             // Same rule: the far plane is world units, the fog layer's heights anchor units.
             ...(normalized.cameraFar ? { cameraFar: normalized.cameraFar } : null),
             ...(normalized.fogLayer ? { fogLayer: normalized.fogLayer } : null),
+            ...(normalized.glbAnimationClock ? { glbAnimationClock: normalized.glbAnimationClock } : {}),
+            ...(typeof normalized.glbAuthoredObstaclesCollisionOnly === 'boolean'
+                ? { glbAuthoredObstaclesCollisionOnly: normalized.glbAuthoredObstaclesCollisionOnly } : {}),
         },
         warnings,
         mapDocument: normalized,

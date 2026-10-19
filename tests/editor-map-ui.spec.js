@@ -4,6 +4,8 @@ import { test as baseTest, expect } from './helpers.desktop.js';
 import { collectErrors, resolveAppUrl } from './helpers.js';
 import { EDITOR_API_ROUTES, EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
+import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
+import { isParcoursActiveForGameMode } from '../src/shared/contracts/MapModeContract.js';
 
 const IS_BROWSER_COMPAT = process.env.PW_RUN_PROFILE === 'browser-compat';
 
@@ -44,6 +46,83 @@ const TOOL_DOCK_STORAGE_KEY = 'cuviosclash.editor.tool-dock.v1';
 const EDITOR_LAYOUT_STORAGE_KEY = 'curviosclash.editor.layout.v1';
 const EDITOR_AUTOSAVE_STORAGE_KEY = 'curviosclash.editor.autosave.v1';
 const PLAYTEST_RETURN_STORAGE_KEY = 'curviosclash.editor.playtest-return.v1';
+
+for (const key of ['orbital_shipyard', 'neon_carnival', 'cherry_grove']) {
+    test(`Preset content: ${key} survives native load, project reopen and playtest`, async ({ page }, testInfo) => {
+        test.setTimeout(240000);
+        const errors = collectErrors(page), source = MAP_PRESET_CATALOG[key];
+        await page.addInitScript(() => {
+            window.__presetErrors = []; const original = console.error;
+            console.error = (...args) => { window.__presetErrors.push({ message: String(args[0]), stack: new Error().stack,
+                geometry: args[1]?.isBufferGeometry ? { type: args[1].type,
+                    first: Array.from(args[1].attributes.position?.array?.slice(0, 9) || []) } : null }); original(...args); };
+        });
+        await loadEditorPage(page); await activateInspectorTab(page, 'map');
+        await expect(page.locator('#selBackdropMap')).toBeEnabled();
+        await page.locator('#selBackdropMap').selectOption(key);
+        const hasContent = await page.evaluate(() => window.CURVIOS_EDITOR.ui.mapManager.getObjectCount() > 0
+            || window.CURVIOS_EDITOR.ui.isDirty?.() === true);
+        await page.locator('#btnLoadBackdrop').click();
+        if (hasContent) await page.locator('#btnEditorModalConfirm').click();
+        await page.waitForFunction(expected => window.CURVIOS_EDITOR.ui.mapManager.mapDocumentMeta.editorBackdrop === expected, key);
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.core.objectsContainer.children
+            .filter(object => ['glb', 'aircraft'].includes(object.userData.type) && object.userData.isEditorPlaceholder)
+            .map(object => ({ id: object.userData.id, asset: object.userData.subType,
+                status: window.CURVIOS_EDITOR.ui.mapManager.assetLoader.loadStatus.get(object.userData.subType) }))),
+        { timeout: 30000 }).toEqual([]);
+        const capture = () => page.evaluate(() => {
+            const editor = window.CURVIOS_EDITOR.ui, manager = editor.mapManager;
+            const jsonText = manager.generateJSONExport(editor.getArenaSizeForExport());
+            return { map: JSON.parse(jsonText), project: JSON.stringify(editor.createEditorDocument(jsonText)),
+                objects: window.CURVIOS_EDITOR.core.objectsContainer.children.map(object => ({ id: object.userData.id,
+                    type: object.userData.type, locked: object.userData.editorLocked === true })) };
+        });
+        const before = await capture();
+        expect(before.map.portals).toHaveLength(source.portals.length * 2);
+        const cpCount = source.parcours?.checkpoints?.length || 0;
+        expect(before.map.parcours?.checkpoints?.length || 0).toBe(cpCount);
+        expect(before.objects.filter(object => ['glb', 'portal', 'checkpoint'].includes(object.type)).every(object => object.locked)).toBe(true);
+        if (!(await page.locator('#jsonOutput').isVisible())) await page.locator('#jsonSection > summary').click();
+        await page.locator('#jsonOutput').fill(before.project);
+        await openFileMenu(page); await page.locator('#btnImport').click();
+        await page.locator('#btnEditorModalConfirm').click();
+        await expect.poll(async () => (await capture()).objects).toEqual(before.objects);
+        const after = await capture();
+        // Rebuilding quaternions renormalizes unit vectors at machine precision.
+        const stableDirections = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value,
+            (_key, entry) => typeof entry === 'number' ? Math.round(entry * 1e12) / 1e12 : entry));
+        expect(stableDirections(after.map.parcours)).toEqual(stableDirections(before.map.parcours));
+        expect(after.map.glbModels).toEqual(before.map.glbModels);
+        expect(after.map.portals).toEqual(before.map.portals);
+        await page.locator('#fileMenu').evaluate(element => element.removeAttribute('open'));
+        await page.locator('#btnViewTop').click();
+        await page.screenshot({ path: testInfo.outputPath(`${key}-editor.png`) });
+        const popupPromise = page.waitForEvent('popup'); await page.locator('#btnPlaytest').click();
+        const popup = await popupPromise;
+        try {
+            await popup.waitForFunction(() => window.GAME_INSTANCE?.entityManager && window.GAME_INSTANCE.state === 'PLAYING', null, { timeout: 90000 });
+            const runtime = await popup.evaluate(() => {
+                const g = window.GAME_INSTANCE;
+                return { assets: g.arena.getMapAssetLoadState(), map: g.arena.currentMapDefinition, gameMode: g.entityManager.activeGameMode, route: g.entityManager.getParcoursRouteSnapshot() };
+            });
+            expect(runtime.map.portals).toHaveLength(source.portals.length);
+            expect(runtime.map.glbModels).toHaveLength(source.glbModels.length);
+            expect(runtime.assets.error).toBeNull(); expect(runtime.assets.modelCount).toBe(source.glbModels.length);
+            if (cpCount) {
+                expect(runtime.map.parcours.checkpoints).toHaveLength(cpCount);
+                // Playtest retains the selected mode; an ordinary Hunt match does not activate this route.
+                const active = isParcoursActiveForGameMode(runtime.map, runtime.gameMode);
+                if (active) { expect(runtime.route.enabled).toBe(true); expect(runtime.route.totalCheckpoints).toBe(cpCount); }
+                else expect(runtime.route).toBeNull();
+                expect(runtime.map.parcours.checkpoints.map(cp => cp.id)).toEqual(source.parcours.checkpoints.map(cp => cp.id));
+            }
+            await writeFile(testInfo.outputPath(`${key}-roundtrip.json`), JSON.stringify({ scope: 'real Electron editor UI, project import, map playtest; read-only state capture', before, after, runtime }, null, 2));
+            await popup.screenshot({ path: testInfo.outputPath(`${key}-playtest.png`) });
+        } finally { await popup.close(); }
+        await writeFile(testInfo.outputPath(`${key}-errors.json`), JSON.stringify(await page.evaluate(() => window.__presetErrors), null, 2));
+        expect(errors).toEqual([]);
+    });
+}
 
 // These tests own a fresh editor session; release its unsaved-close guard after assertions.
 test.afterEach(async ({ page }) => {

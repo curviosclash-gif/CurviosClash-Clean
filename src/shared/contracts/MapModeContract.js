@@ -31,7 +31,7 @@ export function isParcoursMapDefinition(mapDefinition) {
 }
 
 /** @param {{ gameModes?: unknown } | null | undefined} parcours @returns {readonly string[]} */
-function listParcoursGameModes(parcours) {
+export function listParcoursGameModes(parcours) {
     if (!Array.isArray(parcours?.gameModes)) return DEFAULT_PARCOURS_GAME_MODES;
 
     const declaredGameModes = parcours.gameModes

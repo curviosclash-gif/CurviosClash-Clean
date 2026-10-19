@@ -207,7 +207,8 @@ test('tubes, tunnelled blocks, foam, gates and portal levels round-trip (showcas
     assert.ok(document.tunnels.length > 0);
     const meter = compareRoundTrip('showcase_nexus', preset, backThroughExport(document));
     t.diagnostic(`showcase_nexus: ${meter.count} values, max deviation ${meter.max.toExponential(2)} at ${meter.worst || '-'}`);
-    assert.ok(skipped.some((entry) => entry.key === 'aircraft'), 'aircraft are reported, not dropped silently');
+    assert.equal(document.aircraft.length, preset.aircraft.length, 'aircraft now convert rather than being omitted');
+    assert.ok(!skipped.some(entry => entry.key === 'aircraft'));
 });
 
 test('fog height follows the anchor convention of the map', () => {
@@ -251,18 +252,18 @@ test('content the editor format cannot carry is listed with counts, never droppe
     assert.deepEqual(counts, {
         glbModels: 2,
         mapUnits: 1,
-        parcours: 1,
         staticTurrets: 1,
         'obstacles.beam': 1,
         'obstacles.invalid': 1,
-        'obstacles.glbFlags': 1,
-        'portals.color': 1,
         'gates.invalid': 1,
     });
     assert.equal(document.glbModels.length, 0);
     assert.equal(document.hardBlocks.length, 2, 'the plain boxes still convert');
     assert.equal(document.portals.length, 2);
-    assert.ok(!('mapUnits' in document) && !('parcours' in document));
+    assert.ok(!('mapUnits' in document));
+    assert.equal(document.parcours.checkpoints.length, 1, 'parcours is now supported instead of silently omitted');
+    assert.equal(document.hardBlocks[1].renderWithGlb, true);
+    assert.equal(document.portals[0].color, 0x123456);
     assert.ok(DEFAULT_PORTAL_COLORS[0] !== 0x123456);
 });
 

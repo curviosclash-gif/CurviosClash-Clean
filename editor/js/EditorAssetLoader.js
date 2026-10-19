@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { GLB_GALLERY_MAPS } from '../../src/core/config/maps/presets/glb_gallery.js';
 
 export class EditorAssetLoader {
     constructor(options = {}) {
         this.loader = new OBJLoader();
-        this.glbLoader = new GLTFLoader();
+        this.glbLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
         this.cache = new Map();
         this.loadStatus = new Map();
         this.pendingLoads = new Map();

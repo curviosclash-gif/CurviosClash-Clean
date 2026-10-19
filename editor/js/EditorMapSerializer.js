@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createMapDocument, parseMapJSON } from '../../src/entities/MapSchema.js';
-import { isValidGLBModelRole, normalizeGLBModelRole } from '../../src/entities/mapSchema/MapSchemaGlbOps.js';
+import { readGLBPlacementMetadata, readAuthoredObstacleGLBFlags } from '../../src/entities/mapSchema/MapSchemaGlbOps.js';
 import {
     deriveItemSpawnModeDefault,
     derivePortalModeDefault,
@@ -210,6 +210,7 @@ export function generateJSONExport(manager, arenaSize) {
                 rotateY: ry
             };
             if (u.tunnel && typeof u.tunnel === 'object') blockEntry.tunnel = cloneSerializable(u.tunnel);
+            Object.assign(blockEntry, readAuthoredObstacleGLBFlags(u));
             payload.hardBlocks.push(blockEntry);
         }
         else if (u.type === 'foam') {
@@ -223,6 +224,7 @@ export function generateJSONExport(manager, arenaSize) {
                 rotateY: ry
             };
             if (u.tunnel && typeof u.tunnel === 'object') blockEntry.tunnel = cloneSerializable(u.tunnel);
+            Object.assign(blockEntry, readAuthoredObstacleGLBFlags(u));
             payload.foamBlocks.push(blockEntry);
         }
         else if (u.type === 'portal') {
@@ -242,6 +244,7 @@ export function generateJSONExport(manager, arenaSize) {
             if (Array.isArray(u.forward)) {
                 portalEntry.forward = cloneSerializable(u.forward);
             }
+            if (Number.isInteger(u.portalColor)) portalEntry.color = u.portalColor;
             payload.portals.push(portalEntry);
         }
         else if (u.type === 'spawn') {
@@ -289,8 +292,7 @@ export function generateJSONExport(manager, arenaSize) {
                 url: u.glbUrl,
                 position: [p.x, p.y, p.z],
                 rotation: [obj.rotation.x || 0, ry, obj.rotation.z || 0],
-                ...(u.collision === false ? { collision: false } : {}),
-                ...(u.role === undefined ? {} : { role: normalizeGLBModelRole(u.role) }),
+                ...readGLBPlacementMetadata(u),
             };
             if (Number.isFinite(Number(u.targetSize)) && Number(u.targetSize) > 0) {
                 glbEntry.targetSize = Number(u.targetSize);
@@ -397,6 +399,7 @@ export function generateJSONExport(manager, arenaSize) {
         editorCheckpoints.forEach((checkpoint) => delete checkpoint.editorOrder);
 
         payload.parcours = {
+            ...payload.parcours,
             enabled: true,
             routeId: payload.parcours?.routeId || 'editor_route_v1',
             rules: payload.parcours?.rules || {
@@ -498,6 +501,7 @@ export function importFromJSON(manager, jsonString, options = {}) {
         manager.withSceneMutation(() => {
             if (data.hardBlocks) {
                 data.hardBlocks.forEach((b) => manager.createMesh('hard', null, b.x, b.y, b.z, b.size, {
+                    ...readAuthoredObstacleGLBFlags(b),
                     id: b.id,
                     sizeX: b.width || b.size * 2,
                     sizeZ: b.depth || b.size * 2,
@@ -509,6 +513,7 @@ export function importFromJSON(manager, jsonString, options = {}) {
 
             if (data.foamBlocks) {
                 data.foamBlocks.forEach((b) => manager.createMesh('foam', null, b.x, b.y, b.z, b.size, {
+                    ...readAuthoredObstacleGLBFlags(b),
                     id: b.id,
                     sizeX: b.width || b.size * 2,
                     sizeZ: b.depth || b.size * 2,
@@ -520,6 +525,7 @@ export function importFromJSON(manager, jsonString, options = {}) {
 
             if (data.portals) {
                 data.portals.forEach((b) => manager.createMesh('portal', b.model || null, b.x, b.y, b.z, b.radius, {
+                    ...(Number.isInteger(b.color) ? { portalColor: b.color } : {}),
                     id: b.id,
                     rotateX: b.rotateX,
                     rotateY: b.rotateY,
@@ -576,8 +582,7 @@ export function importFromJSON(manager, jsonString, options = {}) {
                         id: placementId || model.id,
                         glbUrl: model.url,
                         ...(targetSize ? { targetSize } : { glbScale: scale }),
-                        ...(model.collision === false ? { collision: false } : {}),
-                        ...(isValidGLBModelRole(model.role) ? { role: model.role } : {}),
+                        ...readGLBPlacementMetadata(model),
                         rotateX: model.rotation?.[0] || 0,
                         rotateY: model.rotation?.[1] || 0,
                         rotateZ: model.rotation?.[2] || 0,

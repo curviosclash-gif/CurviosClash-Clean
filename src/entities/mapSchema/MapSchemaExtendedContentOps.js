@@ -5,6 +5,7 @@ import { sanitizeFlagObjectiveList } from './MapSchemaFlagObjectiveOps.js';
 import { asLimitedArray } from './MapSchemaSanitizeOps.js';
 import { normalizeAuthoredMapLighting, normalizeMapCameraFar } from '../../shared/contracts/MapLightingContract.js';
 import { normalizeMapFogLayer } from '../../shared/contracts/MapFogLayerContract.js';
+import { normalizeMapAnimationClock } from '../../shared/contracts/MapAnimationClockContract.js';
 
 /** @typedef {{ shape: 'cylinder', center: number[], radius: number, minY: number, maxY: number }
  * | { bounds: { min: number[], max: number[] } }} SanitizedPlayableVolume */
@@ -49,6 +50,7 @@ export function toRuntimePlayableVolumes(source, invScale) {
 
 export function sanitizeMapExtendedContent(rawMap, warnings) {
     const result = {};
+    if (typeof rawMap.editorBackdrop === 'string' && rawMap.editorBackdrop.trim()) result.editorBackdrop = rawMap.editorBackdrop.trim();
     const secretRooms = sanitizeSecretRoomList(rawMap.secretRooms, { warnings });
     if (secretRooms.length > 0) result.secretRooms = secretRooms;
     const mapUnits = sanitizeMapUnitList(rawMap.mapUnits, { warnings });
@@ -66,5 +68,7 @@ export function sanitizeMapExtendedContent(rawMap, warnings) {
     if (cameraFar) result.cameraFar = cameraFar;
     const fogLayer = normalizeMapFogLayer(rawMap.fogLayer);
     if (fogLayer) result.fogLayer = fogLayer;
+    if (rawMap.glbAnimationClock) result.glbAnimationClock = normalizeMapAnimationClock(rawMap.glbAnimationClock);
+    if (typeof rawMap.glbAuthoredObstaclesCollisionOnly === 'boolean') result.glbAuthoredObstaclesCollisionOnly = rawMap.glbAuthoredObstaclesCollisionOnly;
     return result;
 }

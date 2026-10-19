@@ -87,7 +87,7 @@ export function bindEditorBackdropControls(editor) {
                 },
             });
             for (const object of editor.core.objectsContainer.children) {
-                if (isBackdropObject(object)) object.userData.editorLocked = true;
+                if (isBackdropObject(object, preset)) object.userData.editorLocked = true;
             }
             editor.refreshLayerState?.();
         });

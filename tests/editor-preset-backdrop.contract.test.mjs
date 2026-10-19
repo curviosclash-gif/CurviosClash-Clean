@@ -11,6 +11,9 @@ import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { getCustomMapConversionScale } from '../src/entities/CustomMapLoader.js';
 import { parseMapJSON, toArenaMapDefinition } from '../src/entities/MapSchema.js';
 import { resolveMapLighting } from '../src/shared/contracts/MapLightingContract.js';
+import { normalizeGLBModelCollection } from '../src/entities/GLBMapLoader.js';
+import { computeCollectionPlacement } from '../src/entities/GLBCollectionPlacement.js';
+import { isParcoursActiveForGameMode } from '../src/shared/contracts/MapModeContract.js';
 import { EditorMapManager } from '../editor/js/EditorMapManager.js';
 import { bindEditorBackdropControls } from '../editor/js/ui/EditorBackdropControls.js';
 import {
@@ -48,6 +51,45 @@ function createEditor() {
 
 const near = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 1e-6, `${label}: ${actual} != ${expected}`);
 
+for (const [key, portalPairs, checkpoints] of [['orbital_shipyard', 2, 19], ['neon_carnival', 4, 13], ['cherry_grove', 2, 0]]) {
+    test(`${key}: GLB backdrop keeps authored portals and course through save and reopen`, () => {
+        const preset = MAP_PRESET_CATALOG[key], before = structuredClone(preset);
+        assert.equal(preset.portals.length, portalPairs);
+        assert.equal(preset.parcours?.checkpoints?.length || 0, checkpoints);
+        const { document } = convertPresetToEditorDocument(key, preset, { mapScale: MAP_SCALE });
+        assert.equal(document.portals?.length || 0, portalPairs * 2, 'both portal ends must reach the editor');
+        assert.equal(document.parcours?.checkpoints?.length || 0, checkpoints, 'all authored course checkpoints must reach the editor');
+        const first = createEditor(), arena = first.load(document);
+        if (checkpoints) assert.ok(first.mapManager.core.objectsContainer.children
+            .filter(object => object.userData.type === 'checkpoint').every(object => isBackdropObject(object, preset)));
+        const reopened = createEditor(), reopenedArena = reopened.load(JSON.parse(first.mapManager.generateJSONExport(arena)));
+        const output = exportPlacementsInPresetFormat(reopened.mapManager, reopenedArena, { preset, mapScale: MAP_SCALE, includeBackdrop: true });
+        assert.equal(output.portals.length, portalPairs);
+        for (let index = 0; index < portalPairs; index++) if (preset.portals[index].color !== undefined) assert.equal(output.portals[index].color, preset.portals[index].color);
+        assert.equal(output.aircraft?.length || 0, preset.aircraft?.length || 0);
+        for (let index = 0; index < (preset.aircraft?.length || 0); index++) {
+            const actual = output.aircraft[index], source = preset.aircraft[index];
+            assert.equal(actual.id, source.id); assert.equal(actual.jetId, source.jetId);
+            for (const key of ['x', 'y', 'z', 'scale']) near(actual[key], source[key], `aircraft ${index}.${key}`);
+        }
+        for (let index = 0; index < portalPairs; index++) for (const side of ['a', 'b']) {
+            output.portals[index][side].forEach((value, axis) => near(value, preset.portals[index][side][axis], `${key} portal ${index}.${side}.${axis}`));
+        }
+        if (checkpoints) {
+            assert.deepEqual(output.parcours.checkpoints.map(cp => cp.id), preset.parcours.checkpoints.map(cp => cp.id));
+            for (let index = 0; index < checkpoints; index++) {
+                const source = preset.parcours.checkpoints[index], actual = output.parcours.checkpoints[index];
+                source.pos.forEach((value, axis) => near(actual.pos[axis], value, `${key} ${source.id} position ${axis}`));
+                near(actual.radius, source.radius, `${key} ${source.id} radius`);
+                assert.deepEqual(actual.nextIds || [], source.nextIds || (source.nextId ? [source.nextId] : []));
+                assert.equal(actual.aliasOf || '', source.aliasOf || '');
+            }
+            preset.parcours.finish.pos.forEach((value, axis) => near(output.parcours.finish.pos[axis], value, `${key} finish ${axis}`));
+        }
+        assert.deepEqual(preset, before, 'conversion never mutates catalog originals');
+    });
+}
+
 test('the backdrop list holds the built-in maps with a world model, all converted with one scale', () => {
     const entries = listBackdropPresets(MAP_PRESET_CATALOG);
     assert.ok(entries.some((entry) => entry.key === 'toybox_titan'));
@@ -56,6 +98,33 @@ test('the backdrop list holds the built-in maps with a world model, all converte
         const { document } = convertPresetToEditorDocument(entry.key, MAP_PRESET_CATALOG[entry.key], { mapScale: MAP_SCALE });
         assert.equal(getCustomMapConversionScale(document).scale, PRESET_EDITOR_UNITS_PER_MAP_UNIT, entry.key);
     }
+});
+
+test('copying additions excludes original course nodes but retains a new node and its authored references', () => {
+    const preset = MAP_PRESET_CATALOG.orbital_shipyard;
+    const { document } = convertPresetToEditorDocument('orbital_shipyard', preset, { mapScale: MAP_SCALE });
+    const { mapManager, load } = createEditor(), arena = load(document);
+    mapManager.createMesh('checkpoint', 'gate', 350, 700, -1050, 0, { id: 'OWN_CP', cpRadius: 140,
+        cpForward: [1, 0, 0], nextIds: [preset.parcours.checkpoints[0].id] });
+    const copied = exportPlacementsInPresetFormat(mapManager, arena, { preset, mapScale: MAP_SCALE });
+    assert.deepEqual(copied.parcours.checkpoints.map(cp => cp.id), ['OWN_CP']);
+    assert.deepEqual(copied.parcours.checkpoints[0].nextIds, [preset.parcours.checkpoints[0].id]);
+    assert.equal(copied.parcours.finish, undefined);
+    near(copied.parcours.checkpoints[0].pos[0], 10, 'own checkpoint x');
+    const full = exportPlacementsInPresetFormat(mapManager, arena, { preset, mapScale: MAP_SCALE, includeBackdrop: true });
+    assert.equal(full.parcours.checkpoints.length, preset.parcours.checkpoints.length + 1);
+});
+
+test('an authored Hunt-only course keeps its activation rule through the editor and match schema', () => {
+    const preset = { ...MAP_PRESET_CATALOG.orbital_shipyard,
+        parcours: { ...MAP_PRESET_CATALOG.orbital_shipyard.parcours, gameModes: ['HUNT'] } };
+    const { document } = convertPresetToEditorDocument('hunt-course', preset, { mapScale: MAP_SCALE });
+    const editor = createEditor(), arena = editor.load(document);
+    const parsed = parseMapJSON(editor.mapManager.generateJSONExport(arena)).map;
+    const output = toArenaMapDefinition(parsed, { mapScale: PRESET_EDITOR_UNITS_PER_MAP_UNIT }).map;
+    assert.equal(isParcoursActiveForGameMode(output, 'HUNT'), true);
+    assert.equal(isParcoursActiveForGameMode(output, 'CLASSIC'), false);
+    assert.equal(isParcoursActiveForGameMode(output, 'ARCADE'), false);
 });
 
 test('a block-only catalog map is offered and round-trips authored geometry through the editor', () => {
@@ -87,9 +156,10 @@ test('a block-only catalog map is offered and round-trips authored geometry thro
     // Every block, tube, portal and item of the game map is backdrop: locked on load, left out
     // of a copy unless asked for.
     const placed = mapManager.core.objectsContainer.children;
-    assert.ok(placed.filter((object) => !String(object.userData.type).startsWith('spawn')).every(isBackdropObject));
+    assert.ok(placed.filter((object) => !String(object.userData.type).startsWith('spawn')).every(object => isBackdropObject(object, preset)));
     const copy = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
     for (const key of ['obstacles', 'portals', 'items', 'gates']) assert.equal(copy[key], undefined, `${key} copied along`);
+    assert.equal(copy.parcours, undefined, 'authored checkpoints retain IDs but stay out of a placement-only copy');
     const ownBlock = mapManager.createMesh('hard', null, 350, 700, -1050, 70, { sizeX: 70, sizeY: 70, sizeZ: 70 });
     const withOwnBlock = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
     assert.equal(withOwnBlock.obstacles.length, 1);
@@ -142,7 +212,7 @@ test('the toybox backdrop round-trips its world and spawns through the editor ex
 
     const { mapManager, load } = createEditor();
     const arenaSize = load(document);
-    const backdrop = mapManager.core.objectsContainer.children.filter((object) => String(object.userData.id).startsWith(BACKDROP_ID_PREFIX));
+    const backdrop = mapManager.core.objectsContainer.children.filter(object => object.userData.type === 'glb' && isBackdropObject(object, preset));
     assert.equal(backdrop.length, preset.glbModels.length);
 
     const exported = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE, includeBackdrop: true });
@@ -152,6 +222,34 @@ test('the toybox backdrop round-trips its world and spawns through the editor ex
     assert.equal(exported.botSpawns.length, preset.botSpawns.length);
     near(exported.glbModels[0].scale, 1, 'world scale');
     assert.deepEqual(exported.glbModels[0].position, preset.glbModels[0].position);
+});
+
+test('GLB backdrop retains collision flags, original model IDs and inherited animation timing in the match', () => {
+    const preset = { size: [100, 40, 100], scaleAuthoredAnchors: true, glbColliderMode: 'dynamic',
+        glbAuthoredObstaclesCollisionOnly: true,
+        glbAnimationClock: { beatSeconds: 8, playbackRate: 1.2, phaseOffsetBeats: 0.25, clipName: 'Main', mode: 'loop' },
+        glbModels: [
+            { id: 'collider', url: 'assets/a.glb', position: [2, 3, 4], targetSize: 20, collisionOnly: true, role: 'required' },
+            { id: 'fall', url: 'assets/b.glb', position: [5, 6, 7], scale: 2, collision: false, maxRenderDistance: 120,
+                hiddenUntilTriggered: true, fixedTriggeredPlacement: true, animationClock: { clipName: 'Fall', mode: 'once', phaseOffsetBeats: 0.5 } },
+        ] };
+    const { document } = convertPresetToEditorDocument('timed', preset, { mapScale: MAP_SCALE });
+    const first = createEditor(), arena = first.load(document), reopened = createEditor();
+    const secondArena = reopened.load(JSON.parse(first.mapManager.generateJSONExport(arena)));
+    const saved = parseMapJSON(reopened.mapManager.generateJSONExport(secondArena)).map;
+    const output = toArenaMapDefinition(saved, { mapScale: PRESET_EDITOR_UNITS_PER_MAP_UNIT }).map;
+    assert.equal(output.glbAuthoredObstaclesCollisionOnly, true);
+    assert.equal(output.glbColliderMode, 'dynamic');
+    const expected = normalizeGLBModelCollection(preset.glbModels, { animationClock: preset.glbAnimationClock });
+    const signature = models => models.map(model => ({ ...model, scale: model.targetSize > 0 ? 1 : model.scale }));
+    const actual = normalizeGLBModelCollection(output.glbModels, { animationClock: output.glbAnimationClock });
+    // targetSize determines the fit independently of the unused raw scale; compare actual placement too.
+    const bounds = new THREE.Box3(new THREE.Vector3(-2, 0, -1), new THREE.Vector3(2, 8, 1));
+    for (let index = 0; index < actual.length; index++) assert.deepEqual(
+        computeCollectionPlacement(bounds, actual[index], MAP_SCALE), computeCollectionPlacement(bounds, expected[index], MAP_SCALE));
+    assert.deepEqual(signature(actual), signature(expected));
+    const copied = exportPlacementsInPresetFormat(reopened.mapManager, secondArena, { preset, mapScale: MAP_SCALE, includeBackdrop: true });
+    assert.deepEqual(signature(normalizeGLBModelCollection(copied.glbModels, { animationClock: preset.glbAnimationClock })), signature(expected));
 });
 
 test('a map without scaled anchors keeps its spawns in world units both ways', () => {
@@ -326,4 +424,16 @@ test('objects placed on the backdrop are handed out without the backdrop itself'
     near(exported.items[0].x, 10, 'item x in map units');
     near(exported.items[0].y, 20, 'item y in map units');
     near(exported.items[0].z, -30, 'item z in map units');
+});
+
+
+test('preset aircraft resolves the editor asset alias without changing its runtime jet ID', () => {
+    const { mapManager } = createEditor(); const requested = [];
+    mapManager.assetLoader.getClone = id => { requested.push(id); return new THREE.Group(); };
+    for (const id of ['ship4', 'jet_ship4']) {
+        const object = mapManager.createMesh('aircraft', id, 10, 20, 30, 0, { modelScale: 50 });
+        assert.equal(object.userData.subType, id);
+        assert.equal(JSON.parse(mapManager.generateJSONExport({width:2800,height:950,depth:2400})).aircraft.at(-1).jetId, id);
+    }
+    assert.deepEqual(requested, ['jet_ship4', 'jet_ship4']);
 });

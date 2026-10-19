@@ -1,3 +1,5 @@
+import { normalizeMapAnimationClock, MAP_ANIMATION_CLOCK_MODES } from '../../shared/contracts/MapAnimationClockContract.js';
+
 function finiteNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -18,6 +20,13 @@ function vector3(value) {
 }
 
 export const MAX_EMBEDDED_GLB_URL_CHARS = 512 * 1024;
+
+export function readAuthoredObstacleGLBFlags(source) {
+    return {
+        ...(typeof source?.compileWithGlb === 'boolean' ? { compileWithGlb: source.compileWithGlb } : {}),
+        ...(typeof source?.renderWithGlb === 'boolean' ? { renderWithGlb: source.renderWithGlb } : {}),
+    };
+}
 
 /**
  * The collision mode of a GLB map that states none of its own. Only 'fallbackOnly' and 'dynamic'
@@ -65,6 +74,27 @@ export function normalizeAllowedGLBUrl(value) {
     return normalized.toLowerCase().endsWith('.glb') ? normalized : '';
 }
 
+/** Keep authored overrides partial, so omitted clock fields still inherit the map's beat. */
+export function readGLBPlacementMetadata(source) {
+    const clock = source?.animationClock;
+    const normalized = normalizeMapAnimationClock(clock);
+    const overrides = clock && typeof clock === 'object' && !Array.isArray(clock)
+        ? Object.fromEntries(Object.entries(normalized).filter(([key, value]) => Object.hasOwn(clock, key)
+            && (typeof value === 'number' ? Number.isFinite(Number(clock[key]))
+                : key === 'mode' ? MAP_ANIMATION_CLOCK_MODES.includes(clock[key]) : typeof clock[key] === 'string')))
+        : null;
+    const distance = Number(source?.maxRenderDistance);
+    return {
+        ...(source?.collision === false ? { collision: false } : {}),
+        ...(source?.role === undefined ? {} : { role: normalizeGLBModelRole(source.role) }),
+        ...(source?.collisionOnly === true ? { collisionOnly: true } : {}),
+        ...(source?.hiddenUntilTriggered === true ? { hiddenUntilTriggered: true } : {}),
+        ...(source?.fixedTriggeredPlacement === true ? { fixedTriggeredPlacement: true } : {}),
+        ...(Number.isFinite(distance) && distance > 0 ? { maxRenderDistance: distance } : {}),
+        ...(overrides ? { animationClock: overrides } : {}),
+    };
+}
+
 export function sanitizeGLBModels(value) {
     if (!Array.isArray(value)) return [];
     return value.flatMap((entry, index) => {
@@ -78,8 +108,7 @@ export function sanitizeGLBModels(value) {
             rotation: vector3(source.rotation),
             scale: positiveNumber(source.scale, 1),
             targetSize: positiveNumber(source.targetSize, 0),
-            ...(source.collision === false ? { collision: false } : {}),
-            ...(source.role === undefined ? {} : { role: normalizeGLBModelRole(source.role) }),
+            ...readGLBPlacementMetadata(source),
         }];
     });
 }

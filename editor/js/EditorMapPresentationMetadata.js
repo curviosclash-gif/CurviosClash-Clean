@@ -12,5 +12,6 @@ export function readEditorMapPresentationMetadata(source) {
     const cameraFar = normalizeMapCameraFar(source?.cameraFar);
     if (cameraFar) result.cameraFar = cameraFar;
     if (source?.glbAnimationClock) result.glbAnimationClock = normalizeMapAnimationClock(source.glbAnimationClock);
+    if (typeof source?.glbAuthoredObstaclesCollisionOnly === 'boolean') result.glbAuthoredObstaclesCollisionOnly = source.glbAuthoredObstaclesCollisionOnly;
     return result;
 }

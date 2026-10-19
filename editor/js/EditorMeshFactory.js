@@ -129,7 +129,8 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         }
     }
     else if (type === 'aircraft') {
-        mesh = manager.assetLoader.getClone(subType) || new THREE.Mesh(manager.coneGeo, manager.mats.aircraft_fallback);
+        const assetId = String(subType || '').startsWith('jet_') ? subType : `jet_${subType}`;
+        mesh = manager.assetLoader.getClone(assetId) || new THREE.Mesh(manager.coneGeo, manager.mats.aircraft_fallback);
         const s = Number(props.modelScale) || 50;
         mesh.scale.set(s, s, s);
         userData.subType = subType;

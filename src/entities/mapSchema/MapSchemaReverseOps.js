@@ -1,6 +1,7 @@
 import { getRuntimeMapScale } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { cloneJsonCompatibleValue } from '../../shared/utils/JsonClone.js';
-import { DEFAULT_PORTAL_COLORS, MAP_SCHEMA_VERSION } from './MapSchemaConstants.js';
+import { MAP_SCHEMA_VERSION } from './MapSchemaConstants.js';
+import { readAuthoredObstacleGLBFlags } from './MapSchemaGlbOps.js';
 import { createMapDocument } from './MapSchemaMigrationOps.js';
 import { asArray, asPositiveNumber } from './MapSchemaSanitizeOps.js';
 
@@ -17,12 +18,13 @@ const EDITOR_PRECISION = 1e6;
 // Not map content: names, picker flags and settings that only matter next to the world model.
 const METADATA_KEYS = new Set([
     'name', 'description', 'hiddenFromMapPicker', 'glbColliderMode', 'glbAuthoredObstaclesCollisionOnly',
-    'glbLoadDelayMs', 'glbLoadConcurrency', 'glbAnimationClock',
+    'glbLoadDelayMs', 'glbLoadConcurrency', 'glbAnimationClock', 'excludedModes',
 ]);
 // Keys this converter writes into the document (or reports itself while walking the lists).
 const CONVERTED_KEYS = new Set([
     'size', 'obstacles', 'portals', 'portalLevels', 'items', 'gates', 'playerSpawn', 'botSpawns',
     'lighting', 'scaleAuthoredAnchors', 'itemSpawnMode', 'preferAuthoredPortals',
+    'parcours', 'aircraft',
 ]);
 
 function finite(value, fallback = 0) {
@@ -110,7 +112,7 @@ function convertObstacles(obstacles, units, report) {
                 axis: obstacle.tunnel.axis,
             };
         }
-        if (obstacle.compileWithGlb !== undefined || obstacle.renderWithGlb !== undefined) report('obstacles.glbFlags');
+        Object.assign(block, readAuthoredObstacleGLBFlags(obstacle));
         (String(obstacle.kind || 'hard').toLowerCase() === 'foam' ? foamBlocks : hardBlocks).push(block);
     }
     return { hardBlocks, foamBlocks, tunnels };
@@ -123,13 +125,10 @@ function convertPortals(portals, units, report) {
             report('portals.invalid');
             continue;
         }
-        // The editor format has no pair colour: the match colours pair n with the n-th default.
-        if (pair.color !== undefined && pair.color !== DEFAULT_PORTAL_COLORS[Math.floor(result.length / 2) % DEFAULT_PORTAL_COLORS.length]) {
-            report('portals.color');
-        }
         for (const side of ['A', 'B']) {
             const [x, y, z] = toEditorVector(pair[side === 'A' ? 'a' : 'b'], units);
             const entry = { x, y, z };
+            if (Number.isInteger(pair.color) && pair.color >= 0 && pair.color <= 0xffffff) entry.color = pair.color;
             const model = pair[`model${side}`];
             if (typeof model === 'string' && model) entry.model = model;
             const rotation = pair[`rotation${side}`];
@@ -177,11 +176,28 @@ function convertGates(gates, units, report) {
     return result;
 }
 
+function convertParcours(source, units) {
+    if (!source || typeof source !== 'object') return undefined;
+    const checkpoint = (entry, finish = false) => {
+        if (!entry || typeof entry !== 'object') return undefined;
+        return { ...cloneJsonCompatibleValue(entry), pos: toEditorVector(entry.pos, units),
+            radius: toEditorUnits(asPositiveNumber(entry.radius, finish ? 4.2 : 3.5, 0.1), units) };
+    };
+    return { ...cloneJsonCompatibleValue(source),
+        checkpoints: asArray(source.checkpoints).map(entry => checkpoint(entry)).filter(Boolean),
+        ...(source.finish ? { finish: checkpoint(source.finish, true) } : {}),
+        ...(Array.isArray(source.guidancePaths) ? { guidancePaths: source.guidancePaths.map(path => ({
+            ...cloneJsonCompatibleValue(path), points: asArray(path.points).map(point => toEditorVector(point, units)),
+        })) } : {}),
+    };
+}
+
 /**
  * Editor document of a catalog map definition: the inverse of toArenaMapDefinition for boxes,
  * foam, tubes, portal pairs, items, gates, portal levels, spawns, size and lighting.
  *
- * Everything else (world models, map units, parcours, turrets, ...) is not carried over and is
+ * Parcours IDs and graph references stay unchanged; only positions and radii scale. Everything
+ * else (world models, map units, turrets, ...) is not carried over and is
  * listed in `skipped` as { key, count }, so a caller can warn instead of losing it silently.
  * Units: obstacles, gates, size and portals are map units x 35; spawns and items follow the
  * catalog map's own convention (map units with scaleAuthoredAnchors, world units divided by the
@@ -224,9 +240,15 @@ export function fromArenaMapDefinition(mapDefinition, options = {}) {
         portalLevels: asArray(mapDefinition.portalLevels).map((level) => toEditorUnits(level, units)),
         gates: convertGates(mapDefinition.gates, units, report),
         items,
+        aircraft: asArray(mapDefinition.aircraft).map(entry => ({ ...toEditorAnchor(entry, anchorUnits, entry.id),
+            jetId: entry.jetId, scale: toEditorUnits(asPositiveNumber(entry.scale, 1, 0.01), anchorUnits), rotateY: finite(entry.rotateY) })),
         botSpawns: asArray(mapDefinition.botSpawns).map((spawn, index) => toEditorAnchor(spawn, anchorUnits, `spawn_bot_${index + 1}`)),
     };
     if (mapDefinition.playerSpawn) raw.playerSpawn = toEditorAnchor(mapDefinition.playerSpawn, anchorUnits, 'spawn_player');
+    const parcours = convertParcours(mapDefinition.parcours, units);
+    if (parcours) raw.parcours = parcours;
+    if (mapDefinition.glbAnimationClock) raw.glbAnimationClock = cloneJsonCompatibleValue(mapDefinition.glbAnimationClock);
+    if (typeof mapDefinition.glbAuthoredObstaclesCollisionOnly === 'boolean') raw.glbAuthoredObstaclesCollisionOnly = mapDefinition.glbAuthoredObstaclesCollisionOnly;
     if (typeof mapDefinition.preferAuthoredPortals === 'boolean') raw.preferAuthoredPortals = mapDefinition.preferAuthoredPortals;
     // Without a stated mode the match fills anchors first and then spawns randomly (Powerup.js).
     const itemSpawnMode = mapDefinition.itemSpawnMode || (items.length > 0 ? 'hybrid' : undefined);

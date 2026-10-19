@@ -1,11 +1,12 @@
 import { resolveMapStaticTurretDefinitions } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { DEFAULT_ARENA_SIZE, MAP_SCHEMA_COLLECTION_LIMITS, MAP_SCHEMA_VERSION } from './MapSchemaConstants.js';
 import { getPickupDefinition, normalizePickupType } from '../PickupRegistry.js';
-import { normalizeAllowedGLBUrl, sanitizeGLBModels } from './MapSchemaGlbOps.js';
+import { normalizeAllowedGLBUrl, sanitizeGLBModels, readAuthoredObstacleGLBFlags } from './MapSchemaGlbOps.js';
 import { cloneJsonCompatibleValue } from '../../shared/utils/JsonClone.js';
 import { deriveItemSpawnModeDefault, derivePortalModeDefault } from './MapSchemaAuthoringModeDefaults.js';
 import { sanitizeMapExtendedContent } from './MapSchemaExtendedContentOps.js';
 import { sanitizeParcoursGuidanceMetadata, sanitizeParcoursGuidancePaths } from './MapSchemaParcoursOps.js';
+import { listParcoursGameModes } from '../../shared/contracts/MapModeContract.js';
 
 export function asFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -242,7 +243,7 @@ function sanitizeParcours(raw) {
     return {
         enabled: true,
         routeId: sanitizeOptionalId(source.routeId) || 'custom_route_v1',
-        checkpoints,
+        ...(Array.isArray(source.gameModes) ? { gameModes: [...listParcoursGameModes(source)] } : {}), checkpoints,
         guidancePaths: sanitizeParcoursGuidancePaths(source.guidancePaths),
         ...sanitizeParcoursGuidanceMetadata(source.guidancePaths, checkpoints, source.guidanceBranchCheckpointIds, source.guidancePathWindows),
         guidanceRequired: source.guidanceRequired === true || (Array.isArray(source.guidancePaths) && source.guidancePaths.length > 0),
@@ -283,7 +284,7 @@ export function sanitizeBlock(raw) {
         depth,
         height,
         size: asPositiveNumber(source.size, Math.max(width, depth, height) * 0.5, 1),
-        rotateY: asFiniteNumber(source.rotateY, 0),
+        rotateY: asFiniteNumber(source.rotateY, 0), ...readAuthoredObstacleGLBFlags(source),
     }, source.id);
 
     if (source.tunnel && typeof source.tunnel === 'object') {
@@ -322,6 +323,7 @@ export function sanitizePortal(raw) {
     for (const key of ['rotateX', 'rotateY', 'rotateZ']) if (Number.isFinite(Number(source[key]))) portal[key] = Number(source[key]);
     const forward = sanitizeForwardVector(source.forward);
     if (forward) portal.forward = forward;
+    if (Number.isInteger(source.color) && source.color >= 0 && source.color <= 0xffffff) portal.color = source.color;
     return portal;
 }
 
@@ -338,8 +340,8 @@ function sanitizePortalList(rawPortals, options = {}) {
             || Object.prototype.hasOwnProperty.call(entry, 'b');
         if (Array.isArray(entry?.a) && Array.isArray(entry?.b)) {
             const radius = asPositiveNumber(entry.radius, 80, 1);
-            portals.push(sanitizePortal({ x: entry.a[0], y: entry.a[1], z: entry.a[2], radius, model: entry.modelA || entry.model, rotateX: entry.rotationA?.[0], rotateY: entry.rotationA?.[1], rotateZ: entry.rotationA?.[2], forward: entry.forwardA }));
-            portals.push(sanitizePortal({ x: entry.b[0], y: entry.b[1], z: entry.b[2], radius, model: entry.modelB || entry.model, rotateX: entry.rotationB?.[0], rotateY: entry.rotationB?.[1], rotateZ: entry.rotationB?.[2], forward: entry.forwardB }));
+            portals.push(sanitizePortal({ x: entry.a[0], y: entry.a[1], z: entry.a[2], radius, model: entry.modelA || entry.model, rotateX: entry.rotationA?.[0], rotateY: entry.rotationA?.[1], rotateZ: entry.rotationA?.[2], forward: entry.forwardA, color: entry.color }));
+            portals.push(sanitizePortal({ x: entry.b[0], y: entry.b[1], z: entry.b[2], radius, model: entry.modelB || entry.model, rotateX: entry.rotationB?.[0], rotateY: entry.rotationB?.[1], rotateZ: entry.rotationB?.[2], forward: entry.forwardB, color: entry.color }));
             return;
         }
         if (hasLegacyPairShape) {
@@ -557,7 +559,5 @@ export function normalizeMapSchemaDocument(rawMap, options = {}) {
     const parcours = sanitizeParcours(rawMap.parcours);
     if (parcours) normalized.parcours = parcours;
 
-    Object.assign(normalized, sanitizeMapExtendedContent(rawMap, warnings));
-
-    return normalized;
+    return Object.assign(normalized, sanitizeMapExtendedContent(rawMap, warnings));
 }
