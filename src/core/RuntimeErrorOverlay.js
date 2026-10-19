@@ -1,5 +1,9 @@
 // @ts-check
 
+import { createLogger } from '../shared/logging/Logger.js';
+
+const logger = createLogger('Runtime');
+
 /**
  * @typedef {object} RuntimeErrorOverlayPayload
  * @property {string=} title
@@ -40,13 +44,33 @@ export function showRuntimeErrorOverlay({ title, lines = [], stack = null } = {}
     stackElement.textContent = String(stack || 'No stack trace');
     overlay.appendChild(stackElement);
 
+    // The notice must never trap the player: closing it uncovers the screen. After a stray window
+    // error the game keeps running; after a stopped game loop the last frame stays until a reload.
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = 'Schließen';
+    closeButton.addEventListener('click', () => overlay.remove());
+    overlay.appendChild(closeButton);
+
     document.body.appendChild(overlay);
+}
+
+// Browser noise that is not a game failure: ResizeObserver reports a skipped layout pass, and
+// "Script error." without a file is an opaque error from a foreign origin we cannot act on.
+/**
+ * @param {ErrorEvent} event
+ */
+function isBenignRuntimeError(event) {
+    const message = String(event?.message || '');
+    if (message.startsWith('ResizeObserver loop')) return true;
+    return message === 'Script error.' && !event?.filename;
 }
 
 /**
  * @param {ErrorEvent} event
  */
 function handleGlobalRuntimeError(event) {
+    if (isBenignRuntimeError(event)) return;
     showRuntimeErrorOverlay({
         title: 'CRITICAL ERROR',
         lines: [
@@ -60,5 +84,9 @@ function handleGlobalRuntimeError(event) {
 export function attachGlobalRuntimeErrorHandler() {
     if (globalRuntimeErrorHandlerAttached) return;
     window.addEventListener('error', handleGlobalRuntimeError);
+    // Async failures used to vanish without a trace; log them instead of covering the game.
+    window.addEventListener('unhandledrejection', (event) => {
+        logger.error('Unhandled promise rejection:', event?.reason);
+    });
     globalRuntimeErrorHandlerAttached = true;
 }
