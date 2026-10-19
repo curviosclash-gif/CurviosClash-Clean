@@ -41,6 +41,13 @@ export class StorageMigrationRegistry {
         if (!write.ok) {
             return createStorageMigrationResult({ primaryKey: normalizedPrimaryKey, sourceKey, attempted: true, status: 'write_failed', reason: write.reason, ok: false });
         }
+        const check = this.driver.readRaw(normalizedPrimaryKey);
+        if (!check.ok || check.value !== resolvedEntry.raw) {
+            return createStorageMigrationResult({
+                primaryKey: normalizedPrimaryKey, sourceKey, attempted: true, writeOk: true,
+                status: 'verification_failed', reason: check.reason && check.reason !== 'ok' ? check.reason : 'migration_verification_failed', ok: false,
+            });
+        }
         const remove = this.driver.remove(resolvedEntry.key);
         return createStorageMigrationResult({ primaryKey: normalizedPrimaryKey, sourceKey, attempted: true, migrated: remove.ok, writeOk: true, removeOk: remove.ok, status: remove.ok ? 'migrated' : 'remove_failed', reason: remove.reason, ok: remove.ok });
     }

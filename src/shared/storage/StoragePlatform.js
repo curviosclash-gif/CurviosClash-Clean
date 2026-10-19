@@ -5,8 +5,9 @@ function toJson(value) {
     try { return JSON.stringify(value); } catch { return null; }
 }
 
-function parseJson(rawValue, fallbackValue = null) {
-    try { return JSON.parse(rawValue); } catch { return fallbackValue; }
+function parseJson(rawValue) {
+    try { return { ok: true, value: JSON.parse(rawValue) }; }
+    catch { return { ok: false, value: null }; }
 }
 
 function normalizeKey(value) {
@@ -27,11 +28,28 @@ export class StoragePlatform {
     }
 
     readJson(primaryKey, legacyKeys = [], fallbackValue = null) {
-        const resolved = this.readRaw(primaryKey, legacyKeys);
-        if (!resolved) return fallbackValue;
-        const migrationResult = this.migrationRegistry.migrate(primaryKey, resolved);
-        this._storeMigrationResult(primaryKey, migrationResult);
-        return parseJson(resolved.raw, fallbackValue);
+        const key = normalizeKey(primaryKey);
+        if (!key) return fallbackValue;
+        const candidates = new Set([key, ...legacyKeys.map(normalizeKey).filter(Boolean)]);
+        let canMigrate = true;
+        this._migrationResults.delete(key);
+        for (const candidate of candidates) {
+            const read = this.driver.readRaw(candidate);
+            if (!read.ok) { canMigrate = false; continue; }
+            if (typeof read.value !== 'string') continue;
+            const parsed = parseJson(read.value);
+            if (!parsed.ok) {
+                if (!this._preserveCorruptJson(key, read.value).ok) canMigrate = false;
+                continue;
+            }
+            if (candidate === key || canMigrate) {
+                this._storeMigrationResult(key, this.migrationRegistry.migrate(key, {
+                    key: candidate, raw: read.value, migrated: candidate !== key,
+                }));
+            }
+            return parsed.value;
+        }
+        return fallbackValue;
     }
 
     writeRaw(key, rawValue) {
@@ -47,7 +65,31 @@ export class StoragePlatform {
         if (typeof serialized !== 'string') {
             return { ok: false, reason: 'serialize_failed', quotaExceeded: false };
         }
+        const current = this.driver.readRaw(key);
+        if (!current.ok) return { ok: false, reason: current.reason || 'read_failed', quotaExceeded: false };
+        if (typeof current.value === 'string' && !parseJson(current.value).ok) {
+            const backup = this._preserveCorruptJson(key, current.value);
+            if (!backup.ok) return backup;
+        }
         return this.writeRaw(key, serialized);
+    }
+
+    _preserveCorruptJson(key, rawValue) {
+        const baseKey = `${key}.corrupt`;
+        for (let index = 0; ; index++) {
+            const backupKey = index === 0 ? baseKey : `${baseKey}.${index}`;
+            const existing = this.driver.readRaw(backupKey);
+            if (!existing.ok) return { ok: false, reason: existing.reason || 'backup_read_failed', quotaExceeded: false };
+            if (existing.value === rawValue) return { ok: true, reason: 'already_preserved', quotaExceeded: false };
+            if (existing.value != null) continue;
+            const write = this.writeRaw(backupKey, rawValue);
+            if (!write.ok) return write;
+            const check = this.driver.readRaw(backupKey);
+            if (!check.ok || check.value !== rawValue) {
+                return { ok: false, reason: check.reason && check.reason !== 'ok' ? check.reason : 'backup_verification_failed', quotaExceeded: false };
+            }
+            return { ok: true, reason: 'preserved', quotaExceeded: false };
+        }
     }
 
     remove(key) {
