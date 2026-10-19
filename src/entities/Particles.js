@@ -48,6 +48,7 @@ export class ParticleSystem {
         this.maxLifetimes = new Float32Array(MAX_PARTICLES);
         this.gravities = new Float32Array(MAX_PARTICLES);
         this.scales = new Float32Array(MAX_PARTICLES);
+        this.rotations = new Float32Array(MAX_PARTICLES * 2);
 
         // Color tracking (InstanceColor is stored on GPU, but we need CPU copy for compaction)
         this.colors = new Float32Array(MAX_PARTICLES * 3);
@@ -180,6 +181,8 @@ export class ParticleSystem {
             this.maxLifetimes[idx] = this.lifetimes[idx];
             this.gravities[idx] = gravity;
             this.scales[idx] = size * (0.5 + Math.random() * 0.5);
+            this.rotations[idx * 2] = 0;
+            this.rotations[idx * 2 + 1] = 0;
 
             // Color
             this.colors[idx * 3] = this._tmpColor.r;
@@ -191,6 +194,7 @@ export class ParticleSystem {
 
             // Set initial matrix
             DUMMY.position.set(this.positions[idx * 3], this.positions[idx * 3 + 1], this.positions[idx * 3 + 2]);
+            DUMMY.rotation.set(0, 0, 0);
             DUMMY.scale.setScalar(this.scales[idx]);
             DUMMY.updateMatrix();
             this.mesh.setMatrixAt(idx, DUMMY.matrix);
@@ -255,6 +259,8 @@ export class ParticleSystem {
             this.maxLifetimes[idx] = this.lifetimes[idx];
             this.gravities[idx] = gravity;
             this.scales[idx] = size * (0.6 + Math.random() * 0.45);
+            this.rotations[idx * 2] = 0;
+            this.rotations[idx * 2 + 1] = 0;
 
             this.colors[idx3] = this._tmpColor.r;
             this.colors[idx3 + 1] = this._tmpColor.g;
@@ -479,6 +485,8 @@ export class ParticleSystem {
 
                 const srcIdx3 = i * 3;
                 const dstIdx3 = aliveCount * 3;
+                const srcIdx2 = i * 2;
+                const dstIdx2 = aliveCount * 2;
 
                 // Physics Update
                 this.velocities[srcIdx3 + 1] += this.gravities[i] * dt;
@@ -486,6 +494,8 @@ export class ParticleSystem {
                 this.positions[srcIdx3] += this.velocities[srcIdx3] * dt;
                 this.positions[srcIdx3 + 1] += this.velocities[srcIdx3 + 1] * dt;
                 this.positions[srcIdx3 + 2] += this.velocities[srcIdx3 + 2] * dt;
+                this.rotations[srcIdx2] += this.velocities[srcIdx3 + 2] * dt;
+                this.rotations[srcIdx2 + 1] += this.velocities[srcIdx3] * dt;
 
                 // Compaction: Move data if needed
                 if (i !== aliveCount) {
@@ -501,6 +511,8 @@ export class ParticleSystem {
                     this.maxLifetimes[aliveCount] = this.maxLifetimes[i];
                     this.gravities[aliveCount] = this.gravities[i];
                     this.scales[aliveCount] = this.scales[i];
+                    this.rotations[dstIdx2] = this.rotations[srcIdx2];
+                    this.rotations[dstIdx2 + 1] = this.rotations[srcIdx2 + 1];
 
                     this.colors[dstIdx3] = this.colors[srcIdx3];
                     this.colors[dstIdx3 + 1] = this.colors[srcIdx3 + 1];
@@ -518,9 +530,7 @@ export class ParticleSystem {
                 // Render Update
                 DUMMY.position.set(this.positions[dstIdx3], this.positions[dstIdx3 + 1], this.positions[dstIdx3 + 2]);
 
-                // Rotate based on velocity direction or just spin
-                DUMMY.rotation.x += this.velocities[dstIdx3 + 2] * dt;
-                DUMMY.rotation.y += this.velocities[dstIdx3] * dt;
+                DUMMY.rotation.set(this.rotations[dstIdx2], this.rotations[dstIdx2 + 1], 0);
 
                 DUMMY.scale.setScalar(this.scales[aliveCount] * lifeRatio);
                 DUMMY.updateMatrix();
@@ -569,6 +579,7 @@ export class ParticleSystem {
         this.maxLifetimes = null;
         this.gravities = null;
         this.scales = null;
+        this.rotations = null;
         this.colors = null;
         this._tmpColor = null;
         this._tmpDirection = null;
