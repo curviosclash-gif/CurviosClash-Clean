@@ -42,6 +42,8 @@ export class PlayerProfileUiController {
             : (callback, delayMs) => globalThis.setTimeout(callback, delayMs);
         this.cleanups = [];
         this.refs = {};
+        this._retrySettingsSaveProfileId = '';
+        this._activateButtonLabel = 'Aktivieren';
     }
 
     init() {
@@ -62,6 +64,7 @@ export class PlayerProfileUiController {
             transfer: byId('player-profile-transfer'),
             status: byId('player-profile-status'),
         };
+        this._activateButtonLabel = this.refs.activate?.textContent || this._activateButtonLabel;
         const bind = (target, eventName, handler) => {
             if (!target?.addEventListener) return;
             target.addEventListener(eventName, handler);
@@ -76,6 +79,7 @@ export class PlayerProfileUiController {
         });
         bind(this.refs.select, 'change', () => {
             const selected = this._selected();
+            // The retry stays bound to the half-activated profile, even after looking at another one.
             if (selected && this.refs.name) this.refs.name.value = selected.displayName;
             this.sync();
         });
@@ -114,10 +118,22 @@ export class PlayerProfileUiController {
         if (!selected || !this.activateProfile) return null;
         const result = await this.activateProfile(selected.id);
         if (!result?.ok) {
+            if (result?.activeProfileChanged === true && result.profileId === selected.id) {
+                this._retrySettingsSaveProfileId = selected.id;
+                this.sync(selected.id);
+                this._setStatus('Spielerprofil ist aktiv, Einstellungen konnten nicht gespeichert werden. Bitte erneut speichern.', 'error');
+                return result;
+            }
+            // A refused switch changes nothing, so a half-activated profile still needs its retry.
             this._setStatus(resolvePlayerProfileReasonMessage(result?.reason), 'error');
             return result;
         }
+        this._retrySettingsSaveProfileId = '';
         this.sync(selected.id);
+        if (this.refs.status) {
+            this.refs.status.textContent = `Spielerprofil wird geladen: ${selected.displayName}`;
+            this.refs.status.dataset.tone = 'success';
+        }
         // The page reloads right after a switch; if it is still here, the new profile never loaded.
         this.setTimeout(() => {
             this._setStatus('Spielerprofil wurde nicht geladen. Bitte die App neu starten.', 'error');
@@ -168,7 +184,13 @@ export class PlayerProfileUiController {
         this.refs.select.value = profiles.some((profile) => profile.id === selectedId) ? selectedId : (active?.id || '');
         const selected = this._selected();
         if (this.refs.name && !this.refs.name.matches?.(':focus')) this.refs.name.value = selected?.displayName || '';
-        if (this.refs.activate) this.refs.activate.disabled = !selected || selected.id === active?.id;
+        if (this.refs.activate) {
+            this.refs.activate.disabled = !selected
+                || (selected.id === active?.id && selected.id !== this._retrySettingsSaveProfileId);
+            this.refs.activate.textContent = selected?.id === this._retrySettingsSaveProfileId
+                ? 'Einstellungen erneut speichern'
+                : this._activateButtonLabel;
+        }
         const alreadyDefault = !!selected && selected.id === defaultProfile?.id;
         const archiveReason = !selected ? 'Spielerprofil auswählen.'
             : alreadyDefault ? 'Das Standard-Profil kann nicht archiviert werden.'

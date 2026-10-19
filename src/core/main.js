@@ -35,7 +35,7 @@ import { installPlaytestReturnControl } from './PlaytestReturnControl.js';
 import { ensureInteractiveMatchRuntime } from './InteractiveMatchRuntimeGuard.js';
 import { GameRuntimeCoordinator } from './runtime/GameRuntimeCoordinator.js';
 import { dispatchGameStateUpdate } from './GameStateUpdateDispatch.js';
-import { isPersistenceSuccess } from './settings/SettingsDomainUtils.js';
+import { persistGameSettings, resolveProfileSettingsSaveFailure } from './settings/SettingsSaveOps.js';
 import {
     applyMobileClassicDocumentState,
     applyMobileClassicSettings,
@@ -245,7 +245,8 @@ export class Game {
         const preferredSettingsProfileName = changed.profile.preferredSettingsProfileName;
         if (preferredSettingsProfileName && this.profileManager.findProfileByName(preferredSettingsProfileName)) {
             this._loadProfile(preferredSettingsProfileName);
-            this._saveSettings();
+            const saveFailure = resolveProfileSettingsSaveFailure(changed.profile, this._saveSettings({ explicit: true }));
+            if (saveFailure) return saveFailure;
         }
         this._showStatusToast(`Spielerprofil wird geladen: ${changed.profile.displayName}`, 1100, 'success');
         globalThis.setTimeout(() => globalThis.location?.reload?.(), 40);
@@ -264,16 +265,15 @@ export class Game {
         return this.settingsManager.loadSettings();
     }
 
-    _saveSettings() {
-        const settingsHandler = this.runtimeCoordinator?.getRuntimeFacade?.()?.settingsHandler;
-        const persistableSettings = typeof settingsHandler?.createPersistableSettingsSnapshot === 'function'
-            ? settingsHandler.createPersistableSettingsSnapshot(this.settings)
-            : this.settings;
-        if (!persistableSettings) return;
-        const persisted = this.settingsManager.saveSettings(persistableSettings);
-        if (isPersistenceSuccess(persisted)) {
-            this._markSettingsDirty(false);
-        }
+    _saveSettings(options = undefined) {
+        return persistGameSettings({
+            explicit: options?.explicit === true,
+            settings: this.settings,
+            settingsHandler: this.runtimeCoordinator?.getRuntimeFacade?.()?.settingsHandler,
+            settingsManager: this.settingsManager,
+            markDirty: (dirty) => this._markSettingsDirty(dirty),
+            showToast: (message, durationMs, tone) => this._showStatusToast(message, durationMs, tone),
+        });
     }
 
     _applySettingsToRuntime(options = undefined) {

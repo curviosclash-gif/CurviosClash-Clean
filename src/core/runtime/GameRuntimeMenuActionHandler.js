@@ -1,4 +1,5 @@
 import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
+import { isPersistenceSuccess } from '../settings/SettingsDomainUtils.js';
 import {
     applyMenuPresetAction,
     saveMenuPresetAction,
@@ -240,8 +241,16 @@ export class GameRuntimeMenuActionHandler {
     }
 
     saveKeys() {
-        this._facade?.game?._saveSettings?.();
-        this._facade?.game?._showStatusToast?.('Einstellungen gespeichert');
+        const game = this._facade?.game;
+        const saveSettings = game?._saveSettings;
+        if (typeof saveSettings !== 'function') {
+            const failed = { success: false, reason: 'settings_save_unavailable' };
+            game?._showStatusToast?.('Einstellungen konnten nicht gespeichert werden.', 2200, 'error');
+            return failed;
+        }
+        const result = saveSettings.call(game, { explicit: true });
+        if (isPersistenceSuccess(result)) game._showStatusToast?.('Einstellungen gespeichert');
+        return result;
     }
 
     showStatusToast(event) {
