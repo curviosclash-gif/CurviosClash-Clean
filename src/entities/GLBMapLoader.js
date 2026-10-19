@@ -8,6 +8,7 @@ import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/Sta
 import { normalizeAllowedGLBUrl, normalizeGLBModelRole, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { computeCollectionPlacement } from './GLBCollectionPlacement.js';
+import { createGLBSharedStaticLoads } from './GLBSharedStaticLoads.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const DEFAULT_GLB_SHADOW_CASTER_BUDGET = 24;
@@ -461,65 +462,16 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
     const placementScale = normalizePositiveNumber(options.placementScale, 1);
     const loadedModels = new Array(models.length);
     const warnings = new Array(models.length);
-    // Decorative libraries often place the same static GLB many times. Decode each URL once per
-    // collection and clone its scene graph for later slots; geometry and materials remain shared,
-    // while transforms and visibility stay instance-local. Animated or physical entries keep the
-    // existing one-load-per-slot path because they own mixers or gameplay collision state.
-    //
-    // Collision bodies share the path: cloning is what makes a forest of a hundred trees affordable,
-    // and a clone's colliders are read off its own world matrix after placement, so each copy
-    // collides where it stands. The cache is keyed by URL *and* placement mode, because placement
-    // renames meshes in the decoded scene - a `_nocol` decoration and a solid body would otherwise
-    // hand each other a scene marked for the wrong one.
-    const reusableStaticLoads = new Map();
+    const sharedStaticLoads = createGLBSharedStaticLoads();
     let nextIndex = 0;
 
-    const loadDescriptor = async (descriptor) => {
-        const load = () => loadGLBMap(descriptor.url, {
-            loader: options.loader,
-            sceneName: `glbModel-${descriptor.id}`,
-            collectColliders: false,
-            animationClock: descriptor.animationClock,
-            modelId: descriptor.id,
-        });
-        const canReuse = (descriptor.collision === false || descriptor.collisionOnly === true)
-            && descriptor.hiddenUntilTriggered !== true
-            && !descriptor.animationClock?.clipName;
-        if (!canReuse) return load();
-
-        const cacheKey = `${descriptor.url}|${descriptor.collision === false ? 'nocol' : 'solid'}`
-            + `|${descriptor.collisionOnly === true ? 'hidden' : 'drawn'}`;
-        let cached = reusableStaticLoads.get(cacheKey);
-        if (!cached) {
-            cached = { promise: load(), claimed: false };
-            reusableStaticLoads.set(cacheKey, cached);
-        }
-        const result = await cached.promise;
-        // A file may contain an unnamed/default clip even when the descriptor names none. Such a
-        // model still needs a private scene and mixer, so only its first slot uses the probe load.
-        if (result.animationMixers.length > 0) {
-            if (!cached.claimed) {
-                cached.claimed = true;
-                return result;
-            }
-            return load();
-        }
-        if (!cached.claimed) {
-            cached.claimed = true;
-            return result;
-        }
-        const scene = result.scene.clone(true);
-        scene.name = `glbModel-${descriptor.id}`;
-        return {
-            ...result,
-            scene,
-            animationMixers: [],
-            animationTracks: [],
-            animatedNodes: new Set(),
-            colliders: [],
-            bounds: result.bounds.clone(),
-        };
-    };
+    const loadDescriptor = (descriptor) => sharedStaticLoads.acquire(descriptor, () => loadGLBMap(descriptor.url, {
+        loader: options.loader,
+        sceneName: `glbModel-${descriptor.id}`,
+        collectColliders: false,
+        animationClock: descriptor.animationClock,
+        modelId: descriptor.id,
+    }));
 
     // A decorative prop may fail on its own, so a file that never finishes must not hold the map;
     // required worlds keep waiting. A prop arriving after its limit is released, not leaked.
@@ -532,10 +484,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
             timer = setTimeout(() => reject(new Error(`exceeded its ${propTimeoutMs} ms time limit`)), propTimeoutMs);
         });
         return Promise.race([pending, limit]).finally(() => clearTimeout(timer)).catch((error) => {
-            pending.then((late) => {
-                for (const mixer of late.animationMixers) mixer.stopAllAction();
-                disposeObject3DResources(late.scene);
-            }, () => {});
+            pending.then(sharedStaticLoads.release, () => {});
             throw error;
         });
     };
