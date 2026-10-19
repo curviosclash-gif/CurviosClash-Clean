@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { isWormHuntObjectiveUnit } from '../../shared/contracts/ArcadeObjectiveTargetContract.js';
 import { isMapUnitCombatActive, MAP_UNIT_LIMITS, normalizeMapUnits, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
 import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import {
@@ -152,6 +153,7 @@ export class MapUnitSystem {
             id: definition.id,
             kind: definition.kind,
             definition,
+            playerObjective: isWormHuntObjectiveUnit(this.entityManager?.runtimeConfig?.arcade, definition),
             scale,
             path: definition.path.map((point) => point.map((value) => value * scale)),
             speed: definition.speed * scale,
@@ -499,9 +501,7 @@ export class MapUnitSystem {
         }
     }
 
-    serializeNetworkState() {
-        return serializeMapUnits(this.units);
-    }
+    serializeNetworkState() { return serializeMapUnits(this.units); }
 
     applyNetworkState(entries) {
         applyMapUnitsNetworkState(this, entries, (unit) => {

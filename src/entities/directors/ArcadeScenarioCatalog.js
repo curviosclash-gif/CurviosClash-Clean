@@ -3,17 +3,24 @@ import { BLOOM_CORE_FINAL_OPEN_SECONDS } from '../../shared/contracts/BloomCoreT
 import { STANDARD_GIANT_WORM } from '../../shared/contracts/StandardGiantWormContract.js';
 
 const WORM_HUNT_WORM_COUNT = 100;
+const WORM_HUNT_POSITIONS = [];
+// World units: spread the full-sized bodies over the arena and leave its pillar lanes clear.
+for (let row = 0; row < 11; row++) {
+    for (let column = 0; column < 11; column++) {
+        const x = -100 + column * 20, z = -100 + row * 20;
+        if (x % 60 === 0 && z % 60 === 0) continue;
+        WORM_HUNT_POSITIONS.push([x, z]);
+    }
+}
 
 const WORM_HUNT_WORMS = Array.from({ length: WORM_HUNT_WORM_COUNT }, (_, index) => {
-    const column = index % 10;
-    const row = Math.floor(index / 10);
-    const x = -31.5 + column * 7;
-    const z = -31.5 + row * 7;
+    const [x, z] = WORM_HUNT_POSITIONS[Math.floor(index * WORM_HUNT_POSITIONS.length / WORM_HUNT_WORM_COUNT)];
     return {
         ...STANDARD_GIANT_WORM,
         id: `worm_hunt_creature_${index + 1}`,
         path: [[x, 0, z], [x + 3, 0, z]],
         maxHp: STANDARD_GIANT_WORM.maxHp / WORM_HUNT_WORM_COUNT,
+        respawnSeconds: 0,
     };
 });
 

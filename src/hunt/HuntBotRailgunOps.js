@@ -2,6 +2,7 @@ import { normalizePickupType } from '../shared/contracts/PickupRegistryContract.
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { HUNT_CONFIG } from './HuntConfig.js';
 import { isMapStructureClosedToBots } from '../shared/contracts/MapDestructibleBotTargetContract.js';
+import { isProtectedArcadeObjectiveTarget } from '../shared/contracts/ArcadeObjectiveTargetContract.js';
 
 // A bot releases once the shot is worth 70 % of a full one and a target sits on its line.
 const RELEASE_CHARGE_SHARE = 0.7;
@@ -15,7 +16,8 @@ function railgunConfig(player) {
 }
 
 function isEnemyTarget(player, target) {
-    if (!target?.position || target === player || isMapStructureClosedToBots(target)) return false;
+    if (!target?.position || target === player || isMapStructureClosedToBots(target)
+        || isProtectedArcadeObjectiveTarget(target, player)) return false;
     if ('alive' in target && target.alive !== true) return false;
     if ('hp' in target && !(Number(target.hp) > 0)) return false;
     if ((Number(target.spawnProtectionTimer) || 0) > 0) return false;

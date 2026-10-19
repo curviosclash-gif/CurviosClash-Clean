@@ -229,7 +229,7 @@ test('a scenario sector flies with hunt weapons and its own bot count', () => {
     assert.ok(profile.mapUnits.every((unit) => unit.kind === 'creature' && unit.maxHp === 6));
     assert.ok(profile.mapUnits.every((unit) => unit.hitboxRadius === standardWorm.hitboxRadius
         && unit.speed === standardWorm.speed
-        && unit.respawnSeconds === standardWorm.respawnSeconds
+        && unit.respawnSeconds === 0
         && unit.loop === standardWorm.loop));
     assert.deepEqual(profile.mapUnits[0].attack, standardWorm.attack);
     assert.deepEqual(profile.mapUnits[0].allowedModes, standardWorm.allowedModes);

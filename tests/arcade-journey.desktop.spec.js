@@ -385,12 +385,15 @@ test('Wurmjagd: destroying all 100 creatures settles the mission and retry creat
     await startWormJourney(page);
     await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', stageId: 'worm_hunt', sectorCount: 1,
         scenarioId: 'worm_hunt', objective: 'active', creatures: 100 });
+    // The opening must survive real enemy bot input; killing bots here used to hide the wipe.
+    await page.waitForFunction(() => window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getStateSnapshot().gameplayTimeMs >= 2000);
+    expect(await wormState(page)).toMatchObject({ state: 'PLAYING', objective: 'active', creatures: 100 });
+    expect(await page.evaluate(() => window.GAME_INSTANCE.entityManager._mapUnitSystem.units.every(unit => unit.hp === 6 && unit.root.visible))).toBe(true);
     // Controlled clock/damage fixture: exercise the real unit/objective/result chain, not a flight proof.
     await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const human = game.entityManager.humanPlayers[0];
         human.spawnProtectionTimer = 5;
-        for (const bot of game.entityManager.players.filter(player => player.isBot)) { bot.alive = false; bot.hp = 0; }
         game.runtimeFacade.arcadeRunRuntime.tickGameplay(61);
     });
     await expect.poll(() => wormState(page)).toMatchObject({ state: 'PLAYING', objective: 'active', creatures: 100 });

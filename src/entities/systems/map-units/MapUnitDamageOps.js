@@ -4,6 +4,7 @@ import { spawnMapUnitWreck } from './MapUnitWreckOps.js';
 import { areTeammates } from '../../../shared/contracts/TeamCombatContract.js';
 import { ESCORT_PHASES, ESCORT_RECOVERY_DEFAULTS } from '../../../shared/contracts/EscortObjectiveContract.js';
 import { stopHydra } from './MapUnitHydraOps.js';
+import { isProtectedArcadeObjectiveTarget } from '../../../shared/contracts/ArcadeObjectiveTargetContract.js';
 
 /**
  * Hit points, destruction and return of map units (E19, E34).
@@ -32,6 +33,7 @@ function emptyResult(unit) {
 
 export function applyMapUnitDamage(system, unit, amount, options = {}) {
     if (!unit?.alive || system.networkReplica) return emptyResult(unit);
+    if (isProtectedArcadeObjectiveTarget(unit, options.sourcePlayer)) return emptyResult(unit);
     const owner = system.entityManager;
     if (owner?.gameModeStrategy?.modeType === 'ARCADE'
         && owner?.runtimeConfig?.arcade?.scenarioId === 'vault_breaker'
@@ -144,7 +146,7 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
     );
     unit.deaths = (Number(unit.deaths) || 0) + 1;
     system.setBossRoomClock?.(unit, false);
-    if (!unit.hydra) applyBlast(system, unit, sourcePlayer);
+    if (!unit.hydra && unit.playerObjective !== true) applyBlast(system, unit, sourcePlayer);
     if (unit.escortTank !== true) rewardMapUnitDestruction(system, unit, sourcePlayer);
 }
 

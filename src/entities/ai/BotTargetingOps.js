@@ -5,6 +5,7 @@
 import { PERCEPTION_THRESHOLDS } from './perception/EnvironmentSamplingOps.js';
 import { clamp01 } from '../../shared/utils/MathOps.js';
 import { areTeammates, canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
+import { isProtectedArcadeObjectiveTarget } from '../../shared/contracts/ArcadeObjectiveTargetContract.js';
 
 const TARGET_RETAIN_BONUS = 0.08;
 const TARGET_SWITCH_MARGIN = 0.015;
@@ -34,7 +35,8 @@ export function isTargetVisibleToPlayer(player, target) {
  * protects and not on its own team. The list is MapUnitSystem's reused target array.
  */
 function isHuntableMapUnit(player, unit) {
-    if (!unit?.position || unit.alive === false || !(Number(unit.hp) > 0) || unit.escortTank === true) return false;
+    if (!unit?.position || unit.alive === false || !(Number(unit.hp) > 0) || unit.escortTank === true
+        || isProtectedArcadeObjectiveTarget(unit, player)) return false;
     return !unit.teamId || canTargetEnemy(player, unit);
 }
 

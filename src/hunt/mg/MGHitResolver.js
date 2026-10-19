@@ -14,6 +14,7 @@ import { clamp } from '../../shared/utils/MathOps.js';
 import { applyFightHumanAimAssist } from '../FightAimAssist.js';
 import { areTeammates, TEAM_WEAPON_KINDS } from '../../shared/contracts/TeamCombatContract.js';
 import { isArcadeCompanionTeamPair } from '../../shared/contracts/ArcadeCompanionContract.js';
+import { isProtectedArcadeObjectiveTarget } from '../../shared/contracts/ArcadeObjectiveTargetContract.js';
 import {
     isMapStructureClosedToBots,
     resolveBotStructureFocusRatio,
@@ -25,6 +26,7 @@ function canHitTargetable(target, attacker) {
         && target.alive !== false
         && target.ownerPlayer !== attacker
         && target.ownerIndex !== attacker?.index
+        && !isProtectedArcadeObjectiveTarget(target, attacker)
         && !(target.teamObjective === true && areTeammates(attacker, target))
         && !!target.position;
 }

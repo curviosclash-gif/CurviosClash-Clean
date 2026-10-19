@@ -9,7 +9,7 @@ import { isHuntParcoursConfig } from '../shared/contracts/HuntParcoursContract.j
 
 // One line per entry of ArcadeScenarioCatalog; a scenario without one would read "Elimination".
 const ARCADE_SCENARIO_OBJECTIVES = Object.freeze({
-    worm_hunt: 'Wurmjagd · erlege die Kreatur, bevor die Zeit abläuft',
+    worm_hunt: 'Wurmjagd · erlege alle 100 Würmer, bevor die Zeit abläuft',
     storm_flood: 'Sturmflut · halte durch, bis die Zeit abläuft',
     spiessrutenlauf: 'Spießrutenlauf · flieg die Route durch das Geschützfeuer',
     rift_precision_run: 'Rift-Präzision · durchfliege alle Checkpoints bis zum Ziel',

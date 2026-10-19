@@ -2,6 +2,7 @@ import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContrac
 import { HUNT_CONFIG } from './HuntConfig.js';
 import { canTargetEnemy } from '../shared/contracts/TeamCombatContract.js';
 import { isMapStructureClosedToBots } from '../shared/contracts/MapDestructibleBotTargetContract.js';
+import { isProtectedArcadeObjectiveTarget } from '../shared/contracts/ArcadeObjectiveTargetContract.js';
 
 /**
  * Bots open fire on tanks and destructible turrets (S5.11). A bot does not hunt them: it keeps
@@ -29,7 +30,7 @@ export function applyBotMapUnitFire(policy, input, player, runtimeContext) {
     const toTarget = policy._tmpFlameOffset;
     for (const target of targets) {
         if (!target?.position || !(Number(target.hp) > 0) || target.alive === false) continue;
-        if (isMapStructureClosedToBots(target)) continue;
+        if (isMapStructureClosedToBots(target) || isProtectedArcadeObjectiveTarget(target, player)) continue;
         if (target.teamId && !canTargetEnemy(player, target)) continue;
         if (target.ownerPlayer === player || (Number.isInteger(player.index) && target.ownerIndex === player.index)) continue;
         toTarget.subVectors(target.position, player.position);
