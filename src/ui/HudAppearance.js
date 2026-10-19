@@ -143,14 +143,22 @@ export function applyRuntimeHudAppearance(hudElement, appearance) {
 // A resized window changes how large the HUD may be drawn, so the last appearance is re-applied.
 let hudFitWatch = null;
 function watchViewportForHudFit(view, hudElement, appearance) {
-    if (!view || typeof view.addEventListener !== 'function') return;
-    if (!hudFitWatch || hudFitWatch.view !== view) {
-        hudFitWatch = { view, hudElement, appearance };
-        view.addEventListener('resize', () => {
-            applyRuntimeHudAppearance(hudFitWatch.hudElement, hudFitWatch.appearance);
-        });
+    if (hudFitWatch?.view !== view) {
+        const previousWatch = hudFitWatch;
+        hudFitWatch = null;
+        previousWatch?.view?.removeEventListener?.('resize', previousWatch.onResize);
+
+        if (!view || typeof view.addEventListener !== 'function') return;
+        const watch = { view, hudElement, appearance, onResize: null };
+        watch.onResize = () => {
+            if (hudFitWatch !== watch) return;
+            applyRuntimeHudAppearance(watch.hudElement, watch.appearance);
+        };
+        hudFitWatch = watch;
+        view.addEventListener('resize', watch.onResize);
         return;
     }
+    if (!view || typeof view.addEventListener !== 'function') return;
     hudFitWatch.hudElement = hudElement;
     hudFitWatch.appearance = appearance;
 }
