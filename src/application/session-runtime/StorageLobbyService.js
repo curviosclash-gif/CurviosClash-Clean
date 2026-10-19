@@ -95,10 +95,6 @@ export class StorageLobbyService {
         return this._sessionStateProjection.syncSnapshot(snapshot, options);
     }
 
-    _persistSnapshot(snapshot, reason, options = {}) {
-        return this._transportRuntime._persistSnapshot(snapshot, reason, options);
-    }
-
     _updateActiveSnapshot(mutator, reason, options = {}) {
         return this._transportRuntime.updateActiveSnapshot(mutator, reason, options);
     }

@@ -13,6 +13,7 @@ import {
 } from './StorageLobbyPresence.js';
 import {
     acquireStorageLobbySnapshotLock,
+    isStorageLobbyWriteVisible,
     persistStorageLobbySnapshotWithCas,
     releaseStorageLobbySnapshotLock,
     SNAPSHOT_CAS_MAX_RETRIES,
@@ -28,6 +29,7 @@ import {
     normalizeString,
     persistSnapshotToStorage,
     readSnapshotFromStorage,
+    readSnapshotRecordFromStorage,
     toTimestamp,
 } from './StorageLobbyServiceSupport.js';
 import { addPageVisibilityListener, removePageVisibilityListener } from '../../shared/runtime/PageVisibility.js';
@@ -111,7 +113,12 @@ export class StorageLobbyTransportRuntime {
         }
     }
 
-    _persistSnapshot(snapshot, reason, options = {}) {
+    _readSnapshotRecord(lobbyCode) {
+        return readSnapshotRecordFromStorage(this._storage, lobbyCode, this.now());
+    }
+
+    // Only writes. Projection and announcement wait for the CAS readback (_commitSnapshot).
+    _writeSnapshot(snapshot, options = {}) {
         const expectedRevision = Number(options?.expectedRevision);
         const baseRevision = Number.isFinite(expectedRevision)
             ? Math.max(0, Math.floor(expectedRevision))
@@ -128,24 +135,34 @@ export class StorageLobbyTransportRuntime {
                 try {
                     this._storage?.removeItem?.(previousStorageKey);
                 } catch {
-                    // Ignore localStorage cleanup failures.
+                    // The CAS readback reports the delete as failed.
                 }
             }
         } else {
             persistSnapshotToStorage(this._storage, nextSnapshot);
         }
-        this._onSnapshot(nextSnapshot, options);
-        if (nextSnapshot?.lobbyCode) {
-            this._announceSnapshotChange(nextSnapshot.lobbyCode, reason, nextSnapshot.revision);
-        } else if (options.previousLobbyCode) {
-            this._announceSnapshotChange(options.previousLobbyCode, reason, 0);
-        }
         return nextSnapshot;
     }
 
+    _commitSnapshot(snapshot, reason, lobbyCode, options = {}) {
+        this._onSnapshot(snapshot, options);
+        if (snapshot?.lobbyCode) {
+            this._announceSnapshotChange(snapshot.lobbyCode, reason, snapshot.revision);
+        } else {
+            this._announceSnapshotChange(lobbyCode, reason, 0);
+        }
+    }
+
+    /**
+     * Returns the confirmed snapshot (null for a confirmed delete), the current snapshot for
+     * SNAPSHOT_NOOP, and null once every attempt failed; only a confirmed write is announced.
+     */
     updateActiveSnapshot(mutator, reason, options = {}) {
         const activeLobbyCode = normalizeLobbyCode(options.lobbyCode || this._getActiveLobbyCode(), '');
         if (!activeLobbyCode) return null;
+        const syncOptions = { preserveLobbyCode: options.preserveLobbyCode === true };
+        // A write whose readback threw may have landed; the next successful read settles it.
+        let unconfirmedWrite = null;
 
         for (let attempt = 0; attempt < SNAPSHOT_CAS_MAX_RETRIES; attempt += 1) {
             const lockLease = acquireStorageLobbySnapshotLock({
@@ -160,37 +177,34 @@ export class StorageLobbyTransportRuntime {
                 createLobbyStorageKey,
             });
             if (!lockLease) continue;
+            let persistResult = null;
             try {
-                const currentSnapshot = this.getSnapshot(activeLobbyCode);
-                const baseRevision = Math.max(0, Math.floor(Number(currentSnapshot?.revision) || 0));
-                const nextSnapshot = mutator(currentSnapshot ? deepClone(currentSnapshot) : null, {
-                    attempt,
-                    baseRevision,
-                });
-                if (nextSnapshot === SNAPSHOT_NOOP) {
-                    this._onSnapshot(currentSnapshot, {
-                        preserveLobbyCode: options.preserveLobbyCode === true,
+                const currentRecord = this._readSnapshotRecord(activeLobbyCode);
+                // A failed read is not an empty lobby; never build a mutation on top of it.
+                if (!currentRecord.ok) continue;
+                if (unconfirmedWrite && isStorageLobbyWriteVisible(currentRecord, unconfirmedWrite.snapshot)) {
+                    persistResult = { ok: true, snapshot: unconfirmedWrite.snapshot };
+                } else {
+                    unconfirmedWrite = null;
+                    const currentSnapshot = currentRecord.snapshot;
+                    const baseRevision = Math.max(0, Math.floor(Number(currentSnapshot?.revision) || 0));
+                    const nextSnapshot = mutator(currentSnapshot ? deepClone(currentSnapshot) : null, {
+                        attempt,
+                        baseRevision,
                     });
-                    return currentSnapshot;
-                }
-                const persistResult = persistStorageLobbySnapshotWithCas({
-                    normalizeLobbyCode,
-                    lobbyCode: activeLobbyCode,
-                    snapshot: nextSnapshot,
-                    expectedRevision: baseRevision,
-                    getSnapshot: (lobbyCode) => this.getSnapshot(lobbyCode),
-                    persistSnapshot: (persistedSnapshot, persistOptions = {}) => this._persistSnapshot(
-                        persistedSnapshot,
-                        reason,
-                        {
-                            ...persistOptions,
-                            previousLobbyCode: activeLobbyCode,
-                        }
-                    ),
-                    preserveLobbyCode: options.preserveLobbyCode === true,
-                });
-                if (persistResult.ok) {
-                    return persistResult.snapshot;
+                    if (nextSnapshot === SNAPSHOT_NOOP) {
+                        this._onSnapshot(currentSnapshot, syncOptions);
+                        return currentSnapshot;
+                    }
+                    persistResult = persistStorageLobbySnapshotWithCas({
+                        normalizeLobbyCode,
+                        lobbyCode: activeLobbyCode,
+                        snapshot: nextSnapshot,
+                        expectedRevision: baseRevision,
+                        readSnapshotRecord: (lobbyCode) => this._readSnapshotRecord(lobbyCode),
+                        writeSnapshot: (writtenSnapshot, writeOptions) => this._writeSnapshot(writtenSnapshot, writeOptions),
+                    });
+                    if (persistResult.unconfirmed) unconfirmedWrite = { snapshot: persistResult.snapshot };
                 }
             } finally {
                 releaseStorageLobbySnapshotLock({
@@ -199,13 +213,16 @@ export class StorageLobbyTransportRuntime {
                     normalizeString,
                 });
             }
+            if (persistResult?.ok) {
+                this._commitSnapshot(persistResult.snapshot, reason, activeLobbyCode, syncOptions);
+                return persistResult.snapshot;
+            }
         }
 
-        const latestSnapshot = this.getSnapshot(activeLobbyCode);
-        this._onSnapshot(latestSnapshot, {
-            preserveLobbyCode: options.preserveLobbyCode === true,
-        });
-        return latestSnapshot;
+        // Project what is stored now (a read, not a claim of success), unless even the read failed.
+        const latestRecord = this._readSnapshotRecord(activeLobbyCode);
+        if (latestRecord.ok) this._onSnapshot(latestRecord.snapshot, syncOptions);
+        return null;
     }
 
     startHeartbeat() {

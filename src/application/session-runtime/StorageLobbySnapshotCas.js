@@ -1,3 +1,5 @@
+import { areCanonicalJsonValuesEqual } from '../../shared/utils/CanonicalJson.js';
+
 export const SNAPSHOT_CAS_MAX_RETRIES = 6;
 
 const SNAPSHOT_LOCK_LEASE_MS = 1500;
@@ -77,39 +79,83 @@ export function releaseStorageLobbySnapshotLock(options = {}) {
     }
 }
 
+function toJsonValue(value) {
+    if (value === undefined) return null;
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch {
+        return undefined;
+    }
+}
+
+/** Compares two values the way they survive a localStorage round trip (key order and undefined ignored). */
+export function areStorageLobbyJsonValuesEqual(left, right) {
+    const leftJson = toJsonValue(left);
+    const rightJson = toJsonValue(right);
+    if (leftJson === undefined || rightJson === undefined) return false;
+    return areCanonicalJsonValuesEqual(leftJson, rightJson);
+}
+
+function readRevision(snapshot) {
+    return Math.max(0, Math.floor(Number(snapshot?.revision) || 0));
+}
+
+function isConfirmedWrite(readback, writtenSnapshot, expectedNextRevision) {
+    if (!readback.raw || readRevision(writtenSnapshot) !== expectedNextRevision) return false;
+    let storedValue = null;
+    try {
+        storedValue = JSON.parse(readback.raw);
+    } catch {
+        return false;
+    }
+    return readRevision(storedValue) === expectedNextRevision
+        && areStorageLobbyJsonValuesEqual(storedValue, writtenSnapshot);
+}
+
+/** True when a successful read shows exactly `writtenSnapshot` (or a missing key for a delete). */
+export function isStorageLobbyWriteVisible(record, writtenSnapshot) {
+    if (!record?.ok) return false;
+    if (!writtenSnapshot) return record.raw === null;
+    return isConfirmedWrite(record, writtenSnapshot, readRevision(writtenSnapshot));
+}
+
+/**
+ * Writes under the lobby lock and reports `ok` only when the readback is exactly this write: the
+ * expected next revision with identical content, or a missing key for a delete. localStorage has no
+ * cross-tab transaction; the lease plus this readback only catch lost writes and foreign writes this
+ * tab can already see. A thrown readback leaves the outcome open (`unconfirmed`).
+ */
 export function persistStorageLobbySnapshotWithCas(options = {}) {
     const lobbyCode = options.normalizeLobbyCode(options.lobbyCode || options.snapshot?.lobbyCode || '', '');
-    if (!lobbyCode) return { ok: false, conflict: false, snapshot: null };
+    const failed = { ok: false, conflict: false, snapshot: null };
+    if (!lobbyCode) return failed;
 
     const expectedRevision = Math.max(0, Math.floor(Number(options.expectedRevision) || 0));
-    const latestSnapshot = options.getSnapshot(lobbyCode);
-    const latestRevision = Math.max(0, Math.floor(Number(latestSnapshot?.revision) || 0));
-    if (latestRevision !== expectedRevision) {
-        return { ok: false, conflict: true, snapshot: latestSnapshot };
+    const latest = options.readSnapshotRecord(lobbyCode);
+    if (!latest?.ok) return failed;
+    if (readRevision(latest.snapshot) !== expectedRevision) {
+        return { ok: false, conflict: true, snapshot: latest.snapshot };
     }
 
-    const persistedSnapshot = options.persistSnapshot(options.snapshot, {
-        previousLobbyCode: lobbyCode,
-        preserveLobbyCode: options.preserveLobbyCode === true,
-        expectedRevision,
-    });
-
-    const readbackSnapshot = options.getSnapshot(lobbyCode);
-    if (!options.snapshot) {
-        if (readbackSnapshot) {
-            return { ok: false, conflict: true, snapshot: readbackSnapshot };
-        }
-        return { ok: true, conflict: false, snapshot: null };
+    let writtenSnapshot = null;
+    try {
+        writtenSnapshot = options.writeSnapshot(options.snapshot, {
+            previousLobbyCode: lobbyCode,
+            expectedRevision,
+        });
+    } catch {
+        return failed;
     }
+    if (writtenSnapshot && readRevision(writtenSnapshot) !== expectedRevision + 1) return failed;
 
-    const expectedNextRevision = expectedRevision + 1;
-    const readbackRevision = Math.max(0, Math.floor(Number(readbackSnapshot?.revision) || 0));
-    if (readbackRevision < expectedNextRevision) {
-        return { ok: false, conflict: true, snapshot: readbackSnapshot };
+    const readback = options.readSnapshotRecord(lobbyCode);
+    if (!readback?.ok) return { ok: false, conflict: false, unconfirmed: true, snapshot: writtenSnapshot };
+    if (!isStorageLobbyWriteVisible(readback, writtenSnapshot)) {
+        return { ok: false, conflict: true, snapshot: readback.snapshot };
     }
     return {
         ok: true,
         conflict: false,
-        snapshot: persistedSnapshot,
+        snapshot: writtenSnapshot,
     };
 }
