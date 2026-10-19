@@ -33,13 +33,27 @@ test('Arcade strategy uses its injected run clock for damage timestamps', () => 
 
     nowMs = 18_000;
     strategy.setActiveModifier('heat_stress');
-    player.hp = 1;
+    player.hp = 100;
     strategy.updateHealthRegen(player, 1);
     assert.equal(player.lastDamageTimestamp, 18);
 });
 
+test('Heat Stress outside sudden death wears the hull down to a quarter but never kills on its own', () => {
+    const strategy = new ArcadeModeStrategy({ runType: 'gauntlet', nowMs: () => 30_000 });
+    strategy.setActiveModifier('heat_stress');
+    const player = { index: 0, alive: true, hp: 100, maxHp: 100, hasShield: false, shieldHP: 0, position: {} };
+    // A 55 s survive window drains 137.5 HP without the floor: more than most hulls hold.
+    for (let tick = 0; tick < 55; tick += 1) strategy.updateHealthRegen(player, 1);
+    assert.equal(player.hp, 25, 'the drain stops at 25 % of max HP');
+    assert.equal(player.alive, true);
+    strategy.updateHealthRegen(player, 1);
+    assert.equal(player.hp, 25, 'at the floor heat neither drains further nor lets the base regen heal');
+});
+
 test('Arcade modifier drain uses the entity damage lifecycle and eliminates exactly once', () => {
     const strategy = new ArcadeModeStrategy({ nowMs: () => 21_000 });
+    // Only sudden death keeps Heat Stress lethal; outside it the drain stops at a floor.
+    strategy.enterSuddenDeath();
     strategy.setActiveModifier('heat_stress');
     const player = {
         index: 0,
