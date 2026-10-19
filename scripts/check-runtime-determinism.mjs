@@ -87,7 +87,7 @@ export const SOURCE_EXCEPTIONS = {
         exception('        const now = Date.now();', 'Date.now', 1, 'real data-channel timeout timing'),
     ],
     'src/network/LANSignalingClient.js': [
-        exception('export async function waitForHostOffer({ signalingUrl, playerId, token, now = () => Date.now() }) {', 'Date.now', 1, 'injectable signaling timeout clock with wall-clock default'),
+        exception('export async function waitForHostOffer({ signalingUrl, playerId, token, now = () => Date.now(), signal = null }) {', 'Date.now', 1, 'injectable signaling timeout clock with wall-clock default'),
     ],
     'src/entities/ai/inference/WebSocketInferenceBridge.js': [
         exception('        this._now = typeof options.now === \'function\' ? options.now : () => Date.now();', 'Date.now', 1, 'injectable trainer transport clock default'),

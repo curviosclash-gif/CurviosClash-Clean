@@ -57,6 +57,9 @@ function resolveIceServers(custom) {
     return servers;
 }
 
+/** Error code of handleOffer() when a newer offer replaced the connection mid-negotiation. */
+export const PEER_CONNECTION_SUPERSEDED = 'peer_connection_superseded';
+
 /** Heartbeat interval and timeout for disconnect detection (C.1) */
 const HEARTBEAT_INTERVAL = 2000;
 const HEARTBEAT_TIMEOUT = 5000;
@@ -94,23 +97,42 @@ export class PeerConnectionManager {
         return pc.localDescription;
     }
 
-    async handleOffer(peerId, offer) {
-        const pc = this._createPeerConnection(peerId);
+    /**
+     * `signal` belongs to the client handshake that requested this connection:
+     * once it aborts, the connection stops announcing ICE candidates and channels.
+     */
+    async handleOffer(peerId, offer, { signal = null } = {}) {
+        const pc = this._createPeerConnection(peerId, signal);
 
         pc.ondatachannel = (event) => {
-            if (this._dataChannelManager) {
-                this._dataChannelManager.handleIncomingChannel(peerId, event.channel);
-            }
+            if (!this._isLivePeerConnection(peerId, pc, signal)) return;
+            this._dataChannelManager?.handleIncomingChannel(peerId, event.channel);
         };
 
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        // The buffered candidates may already belong to a replacement connection.
+        this._assertCurrentPeerConnection(peerId, pc);
         await this._flushPendingRemoteCandidates(peerId, pc);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
         await this._waitForIceGathering(pc);
 
+        // A replacement connection took over while this one negotiated: its
+        // description would answer an offer nobody is waiting for any more.
+        this._assertCurrentPeerConnection(peerId, pc);
         return pc.localDescription;
+    }
+
+    _isLivePeerConnection(peerId, pc, signal = null) {
+        return this._peers.get(peerId) === pc && !signal?.aborted;
+    }
+
+    _assertCurrentPeerConnection(peerId, pc) {
+        if (this._peers.get(peerId) === pc) return;
+        const error = new Error(`Peer connection for ${peerId} was superseded`);
+        error.code = PEER_CONNECTION_SUPERSEDED;
+        throw error;
     }
 
     async handleAnswer(peerId, answer) {
@@ -149,23 +171,28 @@ export class PeerConnectionManager {
         }
     }
 
-    _createPeerConnection(peerId) {
-        if (this._peers.has(peerId)) {
-            this._peers.get(peerId).close();
+    _createPeerConnection(peerId, signal = null) {
+        const previous = this._peers.get(peerId);
+        if (previous) {
+            // Revoke ownership before closing, so late events of the replaced
+            // connection and its channels cannot report the new one as gone.
+            this._peers.delete(peerId);
             this._connectedPeers.delete(peerId);
             this._stopHeartbeat(peerId);
+            this._dataChannelManager?.closeChannels(peerId);
+            previous.close();
         }
 
         const pc = new RTCPeerConnection({ iceServers: this.iceServers });
         this._peers.set(peerId, pc);
 
         pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                this._emit('iceCandidate', { peerId, candidate: event.candidate });
-            }
+            if (!event.candidate || !this._isLivePeerConnection(peerId, pc, signal)) return;
+            this._emit('iceCandidate', { peerId, candidate: event.candidate, signal });
         };
 
         pc.onconnectionstatechange = () => {
+            if (this._peers.get(peerId) !== pc) return;
             const state = pc.connectionState;
             this._emit('connectionStateChange', { peerId, state });
             if (state === 'connected') {

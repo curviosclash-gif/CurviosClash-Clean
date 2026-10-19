@@ -9,6 +9,7 @@ import {
     createInvalidSignalingPayloadError,
     toErrorPayload,
 } from './OnlineSignalingSupport.js';
+import { PEER_CONNECTION_SUPERSEDED } from './PeerConnectionManager.js';
 
 function markConnected(adapter, msg, { hostPeerIdFallback = null } = {}) {
     adapter._lobbyCode = msg.lobbyCode || msg?.sessionState?.lobbyCode || adapter._lobbyCode;
@@ -107,7 +108,14 @@ export async function routeOnlineSessionSignalingMessage(adapter, msg, { connect
     case SIGNALING_COMMAND_TYPES.OFFER:
         if (!adapter.isHost && (!adapter._hostPeerId || adapter._hostPeerId === msg.fromPeerId)) {
             adapter._hostPeerId = msg.fromPeerId;
-            const answer = await adapter._peerManager.handleOffer(msg.fromPeerId, msg.offer);
+            let answer;
+            try {
+                answer = await adapter._peerManager.handleOffer(msg.fromPeerId, msg.offer);
+            } catch (error) {
+                // A newer offer replaced this connection; that one sends the answer.
+                if (error?.code === PEER_CONNECTION_SUPERSEDED) break;
+                throw error;
+            }
             adapter._sendSignaling(createSignalingEnvelope(
                 SIGNALING_COMMAND_TYPES.ANSWER,
                 { targetPeerId: msg.fromPeerId, answer }
