@@ -698,7 +698,9 @@ test('a rejected match start restores the settings immediately', async () => {
     const rejected = await createFourPlayerModule();
     rejected.state.rejectStart = true;
     rejected.state.startResult = false;
+    rejected.settings.localSettings.modePath = 'arcade';
     rejected.module.startMatch();
+    assert.equal(rejected.settings.localSettings.modePath, 'arcade', 'the menu path is not left behind');
     assert.equal(rejected.state.startedMatches, 1, 'the start was attempted');
     // Kein update() dazwischen: ein abgewiesener Start darf nichts liegen lassen,
     // sonst schreibt der Autosave die Vier-Spieler-Werte auf die Platte.
@@ -725,4 +727,21 @@ test('a rejected match start restores the settings immediately', async () => {
     const accepted = await createFourPlayerModule();
     accepted.module.startMatch();
     assert.equal(accepted.settings.gameplay.planarMode, true, 'an accepted start keeps the match values');
+});
+
+test('a four player match gives back the menu path it borrowed', async () => {
+    const { module, settings, state } = await createFourPlayerModule();
+    settings.localSettings.modePath = 'arcade';
+
+    module.startMatch();
+    assert.equal(settings.localSettings.modePath, 'fight', 'the hunt match runs on the fight path');
+    module.update();
+
+    state.gameStateId = 'MENU';
+    state.runtimeActive = false;
+    module.update();
+
+    assert.equal(settings.localSettings.modePath, 'arcade', 'the player returns to the Arcade path they came from');
+    // The variant is the player's own pick in the four player menu, not borrowed by the match.
+    assert.equal(settings.localSettings.splitScreenVariant, SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR);
 });
