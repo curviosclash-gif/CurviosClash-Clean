@@ -18,6 +18,8 @@ const MAX_FILE_MB = 8;
 const MAX_MAP_MB = 40;
 const ROOT = new URL('../', import.meta.url);
 const KNOWN_PATH = new URL('./fixtures/map-glb-budget-known.json', import.meta.url);
+// The known list is a ratchet: lower this with the list, raise it only on an explicit instruction.
+const KNOWN_COUNT_CEILING = 3;
 const GLB_PATTERN = /\.glb(\?.*)?$/i;
 
 const roundUp = (mb) => Math.ceil(mb * 10) / 10;
@@ -87,6 +89,10 @@ test('known list is well formed and its counts match its entries', () => {
     const known = JSON.parse(readFileSync(KNOWN_PATH, 'utf8'));
     assert.ok(Array.isArray(known.files) && Array.isArray(known.maps), 'files and maps are lists');
     assert.equal(known.count, known.files.length + known.maps.length, 'count equals the number of entries');
+    assert.ok(
+        known.count <= KNOWN_COUNT_CEILING,
+        `the known list grew to ${known.count} against the ratchet ${KNOWN_COUNT_CEILING}; shrink the GLB instead`,
+    );
     for (const entry of known.files) {
         assert.ok(existsSync(new URL(entry.path, ROOT)), `${entry.path} exists`);
         assert.ok(entry.mb > MAX_FILE_MB && entry.reason, `${entry.path} states a size over the file budget and a reason`);
