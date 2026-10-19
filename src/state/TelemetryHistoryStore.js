@@ -29,6 +29,7 @@ function openDb() {
             return;
         }
         const request = indexedDB.open(DB_NAME, DB_VERSION);
+        let settled = false;
         request.onupgradeneeded = (event) => {
             const db = /** @type {IDBOpenDBRequest} */ (event.target).result;
             if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -36,9 +37,24 @@ function openDb() {
                 store.createIndex('at', 'at', { unique: false });
             }
         };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error || new Error('indexeddb-open-failed'));
-        request.onblocked = () => reject(new Error('indexeddb-open-blocked'));
+        request.onsuccess = () => {
+            if (settled) {
+                request.result.close();
+                return;
+            }
+            settled = true;
+            resolve(request.result);
+        };
+        request.onerror = () => {
+            if (settled) return;
+            settled = true;
+            reject(request.error || new Error('indexeddb-open-failed'));
+        };
+        request.onblocked = () => {
+            if (settled) return;
+            settled = true;
+            reject(new Error('indexeddb-open-blocked'));
+        };
     });
 }
 
@@ -122,7 +138,9 @@ export class TelemetryHistoryStore {
                 const store = tx.objectStore(STORE_NAME);
                 store.add(entry);
                 tx.oncomplete = () => {
-                    this._pruneIfNeeded(db).then(() => resolve(true)).catch(reject);
+                    // The add has committed; retry only pruning so a transient abort cannot replay it.
+                    this._runWithDbRetry((pruneDb) => this._pruneIfNeeded(pruneDb), false)
+                        .then(() => resolve(true), () => resolve(true));
                 };
                 tx.onerror = () => reject(tx.error || new Error('record-round-failed'));
                 tx.onabort = () => reject(tx.error || new Error('record-round-aborted'));
