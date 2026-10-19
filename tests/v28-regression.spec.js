@@ -44,7 +44,7 @@ test.describe('V28 Baseline Regression Setup (28.0)', () => {
     });
 
     test('T28b: Bot-Sensing laeuft ueber BotSensorsFacade API', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const result = await page.evaluate(() => {
             const botEntry = window.GAME_INSTANCE?.entityManager?.bots?.[0] || null;
             const botAI = botEntry?.ai?._botAI
@@ -90,7 +90,7 @@ test.describe('V28 Baseline Regression Setup (28.0)', () => {
     });
 
     test('T28b2: Bot-Rendering bleibt ueber BotView vom AI-Runtimekern getrennt', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const result = await page.evaluate(() => {
             const botEntry = window.GAME_INSTANCE?.entityManager?.bots?.[0];
             const botPlayer = botEntry?.player;

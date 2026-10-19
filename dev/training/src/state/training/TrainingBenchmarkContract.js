@@ -121,7 +121,8 @@ const BENCHMARK_VALIDATION_SCENARIOS = Object.freeze([
         planarMode: false,
         portalCount: 0,
         rounds: 10,
-        expectedPolicyType: 'classic-3d',
+        // The menu default "Auto" plays the heuristic bot in 3D Classic.
+        expectedPolicyType: 'heuristic',
     }),
     Object.freeze({
         id: 'V2',

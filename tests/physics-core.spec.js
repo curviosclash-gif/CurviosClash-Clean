@@ -563,7 +563,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T51: Bot erkennt Hindernis via Raycast (_scanProbeRay)', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const wallDetected = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI
@@ -588,7 +588,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T52: Bot Target Selection wählt nächsten Gegner', async ({ page }) => {
-        await startGameWithBots(page, 2);
+        await startGameWithBots(page, 2, { botPolicyStrategy: 'rule-based' });
         const targetSelected = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI
@@ -608,7 +608,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T53: Bot StuckScore steigt bei Blockade', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const stuckDetected = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI
@@ -635,7 +635,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T54: Bot MapBehavior liest korrektes Profil', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const hasBehavior = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI
@@ -709,7 +709,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T56: Bot Probes scale correctly (12 probes pro AI)', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const probeCount = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI
@@ -725,7 +725,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T57: Bot _estimateEnemyPressure detects nearby players', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const pressure = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI
@@ -749,7 +749,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T58: Bot FSM Transition to Recovery State', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const inRecovery = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI
@@ -771,7 +771,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T59: Bot Recovery Switch Fallback', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const switchUsed = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI
@@ -796,7 +796,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
     });
 
     test('T60: Bot Target InFront Query (LoS)', async ({ page }) => {
-        await startGameWithBots(page, 1);
+        await startGameWithBots(page, 1, { botPolicyStrategy: 'rule-based' });
         const targetInFront = await page.evaluate(() => {
             const resolveBotAI = (entry) => (
                 entry?.ai?._botAI

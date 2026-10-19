@@ -875,11 +875,18 @@ export async function startGame(page, options = {}) {
 export async function startGameWithBots(page, botCount = 1, options = {}) {
     await loadGame(page);
     await openGameSubmenu(page);
-    await page.evaluate((count) => {
+    await page.evaluate(({ count, botPolicyStrategy }) => {
         const slider = document.getElementById('bot-count');
         slider.value = String(count);
         slider.dispatchEvent(new Event('input', { bubbles: true }));
-    }, botCount);
+        // Tests of the rule-based BotAI pick it explicitly: "Auto" plays the heuristic bot in 3D Classic.
+        const strategySelect = botPolicyStrategy ? document.getElementById('bot-policy-strategy') : null;
+        if (botPolicyStrategy && !strategySelect) throw new Error('bot-policy-strategy select is missing');
+        if (strategySelect) {
+            strategySelect.value = botPolicyStrategy;
+            strategySelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }, { count: botCount, botPolicyStrategy: options.botPolicyStrategy || '' });
     await triggerMatchStart(page, options);
     await page.waitForFunction(() => {
         const hud = document.getElementById('hud');
