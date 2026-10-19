@@ -14,6 +14,7 @@ import {
 import { orchestrateRuntimeSettingsChanged } from './RuntimeSettingsChangeOrchestrator.js';
 import {
     applySessionSettingsRestorePlan,
+    createSessionSettingsRestorePlan,
     mergeSessionSettingsRestorePlans,
 } from './SessionSettingsRestorePlan.js';
 import { filterKnownSettingsChangeKeys } from './RuntimeSettingsChangeKeys.js';
@@ -158,6 +159,10 @@ export class GameRuntimeSettingsHandler {
         if (!scenario) {
             return { changed: false, changedKeys: [] };
         }
+        const modeSettingsBefore = {
+            gameMode: settings.gameMode,
+            localSettings: { modePath: settings.localSettings.modePath },
+        };
         const changedKeys = [];
         const botCountBefore = Number(settings.numBots);
         if (settings.localSettings.modePath !== scenario.modePath) {
@@ -193,13 +198,17 @@ export class GameRuntimeSettingsHandler {
             ...changedKeys,
             ...(Array.isArray(compatibilityResult?.changedKeys) ? compatibilityResult.changedKeys : []),
         ]);
-
         writeHangarMapSelection(
             settings,
             settings.mapKey,
             settings.mapKey,
             { modePath: settings.localSettings.modePath }
         );
+        const modeRestorePlan = createSessionSettingsRestorePlan(modeSettingsBefore, {
+            gameMode: settings.gameMode,
+            localSettings: { modePath: settings.localSettings.modePath },
+        });
+        if (modeRestorePlan.entries.length > 0) this.holdSessionSettingsRestore(modeRestorePlan);
         facade?._applySettingsToRuntimeInternal?.({ schedulePrewarm: false });
         game.uiManager?.syncByChangeKeys?.(resolvedChangedKeys);
         game.uiManager?.updateContext?.();
@@ -254,8 +263,10 @@ export class GameRuntimeSettingsHandler {
         if (!plan || !settings) return false;
         const restoreResult = applySessionSettingsRestorePlan(plan, settings);
         if (restoreResult.restoredPaths.length === 0) return false;
-        if (restoreResult.restoredPaths.includes('mapKey')) {
-            // The start setup reads its map from the hangar selection, not from settings.mapKey.
+        if (restoreResult.restoredPaths.includes('mapKey')
+            || restoreResult.restoredPaths.includes('localSettings.modePath')) {
+            // Start setup reads map choices from a mode-scoped hangar selection. Classic and Fight
+            // share one slot, so the scenario map the player picked stays chosen after the restore.
             writeHangarMapSelection(
                 settings,
                 settings.mapKey,

@@ -130,6 +130,71 @@ test('map preview accepts authored xyz spawn objects', () => {
     }), [[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
 });
 
+test('the Classic map picker labels scenarios that change the match to Fight', () => {
+    class FakeOption {
+        constructor() {
+            this.dataset = {};
+        }
+    }
+    class FakeSelect {
+        options = [];
+
+        appendChild(option) { this.options.push(option); }
+        replaceChildren() { this.options = []; }
+    }
+
+    const originalDocument = globalThis.document;
+    globalThis.document = { createElement: () => new FakeOption() };
+    try {
+        for (const modePath of ['normal', 'fight', 'arcade']) {
+            const mapSelect = new FakeSelect();
+            const startSetup = {
+                mapSearch: '',
+                mapFilter: 'all',
+                vehicleSearch: '',
+                vehicleFilter: 'all',
+                favoriteMaps: [],
+                recentMaps: [],
+                favoriteVehicles: [],
+                recentVehicles: [],
+                modeSelections: { [modePath]: { mapKey: 'reactor_site', vehicles: {} } },
+            };
+            const settings = {
+                mapKey: 'reactor_site',
+                vehicles: {},
+                localSettings: { modePath, startSetup },
+            };
+            syncStartSetupSelectionState({
+                ui: { mapSelect },
+                settings,
+                startSetup,
+                runtimeMaps: CONFIG.MAPS,
+                surfaceMenuState: { mapKey: 'reactor_site' },
+                mapPreviewEntries: listMapPreviewEntries(),
+                vehiclePreviewEntries: [],
+                modePath,
+                hangarSelectionModePath: modePath,
+                surfacePolicyPort: { isMapAllowed: () => true },
+                formatMapLabel: (entry) => entry.name,
+                resolveSurfaceFallbackMapKey: () => 'standard',
+                hasStoredCustomMap: () => false,
+                ghostDuelState: {},
+            });
+
+            const scenarioOption = mapSelect.options.find((option) => option.value === 'reactor_site');
+            assert.ok(scenarioOption, `reactor scenario is offered in ${modePath}`);
+            assert.equal(
+                scenarioOption.textContent.includes('Spielt als Fight'),
+                modePath === 'normal',
+                `${modePath} picker label matches its actual menu path`
+            );
+        }
+    } finally {
+        if (originalDocument === undefined) delete globalThis.document;
+        else globalThis.document = originalDocument;
+    }
+});
+
 test('map picker exposes organized filters, readable quick picks, and omits hidden runtime maps', () => {
     class FakeOption {
         constructor(value = '', textContent = '') {

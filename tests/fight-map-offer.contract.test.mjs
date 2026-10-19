@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import { CONFIG } from '../src/core/Config.js';
 import { resolveMapPreview } from '../src/ui/menu/MenuPreviewCatalog.js';
-import { isMapOfferedForModePath } from '../src/ui/start-setup/StartSetupMapOffer.js';
+import {
+    isMapOfferedForModePath,
+    resolveFightScenarioBadge,
+} from '../src/ui/start-setup/StartSetupMapOffer.js';
 
 function offered(mapKey, modePath) {
     return isMapOfferedForModePath(resolveMapPreview(mapKey), CONFIG.MAPS[mapKey], modePath);
@@ -30,6 +33,17 @@ test('Fight keeps arenas, adventures and the courses built for combat', () => {
     for (const mapKey of ['standard', 'maze', 'mega_maze', 'reactor_site', 'eiffel_tower_siege', 'magma_maze', 'aetherion_orrery', 'parcours_assault']) {
         assert.equal(offered(mapKey, 'fight'), true, `${mapKey} belongs in Fight`);
     }
+});
+
+test('Classic scenario cards identify that they start in Fight without relabeling other menus', () => {
+    const fightScenario = CONFIG.MAPS.reactor_site;
+    const ordinaryMap = CONFIG.MAPS.standard;
+
+    assert.equal(resolveFightScenarioBadge(fightScenario, 'normal'), 'Spielt als Fight');
+    assert.equal(resolveFightScenarioBadge(fightScenario, 'fight'), '');
+    assert.equal(resolveFightScenarioBadge(fightScenario, 'arcade'), '');
+    assert.equal(resolveFightScenarioBadge(ordinaryMap, 'normal'), '');
+    assert.equal(resolveFightScenarioBadge({ singlePlayerScenario: { modePath: 'fight' } }, 'normal'), '');
 });
 
 test('the other mode paths keep every public map in the picker', () => {
