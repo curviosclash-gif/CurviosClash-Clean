@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
 import {
+    REMOTE_EXIT_QUEUE_TIMEOUT,
     REMOTE_REPO,
     REMOTE_TARGET_PATTERN,
     decidePush,
-    exitCodeForConclusion,
+    exitCodeForRun,
     extractSummaryLines,
     findRunByLabel,
     parseRemoteArgs,
@@ -113,7 +114,27 @@ test('the CLI finds its own run and reports the summary like a local run', () =>
         extractSummaryLines('noise\r\n[playwright:summary] passed=3 failed=0\r\nmore'),
         ['[playwright:summary] passed=3 failed=0']
     );
-    assert.equal(exitCodeForConclusion('success'), 0);
-    assert.equal(exitCodeForConclusion('failure'), 1);
-    assert.equal(exitCodeForConclusion('cancelled'), 1);
+    assert.equal(exitCodeForRun({ conclusion: 'success' }), 0);
+    assert.equal(exitCodeForRun({ conclusion: 'failure', log: '[playwright:summary] passed=3 failed=1' }), 1);
+    assert.equal(exitCodeForRun({ conclusion: 'timed_out' }), 1);
+});
+
+// CLAUDE.md: exit 75 means "machine busy, try again later", never "red".
+test('a lock timeout or a cancelled run on the test machine ends with 75, not as a failure', () => {
+    const lockTimeout = 'noise\r\n[playwright:lock] LOCK_TIMEOUT holder=x pid=1 waited=7200s\r\n';
+    assert.equal(exitCodeForRun({ conclusion: 'failure', log: lockTimeout }), REMOTE_EXIT_QUEUE_TIMEOUT);
+    assert.equal(exitCodeForRun({ conclusion: 'cancelled' }), REMOTE_EXIT_QUEUE_TIMEOUT);
+    assert.equal(REMOTE_EXIT_QUEUE_TIMEOUT, 75);
+});
+
+// The cluster runner hands the lock back between clusters: a red first cluster followed by a lock
+// timeout is still red.
+test('a lock timeout or cancel after a red cluster stays red', () => {
+    const redThenTimeout = '[playwright:summary] passed=3 failed=1 skipped=0 didNotRun=0 flaky=0 known=0 new=1\n'
+        + '[playwright:lock] LOCK_TIMEOUT holder=x pid=1 waited=7200s\n';
+    assert.equal(exitCodeForRun({ conclusion: 'failure', log: redThenTimeout }), 1);
+    assert.equal(exitCodeForRun({ conclusion: 'cancelled', log: redThenTimeout }), 1);
+    const greenThenTimeout = '[playwright:summary] passed=3 failed=0 skipped=0 didNotRun=0 flaky=0 known=0 new=0\n'
+        + '[playwright:lock] LOCK_TIMEOUT holder=x pid=1 waited=7200s\n';
+    assert.equal(exitCodeForRun({ conclusion: 'failure', log: greenThenTimeout }), REMOTE_EXIT_QUEUE_TIMEOUT);
 });

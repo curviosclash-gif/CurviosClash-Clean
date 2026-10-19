@@ -93,8 +93,19 @@ export function extractSummaryLines(logText) {
     return String(logText || '').split(/\r?\n/).filter((line) => line.startsWith('[playwright:summary]'));
 }
 
-export function exitCodeForConclusion(conclusion) {
-    return conclusion === 'success' ? 0 : 1;
+function hasRedSummary(log) {
+    return extractSummaryLines(log).some((line) => /\b(?:failed|new)=[1-9]/.test(line));
+}
+
+// A Playwright lock timeout on the machine fails the job, and a cancelled run tested nothing:
+// both mean "busy, try again later" (75), not red. The cluster runner hands the lock back
+// between clusters, so a cluster that already finished red keeps the run red.
+export function exitCodeForRun({ conclusion, log = '' }) {
+    if (conclusion === 'success') return 0;
+    if (hasRedSummary(log)) return 1;
+    if (conclusion === 'cancelled') return REMOTE_EXIT_QUEUE_TIMEOUT;
+    if (/^\[playwright:lock\] LOCK_TIMEOUT\b/m.test(String(log))) return REMOTE_EXIT_QUEUE_TIMEOUT;
+    return 1;
 }
 
 function run(command, args, { allowFailure = false } = {}) {
@@ -187,12 +198,13 @@ function fetchResults(runId) {
         '-n', `remote-desktop-results-${runId}`, '-D', target], { allowFailure: true });
     if (download.status !== 0) {
         console.log(`${PREFIX} no result artifact for run ${runId}`);
-        return;
+        return '';
     }
     const logPath = path.join(target, 'remote-run.log');
-    const lines = existsSync(logPath) ? extractSummaryLines(readFileSync(logPath, 'utf8')) : [];
-    for (const line of lines) console.log(line);
+    const log = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '';
+    for (const line of extractSummaryLines(log)) console.log(line);
     console.log(`${PREFIX} results: ${target}`);
+    return log;
 }
 
 async function main(argv) {
@@ -223,8 +235,11 @@ async function main(argv) {
         return REMOTE_EXIT_QUEUE_TIMEOUT;
     }
     console.log(`${PREFIX} run ${runId} finished: ${conclusion}`);
-    fetchResults(runId);
-    return exitCodeForConclusion(conclusion);
+    const code = exitCodeForRun({ conclusion, log: fetchResults(runId) });
+    if (code === REMOTE_EXIT_QUEUE_TIMEOUT) {
+        console.log(`${PREFIX} the test machine was busy (lock timeout or cancelled run); not red, start again later`);
+    }
+    return code;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
