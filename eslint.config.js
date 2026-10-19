@@ -12,6 +12,49 @@ const createMaxLinesRule = (max) => ([
 
 const legacyFileCeilings = LEGACY_MAX_LINES;
 
+const DEV_TRAINING_SPECIFIER = /(^|\/)dev\/training(\/|$)/;
+
+// The static text of a load target: literals, template parts and "a" + "b" joined together.
+// An array (import.meta.glob takes one) yields every element.
+const readStaticSpecifiers = (node) => {
+    if (!node) return [];
+    if (node.type === 'ArrayExpression') return node.elements.flatMap(readStaticSpecifiers);
+    if (node.type === 'Literal' && typeof node.value === 'string') return [node.value];
+    if (node.type === 'TemplateLiteral') return [node.quasis.map((quasi) => quasi.value.cooked).join('')];
+    if (node.type === 'BinaryExpression' && node.operator === '+') {
+        return [[...readStaticSpecifiers(node.left), ...readStaticSpecifiers(node.right)].join('')];
+    }
+    return [];
+};
+
+// no-restricted-imports only checks static import/export declarations. import(), require(),
+// require.resolve(), import.meta.glob() and new URL(…, import.meta.url) reach a bundle just the same.
+const noDevTrainingLoad = {
+    meta: {
+        type: 'problem',
+        messages: {
+            forbidden: 'Product code must not load dev/training. Inject a runtime option from the training wiring instead.',
+        },
+        schema: [],
+    },
+    create(context) {
+        const check = (node, sourceNode) => {
+            const specifiers = readStaticSpecifiers(sourceNode);
+            if (specifiers.some((specifier) => DEV_TRAINING_SPECIFIER.test(specifier.replace(/\\/g, '/')))) {
+                context.report({ node, messageId: 'forbidden' });
+            }
+        };
+        const checkFirstArgument = (node) => check(node, node.arguments[0]);
+        return {
+            ImportExpression: (node) => check(node, node.source),
+            'CallExpression[callee.type="Identifier"][callee.name="require"]': checkFirstArgument,
+            'CallExpression[callee.object.name="require"][callee.property.name="resolve"]': checkFirstArgument,
+            'CallExpression[callee.object.type="MetaProperty"][callee.property.name="glob"]': checkFirstArgument,
+            'NewExpression[callee.name="URL"]': checkFirstArgument,
+        };
+    },
+};
+
 const readonlyGlobals = (names) => Object.fromEntries(names.map((name) => [name, 'readonly']));
 
 // Host globals shared by the renderer and by Node tooling. ECMAScript built-ins
@@ -246,7 +289,11 @@ export default [
             'editor/**/*.{js,cjs,mjs}',
             'prototypes/vehicle-lab/**/*.{js,cjs,mjs}',
         ],
+        plugins: {
+            curvios: { rules: { 'no-dev-training-load': noDevTrainingLoad } },
+        },
         rules: {
+            'curvios/no-dev-training-load': 'error',
             'no-restricted-imports': ['error', {
                 patterns: [{
                     group: ['**/dev/training', '**/dev/training/**'],

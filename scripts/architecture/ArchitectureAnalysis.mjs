@@ -1,10 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { collectElectronIpcChannels } from './ElectronIpcChannels.mjs';
 import {
     ARCHITECTURE_SCORECARD_BUDGETS,
     ARCHITECTURE_SCORECARD_TARGETS,
     BOUNDARY_MATRIX,
-    DOM_ACCESS_ZONES,
+    DOM_ACCESS_PAGE_FILES,
     LEGACY_APPLICATION_TO_CORE_IMPORTS,
     LEGACY_APPLICATION_TO_UI_IMPORTS,
     LEGACY_CORE_TO_UI_IMPORTS,
@@ -99,8 +100,6 @@ const CONFIG_WRITE_PATTERN = /\bCONFIG(?:\.[A-Za-z_$][\w$]*|\[[^\]]+\])+\s*=/g;
 // otherwise let DOM work slip past the guard unnoticed.
 const DOCUMENT_ACCESS_PATTERN = /(?:\bdocument|\bdocumentRef|\bdoc|\bthis\.documentRef|\bthis\._document)\??\.(?:body|hidden|readyState|activeElement|createElement|getElementById|querySelector(?:All)?|addEventListener|removeEventListener|execCommand)\b/g;
 const ELECTRON_CONTEXT_BRIDGE_EXPOSURE_PATTERN = /contextBridge\.exposeInMainWorld\(\s*['"]([^'"]+)['"]/g;
-const ELECTRON_IPC_RENDERER_CHANNEL_PATTERN = /ipcRenderer\.(invoke|send|sendSync|on|once|removeListener|removeAllListeners)\(\s*['"]([^'"]+)['"]/g;
-const ELECTRON_IPC_MAIN_CHANNEL_PATTERN = /ipcMain\.(handle|handleOnce|on|once|removeHandler|removeAllListeners)\(\s*['"]([^'"]+)['"]/g;
 
 function normalizePath(filePath) {
     return filePath.replace(/\\/g, '/');
@@ -315,7 +314,7 @@ function collectDomAccesses(filesByRelativePath) {
         allowFileMap: LEGACY_DOM_ACCESS_ALLOWLIST,
         uiOnly: true,
         includeFile: (relativePath) => relativePath.startsWith('src/')
-            && !DOM_ACCESS_ZONES.some((zone) => relativePath.startsWith(zone)),
+            && !DOM_ACCESS_PAGE_FILES.has(relativePath),
     });
 }
 
@@ -338,27 +337,10 @@ function collectElectronSurfaceMatches(filesByRelativePath) {
             });
         }
 
-        for (const match of text.matchAll(ELECTRON_IPC_RENDERER_CHANNEL_PATTERN)) {
-            const line = countLineNumber(text, match.index || 0);
-            ipcRendererChannels.push({
-                file: relativePath,
-                line,
-                kind: `ipcRenderer.${String(match[1] || '')}`,
-                channel: String(match[2] || ''),
-                snippet: readLineAt(text, line),
-            });
-        }
-
-        for (const match of text.matchAll(ELECTRON_IPC_MAIN_CHANNEL_PATTERN)) {
-            const line = countLineNumber(text, match.index || 0);
-            ipcMainChannels.push({
-                file: relativePath,
-                line,
-                kind: `ipcMain.${String(match[1] || '')}`,
-                channel: String(match[2] || ''),
-                snippet: readLineAt(text, line),
-            });
-        }
+        if (!/\bipc(?:Renderer|Main)\b/.test(text)) continue;
+        const channels = collectElectronIpcChannels(relativePath, text);
+        ipcRendererChannels.push(...channels.ipcRenderer);
+        ipcMainChannels.push(...channels.ipcMain);
     }
 
     return {

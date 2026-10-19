@@ -168,6 +168,7 @@ test('desktop and package workflows run for every entry their builds read', () =
             'scripts/esbuild-stream-fallback.cjs',
             'scripts/install-electron-runtime.mjs',
             'playwright.editor.config.mjs',
+            'playwright.settings-studio.config.mjs',
         ],
         '.github/workflows/package-check.yml': [
             'server/**',
@@ -266,6 +267,53 @@ test('CI cluster catalog assigns every Playwright spec exactly once', () => {
     ].sort();
 
     assert.deepEqual(assignedSpecs, allSpecs);
+});
+
+function listVersionedRootFiles(pattern) {
+    const result = spawnSync('git', ['ls-files', '--cached', '--', pattern], {
+        cwd: fileURLToPath(new URL('../', import.meta.url)),
+        encoding: 'utf8',
+        windowsHide: true,
+    });
+    assert.equal(result.status, 0, `git ls-files ${pattern} failed`);
+    return String(result.stdout || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).sort();
+}
+
+const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Only a real import of the lock counts; the name in a comment does not take the lock.
+function takesMachineLock(source) {
+    return /^\s*import\s*\{[^}]*\bacquirePlaywrightRunLock\b[^}]*\}\s*from\s*['"][^'"]*playwright-run-lock\.mjs['"]/m.test(source);
+}
+
+test('only a real import of the machine lock counts as taking it', () => {
+    assert.equal(takesMachineLock("import { acquirePlaywrightRunLock } from '../scripts/playwright-run-lock.mjs';"), true);
+    assert.equal(takesMachineLock('// TODO: call acquirePlaywrightRunLock here'), false);
+});
+
+// Interaction tests outside the *.spec.js catalog run under their own Playwright config. Without
+// a wrapper they bypass the machine lock and nothing ever starts them.
+test('every Playwright interaction test takes the machine lock and runs in an npm script and CI', () => {
+    const packageScripts = Object.values(JSON.parse(readRepoFile('package.json')).scripts);
+    const workflow = readRepoFile('.github/workflows/desktop.yml');
+    const configs = listVersionedRootFiles('playwright.*.config.mjs')
+        .map((file) => ({ file, source: readRepoFile(file) }));
+    const unwired = [];
+    for (const file of listVersionedRootFiles('tests/*.interaction.mjs')) {
+        const source = readRepoFile(file);
+        if (!/from ['"]@playwright\/test['"]/.test(source)) continue;
+        if (takesMachineLock(source)) continue;
+        const fileName = file.split('/').pop();
+        const listedName = new RegExp(`['"\`]${escapeForRegExp(fileName)}['"\`]`);
+        const config = configs.find((entry) => listedName.test(entry.source));
+        const wrapperRun = config
+            ? new RegExp(`node scripts/run-playwright-[a-z-]+\\.mjs (?:-c|--config) ${escapeForRegExp(config.file)}(?:\\s|$)`)
+            : null;
+        if (!wrapperRun || !packageScripts.some((script) => wrapperRun.test(script)) || !wrapperRun.test(workflow)) {
+            unwired.push(file);
+        }
+    }
+    assert.deepEqual(unwired, []);
 });
 
 test('Playwright design keeps skips, fixed sleeps, randomness, and white-box growth out', () => {
