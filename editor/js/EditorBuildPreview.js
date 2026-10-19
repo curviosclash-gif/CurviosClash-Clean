@@ -128,6 +128,7 @@ export class EditorBuildPreview {
                 moving.quaternion.copy(mesh.quaternion);
                 moving.scale.copy(mesh.scale);
                 this.applyProperties(moving);
+                this.applyCheckpointRing(moving);
                 manager.syncObjectScaleMetadata(moving);
                 manager.syncObjectOrientationMetadata(moving);
                 this.syncTunnel(moving);
@@ -142,6 +143,7 @@ export class EditorBuildPreview {
                     result.scale.copy(mesh.scale);
                     result.quaternion.copy(mesh.quaternion);
                     this.applyProperties(result);
+                    this.applyCheckpointRing(result);
                     manager.syncObjectScaleMetadata(result);
                     manager.syncObjectOrientationMetadata(result);
                     this.syncTunnel(result);
@@ -153,6 +155,15 @@ export class EditorBuildPreview {
         this.movingId = null;
         this.renderProperties();
         return !!result;
+    }
+
+    /**
+     * A checkpoint's size in build flight is its radius field, never a scaled preview ring: the
+     * preview may still show the ring of an earlier arena size, so the ring is drawn from the radius.
+     */
+    applyCheckpointRing(object) {
+        if (object.userData.type !== 'checkpoint') return;
+        this.editor.mapManager.applyCheckpointRingScale(object, object.userData.cpRadius, object.userData.subType === 'finish');
     }
 
     syncTunnel(mesh) {
@@ -197,10 +208,12 @@ export class EditorBuildPreview {
             const input = document.createElement('input');
             input.type = 'number'; input.step = 'any'; input.value = String(value);
             if (min !== null) input.min = String(min);
+            let accepted = value;
             input.addEventListener('change', () => {
                 const number = input.value.trim() ? Number(input.value) : NaN;
-                if (!Number.isFinite(number) || (min !== null && number < min)) { input.value = String(value); return; }
+                if (!Number.isFinite(number) || (min !== null && number < min)) { input.value = String(accepted); return; }
                 apply(number);
+                accepted = number;
             });
             control(label, input);
         };
@@ -221,6 +234,13 @@ export class EditorBuildPreview {
                         mesh.scale[axis] = value;
                         editor.mapManager.syncObjectScaleMetadata(mesh, axis.toUpperCase());
                     }, 1));
+            } else if (type === 'checkpoint') {
+                // The ring scale is derived from the radius; the radius is what the map stores.
+                field('Radius', mesh.userData.cpRadius, (value) => {
+                    mesh.userData.cpRadius = value;
+                    this.changedProperties.add('cpRadius');
+                    editor.mapManager.applyCheckpointRingScale(mesh, value, mesh.userData.subType === 'finish');
+                }, 0.1);
             } else {
                 field('Skalierung', mesh.scale.x, (value) => {
                     mesh.scale.setScalar(value);

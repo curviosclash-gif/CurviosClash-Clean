@@ -154,7 +154,7 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         const mat = isFinish ? manager.mats.checkpoint_finish : manager.mats.checkpoint;
         mesh = new THREE.Mesh(manager.torusGeo, mat);
         const r = Number(props.cpRadius) || (isFinish ? 7.0 : 5.5);
-        mesh.scale.setScalar(manager.getCheckpointRingScale(r, isFinish));
+        manager.applyCheckpointRingScale(mesh, r, isFinish);
         if (!applyForwardOrientation(mesh, props.cpForward || [1, 0, 0])) mesh.rotation.x = Math.PI / 2;
         userData.subType = subType;
         userData.cpRadius = r;
