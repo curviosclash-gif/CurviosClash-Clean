@@ -29,13 +29,16 @@ export const LEGACY_DOM_ACCESS_ALLOWLIST = new Map([
     ['src/shared/runtime/PageVisibility.js', 'Single page-visibility reader shared by input, lobby and telemetry code.'],
 ]);
 
-// Code whose job is the page itself, not debt to move: the mobile app shells set up their own
+// Files whose job is the page itself, not debt to move: the mobile app shells set up their own
 // document, and the browser platform adapter is the browser's side of a capability (downloads).
-// Files here are not scanned for DOM access at all; everything else outside src/ui still is.
-export const DOM_ACCESS_ZONES = Object.freeze([
-    'src/mobile-classic/',
-    'src/mobile-arcade/',
-    'src/platform/browser/',
+// They are listed one by one and not scanned; a new file next to them is scanned like any other.
+export const DOM_ACCESS_PAGE_FILES = new Map([
+    ['src/mobile-classic/MobileClassicApp.js', 'Mobile classic shell mounts the canvas and app root into its own page.'],
+    ['src/mobile-classic/MobileClassicMenuUi.js', 'Mobile classic shell builds its touch menu directly in its own page.'],
+    ['src/mobile-classic/MobileClassicStyles.js', 'Mobile classic shell injects its own stylesheet into the page head.'],
+    ['src/mobile-classic/MobileClassicUpdateUi.js', 'Mobile classic shell renders the app update prompt in its own page.'],
+    ['src/mobile-arcade/MobileArcadeApp.js', 'Mobile arcade shell mounts the canvas, HUD and touch controls into its own page.'],
+    ['src/platform/browser/BrowserFileExport.js', 'Browser side of the file export capability: a download link is the only way.'],
 ]);
 
 /** @type {[string, string][]} */

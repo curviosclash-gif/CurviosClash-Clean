@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-10-17",
-  "notes": "Settings Studio close request adds one bidirectional trusted channel (subscribe, unsubscribe, response) for the accessible unsaved-changes dialog.",
+  "updatedAt": "2026-10-19",
+  "notes": "IPC channel counts reset to the measured values of main (65/56) after the count learned helper functions and channel constants; no new channels (Nutzerfreigabe 19.10.2026). Earlier raises (IPC renderer 16->18, preload 8->9, 15->16, 27->29) confirmed by the owner afterwards on the same day.",
   "budgets": {
     "constructorGameFiles": 0,
     "domAccessFiles": 11,
@@ -25,7 +25,7 @@
     "legacySurface_curviosApp_totalFiles": 3,
     "legacySurface_ActiveRuntimeConfigStore_totalFiles": 3,
     "electronPreloadExposures": 9,
-    "electronIpcRendererChannels": 18,
-    "electronIpcMainChannels": 29
+    "electronIpcRendererChannels": 65,
+    "electronIpcMainChannels": 56
   }
 }
