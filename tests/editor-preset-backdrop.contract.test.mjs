@@ -437,3 +437,66 @@ test('preset aircraft resolves the editor asset alias without changing its runti
     }
     assert.deepEqual(requested, ['jet_ship4', 'jet_ship4']);
 });
+
+/** A course template: two gates, a finish, its own route ID, rules and a guidance path. */
+function createCourseTemplate() {
+    return {
+        size: [100, 40, 100],
+        scaleAuthoredAnchors: true,
+        glbModels: [{ id: 'w', url: 'assets/maps/w/glb/w.glb', position: [0, 0, 0] }],
+        playerSpawn: { x: 0, y: 9, z: 0 },
+        parcours: {
+            enabled: true,
+            routeId: 'template_route_v3',
+            checkpoints: [
+                { id: 'CP_A', pos: [10, 10, 0], radius: 4, nextIds: ['CP_B'] },
+                { id: 'CP_B', pos: [20, 10, 0], radius: 4, nextIds: ['FIN'] },
+            ],
+            finish: { id: 'FIN', pos: [30, 10, 0], radius: 5 },
+            guidancePaths: [{ branchCheckpointId: 'CP_A', endCheckpointId: 'FIN', points: [[10, 10, 0], [30, 10, 0]] }],
+            guidanceBranchCheckpointIds: ['CP_A'],
+            rules: { ordered: true, maxSegmentTimeMs: 9000 },
+        },
+    };
+}
+
+test('a placement-only copy hands out new checkpoints without the template route around them', () => {
+    const preset = createCourseTemplate();
+    const { document } = convertPresetToEditorDocument('course', preset, { mapScale: MAP_SCALE });
+    const { mapManager, load } = createEditor(), arena = load(document);
+    mapManager.createMesh('checkpoint', 'gate', 350, 350, 0, 0, { id: 'OWN_CP', cpRadius: 140,
+        cpForward: [1, 0, 0], nextIds: ['CP_B', 'GONE'] });
+
+    const warnings = [];
+    const copied = exportPlacementsInPresetFormat(mapManager, arena, { preset, mapScale: MAP_SCALE, warnings });
+    assert.deepEqual(Object.keys(copied.parcours), ['checkpoints'],
+        'route ID, rules and guidance paths stay with the template route');
+    assert.deepEqual(copied.parcours.checkpoints.map((cp) => cp.id), ['OWN_CP']);
+    assert.deepEqual(copied.parcours.checkpoints[0].nextIds, ['CP_B'],
+        'a link into the template survives, a link to no checkpoint at all does not');
+    assert.ok(warnings.some((warning) => warning.includes('parcours.checkpoints')),
+        'the author learns to add the checkpoints to the route instead of replacing it');
+
+    const full = exportPlacementsInPresetFormat(mapManager, arena, { preset, mapScale: MAP_SCALE, includeBackdrop: true });
+    assert.equal(full.parcours.routeId, 'template_route_v3', 'a full copy keeps the whole route');
+    assert.equal(full.parcours.guidancePaths.length, 1);
+});
+
+test('template models without their own ID keep distinct IDs in the editor export and the copy', () => {
+    const preset = {
+        size: [100, 40, 100],
+        scaleAuthoredAnchors: true,
+        glbModels: [
+            { url: 'assets/maps/w/glb/w.glb', position: [0, 0, 0] },
+            { url: 'assets/maps/w/glb/tower.glb', position: [10, 0, 0], hiddenUntilTriggered: true },
+        ],
+        playerSpawn: { x: 0, y: 9, z: 0 },
+    };
+    const { document } = convertPresetToEditorDocument('anonymous', preset, { mapScale: MAP_SCALE });
+    const { mapManager, load } = createEditor(), arena = load(document);
+    const saved = parseMapJSON(mapManager.generateJSONExport(arena)).map;
+    const matchIds = toArenaMapDefinition(saved, { mapScale: PRESET_EDITOR_UNITS_PER_MAP_UNIT }).map.glbModels.map((model) => model.id);
+    assert.deepEqual(matchIds, ['model-1', 'model-2'], 'the match sees the IDs the template would get by itself');
+    const copied = exportPlacementsInPresetFormat(mapManager, arena, { preset, mapScale: MAP_SCALE, includeBackdrop: true });
+    assert.equal(new Set(copied.glbModels.map((model) => model.id)).size, 2, 'the copy names both models apart');
+});
