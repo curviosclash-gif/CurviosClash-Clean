@@ -155,8 +155,11 @@ function createLifecycleContract() {
 
 let cachedOverrideSnapshot = null;
 
+// One reader for the startup snapshot and later approval rereads.
+const requestOverrideSnapshot = () => ipcRenderer.invoke('settings-defaults:read-override');
+
 // Start fetching the snapshot immediately in the background
-ipcRenderer.invoke('settings-defaults:read-override').then((snapshot) => {
+requestOverrideSnapshot().then((snapshot) => {
     if (snapshot && typeof snapshot === 'object') {
         cachedOverrideSnapshot = snapshot;
     } else {
@@ -276,6 +279,17 @@ function createLocalMapsContract() {
 function createSettingsDefaultsContract() {
     return createNamedContract('settingsDefaults', PRELOAD_CONTRACT_VERSIONS.settingsDefaults, {
         getOverrideSnapshot: () => deepCloneJson(readMenuDefaultsOverrideSnapshot()),
+        // Settings Studio approvals change while the game runs; only they are reread, over the
+        // same channel, so the startup defaults stay as they were.
+        refreshAppliedMapBalancing: async () => {
+            try {
+                const snapshot = await requestOverrideSnapshot();
+                const applied = snapshot?.appliedMapBalancing;
+                return applied && typeof applied === 'object' ? deepCloneJson(applied) : null;
+            } catch {
+                return null;
+            }
+        },
     });
 }
 

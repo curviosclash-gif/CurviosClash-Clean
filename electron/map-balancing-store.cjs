@@ -51,6 +51,13 @@ async function readJsonOrNull(filePath) {
     }
 }
 
+function sameLayerValues(left, right) {
+    const a = left && typeof left === 'object' ? left : {};
+    const b = right && typeof right === 'object' ? right : {};
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every((key) => Object.is(a[key], b[key]));
+}
+
 function storeError(reason, message) {
     const error = new Error(message);
     error.reason = reason;
@@ -158,20 +165,39 @@ function createMapBalancingStore({ root, writable, dataRoot = process.env.CURVIO
         return { path: filePath, backupPath, removed: false, layer: normalized, revision: createHash('sha256').update(content).digest('hex') };
     }
 
+    /** The file's layer and the revision of exactly those bytes, so a later save can detect a change in between. */
     async function readMapLayer(mapKey) {
         const contract = await loadContract();
-        const document = await readJsonOrNull(await getMapFilePath(String(mapKey || '')));
-        return { values: contract.normalizeMapBalancingMapDocument(document).values };
+        let bytes = null;
+        try { bytes = await fs.readFile(await getMapFilePath(String(mapKey || ''))); }
+        catch (error) { if (error?.code !== 'ENOENT') throw error; }
+        const document = bytes ? JSON.parse(bytes.toString('utf-8')) : null;
+        const revision = bytes ? createHash('sha256').update(bytes).digest('hex') : 'missing';
+        return { values: contract.normalizeMapBalancingMapDocument(document).values, revision };
+    }
+
+    /**
+     * Saves a game's working copy only while the file still holds the layer that copy started
+     * from; a file changed since (Settings Studio, MCP, git) is never overwritten with an old base.
+     */
+    async function saveMapLayerOnBase(mapKey, layer, baseLayer) {
+        const onDisk = await readMapLayer(mapKey);
+        if (!baseLayer || !sameLayerValues(onDisk.values, baseLayer.values)) {
+            throw storeError('external_change', 'Die Kartendatei entspricht nicht dem Stand, den dieses Spiel kennt (geändert im Settings Studio, per MCP oder git, oder der Build ist älter als die Datei). Spiel neu bauen und neu starten, dann die Änderung erneut übernehmen.');
+        }
+        return saveMapLayer(mapKey, layer, onDisk.revision);
     }
 
     async function setValue(mapKey, key, value) {
         const contract = await loadContract();
-        return saveMapLayer(mapKey, contract.setMapBalancingLayerValue(await readMapLayer(mapKey), String(key), value));
+        const { values, revision } = await readMapLayer(mapKey);
+        return saveMapLayer(mapKey, contract.setMapBalancingLayerValue({ values }, String(key), value), revision);
     }
 
     async function resetValue(mapKey, key) {
         const contract = await loadContract();
-        return saveMapLayer(mapKey, contract.resetMapBalancingLayerValue(await readMapLayer(mapKey), String(key)));
+        const { values, revision } = await readMapLayer(mapKey);
+        return saveMapLayer(mapKey, contract.resetMapBalancingLayerValue({ values }, String(key)), revision);
     }
 
     return Object.freeze({
@@ -185,6 +211,7 @@ function createMapBalancingStore({ root, writable, dataRoot = process.env.CURVIO
         validateMapLayer,
         readMapLayer,
         saveMapLayer,
+        saveMapLayerOnBase,
         setValue,
         resetValue,
     });

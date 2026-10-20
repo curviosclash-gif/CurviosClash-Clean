@@ -8,6 +8,7 @@ import {
     setSessionRuntimeHandle,
 } from './GameRuntimeBundle.js';
 import { refreshLocalMapCatalog as refreshDesktopLocalMaps } from './LocalMapCatalogRefresh.js';
+import { refreshAppliedMapBalancing, refreshDesktopMenuSources } from '../balancing/AppliedMapBalancingRefresh.js';
 
 export class GameRuntimeCoordinator {
     constructor({ runtime } = {}) {
@@ -90,11 +91,12 @@ export class GameRuntimeCoordinator {
     }
 
     async refreshLocalMapCatalog() {
-        return await refreshDesktopLocalMaps({
-            gameState: this.runtime?.state,
-            getGameState: () => this.runtime?.state,
-            applySettings: () => this.applySettingsToRuntime({ schedulePrewarm: false }),
-        });
+        const options = { gameState: this.runtime?.state, getGameState: () => this.runtime?.state };
+        // Settings Studio approvals are picked up at the same moment as new editor maps.
+        return await refreshDesktopMenuSources(
+            [() => refreshDesktopLocalMaps(options), () => refreshAppliedMapBalancing(options)],
+            () => this.applySettingsToRuntime({ schedulePrewarm: false }),
+        );
     }
 
     setupMenuListeners() {

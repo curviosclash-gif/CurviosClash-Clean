@@ -281,10 +281,11 @@ function registerTuningIpc({
         }
         const described = await forwardToGameWindow(TUNING_CHANNELS.balancing, { op: 'describe', mapKey: request.mapKey });
         if (described.ok !== true || !described.value) return described;
-        const { mapKey, layer } = described.value;
+        const { mapKey, layer, fileLayer } = described.value;
         let saved = null;
         try {
-            saved = await mapBalancingStore.saveMapLayer(mapKey, layer);
+            // Refused with external_change when the file no longer holds the game's base layer.
+            saved = await mapBalancingStore.saveMapLayerOnBase(mapKey, layer, fileLayer);
         } catch (error) {
             return createForwardError(error?.reason || 'save_failed', capability, error instanceof Error ? error.message : String(error));
         }

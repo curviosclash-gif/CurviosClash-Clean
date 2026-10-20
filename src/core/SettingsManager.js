@@ -26,6 +26,7 @@ import {
     rebaseSettingsSnapshotWithRuntimeDefaults,
 } from './settings/SettingsDefaultsFacade.js';
 import { sanitizeSettingsSnapshot } from './settings/SettingsSanitizerOps.js';
+import { normalizeOverrideFixedPresets } from './settings/SettingsOverridePresetValidation.js';
 import { createSettingsSessionDraftFacade } from './settings/SettingsSessionDraftFacade.js';
 import { createSettingsPresetFacade } from './settings/SettingsPresetFacade.js';
 import { createSettingsDeveloperFacade } from './settings/SettingsDeveloperFacade.js';
@@ -115,7 +116,7 @@ export class SettingsManager {
         // The shared defaults facade validates the document before it is admitted to runtime.
         const defaults = createDefaultSettingsSnapshotWithOverride(draft);
         if (defaults.__overrideSkipped) return catalog;
-        return draft.fixedPresets.map((preset) => {
+        return normalizeOverrideFixedPresets(draft.fixedPresets).map((preset) => {
             const base = catalog.find((entry) => entry.id === preset.id) || catalog[0];
             return { ...base, id: preset.id, name: preset.name, description: preset.description,
                 values: { ...preset.values }, metadata: { ...base.metadata, id: preset.id, lockedFields: [...preset.lockedFields] } };

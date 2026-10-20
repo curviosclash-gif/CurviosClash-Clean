@@ -691,6 +691,35 @@ test('Studio local defaults and authored preset values reach SettingsManager', (
     assert.equal(settings.gameplay.speed, 23);
 });
 
+test('S1: a Studio preset saved before Pitch existed sets and locks Pitch like Yaw', () => {
+    const draft = createSettingsOverrideDraft();
+    const competitive = draft.fixedPresets.find((entry) => entry.id === 'competitive');
+    delete competitive.values['gameplay.pitchSensitivity'];
+    competitive.lockedFields = competitive.lockedFields.filter((field) => field !== 'gameplay.pitchSensitivity');
+    const normalized = validateSettingsOverrideDraft(draft).normalizedDraft.fixedPresets.find((entry) => entry.id === 'competitive');
+    assert.equal(normalized.values['gameplay.pitchSensitivity'], 2.6);
+    assert.equal(normalized.lockedFields.includes('gameplay.pitchSensitivity'), true);
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform(),
+        runtimeGlobal: { settingsDefaultsContract: { getOverrideSnapshot: () => ({ draft }) } } });
+    const settings = manager.createDefaultSettings();
+    settings.gameplay.pitchSensitivity = 4.4;
+    assert.equal(manager.applyMenuPreset(settings, 'competitive').success, true);
+    assert.deepEqual([settings.gameplay.turnSensitivity, settings.gameplay.pitchSensitivity], [2.6, 2.6]);
+    const listed = manager.listMenuPresets().find((entry) => entry.id === 'competitive');
+    assert.equal(listed.metadata.lockedFields.includes('gameplay.pitchSensitivity'), true);
+    assert.equal(draft.fixedPresets.find((entry) => entry.id === 'competitive').values['gameplay.pitchSensitivity'], undefined, 'the input draft stays untouched');
+});
+
+test('S1: a current preset with its own Pitch value keeps Pitch unlocked when only Yaw is locked', () => {
+    const draft = createSettingsOverrideDraft();
+    const competitive = draft.fixedPresets.find((entry) => entry.id === 'competitive');
+    competitive.values['gameplay.pitchSensitivity'] = 3.1;
+    competitive.lockedFields = competitive.lockedFields.filter((field) => field !== 'gameplay.pitchSensitivity');
+    const normalized = validateSettingsOverrideDraft(draft).normalizedDraft.fixedPresets.find((entry) => entry.id === 'competitive');
+    assert.equal(normalized.values['gameplay.pitchSensitivity'], 3.1);
+    assert.deepEqual(normalized.lockedFields, competitive.lockedFields);
+});
+
 test('current Studio schema applies runtime limits and start-reset defaults', () => {
     const draft = createSettingsOverrideDraft();
     draft.limitOverrides['baseSettings.hunt.deathmatchKillLimit'] = { max: 40 };
