@@ -576,11 +576,12 @@ export class Game {
             this.playingStateSystem.render(this._renderAlpha, this._renderDelta);
             matchRenderProjection = this.playingStateSystem.getMatchRenderProjection();
         }
-        const replayCaptureStateActive = this.state === GAME_STATE_IDS.PLAYING
-            || this.state === GAME_STATE_IDS.PAUSED
+        const mediaRecorder = this.mediaRecorderSystem;
+        const replayCaptureStateActive = this.state === GAME_STATE_IDS.PLAYING || this.state === GAME_STATE_IDS.PAUSED
             || this.state === GAME_STATE_IDS.ROUND_END;
-        if (replayCaptureStateActive && this.entityManager) {
-            this.mediaRecorderSystem?.captureReplayState?.({
+        // Only a running cinematic recording uses the replay payload; skip building it otherwise.
+        if (replayCaptureStateActive && this.entityManager && mediaRecorder?.isCinematicReplayRecording?.() === true) {
+            mediaRecorder.captureReplayState?.({
                 entityManager: this.entityManager,
                 roundState: this.roundStateController,
                 particles: this.particles,
@@ -614,7 +615,7 @@ export class Game {
             this.entityManager?.captureKillcamRenderedFrame?.();
             this.runtimePerfProfiler?.endSample?.('killcam_capture', killcamCaptureStart);
         }
-        if (this.mediaRecorderSystem?.isLiveRecording?.() === true) {
+        if (mediaRecorder?.isLiveRecording?.() === true) {
             const recordingRenderStart = this.runtimePerfProfiler?.startSample?.();
             renderer.prepareRecordingCaptureFrame({
                 recordingActive: true,
@@ -627,7 +628,7 @@ export class Game {
             });
             this.runtimePerfProfiler?.endSample?.('render', recordingRenderStart);
         }
-        this.mediaRecorderSystem?.captureRenderedFrame?.(this._renderDelta);
+        mediaRecorder?.captureRenderedFrame?.(this._renderDelta);
     }
 
     dispose() {
