@@ -88,6 +88,12 @@ export class ProjectileHitResolver {
         return damageResult;
     }
 
+    // A shield that stops a hit is used up whole through the pipeline, which also clears the
+    // shield pool. Without a combat pipeline (bare projectile systems) only the flag breaks.
+    _breakShieldByContact(target, projectile, weaponKind) {
+        if (!this._applyPlayerDamage(target, projectile, 0, weaponKind, true)) target.hasShield = false;
+    }
+
     detonateProjectile(projectile, position = projectile?.position, color = 0xffff00) {
         if (!isRocketTierType(projectile?.type) || projectile.detonated) return false;
         projectile.detonated = true;
@@ -226,6 +232,8 @@ export class ProjectileHitResolver {
         const explosionDamageFalloff = Math.max(0, Math.min(1, Number(rocketConfig?.EXPLOSION_DAMAGE_FALLOFF || 0.5)));
         const baseDamage = resolveRocketDamage(projectile, this.system);
         const damageAtCenter = baseDamage * (1 + explosionDamageFalloff);
+        // Classic has no shield pool: a shield stops the blast once, as it stops a direct hit.
+        const classicShields = !isHuntHealthActive(resolveEntityRuntimeConfig(this.system));
 
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner || target === directHitTarget) continue;
@@ -245,6 +253,10 @@ export class ProjectileHitResolver {
             // Apply the impulse while the target is still alive; the pipeline finalizes a
             // lethal hit immediately, whereas the legacy damage callback ran after knockback.
             applyExplosionKnockback(target, projectile.position, damageFalloff, this.system);
+            if (classicShields && target.hasShield === true) {
+                this._breakShieldByContact(target, projectile, TEAM_WEAPON_KINDS.ROCKET);
+                continue;
+            }
             this._applyPlayerDamage(target, projectile, explosionDamage, TEAM_WEAPON_KINDS.ROCKET);
         }
     }
@@ -438,7 +450,11 @@ export class ProjectileHitResolver {
             }
 
             const healthPool = isHuntHealthActive(resolveEntityRuntimeConfig(this.system));
-            const huntRocketHit = isRocketTierType(projectile.type)
+            // User decision 19.10.2026: in Classic a shield stops the guided rocket once like
+            // every other hit; the rocket still explodes around it.
+            const classicShieldStopsRocket = !healthPool && projectile.type === 'ROCKET_GUIDED'
+                && target.hasShield === true;
+            const huntRocketHit = isRocketTierType(projectile.type) && !classicShieldStopsRocket
                 && (healthPool || projectile.type === 'ROCKET_GUIDED');
             // With a health pool the shield is shieldHP: a mine drains it through the pipeline
             // like any damage, and an item the shield stops uses up the whole pool there, so
@@ -453,11 +469,8 @@ export class ProjectileHitResolver {
                 this.system?.onProjectilePowerup?.(target, projectile);
                 this._applyRocketExplosion(projectile, players, target);
             } else if (target.hasShield && !poolMineHit) {
-                // Without a combat pipeline (bare projectile systems) the flag breaks as before.
-                if (!healthPool
-                    || !this._applyPlayerDamage(target, projectile, 0, resolveProjectileWeaponKind(projectile), true)) {
-                    target.hasShield = false;
-                }
+                this._breakShieldByContact(target, projectile, resolveProjectileWeaponKind(projectile));
+                if (classicShieldStopsRocket) this._applyRocketExplosion(projectile, players, target);
             } else if (projectile.type === 'SWAP' && projectile.owner?.position) {
                 this._tmpVec.copy(target.position);
                 target.position.copy(projectile.owner.position);
