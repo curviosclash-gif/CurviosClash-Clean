@@ -1,4 +1,4 @@
-import { validateOverridePresets } from './SettingsOverridePresetValidation.js';
+import { normalizeOverrideFixedPresets, validateOverridePresets } from './SettingsOverridePresetValidation.js';
 import {
     MENU_DEFAULT_EDITOR_SCHEMA_VERSION,
     createMenuDefaultsEditorConfigSnapshot,
@@ -62,7 +62,7 @@ const FIELD_HELP_METADATA = Object.freeze({
     'baseSettings.gameplay.fightPlayerHp': Object.freeze({ riskLevel: 'medium', unit: null, example: '100', help: { de: 'Trefferpunkte der Spieler im Kampfmodus.', en: 'Player hit points in fight mode.' }, impact: { de: 'Niedrigere Werte = kürzere Kämpfe. Sehr hohe Werte verlängern Matches stark.', en: 'Lower values = shorter fights. Very high values extend matches significantly.' } }),
     'baseSettings.gameplay.fightMgDamage': Object.freeze({ riskLevel: 'medium', unit: null, example: '10', help: { de: 'Schaden pro Bordkanonen-Treffer im Kampfmodus.', en: 'Damage per machine gun hit in fight mode.' }, impact: { de: 'Zusammen mit HP bestimmt dies die Kampfdauer. Nicht isoliert anpassen.', en: 'Together with HP determines fight duration. Do not adjust in isolation.' } }),
     'baseSettings.gameplay.planarLevelCount': Object.freeze({ riskLevel: 'low', unit: null, example: '5', help: { de: 'Anzahl der Ebenen im planaren Modus.', en: 'Number of levels in planar mode.' }, impact: { de: 'Bestimmt die Arena-Größe im Planar-Modus.', en: 'Determines arena size in planar mode.' } }),
-    'baseSettings.gameplay.sandstormWindStrength': Object.freeze({ label: { de: 'Sandsturm-Windstärke', en: 'Sandstorm wind strength' }, riskLevel: 'medium', unit: '×', example: '1.0', help: { de: 'Multiplikator für Drift und Ruckeln durch Sandsturmwind. 1,0 entspricht der normalen Stärke.', en: 'Multiplier for sandstorm drift and vehicle shake. 1.0 is the normal strength.' }, impact: { de: '0 schaltet die Fahrzeug-Wirkung aus; 2 verdoppelt sie.', en: '0 disables the vehicle effect; 2 doubles it.' } }),
+    'baseSettings.gameplay.sandstormWindStrength': Object.freeze({ label: { de: 'Sandsturm-Windstärke', en: 'Sandstorm wind strength' }, riskLevel: 'medium', unit: '×', example: '1.0', help: { de: 'Multiplikator für Drift und Ruckeln durch Sandsturmwind. 1,0 entspricht der normalen Stärke.', en: 'Multiplier for sandstorm drift and vehicle shake. 1.0 is the normal strength.' }, impact: { de: '0 schaltet die Fahrzeug-Wirkung aus; 2 verdoppelt die Drift. Das Ruckeln steigt nur bis zu seinem Höchstwert, im vollen Sturm wirkt ein Wert über 1 also nur noch auf die Drift.', en: '0 disables the vehicle effect; 2 doubles the drift. Shake only rises up to its maximum, so in a full storm values above 1 only add drift.' } }),
     'baseSettings.botBridge.timeoutMs': Object.freeze({ riskLevel: 'high', unit: 'ms', example: '1000', help: { de: 'Zeitlimit für KI-Entscheidungen in ms.', en: 'Timeout for AI decisions in ms.' }, impact: { de: 'Zu kurz: Bots fallen aus. Zu lang: blockiert den Spielablauf. Sorgfältig anpassen.', en: 'Too short: bots fail. Too long: blocks game flow. Adjust carefully.' } }),
     'baseSettings.botBridge.maxRetries': Object.freeze({ riskLevel: 'medium', unit: null, example: '3', help: { de: 'Maximale Bot-Verbindungswiederholungen bei Fehlern.', en: 'Maximum bot connection retries on failure.' }, impact: { de: 'Mehr Versuche = robusterer Bot, aber langsamerer Fehlerrecovery.', en: 'More retries = more robust bot, but slower error recovery.' } }),
     'baseSettings.botBridge.retryDelayMs': Object.freeze({ riskLevel: 'medium', unit: 'ms', example: '200', help: { de: 'Wartezeit zwischen Bot-Verbindungsversuchen.', en: 'Delay between bot connection retry attempts.' }, impact: { de: 'Längere Delays reduzieren Last, erhöhen aber Reaktionszeit.', en: 'Longer delays reduce load but increase response time.' } }),
@@ -275,7 +275,7 @@ function mergeDraftCandidate(candidate) {
         const key = section.key;
         if (key === 'fixedPresets') {
             merged.fixedPresets = Array.isArray(source.fixedPresets)
-                ? deepCloneJson(source.fixedPresets)
+                ? normalizeOverrideFixedPresets(source.fixedPresets)
                 : deepCloneJson(baseDraft.fixedPresets);
             continue;
         }

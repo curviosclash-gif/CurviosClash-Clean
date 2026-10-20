@@ -1,6 +1,28 @@
-import { isPlainObject } from './SettingsOverrideMergeOps.js';
+import { deepCloneJson, isPlainObject } from './SettingsOverrideMergeOps.js';
 
 const createError = (path, code, message) => ({ path, code, message });
+const PRESET_TURN_PATH = 'gameplay.turnSensitivity';
+const PRESET_PITCH_PATH = 'gameplay.pitchSensitivity';
+
+/**
+ * Presets saved before Pitch had its own value steered both axes with Yaw; they keep doing so,
+ * value and lock alike, instead of locking Yaw and leaving Pitch at the player's old value.
+ * @param {unknown} presets
+ */
+export function normalizeOverrideFixedPresets(presets) {
+    if (!Array.isArray(presets)) return presets;
+    return presets.map((preset) => {
+        const next = deepCloneJson(preset);
+        if (!isPlainObject(next)) return next;
+        // Only a preset without its own Pitch value is from before; a current one keeps its choice.
+        if (!isPlainObject(next.values) || next.values[PRESET_PITCH_PATH] != null || next.values[PRESET_TURN_PATH] == null) return next;
+        next.values[PRESET_PITCH_PATH] = next.values[PRESET_TURN_PATH];
+        if (Array.isArray(next.lockedFields) && next.lockedFields.includes(PRESET_TURN_PATH) && !next.lockedFields.includes(PRESET_PITCH_PATH)) {
+            next.lockedFields.push(PRESET_PITCH_PATH);
+        }
+        return next;
+    });
+}
 
 export function validateOverridePresets(presets, registry) {
     const errors = [];
