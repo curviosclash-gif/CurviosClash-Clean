@@ -115,10 +115,12 @@ export function applyHit(world, input) {
     if ((Number(target.spawnProtectionTimer) || 0) > 0) {
         return makeBlockedResult(target, 'SPAWN_PROTECTION');
     }
+    if (isDead(target)) return makeBlockedResult(target, 'DEAD');
+    if (isInvulnerable(target)) return makeBlockedResult(target, 'INVULNERABLE');
     // Exclusion-zone rockets consume one complete shield contact, matching the
     // authored hazard rule while keeping damage/death effects inside this pipeline.
-    if (causeKey === 'EXCLUSION_ZONE'
-        && target?.alive !== false
+    // An item projectile that a shield stops (shieldContact) uses the same rule.
+    if ((causeKey === 'EXCLUSION_ZONE' || hit.shieldContact === true)
         && (target?.hasShield === true || Number(target?.shieldHP) > 0)) {
         target.hasShield = false;
         target.shieldHP = 0;
@@ -131,8 +133,6 @@ export function applyHit(world, input) {
             isDead: false,
         };
     }
-    if (isDead(target)) return makeBlockedResult(target, 'DEAD');
-    if (isInvulnerable(target)) return makeBlockedResult(target, 'INVULNERABLE');
     if (amount <= 0) return makeBlockedResult(target, null);
 
     const hpBefore = Math.max(0, Number(target.hp) || 0);

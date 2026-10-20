@@ -57,6 +57,30 @@ test('an exclusion zone rocket still takes the shield of an unprotected player',
     assert.equal(target.hp, 100);
 });
 
+test('an invulnerable player keeps the shield against an exclusion zone rocket', () => {
+    const target = Object.assign(createPlayer({ index: 1, shieldHP: 40 }), { invulnerable: true });
+    const { world, events } = createWorld([target]);
+
+    const result = applyHit(world, { target, amount: 30, cause: 'EXCLUSION_ZONE' });
+
+    assert.equal(result.blocked, 'INVULNERABLE');
+    assert.equal(target.hasShield, true, 'god mode keeps its shield');
+    assert.equal(target.shieldHP, 40);
+    assert.equal(events.length, 0);
+});
+
+test('a player already at zero health does not lose its shield to an exclusion zone rocket', () => {
+    // Died earlier this tick: alive is still true until the kill is finalized, hp is 0.
+    const target = createPlayer({ index: 1, hp: 0, shieldHP: 40 });
+    const { world } = createWorld([target]);
+
+    const result = applyHit(world, { target, amount: 30, cause: 'EXCLUSION_ZONE' });
+
+    assert.equal(result.blocked, 'DEAD');
+    assert.equal(result.absorbedByShield, 0, 'no shield contact is reported for a dead target');
+    assert.equal(target.shieldHP, 40);
+});
+
 test('a player without a match clock keeps the health wall clock fallback (user decision 12.10.)', (t) => {
     const originalNow = performance.now;
     performance.now = () => 42_000;

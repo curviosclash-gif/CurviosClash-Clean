@@ -12,6 +12,7 @@
  * @property {string | null} [deathCause]
  * @property {boolean} [emitDamageEvent]
  * @property {boolean} [killOnDeath]
+ * @property {boolean} [shieldContact] the hit uses up one whole shield instead of dealing damage
  */
 
 /**

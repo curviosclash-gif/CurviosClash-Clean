@@ -59,7 +59,7 @@ export class ProjectileHitResolver {
         this._tmpVec = this.system?._tmpVec || null;
     }
 
-    _applyPlayerDamage(target, projectile, amount, weaponKind) {
+    _applyPlayerDamage(target, projectile, amount, weaponKind, shieldContact = false) {
         const runtimeContext = this.system?.runtimeContext;
         const applyPlayerHit = runtimeContext?.combat?.applyPlayerHit;
         if (typeof applyPlayerHit !== 'function') return null;
@@ -75,10 +75,12 @@ export class ProjectileHitResolver {
             deathCause: 'PROJECTILE',
         };
         if (Number.isFinite(nowMs)) hit.nowSeconds = Math.max(0, nowMs) * 0.001;
+        if (shieldContact) hit.shieldContact = true;
         const damageResult = applyPlayerHit(hit);
         const effectiveDamage = Math.max(0, Number(damageResult?.hpApplied) || 0)
             + Math.max(0, Number(damageResult?.absorbedByShield) || 0);
-        if (damageResult && damageResult.blocked == null && effectiveDamage > 0) {
+        // A shield that stopped an item is no successful item hit (ITEM_HIT_SUCCESS telemetry).
+        if (!shieldContact && damageResult && damageResult.blocked == null && effectiveDamage > 0) {
             this.system?.onProjectileDamage?.(
                 target, projectile?.owner || null, projectile?.type || 'PROJECTILE', damageResult, projectile
             );
@@ -435,8 +437,13 @@ export class ProjectileHitResolver {
                 break;
             }
 
+            const healthPool = isHuntHealthActive(resolveEntityRuntimeConfig(this.system));
             const huntRocketHit = isRocketTierType(projectile.type)
-                && (isHuntHealthActive(resolveEntityRuntimeConfig(this.system)) || projectile.type === 'ROCKET_GUIDED');
+                && (healthPool || projectile.type === 'ROCKET_GUIDED');
+            // With a health pool the shield is shieldHP: a mine drains it through the pipeline
+            // like any damage, and an item the shield stops uses up the whole pool there, so
+            // no hidden pool survives the shield the HUD no longer shows.
+            const poolMineHit = healthPool && projectile.type === 'MINE';
             if (huntRocketHit) {
                 const damage = resolveEndlessProjectileDamage(
                     projectile.owner,
@@ -445,8 +452,12 @@ export class ProjectileHitResolver {
                 this._applyPlayerDamage(target, projectile, damage, TEAM_WEAPON_KINDS.ROCKET);
                 this.system?.onProjectilePowerup?.(target, projectile);
                 this._applyRocketExplosion(projectile, players, target);
-            } else if (target.hasShield) {
-                target.hasShield = false;
+            } else if (target.hasShield && !poolMineHit) {
+                // Without a combat pipeline (bare projectile systems) the flag breaks as before.
+                if (!healthPool
+                    || !this._applyPlayerDamage(target, projectile, 0, resolveProjectileWeaponKind(projectile), true)) {
+                    target.hasShield = false;
+                }
             } else if (projectile.type === 'SWAP' && projectile.owner?.position) {
                 this._tmpVec.copy(target.position);
                 target.position.copy(projectile.owner.position);
