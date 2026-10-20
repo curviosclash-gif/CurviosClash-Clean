@@ -28,6 +28,11 @@ export function setLocalAppliedMapBalancing(document) {
     localAppliedDocument = normalizeAppliedMapBalancingDocument(document);
 }
 
+/** The normalized local approvals in effect; callers must not change it. */
+export function getLocalAppliedMapBalancingDocument() {
+    return localAppliedDocument;
+}
+
 export function getAppliedMapBalancing(target = {}) {
     const key = appliedMapBalancingKey(target);
     const entry = localAppliedDocument.entries.find((candidate) => appliedMapBalancingKey(candidate) === key)

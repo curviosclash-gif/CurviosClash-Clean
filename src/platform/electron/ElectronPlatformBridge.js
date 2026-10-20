@@ -122,6 +122,25 @@ export async function refreshElectronLocalMaps(runtimeGlobal = globalThis) {
     }
 }
 
+/**
+ * Liest die im Settings Studio freigegebenen Kartenwerte neu. Ausserhalb des
+ * Desktops: null, es gibt dort keine lokalen Freigaben.
+ *
+ * @param {typeof globalThis} [runtimeGlobal]
+ * @returns {Promise<{ exists?: boolean, document?: unknown, error?: string|null }|null>}
+ */
+export async function refreshElectronAppliedMapBalancing(runtimeGlobal = globalThis) {
+    const { appRuntime } = resolveAppRuntime(runtimeGlobal);
+    const contract = resolveNamedContract(appRuntime, 'settingsDefaults');
+    if (typeof contract?.refreshAppliedMapBalancing !== 'function') return null;
+    try {
+        const snapshot = await contract.refreshAppliedMapBalancing();
+        return snapshot && typeof snapshot === 'object' ? snapshot : null;
+    } catch {
+        return null;
+    }
+}
+
 function resolveNamedCapability(appRuntime, key) {
     const capabilities = appRuntime?.capabilities && typeof appRuntime.capabilities === 'object'
         ? appRuntime.capabilities
