@@ -1,16 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
 import { createMapBalancingLiveApi, registerMapBalancingLiveSource } from '../src/core/balancing/MapBalancingLive.js';
 import { isMapBalancingAuthoritative, resetMapBalancingRuntimeState } from '../src/core/balancing/MapBalancingRuntime.js';
 import { installDesktopTuningRuntimeBridge } from '../src/dev/tuning/TuningRuntimeIpcBridge.js';
 import { GameDebugApi } from '../src/core/GameDebugApi.js';
+import { MatchSessionRuntimeBridge } from '../src/core/MatchSessionRuntimeBridge.js';
 
 const require = createRequire(import.meta.url);
 const { registerTuningIpc } = require('../electron/tuning-ipc.cjs');
+const { createMapBalancingStore } = require('../electron/map-balancing-store.cjs');
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 function createFakeGame({ inMatch = true, mapKey = 'maze', modePath = 'fight' } = {}) {
     const liveCalls = [];
@@ -66,6 +72,31 @@ test('B4: a live change applies to the running match and switches the session to
     const reset = api.resetValue('speed');
     assert.equal(reset.value.fields.find((row) => row.key === 'speed').origin, 'mode');
     assert.equal(runtimeState.runtimeConfig.player.speed, 20);
+});
+
+test('B4: the map values of a live change end with the match teardown', () => {
+    const { facade } = createFakeGame();
+    registerMapBalancingLiveSource(() => facade);
+    createMapBalancingLiveApi().setValue('speed', 27);
+    assert.equal(isMapBalancingAuthoritative(), true);
+    new MatchSessionRuntimeBridge({ game: {}, runtimeBundle: { state: {} } }).clearMatchSessionRefs();
+    assert.equal(isMapBalancingAuthoritative(), false, 'later matches run without the unsaved draft');
+    const next = createRuntimeConfigSnapshot({ mapKey: 'maze', localSettings: { modePath: 'fight', sessionType: 'single' }, gameplay: { speed: 33 } });
+    assert.equal(next.player.speed, 33);
+});
+
+test('B4: a live change never reaches a network match', () => {
+    const { facade, runtimeState, liveCalls } = createFakeGame();
+    runtimeState.runtimeConfig = { ...runtimeState.runtimeConfig, session: { ...runtimeState.runtimeConfig.session, networkEnabled: true } };
+    registerMapBalancingLiveSource(() => facade);
+    const api = createMapBalancingLiveApi();
+    const result = api.setValue('speed', 27);
+    assert.equal(result.ok, true, 'the draft is still kept for the next local match');
+    assert.equal(result.liveApplied, false);
+    assert.deepEqual(liveCalls, []);
+    assert.equal(runtimeState.runtimeConfig.player.speed, 33, 'host and clients keep the same values');
+    assert.equal(api.setAuthoritative(true).liveApplied, false);
+    assert.deepEqual(liveCalls, []);
 });
 
 test('B4: saved layers survive a discard, unsaved ones do not', () => {
@@ -170,7 +201,7 @@ function createIpcHarness(answer) {
 
 test('B4: "Für diese Karte übernehmen" writes the game layer through the store and marks it saved', async () => {
     const harness = createIpcHarness((payload) => (payload.op === 'describe'
-        ? { mapKey: 'maze', layer: { values: { speed: 24 } } }
+        ? { mapKey: 'maze', layer: { values: { speed: 24 } }, fileLayer: { values: {} } }
         : { mapKey: 'maze', dirty: false }));
     const saved = [];
     const dispose = registerTuningIpc({
@@ -179,15 +210,15 @@ test('B4: "Für diese Karte übernehmen" writes the game layer through the store
         resolveTuningWindow: () => harness.tuningWindow,
         mapBalancingStore: {
             writable: true,
-            saveMapLayer: async (mapKey, layer) => {
-                saved.push([mapKey, layer]);
+            saveMapLayerOnBase: async (mapKey, layer, fileLayer) => {
+                saved.push([mapKey, layer, fileLayer]);
                 return { path: 'data/balancing/maps/maze.json', backupPath: '', removed: false, layer };
             },
         },
     });
     const result = await harness.invoke({ op: 'save' });
     assert.equal(result.ok, true);
-    assert.deepEqual(saved, [['maze', { values: { speed: 24 } }]]);
+    assert.deepEqual(saved, [['maze', { values: { speed: 24 } }, { values: {} }]]);
     assert.deepEqual(harness.requests.map((request) => request.op), ['describe', 'mark-saved']);
     assert.deepEqual(harness.requests[1].layer, { values: { speed: 24 } });
     assert.equal(result.value.savedPath, 'data/balancing/maps/maze.json');
@@ -197,6 +228,49 @@ test('B4: "Für diese Karte übernehmen" writes the game layer through the store
     assert.equal(forwarded.ok, true);
     assert.equal('extra' in harness.requests.at(-1), false);
     dispose();
+});
+
+test('B4: "Für diese Karte übernehmen" refuses to overwrite a map file changed outside the game', async () => {
+    const scratch = mkdtempSync(path.join(tmpdir(), 'curvios-f7-save-'));
+    try {
+        mkdirSync(path.join(scratch, 'data/balancing/maps'), { recursive: true });
+        copyFileSync(path.join(ROOT, 'data/balancing/modes.json'), path.join(scratch, 'data/balancing/modes.json'));
+        const mazeFile = path.join(scratch, 'data/balancing/maps/maze.json');
+        const studioText = JSON.stringify({ version: 1, mapKey: 'maze', values: { speed: 30, trailWidth: 1.2 } });
+        writeFileSync(mazeFile, studioText);
+        // the game was built before the Studio wrote the file, so it knows no map file
+        const harness = createIpcHarness((payload) => (payload.op === 'describe'
+            ? { mapKey: 'maze', layer: { values: { speed: 24 } }, fileLayer: { values: {} } }
+            : { mapKey: 'maze', dirty: false }));
+        const store = createMapBalancingStore({ root: ROOT, dataRoot: scratch, writable: true });
+        const dispose = registerTuningIpc({
+            ipcMain: harness.ipcMain,
+            resolveGameWindow: () => harness.gameWindow,
+            resolveTuningWindow: () => harness.tuningWindow,
+            mapBalancingStore: store,
+        });
+        const refused = await harness.invoke({ op: 'save' });
+        assert.equal(refused.ok, false);
+        assert.equal(refused.reason, 'external_change');
+        assert.equal(readFileSync(mazeFile, 'utf8'), studioText, 'the newer file stays untouched');
+        assert.deepEqual(harness.requests.map((request) => request.op), ['describe']);
+        // a game that knows the Studio state may save on top of it
+        const current = createIpcHarness((payload) => (payload.op === 'describe'
+            ? { mapKey: 'maze', layer: { values: { speed: 26, trailWidth: 1.2 } }, fileLayer: { values: { speed: 30, trailWidth: 1.2 } } }
+            : { mapKey: 'maze', dirty: false }));
+        const disposeCurrent = registerTuningIpc({
+            ipcMain: current.ipcMain,
+            resolveGameWindow: () => current.gameWindow,
+            resolveTuningWindow: () => current.tuningWindow,
+            mapBalancingStore: store,
+        });
+        assert.equal((await current.invoke({ op: 'save' })).ok, true);
+        assert.deepEqual(JSON.parse(readFileSync(mazeFile, 'utf8')).values, { speed: 26, trailWidth: 1.2 });
+        disposeCurrent();
+        dispose();
+    } finally {
+        rmSync(scratch, { recursive: true, force: true });
+    }
 });
 
 test('B4: the packaged app never writes balancing files', async () => {

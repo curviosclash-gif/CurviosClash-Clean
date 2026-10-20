@@ -12,11 +12,13 @@ import {
     applyMapBalancingToRuntimeConfig,
     discardMapBalancingWorkingLayer,
     getMapBalancingCatalog,
+    getMapBalancingFileLayer,
     getMapBalancingWorkingLayer,
     isMapBalancingAuthoritative,
     isMapBalancingWorkingLayerDirty,
     setMapBalancingAuthoritativeOverride,
     setMapBalancingWorkingLayer,
+    startMapBalancingMatchPreview,
 } from './MapBalancingRuntime.js';
 
 /** @type {(() => any) | null} */
@@ -43,7 +45,8 @@ function readTarget() {
 }
 
 function applyToRunningMatch(target) {
-    if (!target.inMatch) return false;
+    // A local draft in a LAN/online match would desync this PC from the host.
+    if (!target.inMatch || target.runtimeConfig?.session?.networkEnabled) return false;
     const next = applyMapBalancingToRuntimeConfig(target.runtimeConfig, { force: true });
     applyRuntimeConfigLive(target.facade.getRuntimeBundle?.(), target.runtimeState, next);
     return true;
@@ -60,6 +63,8 @@ function describe(target, { mapKey, modePath } = {}) {
         applied: isMapBalancingAuthoritative({ mapKey: key, modePath: modePath || target.modePath }) && !isMapBalancingAuthoritative(),
         dirty: isMapBalancingWorkingLayerDirty(key),
         layer: getMapBalancingWorkingLayer(key),
+        // base of the working copy; saving refuses when the file no longer matches it
+        fileLayer: getMapBalancingFileLayer(key),
     };
 }
 
@@ -73,9 +78,9 @@ function changeLayer(mapKey, change) {
         return { ok: false, reason: 'invalid_value', detail: error instanceof Error ? error.message : String(error) };
     }
     let liveApplied = false;
-    if (key === target.mapKey && target.inMatch) {
-        // Tuning a map means playing it with map values; the session keeps them from here on.
-        setMapBalancingAuthoritativeOverride(true);
+    if (key === target.mapKey && target.inMatch && !target.runtimeConfig?.session?.networkEnabled) {
+        // Tuning a map means playing this match with map values; the teardown ends that.
+        startMapBalancingMatchPreview();
         liveApplied = applyToRunningMatch(target);
     }
     return { ok: true, liveApplied, value: describe(readTarget(), { mapKey: key }) };

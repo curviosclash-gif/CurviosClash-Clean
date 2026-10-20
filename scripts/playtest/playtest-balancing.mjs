@@ -96,7 +96,7 @@ export async function runBalancingOperation({ args, store, getSession, recordInt
     if (action === 'save') {
         if (!store.writable) throw blocked(store.message);
         const live = await callLive(session, 'get', payload);
-        const saved = await store.saveMapLayer(live.value.mapKey, live.value.layer);
+        const saved = await store.saveMapLayerOnBase(live.value.mapKey, live.value.layer, live.value.fileLayer);
         const marked = await callLive(session, 'mark-saved', { mapKey: live.value.mapKey, layer: saved.layer });
         recordIntervention(session, { helper: 'balancing_save', args: { map: live.value.mapKey, path: saved.path } });
         return { action, scope, saved: { path: saved.path, backupPath: saved.backupPath, removed: saved.removed }, description: compact(marked.value) };

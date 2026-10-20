@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APPLIED_MAP_BALANCING_FIELDS, normalizeAppliedMapBalancingDocument, validateAppliedMapBalancingDocument } from '../src/shared/contracts/AppliedMapBalancingContract.js';
 import { getAppliedMapBalancing, setLocalAppliedMapBalancing, resolveBundledMapBalancing } from '../src/shared/maps/MapBalancingBundledData.js';
-import { applyMapBalancingToRuntimeConfig, resetMapBalancingRuntimeState, setMapBalancingAuthoritativeOverride, setMapBalancingWorkingLayer } from '../src/core/balancing/MapBalancingRuntime.js';
+import { applyMapBalancingToRuntimeConfig, endMapBalancingMatchPreview, resetMapBalancingRuntimeState, setMapBalancingAuthoritativeOverride, setMapBalancingWorkingLayer, startMapBalancingMatchPreview } from '../src/core/balancing/MapBalancingRuntime.js';
 
 const require = createRequire(import.meta.url);
 const { createMapBalancingStore } = require('../electron/map-balancing-store.cjs');
@@ -75,6 +75,43 @@ test('ordinary matches apply only the approved map/mode, and developer drafts re
     assert.equal(applyMapBalancingToRuntimeConfig(base).player.speed, 35, 'F7 can still preview a new draft');
     setMapBalancingAuthoritativeOverride(false);
     assert.equal(applyMapBalancingToRuntimeConfig(base), base, 'explicit developer switch off wins');
+});
+
+test('a sector change to a map without approval returns to the player values, not the previous map values', () => {
+    setLocalAppliedMapBalancing(documentWith(makeEntry({ speed: 24, trailWidth: 1.1, portalsEnabled: false })));
+    const player = { session: { ...target, splitScreenVariant: 'standard', numBots: 3, portalsEnabled: true }, player: { speed: 33 }, trail: { width: 0.6 } };
+    const sectorA = applyMapBalancingToRuntimeConfig(player, { clampBots: true });
+    assert.equal(sectorA.player.speed, 24);
+    const sectorB = applyMapBalancingToRuntimeConfig({ ...sectorA, session: { ...sectorA.session, mapKey: 'standard', numBots: 5 } });
+    assert.deepEqual([sectorB.player.speed, sectorB.trail.width, sectorB.session.portalsEnabled], [33, 0.6, true]);
+    assert.equal(sectorB.session.numBots, 5, 'the sector keeps its own bot count');
+    const backToA = applyMapBalancingToRuntimeConfig({ ...sectorB, session: { ...sectorB.session, mapKey: 'maze' } });
+    assert.equal(backToA.player.speed, 24);
+    assert.equal(applyMapBalancingToRuntimeConfig({ ...backToA, session: { ...backToA.session, mapKey: 'standard' } }).player.speed, 33);
+});
+
+test('the F7 preview never reaches a network session and ends with its match', () => {
+    setMapBalancingWorkingLayer('maze', { values: { speed: 35 } });
+    const network = { session: { ...target, networkEnabled: true }, player: { speed: 33 } };
+    startMapBalancingMatchPreview();
+    assert.equal(applyMapBalancingToRuntimeConfig(network), network, 'a live edit must not desync LAN/online');
+    assert.equal(applyMapBalancingToRuntimeConfig({ ...network, session: target }).player.speed, 35);
+    assert.equal(endMapBalancingMatchPreview(), true);
+    const next = { session: target, player: { speed: 33 } };
+    assert.equal(applyMapBalancingToRuntimeConfig(next), next, 'the next match runs without unsaved drafts');
+    setMapBalancingAuthoritativeOverride(true);
+    startMapBalancingMatchPreview();
+    assert.equal(endMapBalancingMatchPreview(), false, 'an explicit developer switch outlives the match');
+    assert.equal(applyMapBalancingToRuntimeConfig(next).player.speed, 35);
+});
+
+test('an explicit "map values off" comes back after the match of a live preview', () => {
+    setLocalAppliedMapBalancing(documentWith(makeEntry({ speed: 24 })));
+    const next = { session: target, player: { speed: 33 } };
+    setMapBalancingAuthoritativeOverride(false);
+    startMapBalancingMatchPreview();
+    assert.equal(endMapBalancingMatchPreview(), true);
+    assert.equal(applyMapBalancingToRuntimeConfig(next), next, 'the switch stays off, approvals do not return');
 });
 
 test('apply saves an immutable approved snapshot both locally and for GitHub/release builds', async () => {

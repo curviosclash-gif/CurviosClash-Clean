@@ -17,6 +17,7 @@ import {
 import { createMatchKernelInteractiveAdapter } from './MatchKernelInteractiveAdapter.js';
 import { createGameStateSnapshot } from './GameStateSnapshot.js';
 import { createMatchKernelConsumerRegistry } from '../state/MatchKernelConsumerAdapters.js';
+import { endMapBalancingMatchPreview } from './balancing/MapBalancingRuntime.js';
 
 const MATCH_KERNEL_HANDLE_KEY = 'matchKernel';
 const MATCH_KERNEL_ADAPTER_HANDLE_KEY = 'matchKernelAdapter';
@@ -120,5 +121,6 @@ export class MatchSessionRuntimeBridge {
         this._disposeKernelConsumers();
         this._disposeMatchKernel();
         clearMatchSessionState(this.runtimeBundle);
+        endMapBalancingMatchPreview();
     }
 }
