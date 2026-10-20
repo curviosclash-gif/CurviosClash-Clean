@@ -9,6 +9,7 @@ import {
     ARENA_WAVES_BOT_CAPACITY,
     ARENA_WAVES_CLEAR_REMAINDER_SECONDS,
     ARENA_WAVES_FAST_CLEAR_POINTS_PER_SECOND,
+    ARENA_WAVES_INTERVAL_SECONDS,
     calculateArenaWavesScore,
 } from '../src/shared/contracts/ArenaWavesContract.js';
 import { ArenaWavesRuntime } from '../src/core/arcade/ArenaWavesRuntime.js';
@@ -28,6 +29,8 @@ function fixture() {
     return { human, bots, manager };
 }
 
+// A clear ten seconds into the 30 s wave skips the rest down to the short warning window.
+const FAST_CLEAR_AFTER_TEN_SECONDS = ARENA_WAVES_INTERVAL_SECONDS - 10 - ARENA_WAVES_CLEAR_REMAINDER_SECONDS;
 const kill = (runtime, f, slot) => runtime.handleGameplayEvent({ type: 'kill', playerIndex: f.human.index, victimIndex: f.bots[slot].player.index });
 function integratedArena(combatElapsed = 10) {
     const f = fixture();
@@ -63,12 +66,12 @@ test('clearing the arena cuts the wave timer and scores the skipped seconds', ()
     assert.equal(runtime.phase, 'combat');
     runtime.update(10);
     kill(runtime, f, 0);
-    assert.equal(runtime.getHudState().nextWaveInSeconds, 50, 'one bot left: the timer runs on');
+    assert.equal(runtime.getHudState().nextWaveInSeconds, ARENA_WAVES_INTERVAL_SECONDS - 10, 'one bot left: the timer runs on');
     kill(runtime, f, 1);
     assert.equal(runtime.getHudState().nextWaveInSeconds, ARENA_WAVES_CLEAR_REMAINDER_SECONDS);
-    assert.equal(runtime.fastClearSeconds, 45);
+    assert.equal(runtime.fastClearSeconds, FAST_CLEAR_AFTER_TEN_SECONDS);
     const base = calculateArenaWavesScore({ survivalSeconds: 10, regularKills: 2, completedWaves: [1] });
-    assert.equal(runtime.score, base + 45 * ARENA_WAVES_FAST_CLEAR_POINTS_PER_SECOND);
+    assert.equal(runtime.score, base + FAST_CLEAR_AFTER_TEN_SECONDS * ARENA_WAVES_FAST_CLEAR_POINTS_PER_SECOND);
     runtime.update(4); assert.equal(runtime.phase, 'telegraph', 'the next wave is announced a second early as before');
     runtime.update(1); assert.equal(runtime.wave, 2);
 });
@@ -86,7 +89,7 @@ test('a last bot that dies without a human kill still shortens the wait but scor
 });
 
 test('clearing with three seconds left does not shorten the wait or award a fast-clear bonus', () => {
-    const f = integratedArena(57);
+    const f = integratedArena(ARENA_WAVES_INTERVAL_SECONDS - 3);
     assert.equal(f.runtime.getHudState().nextWaveInSeconds, 3);
     killThroughProducer(f.manager, f.bots[0].player, f.human);
     killThroughProducer(f.manager, f.bots[1].player, f.human);
@@ -97,11 +100,11 @@ test('a real last kill keeps its earned fast-clear bonus when the human dies aft
     const f = integratedArena();
     killThroughProducer(f.manager, f.bots[0].player, f.human);
     killThroughProducer(f.manager, f.bots[1].player, f.human);
-    assert.equal(f.runtime.fastClearSeconds, 45);
+    assert.equal(f.runtime.fastClearSeconds, FAST_CLEAR_AFTER_TEN_SECONDS);
     assert.equal(f.runtime.regularKills, 2);
     killThroughProducer(f.manager, f.human);
     f.runtime.update(0);
-    assert.equal(f.runtime.mapStats[0].fastClearSeconds, 45, 'later death preserves a bonus earned while alive');
+    assert.equal(f.runtime.mapStats[0].fastClearSeconds, FAST_CLEAR_AFTER_TEN_SECONDS, 'later death preserves a bonus earned while alive');
     assert.equal(f.runtime.mapStats[0].regularKills, 2);
 });
 
@@ -167,7 +170,7 @@ test('the human and the last bot dying in one frame still complete the wave, in 
         const stats = f.runtime.mapStats[0];
         assert.deepEqual(stats.completedWaves, [1], `${humanFirst ? 'human first' : 'bot first'}: wave 1 counts once`);
         assert.equal(stats.regularKills, 2);
-        assert.equal(stats.fastClearSeconds, humanFirst ? 0 : 45, 'only a living pilot earns the clear bonus');
+        assert.equal(stats.fastClearSeconds, humanFirst ? 0 : FAST_CLEAR_AFTER_TEN_SECONDS, 'only a living pilot earns the clear bonus');
         assert.equal(f.runtime.mapIndex, 0, 'group death ends the current attempt');
         assert.equal(f.runtime.phase, 'finished');
     }
