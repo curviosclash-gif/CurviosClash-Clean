@@ -341,6 +341,10 @@ export class WeaponRaceRuntime {
 
     handleFinish({ playerIndex, finishedAtMs = this._raceNow() } = {}) {
         this._followRaceClock(); // a finish can arrive in the simulation tick before update()
+        // A decided race is closed: a straggler must not reopen grace and keep the old outcome.
+        if (this.phase !== 'racing' && this.phase !== 'grace') {
+            return { accepted: false, awardedXp: 0, graceEndsAtMs: this.state?.graceEndsAtMs ?? null };
+        }
         const result = finishWeaponRaceRacer(this.state, playerIndex, finishedAtMs);
         if (result.accepted) {
             this.phase = 'grace';
