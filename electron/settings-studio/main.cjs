@@ -124,12 +124,36 @@ function createWindowShellCapability() {
             await mainWindow.loadFile(path.resolve(__dirname, 'ui', 'settings-studio.html'));
             let allowWindowClose = false;
             let closeRequested = false;
+            let uiUnresponsive = false;
+            let nativeQuestionOpen = false;
+            const closeWindow = () => {
+                allowWindowClose = true;
+                if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+            };
             const handleCloseResponse = (event, discard) => {
                 if (!isTrustedWindowSender(event, mainWindow) || !closeRequested) return;
                 closeRequested = false;
-                if (discard === true) {
-                    allowWindowClose = true;
-                    mainWindow.close();
+                if (discard === true) closeWindow();
+            };
+            // A hung Studio UI cannot answer; the main process asks the same question itself.
+            const askNatively = async () => {
+                if (nativeQuestionOpen || !mainWindow || mainWindow.isDestroyed()) return;
+                // closeRequested stays: a UI that recovers may still answer its own question.
+                nativeQuestionOpen = true;
+                try {
+                    const { response } = await dialog.showMessageBox(mainWindow, {
+                        type: 'warning',
+                        title: 'CurviosClash Settings Studio',
+                        message: 'Ungespeicherte Änderungen',
+                        detail: 'Die Oberfläche reagiert nicht. Ungespeicherte Änderungen verwerfen und das Fenster schließen?',
+                        buttons: ['Weiterbearbeiten', 'Verwerfen und schließen'],
+                        defaultId: 0,
+                        cancelId: 0,
+                        noLink: true,
+                    });
+                    if (response === 1) closeWindow();
+                } finally {
+                    nativeQuestionOpen = false;
                 }
             };
             ipcMain.on(CLOSE_REQUEST_CHANNEL, handleCloseResponse);
@@ -138,8 +162,24 @@ function createWindowShellCapability() {
                     return;
                 }
                 event.preventDefault();
+                if (uiUnresponsive) {
+                    void askNatively();
+                    return;
+                }
                 closeRequested = true;
                 mainWindow.webContents.send(CLOSE_REQUEST_CHANNEL);
+            });
+            mainWindow.on('unresponsive', () => {
+                uiUnresponsive = true;
+                if (closeRequested) void askNatively();
+            });
+            mainWindow.on('responsive', () => {
+                uiUnresponsive = false;
+            });
+            // The unsaved state died with the UI, so nothing is left to protect.
+            mainWindow.webContents.on('render-process-gone', () => {
+                hasUnsavedChanges = false;
+                if (closeRequested) closeWindow();
             });
             mainWindow.on('closed', () => {
                 ipcMain.removeListener(CLOSE_REQUEST_CHANNEL, handleCloseResponse);
@@ -215,11 +255,10 @@ app.on('window-all-closed', () => {
     });
 });
 
-app.on('before-quit', () => {
+// before-quit also fires for a quit that unsaved changes cancel afterwards; only will-quit
+// is final, so the IPC handlers and the clean-exit mark wait for it.
+app.on('will-quit', () => {
     markSessionExitClean();
     void shutdownSettingsStudio();
-});
-
-app.on('will-quit', () => {
     ipcMain.removeAllListeners(DIRTY_STATE_CHANNEL);
 });
