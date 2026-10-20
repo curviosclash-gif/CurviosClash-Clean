@@ -13,7 +13,7 @@ import {
     ARCADE_BASE_REGEN_PCT_PER_SECOND,
     ARCADE_MIN_REGEN_DELAY_S,
 } from '../shared/contracts/ArcadeVehicleBalanceContract.js';
-import { applyHeal } from '../entities/combat/CombatPipeline.js';
+import { applyHealTo } from '../entities/combat/CombatPipeline.js';
 
 /**
  * Simulation clock of the entity manager in seconds; without one the fallback (strategy clock).
@@ -60,6 +60,6 @@ export function updateArcadeBaseRegen(player, dt, nowSeconds, suddenDeathActive,
     if (Number.isFinite(lastHit) && nowSeconds - lastHit < delay) return null;
     const healAmount = Math.min(maxHp - hp,
         maxHp * (ARCADE_BASE_REGEN_PCT_PER_SECOND / 100) * Math.max(0, Number(dt) || 0));
-    if (healAmount > 0) applyHeal(world, { target: player, amount: healAmount });
+    if (healAmount > 0) applyHealTo(world, player, healAmount);
     return null;
 }

@@ -30,6 +30,9 @@ import { applyArcadeModeUpgradeBonuses, resolveArcadeModePlayerUpgradeBonuses } 
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
+// Heat stress and boost tax run every frame; their damage options are shared, not rebuilt.
+const HEAT_STRESS_DAMAGE_OPTIONS = Object.freeze({ ignoreShield: false, emitDamageEvent: false });
+const MODIFIER_DAMAGE_OPTIONS = Object.freeze({ ignoreShield: true, emitDamageEvent: false });
 
 function toSafe(value, fallback) {
     const n = Number(value);
@@ -386,14 +389,11 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     _applyModifierDamage(player, amount, cause, entityManager = null) {
-        const ignoreShield = cause !== 'HEAT_STRESS';
+        const options = cause === 'HEAT_STRESS' ? HEAT_STRESS_DAMAGE_OPTIONS : MODIFIER_DAMAGE_OPTIONS;
         if (typeof entityManager?._applyModeDamage === 'function') {
-            return entityManager._applyModeDamage(player, amount, cause, {
-                ignoreShield,
-                emitDamageEvent: false,
-            });
+            return entityManager._applyModeDamage(player, amount, cause, options);
         }
-        return this.applyDamage(player, amount, { ignoreShield });
+        return this.applyDamage(player, amount, options);
     }
 
     // 61.4.1: heat_stress drains HP over time (61.6.2: plus SD stacks). Paket 1: normal runs get the

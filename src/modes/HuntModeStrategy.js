@@ -6,7 +6,7 @@ import { isRocketTierType, pickWeightedRocketTierType } from '../hunt/RocketPick
 import { isPickupTypeAllowedForMode, normalizePickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
-import { applyHeal } from '../entities/combat/CombatPipeline.js';
+import { applyHealTo } from '../entities/combat/CombatPipeline.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import { applyPlayerCrashDamage, recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
 import { TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
@@ -232,7 +232,7 @@ export class HuntModeStrategy extends GameModeContract {
         const world = config?.gameModeStrategy || config?.strategy
             ? config
             : this._regenHealWorld;
-        applyHeal(world, { target: player, amount: healAmount });
+        applyHealTo(world, player, healAmount);
     }
 
     // --- Collision Response ---
