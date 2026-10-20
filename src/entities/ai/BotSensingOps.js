@@ -27,7 +27,7 @@ export function senseEnvironment(bot, player, arena, allPlayers, _projectiles) {
     bot.sense.mapPortalBias = mapBehavior.portalBias;
     bot.sense.mapAggressionBias = mapBehavior.aggressionBias;
 
-    bot.sense.lookAhead = bot.computeDynamicLookAhead(player);
+    bot.sense.lookAhead = bot.computeDynamicLookAhead(player, planarMode);
 
     player.getDirection(bot._tmpForward).normalize();
     bot._buildBasis(bot._tmpForward);

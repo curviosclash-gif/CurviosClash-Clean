@@ -21,6 +21,7 @@ import {
     normalizeRisk,
     normalizeSigned,
     normalizeTargetDistance,
+    resolveBotReactionDistance,
 } from './perception/AiPerceptionPrimitives.js';
 import {
     buildPerceptionBasis,
@@ -196,7 +197,7 @@ export class BotSensors {
         buildPerceptionBasis(forward, this._tmpRight, this._tmpUp);
     }
 
-    _computeDynamicLookAhead(player) {
+    _computeDynamicLookAhead(player, planarMode = false) {
         const base = Math.max(
             AI_SENSOR_LOOKAHEAD.minimumDistance,
             Number(this.profile?.lookAhead) || AI_SENSOR_LOOKAHEAD.defaultBaseDistance
@@ -204,7 +205,12 @@ export class BotSensors {
         const speedRatio = player.baseSpeed > 0 ? player.speed / player.baseSpeed : 1;
         let lookAhead = base * (1 + (speedRatio - 1) * AI_SENSOR_LOOKAHEAD.speedRatioWeight);
         if (player.isBoosting) lookAhead *= AI_SENSOR_LOOKAHEAD.boostMultiplier;
-        return Math.max(AI_SENSOR_LOOKAHEAD.minimumDistance, lookAhead);
+        // In 3D never look less far than the bot needs to turn away at its current speed. Planar
+        // play keeps its tuned look-ahead (solo planar Hunt measured better with a short one).
+        const reactionDistance = planarMode
+            ? 0
+            : resolveBotReactionDistance(player.speed, player.turnSpeed, this.profile?.reactionTime);
+        return Math.max(AI_SENSOR_LOOKAHEAD.minimumDistance, lookAhead, reactionDistance);
     }
 
     _mapBehavior(arena) {
