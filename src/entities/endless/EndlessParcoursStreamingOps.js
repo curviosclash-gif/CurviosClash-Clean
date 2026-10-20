@@ -5,6 +5,7 @@ import { clearEndlessElite } from './EndlessParcoursBotDirectorOps.js';
 import { registerEndlessShakeoff } from './EndlessParcoursRunOps.js';
 import { createEndlessPathSample } from './EndlessParcoursPathMetric.js';
 import { resolveEndlessCoursePoint } from './EndlessParcoursCourseSpace.js';
+import { getEndlessActiveIndices, getEndlessActiveInstances } from './EndlessActiveModuleMap.js';
 
 const PICKUP_FRAME = createEndlessPathSample();
 
@@ -86,15 +87,23 @@ export function syncEndlessModules(runtime, currentModuleIndex) {
         if (runtime.activeModules.has(index)) continue;
         runtime.activeModules.set(index, runtime._instantiateModule(runtime._path.getModule(index)));
     }
-    for (const [index, instance] of runtime.activeModules) {
-        if (index >= minIndex && index <= maxIndex) continue;
-        runtime._removeModule(instance, { awardShakeoff: index < minIndex });
+    // Runs every tick: walk the dense lists. A removal shrinks them, so the slot stays put;
+    // a snapshot list (plain Map) does not shrink and moves on instead.
+    const indices = getEndlessActiveIndices(runtime.activeModules);
+    const instances = getEndlessActiveInstances(runtime.activeModules);
+    for (let slot = 0; slot < indices.length;) {
+        const index = indices[slot];
+        if (index >= minIndex && index <= maxIndex) { slot += 1; continue; }
+        runtime._removeModule(instances[slot], { awardShakeoff: index < minIndex });
         runtime.activeModules.delete(index);
+        if (indices[slot] === index) slot += 1;
     }
 }
 
 export function syncEndlessCycleCollidersForRuntime(runtime) {
-    for (const instance of runtime.activeModules.values()) {
+    const instances = getEndlessActiveInstances(runtime.activeModules);
+    for (let slot = 0; slot < instances.length; slot += 1) {
+        const instance = instances[slot];
         if (!syncEndlessCycleColliders(instance, runtime.elapsedCombatSeconds, runtime._materials)) continue;
         runtime.arena?.registerStaticColliderBatch?.(instance.ownerId, resolveEndlessActiveColliders(instance));
     }

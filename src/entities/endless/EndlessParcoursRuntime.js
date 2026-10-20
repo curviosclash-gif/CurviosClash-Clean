@@ -26,6 +26,7 @@ import {
 } from '../../shared/contracts/EndlessParcoursStageContract.js';
 import { normalizeEndlessParcoursRecords } from '../../state/arcade/EndlessParcoursRecords.js';
 import { EndlessParcoursExclusionZone } from './EndlessParcoursExclusionZone.js';
+import { EndlessActiveModuleMap } from './EndlessActiveModuleMap.js';
 import { EndlessParcoursWaterSource } from './EndlessParcoursWater.js';
 import { getEndlessHunterRoute, syncEndlessHunterSpeeds } from './EndlessParcoursHunterOps.js';
 import { EndlessParcoursPath } from './EndlessParcoursPath.js';
@@ -125,7 +126,7 @@ export class EndlessParcoursRuntime {
         const runTimestamp = Date.parse(this.wallClockIso());
         const runTimePart = Number.isFinite(runTimestamp) ? runTimestamp.toString(36) : 'unknown';
         this.runId = `endless-${this.baseSeed.toString(36)}-${runTimePart}-${endlessRunSequence.toString(36)}`;
-        this.activeModules = new Map();
+        this.activeModules = new EndlessActiveModuleMap();
         this._setpieceBank = null;
         this._setpieceElapsedSeconds = 0;
         this._ringState = createEndlessRingState(entityManager?.humanPlayers?.[0]);

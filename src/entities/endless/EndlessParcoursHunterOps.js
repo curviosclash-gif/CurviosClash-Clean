@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { sampleEndlessPortRoute } from './EndlessParcoursSidePort.js';
 import { ENDLESS_PARCOURS_MODULE_LENGTH } from '../../shared/contracts/EndlessParcoursContract.js';
+import { getEndlessActiveIndices, getEndlessActiveInstances } from './EndlessActiveModuleMap.js';
 
 export const ENDLESS_HUNTER_SPEED_MULTIPLIER = 1.12;
 
@@ -46,7 +47,11 @@ export function getEndlessHunterRoute(runtime, playerIndex) {
     if (!projected) return null;
     const botS = projected.s;
     let minIndex = Infinity, maxIndex = -Infinity;
-    for (const index of runtime.activeModules.keys()) { minIndex = Math.min(minIndex, index); maxIndex = Math.max(maxIndex, index); }
+    const indices = getEndlessActiveIndices(runtime.activeModules);
+    for (let slot = 0; slot < indices.length; slot += 1) {
+        minIndex = Math.min(minIndex, indices[slot]);
+        maxIndex = Math.max(maxIndex, indices[slot]);
+    }
     const metric = runtime.getPathMetric();
     const minS = metric.getStationRange(minIndex).startS + 2;
     const maxS = metric.getStationRange(maxIndex).endS - 2;
@@ -66,7 +71,9 @@ export function getEndlessHunterRoute(runtime, playerIndex) {
         runtime._hunterRoutes.set(playerIndex, route);
     }
     if (player.endlessPortId) {
-        for (const instance of runtime.activeModules.values()) {
+        const instances = getEndlessActiveInstances(runtime.activeModules);
+        for (let slot = 0; slot < instances.length; slot += 1) {
+            const instance = instances[slot];
             if (instance.sidePort?.id === player.endlessPortId
                 && sampleEndlessPortRoute(instance.sidePort, player.position, route.checkpoints[0].pos)) return route;
         }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { normalizeWaterZone } from '../../shared/contracts/WaterZoneContract.js';
 import { deriveEndlessSeed } from '../../shared/contracts/EndlessParcoursContract.js';
 import { sphereIntersectsStaticMeshCollider } from '../arena/StaticMeshCollider.js';
+import { getEndlessActiveInstances } from './EndlessActiveModuleMap.js';
 
 const WATER_EFFECTS = normalizeWaterZone({}).effects;
 
@@ -30,7 +31,9 @@ export class EndlessParcoursWaterSource {
     isPositionUnderwater(position) {
         if (this.runtime._disposed || !position || !Number.isFinite(position.x)
             || !Number.isFinite(position.y) || !Number.isFinite(position.z)) return false;
-        for (const instance of this.runtime.activeModules.values()) {
+        const instances = getEndlessActiveInstances(this.runtime.activeModules);
+        for (let slot = 0; slot < instances.length; slot += 1) {
+            const instance = instances[slot];
             if (!instance.underwater) continue;
             const b = instance.bounds;
             if (position.x < b.min.x || position.x > b.max.x || position.y < b.min.y

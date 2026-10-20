@@ -20,7 +20,7 @@ import { updateEntityCameras } from './runtime/EntityCameraUpdateOps.js';
 import { clearEndlessBotRuntimeIdentity, resetEndlessBotRuntimeIdentity } from './endless/EndlessBotRuntimeIdentityOps.js';
 import { countArcadeSelfTrailSkip } from './systems/lifecycle/ArcadePartCollisionOps.js';
 import { bindMapFeedback } from './effects/MapFeedbackBindings.js';
-import { applyHit } from './combat/CombatPipeline.js';
+import { applyHitTo } from './combat/CombatPipeline.js';
 import { applyEntityNetworkSnapshot, setEntityNetworkReplica } from './runtime/EntityNetworkReplicaOps.js';
 import * as visibility from './runtime/EntityVisibilityOps.js';
 import { teardownEntityRuntime } from './runtime/EntityRuntimeTeardownOps.js';
@@ -402,16 +402,9 @@ export class EntityManager {
         emitArcadeDamageEvent(this, event);
     }
 
-    _applyModeDamage(player, amount, cause = 'UNKNOWN', options = {}) {
+    _applyModeDamage(player, amount, cause = 'UNKNOWN', options = null) {
         if (!player || player.alive === false) return null;
-        return applyHit(this, {
-            ...options,
-            target: player,
-            amount,
-            cause,
-            sourcePlayer: options?.sourcePlayer || null,
-            impactPoint: options?.impactPoint || player.position || null,
-        });
+        return applyHitTo(this, player, amount, cause, options);
     }
 
     _killPlayer(player, cause = 'UNKNOWN', options = {}) {

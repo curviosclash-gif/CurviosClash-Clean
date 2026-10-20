@@ -81,6 +81,9 @@ test('combat input contracts normalize optional metadata and reject invalid hits
         deathCause: null,
         emitDamageEvent: true,
         killOnDeath: true,
+        ignoreShield: false,
+        nowSeconds: undefined,
+        shieldContact: false,
     });
     assert.equal(normalizeCombatHitInput({ target, amount: -1 }), null);
     assert.equal(normalizeCombatHitInput({ target, amount: Infinity }), null);

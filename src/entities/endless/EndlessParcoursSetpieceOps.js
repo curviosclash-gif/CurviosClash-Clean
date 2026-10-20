@@ -1,4 +1,5 @@
 import { EndlessParcoursSetpieceBank } from './EndlessParcoursSetpieceBank.js';
+import { getEndlessActiveInstances } from './EndlessActiveModuleMap.js';
 
 export async function prepareEndlessSetpieces(runtime, options = {}) {
     if (runtime._disposed) throw new Error('Cannot prepare a disposed Endlos run');
@@ -19,7 +20,9 @@ export function updateEndlessSetpieces(runtime, dt) {
     if (runtime._disposed || runtime._finalized || !runtime._setpieceBank?.ready) return;
     runtime._setpieceElapsedSeconds = (runtime._setpieceElapsedSeconds || 0) + Math.max(0, Number(dt) || 0);
     let changed = false;
-    for (const instance of runtime.activeModules.values()) {
+    const instances = getEndlessActiveInstances(runtime.activeModules);
+    for (let slot = 0; slot < instances.length; slot += 1) {
+        const instance = instances[slot];
         if (!instance.setpiece) continue;
         instance.setpiece.update(runtime._setpieceElapsedSeconds);
         changed = true;
