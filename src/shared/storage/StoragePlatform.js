@@ -36,7 +36,8 @@ export class StoragePlatform {
         for (const candidate of candidates) {
             const read = this.driver.readRaw(candidate);
             if (!read.ok) { canMigrate = false; continue; }
-            if (typeof read.value !== 'string') continue;
+            // An empty string holds nothing to rescue; treat it like a missing key, as resolve() does.
+            if (typeof read.value !== 'string' || read.value.length === 0) continue;
             const parsed = parseJson(read.value);
             if (!parsed.ok) {
                 if (!this._preserveCorruptJson(key, read.value).ok) canMigrate = false;
@@ -67,7 +68,7 @@ export class StoragePlatform {
         }
         const current = this.driver.readRaw(key);
         if (!current.ok) return { ok: false, reason: current.reason || 'read_failed', quotaExceeded: false };
-        if (typeof current.value === 'string' && !parseJson(current.value).ok) {
+        if (typeof current.value === 'string' && current.value.length > 0 && !parseJson(current.value).ok) {
             const backup = this._preserveCorruptJson(key, current.value);
             if (!backup.ok) return backup;
         }

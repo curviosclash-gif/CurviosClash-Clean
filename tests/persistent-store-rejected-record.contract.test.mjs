@@ -39,3 +39,31 @@ test('the versioned loader reports rejected records before returning the default
     assert.equal(value, 'default');
     assert.deepEqual(rejected, [{ schemaVersion: 'other.v9', data: 1 }]);
 });
+
+test('a newer record stays untouched when its backup cannot be written, and the save reports the failure', () => {
+    const newerRecord = JSON.stringify({
+        schemaVersion: 'menu-preset-store.v99',
+        presets: [{ id: 'my-newer-preset', name: 'From the future' }],
+    });
+    const storage = createMemoryStorage({ 'test.presets': newerRecord });
+    // Simulates a full browser storage that refuses exactly the side-key backup.
+    const setItem = storage.setItem;
+    storage.setItem = (key, value) => {
+        if (key === 'test.presets.rejected') {
+            const error = new Error('quota exceeded');
+            error.name = 'QuotaExceededError';
+            throw error;
+        }
+        setItem(key, value);
+    };
+    const store = new MenuPresetStore({ storage, storageKey: 'test.presets', storageLegacyKeys: [] });
+
+    assert.deepEqual(store._loadPersistedPresets(), []);
+    assert.equal(store._savePersistedPresets([]), false, 'the save must not report success');
+    assert.equal(storage.getItem('test.presets'), newerRecord, 'the newer record is not overwritten by defaults');
+    assert.equal(store.getPersistenceStatus().status, 'failed');
+
+    storage.setItem = setItem;
+    assert.equal(store._savePersistedPresets([]), true, 'once the backup succeeds, saving works again');
+    assert.equal(storage.getItem('test.presets.rejected'), newerRecord);
+});

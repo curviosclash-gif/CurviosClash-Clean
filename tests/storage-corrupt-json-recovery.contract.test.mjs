@@ -162,3 +162,21 @@ test('the real menu preset store preserves malformed JSON when its next save wri
     assert.equal(storage.records.get('presets.corrupt'), '{broken presets');
     assert.ok(JSON.parse(storage.records.get('presets')));
 });
+
+test('an empty primary string is skipped like a missing key so a valid legacy value migrates without a backup', () => {
+    const storage = memoryStorage({ record: '', old: '{"pilot":7}' });
+    const platform = new StoragePlatform({ storage });
+    assert.deepEqual(platform.readJson('record', ['old']), { pilot: 7 });
+    assert.equal(storage.records.has('record.corrupt'), false, 'an empty string has nothing worth rescuing');
+    assert.equal(storage.records.get('record'), '{"pilot":7}');
+    assert.equal(platform.getLastMigrationResult('record').status, 'migrated');
+});
+
+test('a full storage does not block replacing an empty primary string', () => {
+    const storage = memoryStorage({ record: '' }, { quota: key => key.endsWith('.corrupt') });
+    const platform = new StoragePlatform({ storage });
+    assert.equal(platform.readJson('record', [], 'fallback'), 'fallback');
+    assert.equal(platform.writeJson('record', { value: 1 }).ok, true, 'no backup is needed before overwriting an empty string');
+    assert.equal(storage.records.get('record'), '{"value":1}');
+    assert.equal(storage.records.has('record.corrupt'), false);
+});
