@@ -1,4 +1,5 @@
 import { crossesEndlessRing } from './EndlessParcoursRingOps.js';
+import { getEndlessActiveIndices } from './EndlessActiveModuleMap.js';
 import * as THREE from 'three';
 import { ENDLESS_PARCOURS_MODULE_LENGTH } from '../../shared/contracts/EndlessParcoursContract.js';
 import {
@@ -98,7 +99,8 @@ export function handleEndlessCheckpointCrossing(runtime, progressZ) {
     let crossed = false;
     const human = runtime.entityManager?.humanPlayers?.[0];
     let first = Infinity, last = -Infinity;
-    for (const index of runtime.activeModules.keys()) { first = Math.min(first, index); last = Math.max(last, index); }
+    const indices = getEndlessActiveIndices(runtime.activeModules);
+    for (let slot = 0; slot < indices.length; slot += 1) { first = Math.min(first, indices[slot]); last = Math.max(last, indices[slot]); }
     for (let index = first; index <= Math.min(last, targetIndex); index++) {
         const instance = runtime.activeModules.get(index);
         if (!instance) continue;
