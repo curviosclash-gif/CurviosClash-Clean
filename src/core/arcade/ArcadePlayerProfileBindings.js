@@ -2,6 +2,7 @@ import { arcadeRunUsesProfileBuild } from '../../shared/contracts/ArcadeDifficul
 import { loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
 import { syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
+import { hasBlockingArcadePersistenceFailures } from './ArcadeRunPersistenceOps.js';
 
 export function initializeArcadePlayerProfileBindings(runtime, getRecordStoreForPlayerIndex) {
     runtime._getRecordStoreForPlayerIndex = typeof getRecordStoreForPlayerIndex === 'function'
@@ -30,7 +31,7 @@ export function prepareArcadePlayerProfileBindings(
     if (runActive && runtime._playerProfileBindingsActive) return true;
 
     runtime.flushPersistenceSaves?.();
-    if (runtime._persistenceScheduler?.getFailedKinds?.().length || runtime._ghostLibrarySaveFailed) {
+    if (hasBlockingArcadePersistenceFailures(runtime)) {
         throw new Error('Der vorherige Arcade-Fortschritt konnte noch nicht gespeichert werden.');
     }
     runtime._playerProfileBindingsActive = true;

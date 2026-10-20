@@ -140,13 +140,23 @@ const SAVE_FAILURE_LABELS = Object.freeze({
 /**
  * A save the store rejected (usually full storage) gets its own card instead of a console line.
  * @param {unknown} saveFailures kinds from the persistence scheduler, e.g. 'vehicleProfiles:p2'
+ * @param {unknown} [saveBlockedKinds] failed kinds whose stored record is damaged and left untouched
  */
-export function createArcadeSaveFailureBlock(saveFailures) {
-    const kinds = Array.isArray(saveFailures) ? saveFailures.map((kind) => String(kind || '').split(':')[0]) : [];
-    if (kinds.length === 0) return null;
-    const labels = [...new Set(kinds.map((kind) => SAVE_FAILURE_LABELS[kind] || kind))];
+export function createArcadeSaveFailureBlock(saveFailures, saveBlockedKinds = []) {
+    const failures = Array.isArray(saveFailures) ? saveFailures.map((kind) => String(kind || '')) : [];
+    if (failures.length === 0) return null;
+    const blocked = new Set(Array.isArray(saveBlockedKinds) ? saveBlockedKinds.map((kind) => String(kind || '')) : []);
+    const labels = [...new Set(failures.map((kind) => SAVE_FAILURE_LABELS[kind.split(':')[0]] || kind.split(':')[0]))];
+    const notices = [];
+    if (failures.some((kind) => blocked.has(kind))) {
+        notices.push(textRow('blocked', 'Hinweis', 'Fortschritt kann für dieses Profil nicht gespeichert werden: '
+            + 'der gespeicherte Datensatz ist beschädigt und bleibt unverändert. Der Lauf ist trotzdem spielbar.'));
+    }
+    if (failures.some((kind) => !blocked.has(kind))) {
+        notices.push(textRow('notice', 'Hinweis', 'Fortschritt konnte nicht gespeichert werden. Der Speicher ist vermutlich voll.'));
+    }
     return createArcadeBlock('arcade-save-failure', 'Speichern fehlgeschlagen', [
-        textRow('notice', 'Hinweis', 'Fortschritt konnte nicht gespeichert werden. Der Speicher ist vermutlich voll.'),
+        ...notices,
         textRow('affected', 'Betroffen', labels.join(', ')),
     ]);
 }
@@ -204,7 +214,7 @@ export function createArcadeHighlightsBlock(highlights) {
  */
 export function createArcadeRunBlocks(summary = {}) {
     const blocks = [
-        createArcadeSaveFailureBlock(summary.saveFailures),
+        createArcadeSaveFailureBlock(summary.saveFailures, summary.saveBlockedKinds),
         createArcadeRankingBlock(summary.ranking),
         createArcadeGhostVerdictBlock(summary.parcoursResult),
         createArcadeHighlightsBlock(summary.highlights),

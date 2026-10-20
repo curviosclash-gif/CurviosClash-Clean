@@ -16,6 +16,7 @@ import {
     resolveOnlineSignalingUrl,
     buildSocketCloseDetails,
     createSocketLifecycleError,
+    createOnlineSignalingError,
     createInvalidSignalingPayloadError,
     createNetworkUnavailableSignalingError,
     createResumeSignalingEnvelope,
@@ -233,13 +234,17 @@ export class OnlineMatchLobby extends MatchLobby {
             if (options.emitReconnectProgress === true) {
                 emitOnlineLobbyReconnectProgress(this, attempt, maxAttempts);
             }
+            const pendingAttempt = this._makeConnectAttempt(setupFn, timeoutMs);
+            const ownAttempt = this._activeConnectAttempt;
             try {
-                await this._makeConnectAttempt(setupFn, timeoutMs);
+                await pendingAttempt;
                 return;
             } catch (err) {
                 lastError = err;
-                this._closeSocket();
-                if (this._cancelReconnect || attempt >= maxAttempts || !isRetryableSignalingError(err)) {
+                // After leave() a new join/create may already own _ws; only this attempt's socket is closed.
+                if (!ownAttempt || this._ws === ownAttempt.socket) this._closeSocket();
+                if (err?.code === 'connect_cancelled' || this._cancelReconnect || attempt >= maxAttempts
+                    || !isRetryableSignalingError(err)) {
                     break;
                 }
                 const retryDelayMs = retryDelays[Math.min(attempt - 1, retryDelays.length - 1)] || 0;
@@ -278,6 +283,11 @@ export class OnlineMatchLobby extends MatchLobby {
 
             const socket = new WebSocket(this._signalingUrl);
             this._ws = socket;
+            // leave() drops the socket before its close arrives; it settles the attempt through this.
+            this._activeConnectAttempt = {
+                socket,
+                cancel: () => connectReject(createOnlineSignalingError('connect_cancelled', 'Verbindungsaufbau abgebrochen.')),
+            };
             setupFn(socket, connectResolve, connectReject, connectState);
 
             socket.onerror = () => {
@@ -455,6 +465,7 @@ export class OnlineMatchLobby extends MatchLobby {
             signalingUrl: this._signalingUrl,
             source: 'manual_leave',
         }));
+        if (this._activeConnectAttempt?.socket === this._ws) this._activeConnectAttempt?.cancel();
         if (this._ws) {
             this._ws.close();
             this._ws = null;

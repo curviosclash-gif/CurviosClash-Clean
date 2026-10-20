@@ -22,10 +22,18 @@ const ID_LIST_FIELDS = new Set(['masteryMilestones', 'endlessSettlementIds']);co
 
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 
-/** Remembers what `owner` (a profile map) looked like when it was last loaded or saved. */
-export function rememberArcadeVehicleProfileBase(owner, profiles) {
+/**
+ * Remembers what `owner` (a profile map) looked like when it was last loaded or saved. Vehicles in
+ * `keepVehicleIds` were not stored, so they keep their previous base.
+ */
+export function rememberArcadeVehicleProfileBase(owner, profiles, keepVehicleIds = []) {
     if (!owner || typeof owner !== 'object') return;
+    const previous = PROFILE_BASES.get(owner)?.base || {};
     const base = JSON.parse(JSON.stringify(profiles || {}));
+    for (const vehicleId of keepVehicleIds || []) {
+        if (Object.hasOwn(previous, vehicleId)) base[vehicleId] = previous[vehicleId];
+        else delete base[vehicleId];
+    }
     const holder = PROFILE_BASES.get(owner);
     if (holder) holder.base = base;
     else PROFILE_BASES.set(owner, { base });
@@ -83,6 +91,23 @@ export function refuseArcadeBankConflict(conflicts) {
     return Array.isArray(conflicts) && conflicts.length > 0
         ? { success: false, reason: 'bank_conflict', metadata: { vehicleIds: conflicts.slice() } }
         : null;
+}
+
+/**
+ * A preserved (unreadable or future-schema) record wins over the writer's profile for that vehicle,
+ * so a writer that carries progress for it must hear that the save failed instead of losing it.
+ * An untouched lookup (getOrCreateProfile without changes) carries no progress and is not refused.
+ */
+export function refuseArcadePreservedTargets(ownProfiles, preservedProfiles, owner, normalize) {
+    const base = getArcadeVehicleProfileBase(owner);
+    const vehicleIds = Object.keys(ownProfiles || {}).filter((vehicleId) => {
+        if (!Object.hasOwn(preservedProfiles || {}, vehicleId)) return false;
+        const ours = ownProfiles[vehicleId];
+        const ownBase = normalize(base?.[vehicleId] || createArcadeVehicleProfileRecord(vehicleId, 0));
+        return Object.keys({ ...ours, ...ownBase }).some((key) => key !== 'createdAt' && key !== 'updatedAt'
+            && !same(ours[key], ownBase[key]));
+    });
+    return vehicleIds.length > 0 ? { success: false, reason: 'preserved_target', metadata: { vehicleIds } } : null;
 }
 
 /**
