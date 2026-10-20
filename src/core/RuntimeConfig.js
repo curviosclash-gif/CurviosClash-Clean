@@ -169,6 +169,7 @@ export function resolveBotPolicyType(
     {
         huntFeatureEnabled = true,
         planarMode = false,
+        trainerBridgeEnabled = false,
     } = {}
 ) {
     const normalizedStrategy = normalizeBotPolicyStrategy(strategy, BOT_POLICY_STRATEGIES.AUTO);
@@ -183,13 +184,13 @@ export function resolveBotPolicyType(
     if (normalizedStrategy === BOT_POLICY_STRATEGIES.HEURISTIC) {
         return BOT_POLICY_TYPES.HEURISTIC;
     }
-    // AUTO strategy: always use bridge policy types so that local checkpoint
-    // auto-loading works. The bridge policy gracefully falls back to rule-based
-    // when no checkpoint and no WebSocket bridge are available.
-    return resolveMatchBotPolicyType({
-        huntModeActive,
-        planarMode: !!planarMode,
-    });
+    // AUTO in 3D Classic plays the heuristic bot: measured headless against the bridge it dies
+    // less and wins more trail fights. Hunt keeps the bridge for the authored scenario roles only
+    // its fallback plays, Arcade for the arcade aggression, and the planar variants were not measured.
+    // An enabled trainer bridge keeps the Classic bridge, so a training session still drives the bots.
+    const classic3d = !planarMode && !trainerBridgeEnabled
+        && resolveActiveGameMode(activeGameMode, huntFeatureEnabled) === GAME_MODE_TYPES.CLASSIC;
+    return classic3d ? BOT_POLICY_TYPES.HEURISTIC : resolveMatchBotPolicyType({ huntModeActive, planarMode: !!planarMode });
 }
 
 export function createRuntimeConfigSnapshot(settings, {
@@ -286,6 +287,7 @@ export function createRuntimeConfigSnapshot(settings, {
     const botPolicyType = resolveBotPolicyType(botPolicyStrategy, activeGameMode, {
         huntFeatureEnabled,
         planarMode,
+        trainerBridgeEnabled,
     });
     const arcadeGhostDuelMode = resolveArcadeGhostDuelMode(source, { sessionType });
     const arcadeGhostTrailCollisionEnabled = resolveArcadeGhostTrailCollisionEnabled(source, {

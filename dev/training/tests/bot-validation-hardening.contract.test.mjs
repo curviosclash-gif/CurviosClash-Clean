@@ -323,8 +323,9 @@ test('shared sampler keeps the runtime and combat sample fields', async () => {
 
 test('heuristic validation selection filters before limiting and rejects unknown ids', () => {
     const matrix = getBotValidationMatrix();
+    // V1 (Auto in 3D Classic) plays the heuristic bot, so the policy filter keeps it.
     const heuristic = selectBotValidationScenarios(matrix, { policy: 'heuristic', limit: 2 });
-    assert.deepEqual(heuristic.map((entry) => entry.id), ['H-CLASSIC', 'H-FIGHT']);
+    assert.deepEqual(heuristic.map((entry) => entry.id), ['V1', 'H-CLASSIC']);
 
     const ordered = selectBotValidationScenarios(matrix, {
         ids: ['h-arcade', 'H-CLASSIC'],
@@ -340,8 +341,8 @@ test('heuristic validation selection filters before limiting and rejects unknown
 test('validation matrix matches the current runtime policy contract for every scenario', () => {
     // Keep this expected list independent of the runtime resolver and training benchmark source.
     const expectedPolicyById = new Map([
-        // Auto in 3D Classic flies the Classic bridge; switching it to the heuristic awaits a decision.
-        ['V1', 'classic-3d'],
+        // Auto in 3D Classic plays the heuristic bot (T81c in bot-policy-runtime-config).
+        ['V1', 'heuristic'],
         ['V2', 'classic-2d'],
         ['V3', 'hunt-2d'],
         ['V4', 'hunt-3d'],

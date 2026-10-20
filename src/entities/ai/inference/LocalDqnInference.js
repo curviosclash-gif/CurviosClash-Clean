@@ -64,6 +64,7 @@ export class LocalDqnInference {
             const inSize = Number(src.inputSize) || 0;
             const outSize = Number(src.outputSize) || 0;
             if (inSize < 1 || outSize < 1) return false;
+            if (layers.length > 0 && inSize !== layers[layers.length - 1].outputSize) return false;
             if (!Array.isArray(src.weights) || src.weights.length !== inSize * outSize) return false;
             if (!Array.isArray(src.bias) || src.bias.length !== outSize) return false;
             layers.push({

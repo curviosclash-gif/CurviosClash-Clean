@@ -675,7 +675,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
         expect(result.yawCommand).toBeTruthy();
     });
 
-    test('T80e: Matchpfad liefert fuer Bridge-Bot ueber Zeit Steering-Inputs (kein Dauer-Geradeaus)', async ({ page }) => {
+    test('T80e: Matchpfad liefert fuer den Auto-Bot ueber Zeit Steering-Inputs (kein Dauer-Geradeaus)', async ({ page }) => {
         await startGameWithBots(page, 1);
         const result = await page.evaluate(async () => {
             const game = window.GAME_INSTANCE;
@@ -732,7 +732,8 @@ test.describe('Physics Policy (Tests 65-82)', () => {
         });
 
         expect(result.error).toBeNull();
-        expect(result.policyType.includes('classic')).toBeTruthy();
+        // Auto plays the heuristic bot in 3D Classic (see T81c in bot-policy-runtime-config).
+        expect(result.policyType).toBe('heuristic');
         expect(result.sampleCount).toBeGreaterThan(40);
         expect(result.steeringRatio).toBeGreaterThan(0.02);
     });
@@ -808,9 +809,9 @@ test.describe('Physics Policy (Tests 65-82)', () => {
         });
 
         expect(result.error).toBeNull();
-        expect(result.classic3d.runtimePolicyType).toBe('classic-3d');
-        expect(result.classic3d.entityPolicyType).toBe('classic-3d');
-        expect(result.classic3d.uniqueBotPolicyTypes).toEqual(['classic-3d']);
+        expect(result.classic3d.runtimePolicyType).toBe('heuristic');
+        expect(result.classic3d.entityPolicyType).toBe('heuristic');
+        expect(result.classic3d.uniqueBotPolicyTypes).toEqual(['heuristic']);
         expect(result.classic3d.botCount).toBe(2);
         expect(result.classic2d.runtimePolicyType).toBe('classic-2d');
         expect(result.classic2d.entityPolicyType).toBe('classic-2d');

@@ -100,8 +100,8 @@ export class BotSensorsFacade {
         return this.sensors?._mapBehavior(arena) || { caution: 0, portalBias: 0, aggressionBias: 0 };
     }
 
-    computeDynamicLookAhead(player) {
-        return this.sensors?._computeDynamicLookAhead(player) || 8;
+    computeDynamicLookAhead(player, planarMode = false) {
+        return this.sensors?._computeDynamicLookAhead(player, planarMode) || 8;
     }
 
     _buildBasis(forward) {

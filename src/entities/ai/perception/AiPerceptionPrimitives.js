@@ -1,10 +1,29 @@
 import { clamp01 } from '../../../shared/utils/MathOps.js';
 import {
+    AI_SENSOR_LOOKAHEAD,
     AI_SENSOR_NORMALIZATION,
     AI_SENSOR_PRESSURE_WEIGHTS,
 } from './AiPerceptionConfig.js';
 
 export { clamp01 };
+
+/**
+ * How far ahead a bot must notice a wall to still turn away from it: the distance flown
+ * until its next decision plus its turning radius (speed / turn rate), plus body clearance.
+ * A fixed look-ahead ignores both, and a fast bot then sees the wall only once a turn
+ * can no longer clear it.
+ *
+ * @param {number} speed - Current travel speed in units per second.
+ * @param {number} turnSpeed - Yaw/pitch rate in radians per second.
+ * @param {number} reactionTime - Seconds between two steering decisions.
+ * @returns {number} Distance in world units.
+ */
+export function resolveBotReactionDistance(speed, turnSpeed, reactionTime) {
+    const travelSpeed = Math.abs(Number(speed) || 0);
+    const turnRate = Number(turnSpeed) > 0 ? Number(turnSpeed) : AI_SENSOR_LOOKAHEAD.fallbackTurnSpeed;
+    const reaction = Number(reactionTime) >= 0 ? Number(reactionTime) : AI_SENSOR_LOOKAHEAD.fallbackReactionTime;
+    return travelSpeed * (reaction + 1 / turnRate) + AI_SENSOR_LOOKAHEAD.reactionMargin;
+}
 
 export function normalizeSigned(value) {
     return clamp01((Number(value) + AI_SENSOR_NORMALIZATION.signedOffset) * AI_SENSOR_NORMALIZATION.signedScale);

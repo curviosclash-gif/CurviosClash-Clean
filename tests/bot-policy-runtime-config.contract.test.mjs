@@ -21,7 +21,7 @@ test('T79: RuntimeConfig setzt Trainer-WebSocket-Flag standardmaessig auf false'
     };
 
     assert.strictEqual(result.policyStrategy, 'auto');
-    assert.strictEqual(result.policyType, 'classic-3d');
+    assert.strictEqual(result.policyType, 'heuristic');
     assert.ok(!result.trainerBridgeEnabled);
     assert.ok(result.trainerBridgeUrl.startsWith('ws://'));
     assert.ok(result.trainerBridgeTimeoutMs >= 20);
@@ -29,6 +29,31 @@ test('T79: RuntimeConfig setzt Trainer-WebSocket-Flag standardmaessig auf false'
     assert.ok(result.trainerBridgeRetryDelayMs >= 0);
     assert.strictEqual(result.trainerCheckpointResumeToken, '');
     assert.ok(!result.trainerCheckpointResumeStrict);
+});
+
+// The menu default "Auto" picks the bot per mode. Headless comparisons (4 bots; empty, standard,
+// maze, trench; EASY to HARD) put the heuristic bot ahead of the Classic bridge in 3D Classic:
+// fewer deaths, more trail kills and round wins head to head. Hunt keeps its bridge (authored
+// scenario roles only it plays), Arcade keeps it (arcade aggression, difficulty spread) and the
+// planar variants were not measured.
+test('T81c: Auto spielt im 3D-Classic den Heuristik-Bot, sonst die Bruecke des Modus', () => {
+    const autoPolicyType = (settings) => createRuntimeConfigSnapshot({ botPolicyStrategy: 'auto', ...settings }).bot.policyType;
+
+    assert.equal(autoPolicyType({ gameMode: 'CLASSIC', gameplay: { planarMode: false } }), 'heuristic',
+        'Auto in 3D Classic plays the heuristic bot');
+    assert.equal(autoPolicyType({}), 'heuristic', 'the default match (3D Classic) plays the heuristic bot');
+    assert.equal(autoPolicyType({ gameMode: 'CLASSIC', gameplay: { planarMode: true } }), 'classic-2d',
+        'planar Classic keeps its bridge');
+    assert.equal(autoPolicyType({ gameMode: 'HUNT', gameplay: { planarMode: false } }), 'hunt-3d',
+        'Hunt keeps its bridge');
+    assert.equal(autoPolicyType({ gameMode: 'HUNT', gameplay: { planarMode: true } }), 'hunt-2d',
+        'planar Hunt keeps its bridge');
+    assert.equal(autoPolicyType({
+        gameMode: 'ARCADE', localSettings: { modePath: 'arcade', sessionType: 'single' }, gameplay: { planarMode: false },
+    }), 'classic-3d', 'Arcade keeps the Classic bridge');
+    assert.equal(autoPolicyType({
+        gameMode: 'CLASSIC', gameplay: { planarMode: false }, botBridge: { enabled: true },
+    }), 'classic-3d', 'an enabled trainer bridge keeps the Classic bridge in 3D Classic');
 });
 
 test('T79b: RuntimeConfig uebernimmt botBridge Resume- und Retry-Settings reproduzierbar', () => {
@@ -116,7 +141,7 @@ test('T81: RuntimeConfig loest Bot-Policy-Strategie reproduzierbar nach Modus au
         invalidStrategyPolicy: invalidStrategy?.bot?.policyType,
     };
 
-    assert.strictEqual(result.classic3dAuto, 'classic-3d');
+    assert.strictEqual(result.classic3dAuto, 'heuristic');
     assert.strictEqual(result.classic2dAuto, 'classic-2d');
     assert.strictEqual(result.hunt3dAuto, 'hunt-3d');
     assert.strictEqual(result.hunt2dAuto, 'hunt-2d');

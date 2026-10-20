@@ -13,6 +13,11 @@ export const AI_SENSOR_LOOKAHEAD = Object.freeze({
     defaultBaseDistance: 12,
     speedRatioWeight: 0.75,
     boostMultiplier: 1.2,
+    // Fallbacks for resolveBotReactionDistance when a vehicle or profile lacks the value,
+    // plus the clearance the vehicle body and the probe radius need on top of the turn.
+    fallbackTurnSpeed: 3.4,
+    fallbackReactionTime: 0.15,
+    reactionMargin: 2,
 });
 
 export const AI_SENSOR_SCAN_POLICY = Object.freeze({
