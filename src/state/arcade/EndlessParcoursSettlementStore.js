@@ -94,6 +94,8 @@ export function retryEndlessSettlements(store, nowMs = Date.now()) {
         return { ok: false, pending: true, reason: 'storage_unavailable' };
     }
     const ledger = loadEndlessSettlementLedger(store);
+    // A vehicle target that keeps refusing (e.g. a preserved record) must not hold back later runs.
+    let vehicleFailure = false;
     for (const entry of ledger.pending) {
         if (!entry.targets.records) {
             try {
@@ -106,15 +108,16 @@ export function retryEndlessSettlements(store, nowMs = Date.now()) {
         }
         if (!entry.targets.vehicle) {
             try {
-                if (!applyVehicleTarget(store, entry, nowMs)) return { ok: false, pending: true, reason: 'vehicle_write_failed' };
+                if (!applyVehicleTarget(store, entry, nowMs)) { vehicleFailure = true; continue; }
                 entry.targets.vehicle = true;
                 if (!saveLedger(store, ledger)) return { ok: false, pending: true, reason: 'ledger_status_failed' };
             } catch {
-                return { ok: false, pending: true, reason: 'vehicle_write_failed' };
+                vehicleFailure = true;
             }
         }
     }
     ledger.pending = ledger.pending.filter((entry) => !entry.targets.records || !entry.targets.vehicle);
     if (!saveLedger(store, ledger)) return { ok: false, pending: true, reason: 'ledger_cleanup_failed' };
+    if (vehicleFailure) return { ok: false, pending: true, reason: 'vehicle_write_failed' };
     return { ok: true, pending: false, reason: 'saved' };
 }

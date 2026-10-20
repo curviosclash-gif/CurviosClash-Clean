@@ -554,6 +554,8 @@ export function saveVehicleProfiles(store, profiles) {
     // Nothing is written and the base stays: the writer must reload before it may spend again.
     const refused = ProfileMerge.refuseArcadeBankConflict(conflicts);
     if (refused) { warnPersistenceFailure('saveVehicleProfiles', refused); return refused; }
+    // The other vehicles still save; the preserved one keeps its old base, so every retry refuses it again.
+    const preservedRefusal = ProfileMerge.refuseArcadePreservedTargets(ownProfiles, preservedProfiles, profiles, normalizeVehicleProfileSafe);
     // Rejected or malformed per-vehicle records stay byte-for-byte equivalent at the
     // JSON value level, including when a fresh runtime profile has the same vehicle ID.
     const saveResult = store.saveJsonRecord(STORAGE_KEY, {
@@ -561,8 +563,10 @@ export function saveVehicleProfiles(store, profiles) {
         ...preservedProfiles,
     });
     warnPersistenceFailure('saveVehicleProfiles', saveResult);
-    if (isPersistenceSuccess(saveResult)) ProfileMerge.rememberArcadeVehicleProfileBase(profiles, ownProfiles);
-    return saveResult;
+    if (!isPersistenceSuccess(saveResult)) return saveResult;
+    ProfileMerge.rememberArcadeVehicleProfileBase(profiles, ownProfiles, preservedRefusal?.metadata.vehicleIds);
+    if (preservedRefusal) warnPersistenceFailure('saveVehicleProfiles', preservedRefusal);
+    return preservedRefusal || saveResult;
 }
 
 export function getOrCreateProfile(profiles, vehicleId, nowMs = Date.now()) {

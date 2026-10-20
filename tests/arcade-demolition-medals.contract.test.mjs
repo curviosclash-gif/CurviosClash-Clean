@@ -158,3 +158,25 @@ test('readable foreign data and a store without a read result are never saved ov
         assert.deepEqual(store.data.get(KEY), before);
     }
 });
+
+test('a better medal keeps fields a newer build stored next to the medal and on the record', () => {
+    const stored = {
+        version: 1,
+        note: 'from a newer build',
+        maps: { eiffel: { medal: 'bronze', bestScore: 10, extra: { laps: 3 } } },
+    };
+    const { record, changed } = mergeDemolitionMedalResult(stored, { mapKey: 'eiffel', medal: 'gold', score: 50 });
+    assert.equal(changed, true);
+    assert.deepEqual(record.maps.eiffel, { medal: 'gold', bestScore: 50, extra: { laps: 3 } }, 'extra survives the upgrade');
+    assert.equal(record.note, 'from a newer build', 'unknown record fields survive the save');
+    assert.equal(record.version, 1);
+});
+test('a medal value from a newer build survives a merge and is not shown as a broken label', () => {
+    const stored = { version: 1, maps: { eiffel: { medal: 'platinum', bestScore: 80 } } };
+    const { record } = mergeDemolitionMedalResult(stored, { mapKey: 'eiffel', medal: 'gold', score: 50 });
+    assert.equal(record.maps.eiffel.medal, 'platinum', 'an unknown newer medal is never downgraded');
+    assert.equal(record.maps.eiffel.bestScore, 80);
+    const other = mergeDemolitionMedalResult(stored, { mapKey: 'skyline', medal: 'bronze', score: 5 }).record;
+    assert.equal(other.maps.eiffel.medal, 'platinum', 'saving another map keeps the newer value');
+    assert.doesNotMatch(formatDemolitionBestMedalsLine(stored), /undefined/);
+});

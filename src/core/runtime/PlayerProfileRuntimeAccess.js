@@ -65,11 +65,14 @@ export function createPlayerProfileMenuRuntimeAccess(game) {
         const profile = getArcadePrimaryPlayerProfile();
         return profile ? resolvePlayerRecordStorePortForIndex(game?.playerProfileManager, 0, profile.id) : null;
     };
+    // Arcade vehicle progress belongs to the arcade primary profile (split-screen P1), like the arcade
+    // menu store. A stale P1 refuses writes instead of falling back to the active profile.
+    const getWorkshopStore = () => (game?.playerProfileManager ? getArcadeSettingsStore() : getSettingsStore());
     const dynamicStore = Object.freeze({
-        loadJsonRecord: (key, fallback = null) => getSettingsStore()?.loadJsonRecord?.(key, fallback) ?? fallback,
-        saveJsonRecord: (key, value) => getSettingsStore()?.saveJsonRecord?.(key, value),
-        readJsonRecordResult: (key) => getSettingsStore()?.readJsonRecordResult?.(key),
-        removeJsonRecord: (key) => getSettingsStore()?.removeJsonRecord?.(key),
+        loadJsonRecord: (key, fallback = null) => getWorkshopStore()?.loadJsonRecord?.(key, fallback) ?? fallback,
+        saveJsonRecord: (key, value) => getWorkshopStore()?.saveJsonRecord?.(key, value) ?? false,
+        readJsonRecordResult: (key) => getWorkshopStore()?.readJsonRecordResult?.(key),
+        removeJsonRecord: (key) => getWorkshopStore()?.removeJsonRecord?.(key) ?? false,
     });
     return Object.freeze({
         getSettingsStore,

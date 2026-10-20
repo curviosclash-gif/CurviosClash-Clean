@@ -55,3 +55,26 @@ test('browser hangar navigation encodes the profile independently of its mode', 
     await adapter.openWindow({ mode: 'fight', profileId: 'b' });
     assert.equal(new URL(destination, 'https://local.invalid/').searchParams.has('profileId'), false);
 });
+
+test('the vehicle workshop writes into the arcade primary profile, not into the active profile', () => {
+    const { access, stores, game } = harness();
+    for (const store of Object.values(stores)) {
+        const records = new Map();
+        store.records = records;
+        store.loadJsonRecord = (key, fallback = null) => (records.has(key) ? structuredClone(records.get(key)) : fallback);
+        store.readJsonRecordResult = (key) => (records.has(key)
+            ? { ok: true, status: 'found', value: structuredClone(records.get(key)) }
+            : { ok: true, status: 'missing', value: null });
+        store.saveJsonRecord = (key, value) => { records.set(key, structuredClone(value)); return true; };
+    }
+    const workshop = access.arcadeVehicleProfileWorkshop;
+    const profiles = workshop.load();
+    profiles.ship1 = { ...workshop.getOrCreate(profiles, 'ship1'), xp: 70 };
+    workshop.save(profiles);
+    assert.equal(stores.b.records.size > 0, true, 'split-screen P1 B receives the workshop save');
+    assert.equal(stores.a.records.size, 0, 'the active profile A stays untouched');
+
+    game.settings.localSettings.startSetup.arcadePlayerProfileIds[0] = 'deleted';
+    assert.equal(workshop.save(workshop.load()) === true, false, 'a stale P1 never falls back to active A');
+    assert.equal(stores.a.records.size, 0);
+});

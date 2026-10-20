@@ -13,10 +13,13 @@ function medalRank(medal) {
     return Math.max(0, DEMOLITION_MEDAL_ORDER.indexOf(String(medal || '')));
 }
 
+const isKnownMedal = (medal) => DEMOLITION_MEDAL_ORDER.includes(medal);
+
+// Fields a newer build stores next to medal and score are carried along, so saving never strips them.
 function normalizeEntry(value) {
     const medal = DEMOLITION_MEDAL_ORDER[medalRank(value?.medal)];
     const score = Number(value?.bestScore);
-    return { medal, bestScore: Number.isFinite(score) ? Math.max(0, Math.floor(score)) : 0 };
+    return { ...value, medal, bestScore: Number.isFinite(score) ? Math.max(0, Math.floor(score)) : 0 };
 }
 
 /**
@@ -27,15 +30,16 @@ function normalizeEntry(value) {
 export function normalizeDemolitionMedalRecord(value) {
     /** @type {Record<string, {medal: string, bestScore: number}>} */
     const maps = {};
-    const source = value && typeof value === 'object' && !Array.isArray(value)
-        && value.version === DEMOLITION_MEDAL_RECORD_VERSION ? value.maps : null;
+    const readable = Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+        && value.version === DEMOLITION_MEDAL_RECORD_VERSION;
+    const source = readable ? value.maps : null;
     if (source && typeof source === 'object' && !Array.isArray(source)) {
         for (const [mapKey, entry] of Object.entries(source)) {
             if (!MAP_KEY_PATTERN.test(mapKey) || !entry || typeof entry !== 'object') continue;
             maps[mapKey] = normalizeEntry(entry);
         }
     }
-    return { version: DEMOLITION_MEDAL_RECORD_VERSION, maps };
+    return { ...(readable ? value : {}), version: DEMOLITION_MEDAL_RECORD_VERSION, maps };
 }
 
 /** Only an absent record or one of this version may be saved over; a newer or foreign shape is left alone. */
@@ -44,15 +48,29 @@ export function isWritableDemolitionMedalRecord(value) {
     return typeof value === 'object' && !Array.isArray(value) && value.version === DEMOLITION_MEDAL_RECORD_VERSION;
 }
 
+// The display view drops medal values this build does not know; the saved record keeps them unchanged.
+function restoreUnknownMedals(normalized, record) {
+    const source = record?.version === DEMOLITION_MEDAL_RECORD_VERSION ? record.maps : null;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return;
+    for (const [mapKey, entry] of Object.entries(normalized.maps)) {
+        const raw = source[mapKey]?.medal;
+        if (typeof raw === 'string' && raw && !isKnownMedal(raw)) entry.medal = raw;
+    }
+}
+
 /** Medal and score each keep their best value: a weaker result never replaces a stronger one. */
 export function mergeDemolitionMedalResult(record, { mapKey = '', medal = '', score = 0 } = {}) {
     const normalized = normalizeDemolitionMedalRecord(record);
+    restoreUnknownMedals(normalized, record);
     const key = String(mapKey || '').trim();
     if (!MAP_KEY_PATTERN.test(key)) return { record: normalized, changed: false };
     const previous = normalized.maps[key] || { medal: '', bestScore: 0 };
     const incoming = normalizeEntry({ medal, bestScore: score });
     const next = {
-        medal: medalRank(incoming.medal) > medalRank(previous.medal) ? incoming.medal : previous.medal,
+        ...previous,
+        medal: isKnownMedal(previous.medal) && medalRank(incoming.medal) > medalRank(previous.medal)
+            ? incoming.medal
+            : previous.medal,
         bestScore: Math.max(previous.bestScore, incoming.bestScore),
     };
     const changed = !normalized.maps[key] || next.medal !== previous.medal || next.bestScore !== previous.bestScore;
@@ -63,7 +81,7 @@ export function mergeDemolitionMedalResult(record, { mapKey = '', medal = '', sc
 /** "Beste Medaillen: Eiffelturm Gold · Skyline Silber", or '' when no medal was won yet. */
 export function formatDemolitionBestMedalsLine(record) {
     const parts = Object.entries(normalizeDemolitionMedalRecord(record).maps)
-        .filter(([, entry]) => entry.medal)
+        .filter(([, entry]) => entry.medal && MEDAL_LABELS[entry.medal])
         .map(([mapKey, entry]) => `${resolveDemolitionMapProfile(mapKey)?.label || mapKey} ${MEDAL_LABELS[entry.medal]}`);
     return parts.length ? `Beste Medaillen: ${parts.join(' · ')}` : '';
 }

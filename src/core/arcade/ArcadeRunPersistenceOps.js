@@ -1,6 +1,30 @@
 import { createArcadeRunRecords } from '../../state/arcade/ArcadeRunState.js';
 import { saveGhostLibrary } from '../../state/arcade/ArcadeGhostLibrary.js';
 import { ARCADE_RUN_PROFILE_STORAGE_KEY, GAUNTLET_FREE_RUN_PROFILE_STORAGE_KEY } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import { loadArcadeVehicleProfileRecord } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
+
+const DAMAGED_RECORD_STATUSES = new Set(['invalid', 'not_object']);
+
+/**
+ * A save that can never succeed: the stored vehicle profile record is damaged, or a vehicle the run
+ * flew is held back as a preserved record (unreadable or newer schema), and those saves are refused so
+ * nothing overwrites it. A failed read or a full storage may still recover and is not this.
+ */
+export function isArcadeSaveBlockedByDamagedRecord(kind, store, lastFailure = null) {
+    if (String(kind || '').split(':')[0] !== 'vehicleProfiles' || !store) return false;
+    if (lastFailure?.reason === 'preserved_target') return true;
+    const record = loadArcadeVehicleProfileRecord(store);
+    return record.canPersist === false && DAMAGED_RECORD_STATUSES.has(record.unreadableRecord?.status);
+}
+
+/**
+ * Whether a failed save must block the next run. Saves blocked by a damaged record are dropped first:
+ * the run then plays without saving and the result screen says why (saveBlockedKinds).
+ */
+export function hasBlockingArcadePersistenceFailures(runtime) {
+    runtime?._persistenceScheduler?.releaseFailedKinds?.(isArcadeSaveBlockedByDamagedRecord);
+    return Boolean(runtime?._persistenceScheduler?.getFailedKinds?.().length || runtime?._ghostLibrarySaveFailed);
+}
 
 export function resolveArcadeRunProfileStorageKey(config) {
     return config?.runType === 'gauntlet' && config.dailyChallenge !== true && !config.journeyStageId
@@ -33,6 +57,11 @@ export function syncArcadePersistenceFailures(runtime) {
     if (summary && typeof summary === 'object') {
         if (failures.length > 0) summary.saveFailures = failures;
         else delete summary.saveFailures;
+        const scheduler = runtime._persistenceScheduler;
+        const blocked = failures.filter((kind) => isArcadeSaveBlockedByDamagedRecord(kind,
+            scheduler?.getPendingStore?.(kind), scheduler?.getLastFailure?.(kind)));
+        if (blocked.length > 0) summary.saveBlockedKinds = blocked;
+        else delete summary.saveBlockedKinds;
     }
     return failures;
 }

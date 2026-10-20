@@ -8,6 +8,7 @@ import {
     loadGhostLibrary,
 } from '../../state/arcade/ArcadeGhostLibrary.js';
 import { LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import { hasBlockingArcadePersistenceFailures } from './ArcadeRunPersistenceOps.js';
 
 function toSafeBudgetLimit(value, fallback = 0) {
     const numeric = Math.trunc(Number(value));
@@ -36,7 +37,7 @@ export function resolveArcadeGhostLibraryBudgetOptions(runtime, source = null) {
 
 export function configureArcadeRun(runtime, runtimeConfig = null) {
     runtime.flushPersistenceSaves();
-    if (runtime._persistenceScheduler?.getFailedKinds?.().length || runtime._ghostLibrarySaveFailed) {
+    if (hasBlockingArcadePersistenceFailures(runtime)) {
         throw new Error('Der vorherige Arcade-Fortschritt konnte noch nicht gespeichert werden.');
     }
     const nextConfig = createArcadeRunConfig(runtimeConfig?.arcade || null);
