@@ -233,11 +233,11 @@ export class FourPlayerPlanarModule {
         this._persistSetupSelection();
         const selection = this._resolveSelection();
         const localSettings = this.runtime.ensureLocalSettings();
+        this._captureMatchSettingsSnapshot(settings, localSettings);
         localSettings.sessionType = 'splitscreen';
         localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
         localSettings.fourPlayerPlanar = selection;
         localSettings.modePath = selection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? 'fight' : 'normal';
-        this._captureMatchSettingsSnapshot(settings);
         settings.mode = '2p';
         settings.gameMode = selection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? 'HUNT' : 'CLASSIC';
         settings.mapKey = selection.mapKey;
@@ -287,8 +287,9 @@ export class FourPlayerPlanarModule {
      * werden deshalb vorher gesichert und beim Verlassen wiederhergestellt.
      *
      * @param {any} settings
+     * @param {any} localSettings Holds the menu path the match borrows.
      */
-    _captureMatchSettingsSnapshot(settings) {
+    _captureMatchSettingsSnapshot(settings, localSettings) {
         if (this._matchSettingsSnapshot) return;
         this._matchSettingsSnapshot = {
             mode: settings.mode,
@@ -299,6 +300,7 @@ export class FourPlayerPlanarModule {
             planarMode: settings.gameplay?.planarMode,
             vehiclePlayer1: settings.vehicles?.PLAYER_1,
             vehiclePlayer2: settings.vehicles?.PLAYER_2,
+            modePath: localSettings?.modePath,
         };
         this._matchSettingsWereActive = false;
     }
@@ -326,6 +328,10 @@ export class FourPlayerPlanarModule {
             settings.vehicles.PLAYER_1 = snapshot.vehiclePlayer1;
             settings.vehicles.PLAYER_2 = snapshot.vehiclePlayer2;
         }
+        // Only the menu path is borrowed. Split-screen variant and setup selection are the
+        // player's own choice in the four player menu and stay.
+        const localSettings = this.runtime?.ensureLocalSettings?.();
+        if (localSettings) localSettings.modePath = snapshot.modePath;
         this.runtime?.notifySettingsChanged?.();
     }
 

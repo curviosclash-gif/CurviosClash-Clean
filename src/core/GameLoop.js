@@ -5,6 +5,10 @@ import { createLogger } from '../shared/logging/Logger.js';
 import { showRuntimeErrorOverlay } from './RuntimeErrorOverlay.js';
 
 const logger = createLogger('GameLoop');
+// One or two bad frames (a transient asset or driver hiccup) are skipped; a third fault before a
+// clean second of play stops the loop, so a fault that keeps coming back is never hidden.
+const MAX_RECENT_FRAME_FAULTS = 3;
+const FRAME_FAULT_FORGET_CLEAN_FRAMES = 60;
 
 export class GameLoop {
     constructor(updateFn, renderFn, options = {}) {
@@ -16,6 +20,8 @@ export class GameLoop {
         this._boundLoop = this._loop.bind(this);
         this.frameId = null;
         this._errorShown = false;
+        this._recentFrameFaults = 0;
+        this._cleanFramesSinceFault = 0;
         this.accumulator = 0;
         this.fixedStep = 1 / 60;
         this.maxSubSteps = 4;
@@ -53,6 +59,8 @@ export class GameLoop {
         this.running = true;
         this.lastTime = performance.now();
         this._errorShown = false;
+        this._recentFrameFaults = 0;
+        this._cleanFramesSinceFault = 0;
         this.accumulator = 0;
         this.renderAlpha = 0;
         this.renderDelta = this.fixedStep;
@@ -197,17 +205,27 @@ export class GameLoop {
             const rawAlpha = this.fixedStep > 0 ? (this.accumulator / this.fixedStep) : 0;
             this.renderAlpha = Number.isFinite(rawAlpha) ? Math.max(0, Math.min(1, rawAlpha)) : 0;
             this.renderFn(this.renderAlpha, this.renderDelta);
+            this._cleanFramesSinceFault += 1;
+            if (this._cleanFramesSinceFault >= FRAME_FAULT_FORGET_CLEAN_FRAMES) this._recentFrameFaults = 0;
         } catch (err) {
-            if (!this._errorShown) {
-                this._errorShown = true;
-                logger.error('GameLoop error:', err);
-                showRuntimeErrorOverlay({
-                    title: 'FEHLER',
-                    lines: [String(err?.message || err || 'Unbekannter Runtime-Fehler')],
-                    stack: err?.stack || 'No stack trace',
-                });
+            this._recentFrameFaults += 1;
+            this._cleanFramesSinceFault = 0;
+            if (this._recentFrameFaults < MAX_RECENT_FRAME_FAULTS) {
+                // Stays an error so test runs and logs still see every fault.
+                logger.error('GameLoop frame skipped after an error:', err);
+                this.accumulator = 0;
+            } else {
+                if (!this._errorShown) {
+                    this._errorShown = true;
+                    logger.error('GameLoop error:', err);
+                    showRuntimeErrorOverlay({
+                        title: 'FEHLER',
+                        lines: [String(err?.message || err || 'Unbekannter Runtime-Fehler')],
+                        stack: err?.stack || 'No stack trace',
+                    });
+                }
+                this.stop();
             }
-            this.stop();
         }
         runtimePerfProfiler?.endFrame(rawDt * 1000, now);
 

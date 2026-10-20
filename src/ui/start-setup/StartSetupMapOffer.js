@@ -1,6 +1,17 @@
 import { isParcoursActiveForGameMode } from '../../shared/contracts/MapModeContract.js';
+import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 
 export const SHOWCASE_MAP_FILTER = 'showcase';
+
+export function isFightScenarioMap(mapDefinition) {
+    return resolveMapSinglePlayerScenario(mapDefinition)?.modePath === 'fight';
+}
+
+export function resolveFightScenarioBadge(mapDefinition, modePath) {
+    return String(modePath || '').trim().toLowerCase() === 'normal' && isFightScenarioMap(mapDefinition)
+        ? 'Spielt als Fight'
+        : '';
+}
 
 /**
  * Whether the map picker offers a map for a mode path. Every map stays valid everywhere,
@@ -22,5 +33,5 @@ export function isMapOfferedForModePath(entry, mapDefinition, modePath, mapFilte
     const collection = String(entry?.collection || '').trim().toLowerCase();
     if (collection !== 'parcours') return true;
     return isParcoursActiveForGameMode(mapDefinition, 'HUNT')
-        || mapDefinition?.singlePlayerScenario?.modePath === 'fight';
+        || isFightScenarioMap(mapDefinition);
 }

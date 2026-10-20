@@ -139,3 +139,53 @@ test('an explicit arcade pick of the assault course keeps its own mode and bots'
     assert.equal(facade.game.settings.numBots, 0);
     handler.dispose();
 });
+
+test('fight scenarios restore the previous mode path and game mode when returning to menu', () => {
+    const facade = createFacade('cherry_grove');
+    facade.game.settings.localSettings.modePath = 'normal';
+    // Classic and Fight share the fight slot of the hangar selection; the player picked this map.
+    facade.game.settings.localSettings.startSetup = {
+        modeSelections: {
+            fight: { mapKey: 'cherry_grove' },
+        },
+    };
+    facade.game.settings.gameMode = 'CLASSIC';
+    facade.game.settings.numBots = 2;
+    const handler = new GameRuntimeSettingsHandler({ facade });
+
+    handler.applyMapScenarioStartDefaults();
+    assert.equal(facade.game.settings.localSettings.modePath, 'fight');
+    assert.equal(facade.game.settings.gameMode, 'HUNT');
+
+    handler.restoreMapScenarioBotCount();
+    handler.restoreSessionSettings();
+    assert.equal(facade.game.settings.localSettings.modePath, 'normal');
+    assert.equal(facade.game.settings.gameMode, 'CLASSIC');
+    assert.equal(facade.game.settings.mapKey, 'cherry_grove', 'the map the player picked stays chosen');
+    assert.equal(facade.game.settings.localSettings.startSetup.modeSelections.fight.mapKey, 'cherry_grove');
+    assert.equal(facade.game.settings.localSettings.startSetup.modeSelections.normal, undefined,
+        'no slot is invented for the Classic path');
+    assert.equal(facade.game.settings.numBots, 2);
+    handler.dispose();
+});
+
+test('returning from a scenario preserves later manual mode changes', () => {
+    const facade = createFacade('cherry_grove');
+    facade.game.settings.localSettings.modePath = 'normal';
+    facade.game.settings.gameMode = 'CLASSIC';
+    facade.game.settings.numBots = 2;
+    const handler = new GameRuntimeSettingsHandler({ facade });
+
+    handler.applyMapScenarioStartDefaults();
+    facade.game.settings.localSettings.modePath = 'arcade';
+    facade.game.settings.gameMode = 'ARCADE';
+    facade.game.settings.mapKey = 'aetherion_orrery';
+    handler.restoreMapScenarioBotCount();
+    handler.restoreSessionSettings();
+
+    assert.equal(facade.game.settings.localSettings.modePath, 'arcade');
+    assert.equal(facade.game.settings.gameMode, 'ARCADE');
+    assert.equal(facade.game.settings.mapKey, 'aetherion_orrery');
+    assert.equal(facade.game.settings.numBots, 2);
+    handler.dispose();
+});

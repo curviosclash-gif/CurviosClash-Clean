@@ -47,3 +47,62 @@ test('the runtime HUD writes the fitted scale onto the page', () => {
     assert.equal(hud.read('--hud-scale'), '1');
     assert.equal(documentStub.documentElement.read('--hud-scale'), '1');
 });
+
+test('same-window updates reuse one resize listener and a window switch detaches the old owner', () => {
+    const makeView = (innerWidth, innerHeight) => {
+        const listeners = new Set();
+        return {
+            innerWidth,
+            innerHeight,
+            listeners,
+            addEventListener(type, listener) { if (type === 'resize') listeners.add(listener); },
+            removeEventListener(type, listener) { if (type === 'resize') listeners.delete(listener); },
+            dispatchResize() { for (const listener of [...listeners]) listener(); },
+        };
+    };
+    const makeDocument = (view) => {
+        const document = { defaultView: view };
+        document.documentElement = createElement(document);
+        return document;
+    };
+    const oldView = makeView(1280, 720);
+    const oldDocument = makeDocument(oldView);
+    const oldHud = createElement(oldDocument);
+    const newView = makeView(1920, 1080);
+    const newDocument = makeDocument(newView);
+    const newHud = createElement(newDocument);
+
+    try {
+        applyRuntimeHudAppearance(oldHud, { scale: 1.4, opacity: 1, colorPreset: 'green' });
+        const oldHandler = [...oldView.listeners][0];
+        assert.equal(oldView.listeners.size, 1);
+
+        applyRuntimeHudAppearance(oldHud, { scale: 1.2, opacity: 0.8, colorPreset: 'amber' });
+        assert.equal(oldView.listeners.size, 1, 'same-window settings update does not register another listener');
+        oldView.innerWidth = 1920;
+        oldView.innerHeight = 1080;
+        oldView.dispatchResize();
+        assert.equal(oldHud.read('--hud-scale'), '1.2', 'resize uses the latest appearance');
+        assert.equal(oldDocument.documentElement.read('--hud-color'), '#ffd28d');
+
+        applyRuntimeHudAppearance(newHud, { scale: 1.4, opacity: 0.7, colorPreset: 'cyan' });
+        assert.equal(oldView.listeners.size, 0, 'switching windows unregisters the old view');
+        assert.equal(newView.listeners.size, 1);
+        const oldHudBeforeStaleDispatch = oldHud.read('--hud-scale');
+        const newHudBeforeStaleDispatch = newHud.read('--hud-scale');
+        oldView.innerWidth = 1280;
+        oldView.dispatchResize();
+        assert.equal(oldHud.read('--hud-scale'), oldHudBeforeStaleDispatch, 'old view resize has no owner');
+        oldHandler();
+        assert.equal(oldHud.read('--hud-scale'), oldHudBeforeStaleDispatch, 'queued old callback no longer writes to old view');
+        assert.equal(newHud.read('--hud-scale'), newHudBeforeStaleDispatch, 'queued old callback cannot act as the new owner');
+
+        newView.innerWidth = 1280;
+        newView.dispatchResize();
+        assert.equal(newHud.read('--hud-scale'), '1');
+        assert.equal(newDocument.documentElement.read('--hud-color'), '#8ddcff');
+    } finally {
+        const detachedDocument = { defaultView: null, documentElement: null };
+        applyRuntimeHudAppearance(createElement(detachedDocument), { scale: 1, opacity: 1 });
+    }
+});

@@ -6,6 +6,8 @@ import { normalizeMobileClassicControlSettings } from '../shared/contracts/Mobil
 import { applyAxisDeadzone } from '../shared/utils/InputAxisOps.js';
 import { resolveFirstViewportFraction } from '../shared/contracts/ViewportLayoutContract.js';
 
+/* global __APP_MODE__, __APP_TARGET__ */
+
 const MOUSE_STEERING_DEADZONE = 0.08;
 const DISCONNECTED_CONTROLLER_INPUT = Object.freeze({
     pitchAxis: 0, yawAxis: 0, rollAxis: 0,
@@ -30,6 +32,12 @@ function isCoarsePrimaryPointer() {
     return typeof window !== 'undefined'
         && typeof window.matchMedia === 'function'
         && window.matchMedia('(pointer: coarse)').matches === true;
+}
+
+function isDesktopAppTarget() {
+    const appMode = typeof __APP_MODE__ === 'string' ? __APP_MODE__.trim().toLowerCase() : '';
+    const appTarget = typeof __APP_TARGET__ === 'string' ? __APP_TARGET__.trim().toLowerCase() : '';
+    return appMode === 'app' && appTarget !== 'mobile-classic' && appTarget !== 'mobile-arcade';
 }
 
 function isMobileArcadeMode(game = null) {
@@ -304,7 +312,7 @@ export function createPreferredMatchInputSource({
     const mobileClassic = touchCapable && isMobileClassicTarget(game);
     const mobileArcade = touchCapable && isMobileArcadeTarget(game);
     // Touch laptops and touch monitors report touch points too; they keep keyboard and mouse.
-    const touchAvailable = touchCapable && (mobileClassic || mobileArcade || isCoarsePrimaryPointer());
+    const touchAvailable = touchCapable && (mobileClassic || mobileArcade || (isCoarsePrimaryPointer() && !isDesktopAppTarget()));
     const mobileArcadeMode = mobileArcade || (mobileClassic && isMobileArcadeMode(game));
     const createTouchSource = () => new TouchInputSource({
         game,

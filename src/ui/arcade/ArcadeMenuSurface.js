@@ -19,7 +19,7 @@ import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.j
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { renderArcadeLeaderboardMenu } from './ArcadeLeaderboardMenuView.js';
-import { observeMenuReturn } from './MenuReturnObserver.js';
+import { bindMenuReturnSync } from './MenuReturnObserver.js';
 import { bindArcadeRunOptionToggles, syncArcadeRunOptionToggles } from './ArcadeRunOptionToggles.js';
 import { bindValidatedArcadeStartCapture, shouldShowArcadePlayerProfileControls, setupArcadePlayerProfileSelection, validateLocalArcadeProfileStart, resolveDemolitionLocalPlayerCount } from './ArcadeDemolitionProfileSelection.js';
 import { bindArcadeSpecialStartButtons } from './ArcadeMenuSpecialStartOps.js';
@@ -504,10 +504,13 @@ export function setupArcadeMenuSurface(ctx = {}) {
             recordRunStart(prepared?.build);
         });
 
-    const syncOnInteraction = () => {
-        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(sync);
-        else setTimeout(sync, 0);
-    };
+    const menuReturn = bindMenuReturnSync(
+        level3Body.closest?.('#main-menu'),
+        sync,
+        () => testFlightMenu.onMenuReturn(),
+        ctx.registerDisposer,
+    );
+    const { syncOnInteraction } = menuReturn;
 
     for (const select of refs.demolitionProfileSelects || []) bind(select, 'change', () => {
         renderSplitProfileSeats({ ui, settings, runtimeAccess });
@@ -538,9 +541,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     // Refresh an open Daily over midnight too; the run resolver validates the date again on start.
     const dailyRefresh = setInterval(() => { if (refs.dailyEntry?.getAttribute('aria-expanded') === 'true') sync(); }, 30_000);
     dailyRefresh.unref?.();
-    ui.arcadeSurfaceDispose = () => { clearInterval(dailyRefresh); refs.journey.dispose(); refs.journey.element.remove?.(); refs.dailyLine.closest?.('.journey-daily-panel')?.remove(); };
+    ui.arcadeSurfaceDispose = () => { menuReturn.dispose(); clearInterval(dailyRefresh); refs.journey.dispose(); refs.journey.element.remove?.(); refs.dailyLine.closest?.('.journey-daily-panel')?.remove(); };
     ui.arcadeJourneyOpenStage = (stageId) => { sync(); refs.journey.openStage(stageId); };
-    const syncOnMenuReturn = () => { testFlightMenu.onMenuReturn(); syncOnInteraction(); };
-    observeMenuReturn(level3Body.closest?.('#main-menu'), syncOnMenuReturn);
     sync();
 }

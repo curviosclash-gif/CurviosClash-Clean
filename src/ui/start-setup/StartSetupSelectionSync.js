@@ -12,8 +12,14 @@ import { listFreePlayEligibleMapKeys } from '../../shared/contracts/FreePlayMapC
 import { isArcadeSelectableVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { ARCADE_GHOST_DUEL_MODES } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { renderQuickList } from './StartSetupUiOps.js';
-import { isMapOfferedForModePath } from './StartSetupMapOffer.js';
+import { isMapOfferedForModePath, resolveFightScenarioBadge } from './StartSetupMapOffer.js';
 import { renderFreePlayMapCount, rememberFreePlayVariantMap, syncMapProfileCard } from './StartSetupFreePlayMaps.js';
+
+// Classic shows scenario maps that start as Fight with a hint, wherever the picker lists them.
+function withFightScenarioBadge(label, mapDefinition, modePath) {
+    const scenarioBadge = resolveFightScenarioBadge(mapDefinition, modePath);
+    return scenarioBadge ? `${label} · ${scenarioBadge}` : label;
+}
 
 const MAP_FILTER_OPTIONS = Object.freeze([
     ['arena', 'Sammlung: Arenen'],
@@ -185,7 +191,7 @@ function syncMapSelect({
     matchingMapEntries.forEach((entry) => {
             const option = document.createElement('option');
             option.value = entry.key;
-            option.textContent = formatMapLabel(entry);
+            option.textContent = withFightScenarioBadge(formatMapLabel(entry), runtimeMaps?.[entry.key], modePath);
             assignMapOptionCollection(option, entry);
             ui.mapSelect.appendChild(option);
         });
@@ -232,7 +238,7 @@ function syncMapSelect({
             || resolveMapPreview(previousValue);
         const option = document.createElement('option');
         option.value = previousValue;
-        option.textContent = formatMapLabel(previousEntry);
+        option.textContent = withFightScenarioBadge(formatMapLabel(previousEntry), previousMapDefinition, modePath);
         option.hidden = previousMapDefinition?.hiddenFromMapPicker === true;
         if (option.dataset) option.dataset.filterRetained = 'true';
         assignMapOptionCollection(option, previousEntry);

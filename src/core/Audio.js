@@ -138,7 +138,7 @@ export class AudioManager {
     _removeAllWindowListeners() {
         if (!this._registeredWindowListeners.length) return;
         for (const entry of this._registeredWindowListeners) {
-            window.removeEventListener(entry.type, entry.listener);
+            window.removeEventListener(entry.type, entry.listener, true);
         }
         this._registeredWindowListeners = [];
     }
