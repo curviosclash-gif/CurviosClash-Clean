@@ -4,15 +4,23 @@ import {
 } from './FightMachineGunContract.js';
 import { normalizeArcadeMachineGunId } from './ArcadeMachineGunContract.js';
 import { normalizeArcadeBotAggressiveness } from './ArcadeBotAggressionContract.js';
+import { MAP_PROFILE_SIZE_CLASSES, classifyMapSize } from './MapProfileContract.js';
 
 export const ARENA_WAVES_RUN_TYPE = 'arena_waves';
 export const ARENA_WAVES_COMBAT_PROFILE = 'hunt';
 export const ARENA_WAVES_BOT_CAPACITY = 24;
 export const ARENA_WAVES_WAVES_PER_MAP = 2;
-export const ARENA_WAVES_RULE_VERSION = 'arena-waves-rules.v2';
-export const ARENA_WAVES_INTERVAL_SECONDS = 60;
+// v3: timed waves join living ones (user decision 2026-10-19), so v2 scores rank separately.
+export const ARENA_WAVES_RULE_VERSION = 'arena-waves-rules.v3';
+// Every tick brings the next wave while the arena is below its active bot limit; an arena is
+// won once ARENA_WAVES_WAVES_PER_MAP waves are fully cleared, whichever waves those are.
+export const ARENA_WAVES_INTERVAL_SECONDS = 30;
+// A wave tick only fills the arena up to this many active bots.
+// "Very small" is the map picker's small class (MapProfileContract footprint) of the map size.
+export const ARENA_WAVES_ACTIVE_BOT_LIMIT = 12;
+export const ARENA_WAVES_SMALL_MAP_ACTIVE_BOT_LIMIT = 8;
 // An emptied arena shortens the rest of the wave timer to this window; every skipped second
-// scores twice the survival rate, so clearing fast beats waiting out the minute.
+// scores twice the survival rate, so clearing fast beats waiting out the interval.
 export const ARENA_WAVES_CLEAR_REMAINDER_SECONDS = 5;
 export const ARENA_WAVES_FAST_CLEAR_POINTS_PER_SECOND = 10;
 export const ARENA_WAVES_MAPS = Object.freeze([
@@ -56,6 +64,11 @@ export function normalizeArenaWavesCombatProfile(value, runType) {
         ? ARENA_WAVES_COMBAT_PROFILE : '';
 }
 export function resolveArenaWavesMap(index) { return ARENA_WAVES_MAPS[clamp(Math.trunc(number(index)), 0, ARENA_WAVES_MAPS.length - 1)]; }
+/** A map without a readable size keeps the regular limit; only a known small footprint lowers it. */
+export function resolveArenaWavesActiveBotLimit(mapSize) {
+    return Array.isArray(mapSize) && classifyMapSize(mapSize) === MAP_PROFILE_SIZE_CLASSES.SMALL
+        ? ARENA_WAVES_SMALL_MAP_ACTIVE_BOT_LIMIT : ARENA_WAVES_ACTIVE_BOT_LIMIT;
+}
 export function resolveArenaWavesMapMultipliers(index) { return ARENA_WAVES_MAP_MULTIPLIERS[clamp(Math.trunc(number(index)), 0, ARENA_WAVES_MAP_MULTIPLIERS.length - 1)]; }
 export function resolveArenaWavesProfile(wave) {
     const ordinal = Math.max(1, Math.trunc(number(wave, 1)));
@@ -111,8 +124,10 @@ export function applyArenaWavesChoice(upgrades, choiceId) {
     return next;
 }
 export function calculateArenaWavesScore({ survivalSeconds = 0, regularKills = 0, eliteKills = 0, completedWaves = [], fastClearSeconds = 0 } = {}) {
-    const waves = Array.isArray(completedWaves) ? completedWaves : [];
-    return Math.floor(Math.max(0, number(survivalSeconds)))*5 + Math.max(0, Math.trunc(number(regularKills)))*250 + Math.max(0, Math.trunc(number(eliteKills)))*900 + 500 * waves.reduce((sum, wave) => sum + Math.max(0, Math.trunc(number(wave))), 0)
+    const cleared = Array.isArray(completedWaves) ? completedWaves.length : 0;
+    // The k-th cleared wave of an arena scores 500 * k, whichever wave number it had: stalling for
+    // late (possibly one-bot) waves earns no more than clearing waves 1 and 2.
+    return Math.floor(Math.max(0, number(survivalSeconds)))*5 + Math.max(0, Math.trunc(number(regularKills)))*250 + Math.max(0, Math.trunc(number(eliteKills)))*900 + 500 * cleared * (cleared + 1) / 2
         + Math.floor(Math.max(0, number(fastClearSeconds))) * ARENA_WAVES_FAST_CLEAR_POINTS_PER_SECOND;
 }
 export function applyArenaWavesMachineGunTuning(config = {}, tuning = 0) {
